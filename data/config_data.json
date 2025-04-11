@@ -1,0 +1,36 @@
+{
+    "profile": {
+        "departements": [
+          "Bureau",
+          "Entrepôt",
+          "Ventes Interne",
+          "Représentant",
+          "Service"
+        ],
+        "emplacements": [
+          "Mascouche",
+          "Quebec"
+        ],
+        "superviseurs": [
+          "Gabriel Jacques",
+          "Jean-Pierre Godin",
+          "Simon Desrosiers",
+          "Gabriel Jacques",
+          "Martin Gagnon",
+          "Pascal Tremblay",
+          "Jean-Pierre Godin",
+          "Héloïse Ouimet"
+        ],
+        "plafond_deplacement":[
+          {
+            "Cap 0": 0.0,
+            "Cap 1": 1200.0,
+            "Cap 2": 3000.0
+          }
+        ],
+        "themes": [
+          "Clair",
+          "Sombre"
+        ]
+    }
+}
