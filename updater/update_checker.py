@@ -20,7 +20,8 @@ GITHUB_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/release
 VERSION_FILE = os.path.join(CONFIG.get("DATA_PATH", "data"), "version.txt")
 
 # Chemin vers l'exécutable update helper (à générer et placer dans un dossier dédié, par exemple "updater")
-UPDATER_EXECUTABLE = os.path.join("updater", "update_helper.exe")
+app_dir = os.path.dirname(sys.executable)
+UPDATER_EXECUTABLE = os.path.join(app_dir, "updater", "update_helper.exe")
 
 
 def get_local_version():
@@ -69,12 +70,13 @@ def prompt_update(remote_version):
 def launch_updater(installer_url):
     """Lance l'update helper en lui passant l'URL de l'installateur en paramètre."""
     try:
-        # Lancer l'exécutable updater avec l'URL comme argument
+        print("Lancement de l'update helper avec l'URL :", installer_url)
         subprocess.Popen([UPDATER_EXECUTABLE, installer_url])
-        # Fermer l'application principale
+        print("Update helper lancé, fermeture de l'application principale.")
         sys.exit(0)
     except Exception as e:
         print("Erreur lors du lancement de l'updater :", e)
+
 
 
 def check_for_updates():
