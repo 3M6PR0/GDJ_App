@@ -8,7 +8,7 @@ class HomePage(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        title = QLabel("Bienvenue dans Mon App Pro")
+        title = QLabel("GDJ - v1.0.3")
         layout.addWidget(title)
 
         # Boutons pour créer ou ouvrir un document
