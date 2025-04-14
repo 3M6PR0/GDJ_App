@@ -20,7 +20,7 @@ GITHUB_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/release
 VERSION_FILE = os.path.join(CONFIG.get("DATA_PATH", "data"), "version.txt")
 
 # Chemin vers l'exécutable update helper (à générer et placer dans un dossier dédié, par exemple "updater")
-UPDATER_EXECUTABLE = os.path.join("updater", "updater.exe")
+UPDATER_EXECUTABLE = os.path.join("updater", "update_helper.exe")
 
 
 def get_local_version():
