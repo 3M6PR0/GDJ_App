@@ -22,6 +22,7 @@ Source: "..\data\config_data.json"; DestDir: "{app}\data"; Flags: recursesubdirs
 Source: "..\data\profile.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 Source: "..\data\version.txt"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 
+
 [Icons]
 ; Crée un raccourci dans le menu Démarrer qui lancera GDJ.exe (lorsque l'utilisateur le lancera manuellement)
 Name: "{group}\GDJ"; Filename: "{app}\GDJ.exe"

@@ -5,6 +5,7 @@ import json
 import requests
 import subprocess
 import sys
+import configparser
 from packaging import version  # Pour comparer les versions
 from config import CONFIG
 from PyQt5.QtWidgets import QMessageBox
@@ -25,12 +26,12 @@ UPDATER_EXECUTABLE = os.path.join(app_dir, "updater", "update_helper.exe")
 
 
 def get_local_version():
-    """Lit la version locale depuis le fichier version.txt."""
+    """Lit la version locale depuis le fichier version.txt en utilisant configparser."""
     if not os.path.exists(VERSION_FILE):
         return "0.0.0"
-    with open(VERSION_FILE, "r", encoding="utf-8") as f:
-        ver = f.read().strip()
-    return ver
+    config = configparser.ConfigParser()
+    config.read(VERSION_FILE, encoding="utf-8")
+    return config.get("Version", "value").strip()
 
 
 def get_remote_release_info():
