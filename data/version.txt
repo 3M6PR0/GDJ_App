@@ -1,2 +1,2 @@
 [Version]
-value=1.0.19
+value=1.0.20

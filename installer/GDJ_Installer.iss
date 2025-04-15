@@ -20,7 +20,7 @@ PrivilegesRequired=lowest
 [Files]
 Source: "..\data\config_data.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 Source: "..\data\profile.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
-Source: "..\data\version.txt"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs; Attribs: readonly
+Source: "..\data\version.txt"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 
 [Icons]
 ; Crée un raccourci dans le menu Démarrer qui lancera GDJ.exe (lorsque l'utilisateur le lancera manuellement)
