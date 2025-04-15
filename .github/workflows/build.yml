@@ -1,0 +1,42 @@
+name: Build GDJ Installer
+
+# Ce workflow se déclenche lorsqu'une release est créée
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywin32 packaging requests
+
+      - name: Build GDJ.exe with PyInstaller
+        run: |
+          pyinstaller --onefile --windowed --name=GDJ main.py
+
+      - name: Build installer with Inno Setup
+        # Si Inno Setup est installé sur le runner, vous pouvez compiler votre script .iss.
+        # Si ce n'est pas le cas, vous devez le télécharger et l'installer, ou utiliser un runner auto-hébergé.
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\GDJ_Installer.iss
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: GDJ-Build
+          path: |
+            dist\GDJ.exe
+            installer\Output\GDJ_Installer.exe
