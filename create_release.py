@@ -8,8 +8,8 @@ import json
 REPO_OWNER = "3M6PR0"          # Propriétaire du repository
 REPO_NAME = "GDJ_App"          # Nom du repository
 TARGET_BRANCH = "main"         # Branche cible de la release
-TAG_NAME = "v1.0.10"            # Tag de la nouvelle release
-RELEASE_NAME = "Version 1.0.10 - Release automatique"
+TAG_NAME = "v1.0.11"            # Tag de la nouvelle release
+RELEASE_NAME = "Version 1.0.11 - Release automatique"
 RELEASE_BODY = "Ceci est une release générée automatiquement avec l'installateur compilé."
 DRAFT = False
 PRERELEASE = False
