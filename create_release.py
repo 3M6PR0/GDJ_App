@@ -4,12 +4,29 @@ import subprocess
 import requests
 import json
 
+
+# ---------- Fonction pour lire la version depuis data/version.txt ----------
+def get_version_from_file():
+    version_file = os.path.join("data", "version.txt")
+    if not os.path.exists(version_file):
+        print(f"Erreur : Le fichier {version_file} n'existe pas.")
+        sys.exit(1)
+    with open(version_file, "r", encoding="utf-8") as f:
+        ver = f.read().strip()
+    return ver
+
+
 # ---------- Configuration ----------
-REPO_OWNER = "3M6PR0"  # Propriétaire du repository
+REPO_OWNER = "3M6PR0"  # Propriétaire du repository sur GitHub
 REPO_NAME = "GDJ_App"  # Nom de votre repository
-TARGET_BRANCH = "main"  # Branche cible pour la release (à partir de laquelle la nouvelle branche sera créée)
-TAG_NAME = "v1.0.13"  # Tag de la nouvelle release
-BRANCH_NAME = f"pack {TAG_NAME}"  # Nom de la nouvelle branche (ex: "pack v1.0.2")
+TARGET_BRANCH = "main"  # On travaille directement sur la branche principale
+
+# Récupération de la version depuis data/version.txt
+TAG_NAME = get_version_from_file()  # Ex. "v1.0.14" ou "1.0.14", selon ce que contient le fichier
+# Si le fichier contient seulement la version sans "v", on peut l'ajouter automatiquement :
+if not TAG_NAME.startswith("v"):
+    TAG_NAME = "v" + TAG_NAME
+
 RELEASE_NAME = f"Version {TAG_NAME} - Release automatique"
 RELEASE_BODY = "Ceci est une release générée automatiquement avec l'installateur compilé."
 DRAFT = False
@@ -24,19 +41,16 @@ if not GITHUB_TOKEN:
 # URL de l'API GitHub pour les releases
 API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases"
 
-# Chemin de l'exécutable Inno Setup (à adapter à votre installation)
-ISCC_PATH = r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-# Chemin vers le script Inno Setup
-ISS_SCRIPT = os.path.join("installer", "GDJ_Installer.iss")
-# Chemin de l'artefact compilé par Inno Setup (sortie du script .iss)
-INSTALLER_OUTPUT = os.path.join("installer", "Output", "GDJ_Installer.exe")
+# Chemins utilisés
+ISCC_PATH = r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"  # Chemin vers Inno Setup Compiler
+ISS_SCRIPT = os.path.join("installer", "GDJ_Installer.iss")  # Script Inno Setup
+INSTALLER_OUTPUT = os.path.join("installer", "Output", "GDJ_Installer.exe")  # Sortie du script .iss
 
 
 # ---------- Fonctions ----------
-
 def compile_gdj():
     """
-    Compile GDJ.exe avec PyInstaller en mode onefile, windowed.
+    Compile GDJ.exe avec PyInstaller en mode onefile et windowed.
     """
     print("Compilation de GDJ.exe avec PyInstaller...")
     try:
@@ -47,38 +61,6 @@ def compile_gdj():
         print("Compilation de GDJ.exe terminée.")
     except subprocess.CalledProcessError as e:
         print("Erreur lors de la compilation de GDJ.exe :", e)
-        sys.exit(1)
-
-
-def git_commit_push_new_branch(commit_message, branch_name):
-    """
-    Crée une nouvelle branche (basée sur TARGET_BRANCH), y commit et pousse le commit.
-    """
-    try:
-        print(f"Création de la branche '{branch_name}' basée sur {TARGET_BRANCH}...")
-        subprocess.run(["git", "checkout", TARGET_BRANCH], check=True)
-        subprocess.run(["git", "checkout", "-b", branch_name], check=True)
-        subprocess.run(["git", "add", "."], check=True)
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
-        subprocess.run(["git", "push", "-u", "origin", branch_name], check=True)
-        print(f"Branche '{branch_name}' créée et poussée avec succès.")
-    except subprocess.CalledProcessError as e:
-        print("Erreur lors de la création ou du push de la branche :", e)
-        sys.exit(1)
-
-
-def update_branch_config_file(branch_name):
-    """
-    Met à jour (ou crée) le fichier data/branch.txt avec le nom de la branche.
-    Ce fichier peut être utilisé par l'installateur pour pointer vers la branche appropriée.
-    """
-    config_path = os.path.join("data", "branch.txt")
-    try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write(branch_name)
-        print(f"Le fichier de configuration de branche '{config_path}' a été mis à jour.")
-    except Exception as e:
-        print("Erreur lors de la mise à jour du fichier branch.txt :", e)
         sys.exit(1)
 
 
@@ -97,7 +79,7 @@ def compile_innosetup():
 
 def create_release():
     """
-    Crée une release sur GitHub via l'API.
+    Crée une nouvelle release sur GitHub via l'API.
     """
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
@@ -105,7 +87,7 @@ def create_release():
     }
     payload = {
         "tag_name": TAG_NAME,
-        "target_commitish": BRANCH_NAME,  # On pointe la release vers la nouvelle branche
+        "target_commitish": TARGET_BRANCH,
         "name": RELEASE_NAME,
         "body": RELEASE_BODY,
         "draft": DRAFT,
@@ -157,33 +139,26 @@ def upload_asset(upload_url, asset_path, asset_label=None):
 def main():
     # Étape 1 : Compiler GDJ.exe avec PyInstaller.
     compile_gdj()
-
-    # Vérifier que GDJ.exe existe dans le dossier dist.
     gdj_path = os.path.join("dist", "GDJ.exe")
     if not os.path.exists(gdj_path):
         print("Erreur : GDJ.exe n'a pas été trouvé dans le dossier 'dist'.")
         sys.exit(1)
 
-    # Étape 2 : Créer une nouvelle branche pour le packaging.
-    git_commit_push_new_branch(f"Build release {TAG_NAME} - Mise à jour de GDJ.exe", BRANCH_NAME)
-
-    # Étape 3 : Mettre à jour le fichier de configuration de branche.
-    update_branch_config_file(BRANCH_NAME)
-
-    # Étape 4 : Compiler l'installateur via Inno Setup.
+    # Étape 2 : Compiler l'installateur via Inno Setup.
     compile_innosetup()
-
-    # Vérifier que l'installateur existe.
     if not os.path.exists(INSTALLER_OUTPUT):
         print("Erreur : L'installateur n'a pas été trouvé à", INSTALLER_OUTPUT)
         sys.exit(1)
 
-    # Étape 5 : Créer la release GitHub, en pointant vers la nouvelle branche.
+    # Étape 3 : Créer la release GitHub à partir de la branche main.
     release_info = create_release()
 
-    # Étape 6 : Uploader l'installateur sur la release.
+    # Étape 4 : Uploader l'installateur sur la release.
     upload_url = release_info["upload_url"]
     upload_asset(upload_url, INSTALLER_OUTPUT, asset_label="Installateur GDJ")
+
+    # Étape 5 : Uploader GDJ.exe dans la release.
+    upload_asset(upload_url, gdj_path, asset_label="GDJ.exe")
 
     print("Processus de création de release terminé avec succès.")
 

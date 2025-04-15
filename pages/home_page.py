@@ -1,4 +1,18 @@
+import os
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget
+
+def get_version_from_file():
+    version_file = os.path.join("data", "version.txt")
+    try:
+        with open(version_file, "r", encoding="utf-8") as f:
+            ver = f.read().strip()
+        # Si la version ne commence pas par "v", vous pouvez l'ajouter ici ou la laisser telle quelle.
+        if not ver.startswith("v"):
+            ver = "v" + ver
+        return ver
+    except Exception as e:
+        print("Erreur lors de la lecture du fichier version :", e)
+        return "v0.0.0"  # Version par défaut en cas d'erreur
 
 class HomePage(QWidget):
     def __init__(self, controller):
@@ -8,7 +22,8 @@ class HomePage(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        title = QLabel("GDJ - v1.0.13")
+        version = get_version_from_file()  # Récupère la version depuis data/version.txt
+        title = QLabel(f"GDJ - {version}")
         layout.addWidget(title)
 
         # Boutons pour créer ou ouvrir un document
