@@ -14,6 +14,7 @@ RELEASE_BODY = "Ceci est une release générée automatiquement avec l'installat
 DRAFT = False
 PRERELEASE = False
 
+
 # Récupération du token GitHub
 GITHUB_TOKEN = os.getenv("GH_TOKEN")
 if not GITHUB_TOKEN:
