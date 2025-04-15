@@ -1,18 +1,20 @@
 import os
+import configparser
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget
 
 def get_version_from_file():
     version_file = os.path.join("data", "version.txt")
+    config = configparser.ConfigParser()
     try:
-        with open(version_file, "r", encoding="utf-8") as f:
-            ver = f.read().strip()
-        # Si la version ne commence pas par "v", vous pouvez l'ajouter ici ou la laisser telle quelle.
-        if not ver.startswith("v"):
-            ver = "v" + ver
-        return ver
+        config.read(version_file)
+        ver = config.get("Version", "value")
     except Exception as e:
         print("Erreur lors de la lecture du fichier version :", e)
-        return "v0.0.0"  # Version par défaut en cas d'erreur
+        ver = "0.0.0"
+    # Si la version ne commence pas par "v", on l'ajoute.
+    if not ver.startswith("v"):
+        ver = "v" + ver
+    return ver
 
 class HomePage(QWidget):
     def __init__(self, controller):
@@ -22,7 +24,7 @@ class HomePage(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        version = get_version_from_file()  # Récupère la version depuis data/version.txt
+        version = get_version_from_file()  # Récupère la version depuis data/version.txt (ex: "v1.0.16")
         title = QLabel(f"GDJ - {version}")
         layout.addWidget(title)
 

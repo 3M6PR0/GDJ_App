@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mon_app",
-    version="1.0.10",
+    version="1.0.17",
     packages=find_packages(),
     install_requires=[
         "PyQt5",

@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import requests
+import configparser
 import json
 
 
@@ -11,8 +12,15 @@ def get_version_from_file():
     if not os.path.exists(version_file):
         print(f"Erreur : Le fichier {version_file} n'existe pas.")
         sys.exit(1)
-    with open(version_file, "r", encoding="utf-8") as f:
-        ver = f.read().strip()
+    config = configparser.ConfigParser()
+    try:
+        config.read(version_file, encoding="utf-8")
+        ver = config.get("Version", "value").strip()
+    except Exception as e:
+        print("Erreur lors de la lecture du fichier version.txt :", e)
+        sys.exit(1)
+    if not ver.startswith("v"):
+        ver = "v" + ver
     return ver
 
 
