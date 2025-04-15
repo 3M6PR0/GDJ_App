@@ -1,6 +1,5 @@
 name: Build GDJ Installer
 
-# Ce workflow se déclenche lorsqu'une release est créée
 on:
   release:
     types: [created]
@@ -27,9 +26,12 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --name=GDJ main.py
 
+      - name: Install Inno Setup
+        run: |
+          curl -L -o InnoSetup.exe https://jrsoftware.org/is/InnoSetup-6.2.2.exe
+          start /wait InnoSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+
       - name: Build installer with Inno Setup
-        # Si Inno Setup est installé sur le runner, vous pouvez compiler votre script .iss.
-        # Si ce n'est pas le cas, vous devez le télécharger et l'installer, ou utiliser un runner auto-hébergé.
         run: |
           "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\GDJ_Installer.iss
 
