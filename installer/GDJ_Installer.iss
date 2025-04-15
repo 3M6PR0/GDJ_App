@@ -3,7 +3,7 @@
 ;-----------------------------------------------------------
 [Setup]
 AppName=GDJ
-AppVersion=1.0.12
+AppVersion=1.0.13
 DefaultDirName={localappdata}\GDJ
 DefaultGroupName=GDJ
 OutputBaseFilename=GDJ_Installer
