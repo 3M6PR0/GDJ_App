@@ -9,6 +9,7 @@ import configparser
 from packaging import version  # Pour comparer les versions
 from config import CONFIG
 from PyQt5.QtWidgets import QMessageBox
+import time
 
 # Paramètres de votre dépôt GitHub (à adapter)
 REPO_OWNER = "3M6PR0"  # Remplacez par le nom de votre compte ou organisation
@@ -69,32 +70,57 @@ def prompt_update(remote_version):
 
 
 def launch_updater(installer_url):
-    """Lance l'update helper en lui passant l'URL de l'installateur en paramètre."""
+    """Lance l'update helper en lui passant l'URL de l'installateur en paramètre.
+    Ajout de logs détaillés et d'une QMessageBox de débogage.
+    """
     try:
-        print("Tentative de lancement de l'update helper...")
+        print("--- Début launch_updater ---")
         # Définir le chemin vers l'updater
         app_dir = os.path.dirname(sys.executable)
+        print(f"[DEBUG] sys.executable: {sys.executable}")
+        print(f"[DEBUG] app_dir: {app_dir}")
         UPDATER_EXECUTABLE = os.path.join(app_dir, "updater", "update_helper.exe")
-        print(f"Chemin updater: {UPDATER_EXECUTABLE}")
+        print(f"[IMPORTANT] Chemin complet de l'updater qui va être vérifié et lancé : {UPDATER_EXECUTABLE}")
+
+        # Afficher une boîte de dialogue pour confirmation manuelle du chemin (POUR DEBUG UNIQUEMENT)
+        # ATTENTION: Retirer cette boîte pour la production !
+        debug_msg = QMessageBox()
+        debug_msg.setIcon(QMessageBox.Information)
+        debug_msg.setWindowTitle("Debug Lancement Updater")
+        debug_msg.setText(f"Préparation au lancement de l'updater depuis ce chemin:\n\n{UPDATER_EXECUTABLE}\n\nEst-ce que ce chemin correspond à l'installation actuelle ?")
+        debug_msg.setDetailedText(f"sys.executable: {sys.executable}\napp_dir: {app_dir}")
+        debug_msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        # result = debug_msg.exec_()
+        # if result == QMessageBox.Cancel:
+        #    print("Lancement annulé par l'utilisateur via la boîte de debug.")
+        #    return
 
         # Vérifier si l'updater existe AVANT de le lancer
+        print(f"Vérification de l'existence de : {UPDATER_EXECUTABLE}")
         if not os.path.exists(UPDATER_EXECUTABLE):
-            print(f"Erreur : {UPDATER_EXECUTABLE} non trouvé.")
+            print(f"ERREUR CRITIQUE : {UPDATER_EXECUTABLE} non trouvé.")
             QMessageBox.critical(None, "Erreur de mise à jour",
                                  f"Le fichier nécessaire à la mise à jour est introuvable.\nChemin attendu : {UPDATER_EXECUTABLE}")
-            return # Sortir de la fonction, l'application reste ouverte
+            return
+        else:
+            print(f"SUCCÈS : {UPDATER_EXECUTABLE} trouvé.")
+            # Vérifier la date de modification pour info
+            try:
+                mtime = os.path.getmtime(UPDATER_EXECUTABLE)
+                print(f"Date de modification de l'updater trouvé : {time.ctime(mtime)}")
+            except Exception as e_stat:
+                print(f"Impossible de lire la date de modification : {e_stat}")
 
-        print("Lancement de l'update helper avec l'URL :", installer_url)
-        subprocess.Popen([UPDATER_EXECUTABLE, installer_url])
-        print("Update helper lancé, fermeture de l'application principale.")
+        print(f"Lancement de Popen avec : {[UPDATER_EXECUTABLE, installer_url]}")
+        # Lancement effectif
+        process = subprocess.Popen([UPDATER_EXECUTABLE, installer_url])
+        print(f"subprocess.Popen a retourné (PID: {process.pid}). Fermeture de l'application principale.")
         sys.exit(0) # Fermeture de l'application actuelle
 
     except Exception as e:
-        print("Erreur lors du lancement de l'updater :", e)
-        # Afficher l'erreur à l'utilisateur
+        print(f"ERREUR FATALE dans launch_updater : {e}")
         QMessageBox.critical(None, "Erreur de mise à jour",
-                             f"Une erreur est survenue lors du lancement de la mise à jour :\n{e}")
-        # L'application reste ouverte car sys.exit(0) n'est pas atteint
+                             f"Une erreur fatale est survenue lors du lancement de la mise à jour :\n{e}")
 
 
 def check_for_updates():

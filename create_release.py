@@ -95,21 +95,30 @@ def compile_gdj():
 
 def compile_update_helper():
     """
-    Compile update_helper avec PyInstaller en mode one-folder (simple).
+    Compile update_helper avec PyInstaller en mode one-folder ET windowed.
+    Ajoute les imports cachés pour PyQt5 et collections.
+    Retrait de pyqtgraph.
     """
-    print("Compilation de update_helper (one-folder, simple) avec PyInstaller...")
+    print("Compilation de update_helper (one-folder, windowed, avec PyQt5) avec PyInstaller...")
     script_path = os.path.join("updater", "update_helper.py")
     helper_name = "update_helper"
     try:
         cmd = [
             "pyinstaller",
-            "--noconfirm", # Gardé pour écraser la sortie
+            "--noconfirm",
             "--clean",
+            "--windowed",
             f"--name={helper_name}",
-            # Mode dossier par défaut (pas de --onefile)
-            # Imports cachés pour les dépendances restantes
+            # Mode dossier par défaut
+            # Imports cachés
             "--hidden-import=requests",
-            "--hidden-import=packaging",
+            "--hidden-import=packaging", # Gardé au cas où, même si non explicitement utilisé
+            "--hidden-import=collections.deque",
+            "--hidden-import=PyQt5",
+            "--hidden-import=PyQt5.QtWidgets",
+            "--hidden-import=PyQt5.QtCore",
+            "--hidden-import=PyQt5.QtGui",
+            # "--hidden-import=pyqtgraph", # <-- Retiré car plus utilisé
             script_path,
         ]
         print("Commande PyInstaller pour update_helper:", cmd)
@@ -119,7 +128,7 @@ def compile_update_helper():
             capture_output=True,
             text=True
         )
-        print("Compilation de update_helper (one-folder, simple) terminée.")
+        print("Compilation de update_helper (one-folder, windowed, avec PyQt5) terminée.")
     except subprocess.CalledProcessError as e:
         print(f"Erreur lors de la compilation de update_helper : {e}")
         print("stdout:", e.stdout); print("stderr:", e.stderr); sys.exit(1)
