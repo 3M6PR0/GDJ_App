@@ -27,5 +27,11 @@ class MainWindow(QMainWindow):
         menu_bar.addAction(self.action_profile)
 
         # Autres menus
-        menu_bar.addMenu("Options")
-        menu_bar.addMenu("Aide")
+        options_menu = menu_bar.addMenu("Options")
+        aide_menu = menu_bar.addMenu("Aide")
+
+        # --- Ajout de l'action Notes de version ---
+        self.actionAfficherNotesVersion = QAction("Notes de version", self)
+        self.actionAfficherNotesVersion.setObjectName("actionAfficherNotesVersion")
+        aide_menu.addAction(self.actionAfficherNotesVersion)
+        # --- Fin Ajout ---

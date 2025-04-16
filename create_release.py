@@ -31,13 +31,29 @@ REPO_NAME = "GDJ_App"  # Nom de votre repository
 TARGET_BRANCH = "main"  # On travaille directement sur la branche principale
 
 # Récupération de la version depuis data/version.txt
-TAG_NAME = get_version_from_file()  # Ex. "v1.0.14" ou "1.0.14", selon ce que contient le fichier
-# Si le fichier contient seulement la version sans "v", on peut l'ajouter automatiquement :
+TAG_NAME = get_version_from_file()  # Ex. "v1.1.0"
 if not TAG_NAME.startswith("v"):
     TAG_NAME = "v" + TAG_NAME
 
 RELEASE_NAME = f"Version {TAG_NAME} - Release automatique"
-RELEASE_BODY = "Ceci est une release générée automatiquement avec l'installateur compilé."
+
+# Lire le contenu brut des notes depuis le fichier externe
+RELEASE_NOTES_FILE = "RELEASE_NOTES.md"
+release_notes_content = ""
+try:
+    with open(RELEASE_NOTES_FILE, 'r', encoding='utf-8') as f:
+        release_notes_content = f.read()
+    print(f"Contenu des notes lu depuis {RELEASE_NOTES_FILE}")
+except FileNotFoundError:
+    print(f"Avertissement : Le fichier {RELEASE_NOTES_FILE} est introuvable. Le corps de la release sera générique.")
+    release_notes_content = "Publication automatique de cette version."
+except Exception as e:
+    print(f"Erreur lors de la lecture de {RELEASE_NOTES_FILE} : {e}. Le corps de la release sera générique.")
+    release_notes_content = f"Publication automatique de cette version. Erreur lecture notes: {e}"
+
+# Construire le corps final de la release avec le titre dynamique
+RELEASE_BODY = f"# Notes de version - {TAG_NAME}\n\n{release_notes_content}"
+
 DRAFT = False
 PRERELEASE = False
 

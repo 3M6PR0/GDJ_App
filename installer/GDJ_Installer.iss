@@ -28,7 +28,8 @@ Source: "updater\*"; DestDir: "{app}\updater"; Flags: ignoreversion recursesubdi
 Source: "..\data\config_data.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 Source: "..\data\profile.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 Source: "..\data\version.txt"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
-
+; Inclure les notes de version
+Source: "..\RELEASE_NOTES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Crée un raccourci dans le menu Démarrer qui lancera GDJ.exe
