@@ -4,6 +4,7 @@ import subprocess
 import requests
 import configparser
 import json
+import shutil
 
 
 # ---------- Fonction pour lire la version depuis data/version.txt ----------
@@ -64,12 +65,50 @@ def compile_gdj():
     try:
         subprocess.run(
             ["pyinstaller", "--onefile", "--windowed", "--clean", "--name=GDJ", "main.py"],
-            check=True
+            check=True,
+            capture_output=True, # Capturer stdout/stderr pour ne pas polluer la sortie principale
+            text=True
         )
         print("Compilation de GDJ.exe terminée.")
     except subprocess.CalledProcessError as e:
         print("Erreur lors de la compilation de GDJ.exe :", e)
+        print("stdout:", e.stdout)
+        print("stderr:", e.stderr)
         sys.exit(1)
+
+
+def compile_update_helper():
+    """
+    Compile update_helper avec PyInstaller en mode one-folder (simple).
+    """
+    print("Compilation de update_helper (one-folder, simple) avec PyInstaller...")
+    script_path = os.path.join("updater", "update_helper.py")
+    helper_name = "update_helper"
+    try:
+        cmd = [
+            "pyinstaller",
+            "--noconfirm", # Gardé pour écraser la sortie
+            "--clean",
+            f"--name={helper_name}",
+            # Mode dossier par défaut (pas de --onefile)
+            # Imports cachés pour les dépendances restantes
+            "--hidden-import=requests",
+            "--hidden-import=packaging",
+            script_path,
+        ]
+        print("Commande PyInstaller pour update_helper:", cmd)
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print("Compilation de update_helper (one-folder, simple) terminée.")
+    except subprocess.CalledProcessError as e:
+        print(f"Erreur lors de la compilation de update_helper : {e}")
+        print("stdout:", e.stdout); print("stderr:", e.stderr); sys.exit(1)
+    except FileNotFoundError:
+        print("Erreur : PyInstaller introuvable..."); sys.exit(1)
 
 
 def compile_innosetup():
@@ -145,17 +184,49 @@ def upload_asset(upload_url, asset_path, asset_label=None):
 
 # ---------- Main ----------
 def main():
-    # Étape 1 : Compiler GDJ.exe avec PyInstaller.
+    # Étape 1 : Compiler GDJ.exe avec PyInstaller (onefile).
     compile_gdj()
-    gdj_path = os.path.join("dist", "GDJ.exe")
-    if not os.path.exists(gdj_path):
-        print("Erreur : GDJ.exe n'a pas été trouvé dans le dossier 'dist'.")
+    gdj_path_dist = os.path.join("dist", "GDJ.exe")
+    gdj_path_installer_src = os.path.join("installer", "GDJ.exe")
+    if not os.path.exists(gdj_path_dist):
+        print("Erreur : GDJ.exe n'a pas été trouvé...")
+        sys.exit(1)
+
+    # Étape 1.5 : Compiler update_helper (one-folder) avec PyInstaller.
+    compile_update_helper()
+    # Le résultat est maintenant un dossier dist/update_helper
+    updater_folder_dist = os.path.join("dist", "update_helper")
+    updater_dest_folder_installer = os.path.join("installer", "updater") # Dossier cible pour Inno Setup
+    if not os.path.exists(updater_folder_dist):
+        print("Erreur : Le dossier de l'updater n'a pas été trouvé dans 'dist'.")
+        sys.exit(1)
+
+    # Supprimer l'ancien dossier de destination s'il existe et le recréer
+    if os.path.exists(updater_dest_folder_installer):
+        shutil.rmtree(updater_dest_folder_installer)
+    # os.makedirs(updater_dest_folder_installer, exist_ok=True) # copytree le crée
+
+    # Copier GDJ.exe et le dossier update_helper dans le dossier installer
+    try:
+        print(f"Copie de {gdj_path_dist} vers {gdj_path_installer_src}...")
+        shutil.copy(gdj_path_dist, gdj_path_installer_src)
+        print("Copie GDJ.exe réussie.")
+        print(f"Copie du dossier {updater_folder_dist} vers {updater_dest_folder_installer}...")
+        shutil.copytree(updater_folder_dist, updater_dest_folder_installer)
+        print("Copie du dossier update_helper réussie.")
+    except Exception as e:
+        print(f"Erreur lors de la copie des exécutables/dossiers vers le dossier installer : {e}")
         sys.exit(1)
 
     # Étape 2 : Compiler l'installateur via Inno Setup.
     compile_innosetup()
     if not os.path.exists(INSTALLER_OUTPUT):
-        print("Erreur : L'installateur n'a pas été trouvé à", INSTALLER_OUTPUT)
+        print("Erreur : L'installateur n'a pas été trouvé...")
+        # Nettoyage si l'installeur échoue
+        if os.path.exists(gdj_path_installer_src):
+            os.remove(gdj_path_installer_src)
+        if os.path.exists(updater_dest_folder_installer):
+            shutil.rmtree(updater_dest_folder_installer)
         sys.exit(1)
 
     # Étape 3 : Créer la release GitHub à partir de la branche main.
@@ -165,8 +236,21 @@ def main():
     upload_url = release_info["upload_url"]
     upload_asset(upload_url, INSTALLER_OUTPUT, asset_label="Installateur GDJ")
 
-    # Étape 5 : Uploader GDJ.exe dans la release.
-    upload_asset(upload_url, gdj_path, asset_label="GDJ.exe")
+    # Étape 5 : Supprimée - GDJ.exe n'est plus uploadé séparément
+
+    # Nettoyage : Supprimer GDJ.exe et le dossier updater du dossier installer
+    if os.path.exists(gdj_path_installer_src):
+        try:
+            os.remove(gdj_path_installer_src)
+            print(f"Nettoyage : {gdj_path_installer_src} supprimé.")
+        except Exception as e:
+            print(f"Avertissement : Échec suppression {gdj_path_installer_src}: {e}")
+    if os.path.exists(updater_dest_folder_installer):
+        try:
+            shutil.rmtree(updater_dest_folder_installer)
+            print(f"Nettoyage : Dossier {updater_dest_folder_installer} supprimé.")
+        except Exception as e:
+            print(f"Avertissement : Échec suppression dossier {updater_dest_folder_installer}: {e}")
 
     print("Processus de création de release terminé avec succès.")
 

@@ -71,13 +71,30 @@ def prompt_update(remote_version):
 def launch_updater(installer_url):
     """Lance l'update helper en lui passant l'URL de l'installateur en paramètre."""
     try:
+        print("Tentative de lancement de l'update helper...")
+        # Définir le chemin vers l'updater
+        app_dir = os.path.dirname(sys.executable)
+        UPDATER_EXECUTABLE = os.path.join(app_dir, "updater", "update_helper.exe")
+        print(f"Chemin updater: {UPDATER_EXECUTABLE}")
+
+        # Vérifier si l'updater existe AVANT de le lancer
+        if not os.path.exists(UPDATER_EXECUTABLE):
+            print(f"Erreur : {UPDATER_EXECUTABLE} non trouvé.")
+            QMessageBox.critical(None, "Erreur de mise à jour",
+                                 f"Le fichier nécessaire à la mise à jour est introuvable.\nChemin attendu : {UPDATER_EXECUTABLE}")
+            return # Sortir de la fonction, l'application reste ouverte
+
         print("Lancement de l'update helper avec l'URL :", installer_url)
         subprocess.Popen([UPDATER_EXECUTABLE, installer_url])
         print("Update helper lancé, fermeture de l'application principale.")
-        sys.exit(0)
+        sys.exit(0) # Fermeture de l'application actuelle
+
     except Exception as e:
         print("Erreur lors du lancement de l'updater :", e)
-
+        # Afficher l'erreur à l'utilisateur
+        QMessageBox.critical(None, "Erreur de mise à jour",
+                             f"Une erreur est survenue lors du lancement de la mise à jour :\n{e}")
+        # L'application reste ouverte car sys.exit(0) n'est pas atteint
 
 
 def check_for_updates():
@@ -92,17 +109,23 @@ def check_for_updates():
 
     if is_new_version_available(local_version, remote_version):
         if prompt_update(remote_version):
-            # Recherche dans les assets de la release l'installateur (setup.exe ou MSI)
             assets = release_info.get("assets", [])
             installer_url = None
+            installer_name_expected = "gdj_installer.exe"
+            print(f"Recherche de l'asset '{installer_name_expected}'...")
             for asset in assets:
                 name = asset.get("name", "").lower()
-                if "setup" in name or "installer" in name or name.endswith(".msi") or name.endswith(".exe"):
+                print(f"  - Asset trouvé : {name}")
+                if installer_name_expected == name:
                     installer_url = asset.get("browser_download_url")
+                    print(f"    -> Correspondance trouvée ! URL : {installer_url}")
                     break
+
             if installer_url:
                 launch_updater(installer_url)
             else:
                 print("Aucun installateur trouvé dans les assets de la release.")
+                QMessageBox.warning(None, "Mise à jour impossible",
+                                    f"Impossible de trouver le fichier d'installation ({installer_name_expected}) dans la dernière release.")
     else:
         print("Aucune mise à jour disponible.")
