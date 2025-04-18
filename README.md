@@ -1,7 +1,7 @@
 # GDJ - Générateur de Document Jacmar
 
 <!-- Optionnel: Ajouter un logo/bannière ici -->
-[![Logo GDJ](resources/images/logo-gdj.png)]()
+<img src="resources/images/logo-gdj.png" alt="Logo GDJ" width="100">
 
 [![Version](https://img.shields.io/badge/Version-v0.02-blue.svg)]() 
 <!-- Optionnel: Ajouter d'autres badges (Build, Licence, etc.) -->

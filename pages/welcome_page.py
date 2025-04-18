@@ -10,6 +10,7 @@ from PyQt5.QtGui import QIcon, QPixmap, QColor, QPalette, QFont, QPainter, QPen,
 
 # Import pour lecture fichier et markdown
 import markdown 
+import re # Importer re localement pour la suppression
 
 # Couleurs encore plus affinées - **FOCUS SUR LES FONDS**
 DARK_BACKGROUND = "#313335" # Sidebar (moins sombre)
@@ -493,7 +494,7 @@ class WelcomePage(QWidget):
 
         # Bouton Retour (créé mais PAS ajouté ici)
         btn_back_to_list = QPushButton("Retour") 
-        btn_back_to_list.setObjectName("ActionButton")
+        btn_back_to_list.setObjectName("TopNavButton")
         btn_back_to_list.setFixedWidth(80) 
         btn_back_to_list.clicked.connect(self._show_document_list_page)
         
@@ -756,7 +757,7 @@ class WelcomePage(QWidget):
         self.about_readme_page = QWidget()
         readme_page_layout = QVBoxLayout(self.about_readme_page)
         readme_page_layout.setContentsMargins(0,0,0,0) # Pas de marge pour que QFrame remplisse
-        readme_page_layout.setSpacing(0)
+        readme_page_layout.setSpacing(0) # Retour à 0
         
         about_box = QFrame() # La QFrame pour le contenu README
         about_box.setObjectName("DashboardBox")
@@ -764,6 +765,7 @@ class WelcomePage(QWidget):
         about_box_layout = QVBoxLayout(about_box)
         about_box_layout.setContentsMargins(15, 8, 15, 10)
         about_box_layout.setSpacing(10)
+        
         self.readme_display = QTextBrowser()
         self.readme_display.setReadOnly(True)
         self.readme_display.setObjectName("ReadmeBrowser")
@@ -773,20 +775,36 @@ class WelcomePage(QWidget):
         try:
             with open(readme_path, 'r', encoding='utf-8') as f:
                 markdown_content = f.read()
-                html_content = markdown.markdown(markdown_content, extensions=['fenced_code', 'tables', 'nl2br'])
+                
+                # Utiliser une table, arrondir la table elle-même et cacher le surplus
+                badge_html = f'''<table style="display: inline-block; border-collapse: collapse; border-spacing: 0; line-height: 1.2; font-size: 8pt; font-weight: bold; vertical-align: middle; border-radius: 4px; overflow: hidden;">\
+<tr>\
+<td style="background-color: #555; color: white; padding: 3px 6px;">Version</td>\
+<td style="background-color: {ACCENT_COLOR}; color: white; padding: 3px 6px;">{self.version_str}</td>\
+</tr>\
+</table>'''
+                
+                # Remplacer la ligne du badge Markdown par le HTML simulé
+                badge_line_pattern = r'^\s*\[!\[Version\]\(https://img\.shields\.io/badge/Version-.*\)\]\(\)\s*$\n'
+                markdown_content_with_badge = re.sub(badge_line_pattern, badge_html + '\n\n', markdown_content, flags=re.MULTILINE)
+                
+                # Convertir le markdown (qui contient maintenant notre HTML) en HTML final
+                html_content = markdown.markdown(markdown_content_with_badge, extensions=['fenced_code', 'tables', 'nl2br'])
+                
         except FileNotFoundError: html_content = "<p style='color: red;'>Erreur : README.md introuvable.</p>"; print(f"Erreur: README non trouvé à {os.path.abspath(readme_path)}")
         except ImportError: html_content = "<p style='color: red;'>Erreur : Bibliothèque 'markdown' non installée...</p>"; print("Erreur: Bibliothèque 'markdown' non installée.")
         except Exception as e: html_content = f"<p style='color: red;'>Erreur README : {e}</p>"; print(f"Erreur README: {e}")
+        # Afficher le HTML directement converti depuis le fichier
         self.readme_display.setHtml(html_content)
         about_box_layout.addWidget(self.readme_display, 1)
-        readme_page_layout.addWidget(about_box) # Ajouter la QFrame au layout de la page
+        readme_page_layout.addWidget(about_box, 1) # Ajouter la QFrame au layout de la page (avec stretch)
         self.about_stack.addWidget(self.about_readme_page) # Ajouter la page au stack
 
         # --- Page 3.2: Notes de Version --- 
         self.about_notes_page = QWidget()
         notes_page_layout = QVBoxLayout(self.about_notes_page)
         notes_page_layout.setContentsMargins(0,0,0,0) # Pas de marge pour que QFrame remplisse
-        notes_page_layout.setSpacing(0)
+        notes_page_layout.setSpacing(10)
         
         notes_box = QFrame() # La QFrame pour le contenu Notes
         notes_box.setObjectName("DashboardBox")
@@ -796,7 +814,7 @@ class WelcomePage(QWidget):
         notes_box_layout.setSpacing(10)
         
         btn_back_to_readme = QPushButton("Retour") # Créer le bouton Retour
-        btn_back_to_readme.setObjectName("ActionButton")
+        btn_back_to_readme.setObjectName("TopNavButton")
         btn_back_to_readme.setFixedWidth(80)
         btn_back_to_readme.clicked.connect(self._show_about_readme_page) # Connecter retour
         notes_box_layout.addWidget(btn_back_to_readme, 0, Qt.AlignLeft)
@@ -828,7 +846,7 @@ class WelcomePage(QWidget):
 
         # Ajouter le bouton "Note de version" en bas à droite
         self.btn_release_notes = QPushButton("Note de version") # <- self. ajouté
-        self.btn_release_notes.setObjectName("ActionButton")
+        self.btn_release_notes.setObjectName("TopNavButton")
         self.btn_release_notes.clicked.connect(self._show_release_notes_page) # Connecter aller
         about_page_container_layout.addWidget(self.btn_release_notes, 0, Qt.AlignBottom | Qt.AlignRight)
 
