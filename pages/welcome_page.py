@@ -70,18 +70,18 @@ class SimpleToggle(QWidget):
         super().__init__(parent)
         self.setFixedSize(50, 22) # Taille ajustée
         self.setCursor(Qt.PointingHandCursor)
-        self._checked = False
-        self._checked_color = QColor(checked_color)
-        self._unchecked_color = QColor(unchecked_color)
+        self.checked = False
+        self.checked_color = QColor(checked_color)
+        self.unchecked_color = QColor(unchecked_color)
 
     def isChecked(self): 
-        return self._checked
+        return self.checked
 
     def setChecked(self, checked):
-        if self._checked == checked:
+        if self.checked == checked:
             return
-        self._checked = checked
-        self.toggled.emit(self._checked) 
+        self.checked = checked
+        self.toggled.emit(self.checked) 
         self.update() # Redessiner pour refléter le nouvel état
 
     def toggle(self):
@@ -105,7 +105,7 @@ class SimpleToggle(QWidget):
         
         # Fond arrondi (identique)
         painter.setPen(Qt.NoPen)
-        bg_color = self._checked_color if self._checked else self._unchecked_color
+        bg_color = self.checked_color if self.checked else self.unchecked_color
         painter.setBrush(QBrush(bg_color))
         painter.drawRoundedRect(self.rect(), radius, radius)
         
@@ -115,7 +115,7 @@ class SimpleToggle(QWidget):
         
         # Calculer la position X de la poignée
         padding = 3 # Espace depuis le bord
-        handle_x = padding if not self._checked else width - handle_diameter - padding
+        handle_x = padding if not self.checked else width - handle_diameter - padding
         
         # Dessiner la poignée (cercle)
         handle_rect = QRect(handle_x, padding, handle_diameter, handle_diameter)
@@ -408,11 +408,15 @@ class WelcomePage(QWidget):
         
         # Barre Supérieure (recherche + boutons) - Reste ici
         top_bar_layout = QHBoxLayout()
+        
+        # Créer la barre de recherche
         search_input = QLineEdit()
         search_input.setPlaceholderText("Recherche de documents")
         search_input.setObjectName("SearchInput")
         search_input.setFixedHeight(26)
-        top_bar_layout.addWidget(search_input, 1)
+        # Ajouter la barre DIRECTEMENT à top_bar_layout
+        top_bar_layout.addWidget(search_input, 1) 
+        
         # Bouton Ouvrir (reste ici)
         btn_open = QPushButton("Ouvrir")
         btn_open.setObjectName("TopNavButton") # <- Changer objectName
@@ -560,7 +564,8 @@ class WelcomePage(QWidget):
         self.signature_image_label = None 
         
         # Section "Mon profile"
-        profile_box, box_content_layout_prof = self._create_dashboard_box("Mon profile") 
+        profile_box, box_content_layout_prof = self._create_dashboard_box("Mon profile", icon_path="resources/icons/clear/round_account_box.png") 
+        
         profile_form_layout = QFormLayout() 
         profile_form_layout.setContentsMargins(15, 10, 15, 15) 
         profile_form_layout.setSpacing(10)
@@ -620,7 +625,7 @@ class WelcomePage(QWidget):
         prefs_main_layout.addWidget(profile_box, 0, 0)
 
         # Section "Jacmar"
-        jacmar_box, box_content_layout_jac = self._create_dashboard_box("Jacmar")
+        jacmar_box, box_content_layout_jac = self._create_dashboard_box("Jacmar", icon_path="resources/icons/clear/round_corporate_fare.png")
         jacmar_form_layout = QFormLayout()
         jacmar_form_layout.setContentsMargins(15, 10, 15, 15)
         jacmar_form_layout.setSpacing(10)
@@ -657,7 +662,7 @@ class WelcomePage(QWidget):
         prefs_main_layout.addWidget(jacmar_box, 0, 1)
 
         # Section "Application"
-        app_box, box_content_layout_app = self._create_dashboard_box("Application")
+        app_box, box_content_layout_app = self._create_dashboard_box("Application", icon_path="resources/icons/clear/round_category.png")
         app_form_layout = QFormLayout()
         app_form_layout.setContentsMargins(15, 10, 15, 15)
         app_form_layout.setSpacing(10)
@@ -699,7 +704,7 @@ class WelcomePage(QWidget):
         prefs_main_layout.addWidget(app_box, 1, 0)
 
         # Section "Gestion des preferences"
-        mgmt_box, box_content_layout_mgmt = self._create_dashboard_box("Gestion des preferences") 
+        mgmt_box, box_content_layout_mgmt = self._create_dashboard_box("Gestion des preferences", icon_path="resources/icons/clear/round_smart_button.png") 
 
         # Layout pour les préférences (Formulaire)
         prefs_form_layout = QFormLayout()
@@ -710,24 +715,36 @@ class WelcomePage(QWidget):
         # --- Ligne Exporter ---
         label_export = QLabel("Exporter:")
         label_export.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        btn_export = QPushButton("Exporter")
+        btn_export = QPushButton("") # Texte retiré
         btn_export.setObjectName("FormButton")
+        btn_export.setIcon(QIcon("resources/icons/clear/round_file_download.png"))
+        btn_export.setIconSize(QSize(20, 20))
+        btn_export.setFixedSize(30, 30)
+        btn_export.setToolTip("Exporter les préférences")
         # btn_export.clicked.connect(self.controller.export_preferences)
         prefs_form_layout.addRow(label_export, btn_export)
 
         # --- Ligne Importer ---
         label_import = QLabel("Importer:")
         label_import.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        btn_import = QPushButton("Importer")
+        btn_import = QPushButton("") # Texte retiré
         btn_import.setObjectName("FormButton") 
+        btn_import.setIcon(QIcon("resources/icons/clear/round_file_upload.png"))
+        btn_import.setIconSize(QSize(20, 20))
+        btn_import.setFixedSize(30, 30)
+        btn_import.setToolTip("Importer les préférences")
         # btn_import.clicked.connect(self.controller.import_preferences)
         prefs_form_layout.addRow(label_import, btn_import)
 
         # --- Ligne Sauvegarder ---
         label_save = QLabel("Sauvegarder:")
         label_save.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        btn_save = QPushButton("Sauvegarder")
+        btn_save = QPushButton("") # Texte retiré
         btn_save.setObjectName("FormButton") 
+        btn_save.setIcon(QIcon("resources/icons/clear/round_save.png"))
+        btn_save.setIconSize(QSize(20, 20))
+        btn_save.setFixedSize(30, 30)
+        btn_save.setToolTip("Sauvegarder les préférences")
         # btn_save.clicked.connect(self.controller.save_preferences)
         prefs_form_layout.addRow(label_save, btn_save)
 
@@ -860,25 +877,51 @@ class WelcomePage(QWidget):
         self.setWindowTitle(f"Bienvenue dans {self.app_name}") 
         self.setMinimumSize(1000, 700)
 
-    def _create_dashboard_box(self, title):
-        """ Helper CORRIGÉ: Crée boîte, layout interne, titre et retourne boîte + layout interne. """
+    def _create_dashboard_box(self, title, icon_path=None):
+        """ Helper RE-MODIFIÉ V3: Ajoute icône avant titre si spécifié, ajoute séparateur manuel. """
         box = QFrame()
         box.setObjectName("DashboardBox")
         box.setFrameShape(QFrame.StyledPanel)
-        box.setMinimumWidth(400) # Définir une largeur minimale
+        box.setMinimumWidth(400) 
         
-        # Créer et définir le layout interne
         internal_layout = QVBoxLayout()
-        internal_layout.setContentsMargins(0, 0, 0, 0)
-        internal_layout.setSpacing(0)
+        internal_layout.setContentsMargins(0,0,0,0) # Pas de marges internes ici, gérées par les HBox
+        internal_layout.setSpacing(0) # Pas d'espacement ici
         box.setLayout(internal_layout)
+
+        # Créer un layout HBox UNIQUEMENT pour l'icône et le titre
+        title_hbox = QHBoxLayout()
+        title_hbox.setContentsMargins(15, 8, 15, 8) # Marges externes pour la ligne titre/icône
+        title_hbox.setSpacing(8) # Espace icone-titre
+
+        if icon_path and os.path.exists(icon_path):
+            icon_label = QLabel()
+            pixmap = QPixmap(icon_path)
+            icon_label.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            icon_label.setFixedSize(20, 20)
+            icon_label.setStyleSheet("background-color: transparent; border: none;")
+            title_hbox.addWidget(icon_label)
+        elif icon_path: 
+            print(f"Avertissement: Icône non trouvée à {icon_path}")
 
         title_label = QLabel(title)
         title_label.setObjectName("DashboardBoxTitle") 
-        internal_layout.addWidget(title_label) # Ajouter titre au layout interne
+        # Le style QSS donnera la police/couleur, mais pas padding/bordure
+        title_hbox.addWidget(title_label)
+        title_hbox.addStretch()
+
+        # Ajouter le HBox titre/icône au layout vertical principal
+        internal_layout.addLayout(title_hbox)
         
-        # Retourner la boîte ET le layout interne
-        return box, internal_layout 
+        # Ajouter le séparateur MANUELLEMENT pour toutes les boîtes
+        separator_line = QFrame()
+        separator_line.setFrameShape(QFrame.HLine)
+        separator_line.setStyleSheet(f"border: none; border-top: 1px solid {DARK_BORDER_COLOR}; margin-top: 5px; margin-bottom: 5px;") 
+        internal_layout.addWidget(separator_line)
+
+        # Retourner la boîte ET le layout interne (le layout interne est prêt pour le contenu)
+        # MAIS le contenu devra être ajouté avec ses propres marges/padding.
+        return box, internal_layout
 
     def _change_page(self, button):
         """ Slot appelé quand un bouton de la sidebar est cliqué. """
@@ -951,11 +994,11 @@ class WelcomePage(QWidget):
                 color: {DARK_TEXT_COLOR};
                 font-weight: bold;
                 font-size: 10pt;
-                padding: 8px 0px 8px 15px;
-                border-bottom: 1px solid {DARK_BORDER_COLOR};
-                margin-bottom: 5px; 
-                background-color: transparent; 
-                min-height: 25px; 
+                /* padding: 8px 0px 8px 15px; Retiré */
+                /* border-bottom: 1px solid {DARK_BORDER_COLOR}; Retiré */
+                /* margin-bottom: 5px; Retiré */ 
+                background-color: transparent; /* Garder transparent */
+                min-height: 25px; /* Garder hauteur */
                 max-height: 25px; 
             }}
             /* Règle labels QFormLayout (laissée telle quelle, style direct prioritaire) */
@@ -978,13 +1021,19 @@ class WelcomePage(QWidget):
                 color: {DARK_TEXT_COLOR};
                 min-height: 20px;
             }}
+            /* --- Suppression de l'ajustement spécifique pour SearchInput --- */
+            /*
+            QLineEdit#SearchInput {{
+                border-top-left-radius: 0px;
+                border-bottom-left-radius: 0px;
+                border-left: none;
+                padding-left: 6px; 
+            }}
+            */
             #ContentArea QFrame#DashboardBox QLineEdit:focus, 
-            #ContentArea QFrame#DashboardBox QComboBox:focus {{ 
+            #ContentArea QFrame#DashboardBox QComboBox:focus {{
                  border: 1px solid {ACCENT_COLOR};
             }}
-            #ContentArea QFrame#DashboardBox QLineEdit::placeholder {{
-                 color: {DARK_SECONDARY_TEXT_COLOR};
-             }}
             /* Styles spécifiques QComboBox GÉNÉRALISÉS */
             #ContentArea QFrame#DashboardBox QComboBox::drop-down {{
                  border: none; 
