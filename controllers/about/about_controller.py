@@ -13,11 +13,13 @@ from .about_readme_controller import AboutReadmeController
 from pages.about.about_release_notes_page import AboutReleaseNotesPage
 from .about_release_notes_controller import AboutReleaseNotesController
 
-# S'assurer que le répertoire parent est dans le path pour les imports relatifs profonds si nécessaire
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# parent_dir = os.path.dirname(current_dir)
-# if parent_dir not in sys.path:
-#     sys.path.append(parent_dir)
+# Retiré: Ne plus tenter d'importer utils.theme ici
+# project_root = ...
+# try:
+#     import utils.theme
+#     theme_imported = True
+# except ImportError:
+#     ...
 
 class AboutController(QObject):
     # Utiliser le type spécifique pour la vue
@@ -39,11 +41,13 @@ class AboutController(QObject):
         
         # --- Instancier les vues et contrôleurs des sous-pages --- 
         self.readme_page = AboutReadmePage()
-        # Passer la vue ET la version au contrôleur du README
-        self.readme_controller = AboutReadmeController(self.readme_page, version_str=self.version_str)
+        # Instanciation simple, sans passer de couleurs
+        self.readme_controller = AboutReadmeController(
+            self.readme_page, 
+            version_str=self.version_str
+        )
         
         self.notes_page = AboutReleaseNotesPage()
-        # Passer la vue au contrôleur des notes (n'a pas besoin de la version)
         self.notes_controller = AboutReleaseNotesController(self.notes_page)
         
         # --- Ajouter les vues au QStackedWidget de la vue principale (AboutPage) --- 

@@ -1,0 +1,63 @@
+/* resources/styles/frame.qss */
+
+/* Styles spécifiques pour le composant Frame (ui.components.frame.Frame) */
+
+/* Style de base pour Frame#CustomFrame */
+/* Surcharge potentielle du style global si nécessaire */
+Frame#CustomFrame {
+    background-color: {{COLOR_PRIMARY_MEDIUM}};
+    border-radius: {{RADIUS_BOX}};
+    /* Forcer les marges et padding externes du widget à 0 */
+    margin: 0px;
+    padding: 0px;
+}
+
+/* Style pour le titre QUAND IL EXISTE */
+Frame#CustomFrame QLabel#CustomFrameTitle {
+    color: {{COLOR_TEXT_PRIMARY}};
+    font-weight: bold;
+    font-size: 10pt;
+    background-color: transparent; /* Important */
+    min-height: {{TITLE_HEIGHT}};
+    max-height: {{TITLE_HEIGHT}};
+    /* Pas de padding/bordure ici, géré par le layout HBox parent */
+}
+
+/* Style pour le séparateur QUAND IL EXISTE */
+Frame#CustomFrame QFrame#CustomFrameSeparator {
+    border: none;
+    border-top: 1px solid {{COLOR_PRIMARY_LIGHT}};
+    margin-top: 5px;
+    margin-bottom: 5px; 
+}
+
+/* Style pour le conteneur de l'en-tête personnalisé DANS un CustomFrame */
+Frame#CustomFrame QWidget#FrameHeaderContainer {
+    background-color: {{COLOR_PRIMARY_MEDIUM}}; /* Doit correspondre au fond du Frame */
+    border: none;
+    padding: 0px; /* Supprimer le padding interne */
+    margin: 0px;  /* Supprimer les marges externes */
+}
+
+/* --- Style pour les boutons TopNavButton DANS un CustomFrame --- */
+/* (Devrait surcharger la règle générale de global.qss pour ces boutons) */
+Frame#CustomFrame QPushButton#TopNavButton {
+    background-color: transparent;
+    border: none;
+    color: {{COLOR_TEXT_PRIMARY}};
+    padding: 4px 10px;
+    border-radius: {{RADIUS_DEFAULT}};
+    text-align: center;
+    min-width: 60px; 
+}
+Frame#CustomFrame QPushButton#TopNavButton:hover {
+    background-color: {{COLOR_ACCENT}}; 
+    color: {{COLOR_TEXT_ON_ACCENT}};
+}
+Frame#CustomFrame QPushButton#TopNavButton:pressed {
+    background-color: {{COLOR_ACCENT_PRESSED}};
+    color: {{COLOR_TEXT_ON_ACCENT}};
+}
+
+/* Styles additionnels pour des variantes si vous utilisez setProperty */
+/* Exemple: Frame#CustomFrame[compact="true"] { ... } */ 

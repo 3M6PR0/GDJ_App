@@ -4,10 +4,39 @@ from PyQt5.QtWidgets import QApplication
 from controllers.main_controller import MainController
 from updater.update_checker import check_for_updates
 # Import the new welcome page
-from pages.welcome_page import WelcomePage
+# from pages.welcome_page import WelcomePage
+# Importer le loader et les chemins
+from utils.stylesheet_loader import load_stylesheet
+import os # Pour construire les chemins
 
 def main():
     app = QApplication(sys.argv)
+    
+    # --- Charger et appliquer la feuille de style globale ---
+    try:
+        # Définir les chemins vers les fichiers QSS
+        # Utiliser os.path.join pour la compatibilité multi-OS
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        global_qss_path = os.path.join(script_dir, 'resources', 'styles', 'global.qss')
+        frame_qss_path = os.path.join(script_dir, 'resources', 'styles', 'frame.qss')
+        # Ajouter d'autres fichiers QSS spécifiques ici si nécessaire
+        # custom_titlebar_qss_path = os.path.join(script_dir, 'resources', 'styles', 'custom_titlebar.qss')
+        
+        qss_files = [
+            global_qss_path,
+            frame_qss_path,
+            # custom_titlebar_qss_path,
+        ]
+        
+        # Charger, combiner et formater
+        combined_stylesheet = load_stylesheet(qss_files)
+        
+        # Appliquer à l'application
+        app.setStyleSheet(combined_stylesheet)
+        print("Feuille de style globale appliquée.")
+    except Exception as e:
+        print(f"Erreur lors du chargement ou de l'application de la feuille de style: {e}")
+    # --- Fin chargement style ---
     
     # We need a controller instance first, which will manage windows
     controller = MainController()

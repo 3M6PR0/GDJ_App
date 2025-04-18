@@ -1,16 +1,10 @@
 import sys
-import os # Ajout pour les chemins d'icônes
+import os
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QListWidget, QFrame, QSpacerItem, 
-                             QSizePolicy, QLineEdit, QScrollArea, QListWidgetItem, 
-                             QMenu, QAction, QStackedWidget, QButtonGroup,
-                             QGridLayout, QFormLayout, QComboBox, QCheckBox, QFileDialog, QTextBrowser) # Ajout QLineEdit, QScrollArea, QListWidgetItem, QMenu, QAction, QStackedWidget, QButtonGroup, QGridLayout, QFormLayout, QComboBox, QCheckBox, QFileDialog, QTextBrowser
-from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, QPropertyAnimation, pyqtSignal # Ajouts pour ToggleSwitch
-from PyQt5.QtGui import QIcon, QPixmap, QColor, QPalette, QFont, QPainter, QPen, QBrush, QFontMetrics # Ajout QFontMetrics
-
-# Import pour lecture fichier et markdown
-import markdown 
-import re # Importer re localement pour la suppression
+                             QPushButton, QFrame, QSpacerItem, QSizePolicy,
+                             QStackedWidget, QButtonGroup)
+from PyQt5.QtCore import Qt, QSize, pyqtSignal
+from PyQt5.QtGui import QIcon, QPixmap
 
 # Importer la barre de titre personnalisée
 from ui.components.custom_titlebar import CustomTitleBar
@@ -18,310 +12,62 @@ from ui.components.custom_titlebar import CustomTitleBar
 # Importer les nouvelles pages/contrôleurs
 from pages.about.about_page import AboutPage
 from controllers.about.about_controller import AboutController
-# (Les autres imports de pages/contrôleurs seront ajoutés plus tard)
+from pages.documents.documents_page import DocumentsPage 
+from controllers.documents.documents_controller import DocumentsController
+# --- Importer PreferencesPage et PreferencesController --- 
+from pages.preferences.preferences_page import PreferencesPage
+from controllers.preferences.preferences_controller import PreferencesController
 
-# Couleurs encore plus affinées - **FOCUS SUR LES FONDS**
-DARK_BACKGROUND = "#313335" # Sidebar (moins sombre)
-DARK_WIDGET_BACKGROUND = "#2b2b2b" # ContentArea (plus sombre)
-DARK_TEXT_COLOR = "#bbbbbb"
-DARK_SECONDARY_TEXT_COLOR = "#808080"
-DARK_SIDEBAR_TEXT_INACTIVE = "#999999"
-DARK_BORDER_COLOR = "#4a4d4f"
-ACCENT_COLOR = "#0054b8" # Nouveau bleu demandé
-ITEM_HOVER_BACKGROUND = "#45494d"
-ITEM_SELECTED_BACKGROUND = "#0054b8" # Nouveau bleu demandé
-ACTION_BUTTON_BACKGROUND = "#3c3f41"
-ACTION_BUTTON_BORDER = "#3c3f41"
-ACTION_BUTTON_HOVER_BORDER = "#606366"
-SEARCH_BACKGROUND = "#353739"
-SEARCH_BORDER = "#5a5d5e"
-BADGE_BACKGROUND = "#6e7072"
-BADGE_TEXT = "#d0d0d0"
-BADGE_SELECTED_BACKGROUND = "#d5d5d5"
-BADGE_SELECTED_TEXT = "#333333"
-LOGO_BACKGROUND = "#1c6b9e" # Bleu plus proche du logo Pycharm
-
-# --- Constantes (Ajout couleur pour les "boîtes" de dashboard) ---
-BOX_BACKGROUND = ACTION_BUTTON_BACKGROUND # Réutiliser une couleur existante pour les boîtes
-
-# Polices - Essai d'ajustement des tailles relatives
-DEFAULT_FONT = QFont("Segoe UI", 9)
-SMALL_FONT = QFont("Segoe UI", 8)
-SIDEBAR_FONT = QFont("Segoe UI", 9)
-SIDEBAR_APPNAME_FONT = QFont("Segoe UI", 9) # Non Gras
-SIDEBAR_VERSION_FONT = QFont("Segoe UI", 8)
-PROJECT_NAME_FONT = QFont("Segoe UI", 9)
-PROJECT_PATH_FONT = QFont("Segoe UI", 8)
-SETTINGS_ICON_FONT = QFont("Segoe UI", 12)
-LOGO_FONT = QFont("Segoe UI", 9)
-
-# Placeholder pour les données de projets récents
-def get_recent_projects_data():
-    return [
-        {"name": "GDJ", "path": "~/PycharmProjects/GDJ", "icon": "GD"},
-        {"name": "GDJ_App", "path": "~/PycharmProjects/GDJ_App", "icon": "GD"},
-        {"name": "LiveVision", "path": "~/PycharmProjects/LiveVision", "icon": "LV"},
-        {"name": "LiveVision2", "path": "~/PycharmProjects/LiveVision2", "icon": "LV"},
-        {"name": "ExpenseReport", "path": "~/PycharmProjects/ExpenseReport", "icon": "ER"},
-        {"name": "Py3M6", "path": "~/PycharmProjects/Py3M6", "icon": "PM"},
-        {"name": "VSB", "path": "~/PycharmProjects/VSB", "icon": "VS"},
-        {"name": "api4robots", "path": "~/PycharmProjects/api4robots", "icon": "A"},
-        {"name": "Vision Test", "path": "~/Desktop/Jacmar/Projects/VancouverAutomation/Vision Test", "icon": "VT"},
-        {"name": "Vision_AI", "path": "~/PycharmProjects/Vision_AI", "icon": "VA"}
-    ]
-
-# --- Classe SimpleToggle --- 
-class SimpleToggle(QWidget):
-    toggled = pyqtSignal(bool)
-
-    def __init__(self, parent=None, checked_color=ACCENT_COLOR, unchecked_color=DARK_SECONDARY_TEXT_COLOR):
-        super().__init__(parent)
-        self.setFixedSize(50, 22) # Taille ajustée
-        self.setCursor(Qt.PointingHandCursor)
-        self.checked = False
-        self.checked_color = QColor(checked_color)
-        self.unchecked_color = QColor(unchecked_color)
-
-    def isChecked(self): 
-        return self.checked
-
-    def setChecked(self, checked):
-        if self.checked == checked:
-            return
-        self.checked = checked
-        self.toggled.emit(self.checked) 
-        self.update() # Redessiner pour refléter le nouvel état
-
-    def toggle(self):
-        self.setChecked(not self.isChecked())
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.toggle()
-        super().mousePressEvent(event)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        
-        height = self.height()
-        width = self.width()
-        radius = height / 2
-        # Utiliser la division entière // pour garantir un int
-        handle_radius = (height - 6) // 2 
-        handle_diameter = 2 * handle_radius
-        
-        # Fond arrondi (identique)
-        painter.setPen(Qt.NoPen)
-        bg_color = self.checked_color if self.checked else self.unchecked_color
-        painter.setBrush(QBrush(bg_color))
-        painter.drawRoundedRect(self.rect(), radius, radius)
-        
-        # --- Dessiner la poignée ronde --- 
-        painter.setBrush(QBrush(Qt.white)) # Couleur de la poignée
-        painter.setPen(Qt.NoPen) # Pas de bordure pour la poignée
-        
-        # Calculer la position X de la poignée
-        padding = 3 # Espace depuis le bord
-        handle_x = padding if not self.checked else width - handle_diameter - padding
-        
-        # Dessiner la poignée (cercle)
-        handle_rect = QRect(handle_x, padding, handle_diameter, handle_diameter)
-        painter.drawEllipse(handle_rect)
-        # --- Fin dessin poignée --- 
-
-# Widget d'icône projet (ajustement taille/radius)
-class ProjectIconWidget(QWidget):
-    _COLOR_MAP = {
-        "GD": "#4CAF50", "LV": "#FFC107", "ER": "#03A9F4", 
-        "PM": "#9C27B0", "VS": "#E91E63", "A": "#00BCD4", 
-        "VT": "#FF5722", "VA": "#673AB7", "DEFAULT": "#757575" 
-    }
-    def __init__(self, initials="?", size=26, parent=None): # Légèrement plus petit
-        super().__init__(parent)
-        self.initials = initials.upper()[:2]
-        self.setFixedSize(size, size)
-        self.color = QColor(self._COLOR_MAP.get(self.initials, self._COLOR_MAP["DEFAULT"]))
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        border_radius = 4 # Plus arrondi comme Pycharm
-        painter.setBrush(QBrush(self.color))
-        painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(self.rect(), border_radius, border_radius)
-        painter.setPen(QPen(Qt.white))
-        font = QFont(DEFAULT_FONT)
-        font.setBold(True)
-        font_size = max(7, int(self.height() * 0.4)) # Police icône plus petite
-        font.setPointSize(font_size)
-        painter.setFont(font)
-        painter.drawText(self.rect(), Qt.AlignCenter, self.initials)
-
-# Widget Item Projet (Correction fond initial)
-class ProjectListItemWidget(QWidget):
-    def __init__(self, name, path_str, icon_initials="?", list_item=None, parent=None):
-        super().__init__(parent)
-        self.name = name
-        self.path_str = path_str
-        self.icon_initials = icon_initials
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 5, 5, 5)
-        layout.setSpacing(8)
-
-        icon_widget = ProjectIconWidget(self.icon_initials)
-        icon_widget.setAutoFillBackground(False)
-        layout.addWidget(icon_widget)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(-2)
-        self.name_label = QLabel(name)
-        self.name_label.setFont(PROJECT_NAME_FONT)
-        self.name_label.setStyleSheet(f"color: {DARK_TEXT_COLOR}; margin-bottom: -2px; background-color: transparent;")
-        self.path_label = QLabel(path_str)
-        self.path_label.setFont(PROJECT_PATH_FONT)
-        self.path_label.setStyleSheet(f"color: {DARK_SECONDARY_TEXT_COLOR}; margin-top: 0px; background-color: transparent;")
-        text_layout.addWidget(self.name_label)
-        text_layout.addWidget(self.path_label)
-        text_layout.addStretch()
-
-        layout.addLayout(text_layout)
-        layout.addStretch(1)
-        
-        self.options_button = QPushButton("...")
-        self.options_button.setObjectName("ItemOptionsButton")
-        self.options_button.setFixedSize(20, 20)
-        self.options_button.setVisible(False)
-        self.options_button.clicked.connect(self._show_context_menu)
-        self.options_button.setStyleSheet("background-color: transparent;")
-        layout.addWidget(self.options_button, 0, Qt.AlignRight | Qt.AlignVCenter)
-
-        self.setStyleSheet("background-color: transparent;")
-        self.setMouseTracking(True)
-
-    def enterEvent(self, event):
-        self.options_button.setVisible(True)
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.options_button.setVisible(False)
-        super().leaveEvent(event)
-
-    def _show_context_menu(self):
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background-color: {DARK_BACKGROUND}; 
-                border: 1px solid #5f6367;
-                color: {DARK_TEXT_COLOR};
-                padding: 5px;
-                border-radius: 4px;
-            }}
-            QMenu::item {{
-                padding: 6px 20px 6px 20px;
-                background-color: transparent;
-                border-radius: 3px;
-            }}
-            QMenu::item:selected {{ 
-                background-color: {ACCENT_COLOR};
-                color: white;
-            }}
-            QMenu::item:disabled {{
-                color: #777777; 
-            }}
-            QMenu::separator {{
-                height: 1px;
-                background-color: #5f6367;
-                margin: 5px 2px;
-            }}
-        """)
-        
-        # --- ACTIONS TRADUITES ET FILTRÉES --- 
-        open_action = QAction("Ouvrir la sélection", self)
-        open_action.triggered.connect(lambda: print(f"Action: Ouvrir {self.name}"))
-        menu.addAction(open_action)
-
-        show_explorer_action = QAction("Afficher dans l'explorateur", self)
-        show_explorer_action.triggered.connect(lambda: print(f"Action: Afficher {self.name} dans l'explorateur"))
-        menu.addAction(show_explorer_action)
-
-        copy_path_action = QAction("Copier le chemin", self)
-        copy_path_action.setShortcut("Ctrl+Shift+C")
-        copy_path_action.triggered.connect(lambda: print(f"Action: Copier chemin pour {self.name} ({self.path_str})"))
-        menu.addAction(copy_path_action)
-
-        menu.addSeparator()
-
-        remove_action = QAction("Retirer des projets récents...", self)
-        remove_action.triggered.connect(lambda: print(f"Action: Retirer {self.name}"))
-        menu.addAction(remove_action)
-        # --- FIN ACTIONS --- 
-        
-        button_pos = self.options_button.mapToGlobal(QPoint(0, self.options_button.height()))
-        menu.exec_(button_pos)
-
-# --- WelcomePage (MODIFIÉ: Utilisation QStackedWidget) --- 
+# --- WelcomePage (Nettoyée) --- 
 class WelcomePage(QWidget):
     def __init__(self, controller, app_name="GDJ", version_str="?.?.?"):
         super().__init__()
         self.controller = controller
         self.app_name = app_name
         self.version_str = version_str
-        self.setFont(DEFAULT_FONT)
         
-        # --- Rendre la fenêtre sans cadre --- 
         self.setWindowFlags(Qt.FramelessWindowHint)
-        # Optionnel: Permettre le clic droit sur la barre des tâches pour menu système
         self.setWindowFlags(self.windowFlags() | Qt.WindowContextHelpButtonHint)
-        # Donner un nom à la fenêtre pour référence facile
         self.setObjectName("WelcomeWindow") 
 
-        # Garder références aux pages pour le slot
-        self.documents_widget = self._create_documents_page() # Appel restauré
-        self.preferences_widget = self._create_preferences_page() # Appel restauré
-        self.stacked_widget = QStackedWidget() # Le QStackedWidget principal
-        
         # --- Instancier les pages/contrôleurs principaux --- 
+        self.documents_page_instance = DocumentsPage()
+        self.documents_controller_instance = DocumentsController(self.documents_page_instance, self.controller)
+        
+        # Section Préférences
+        self.preferences_page_instance = PreferencesPage()
+        # Le contrôleur principal n'est pas passé ici pour l'instant
+        self.preferences_controller_instance = PreferencesController(self.preferences_page_instance)
+
         # Section A Propos
         self.about_page_instance = AboutPage()
-        self.about_controller_instance = AboutController(self.about_page_instance, version_str=self.version_str) # Passer version
+        self.about_controller_instance = AboutController(self.about_page_instance, version_str=self.version_str)
         
-        # (Les autres sections seront instanciées ici plus tard)
-        # self.preferences_page_instance = PreferencesPage()
-        # self.preferences_controller_instance = PreferencesController(self.preferences_page_instance)
-        # self.documents_page_instance = DocumentsPage()
-        # self.documents_controller_instance = DocumentsController(self.documents_page_instance)
+        self.stacked_widget = QStackedWidget()
         
         self.init_ui()
-        self.apply_dark_theme()
         
     def init_ui(self):
-        # --- Layout principal devient QVBoxLayout pour inclure la barre de titre --- 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0,0,0,0)
         outer_layout.setSpacing(0)
 
-        # --- Créer et ajouter la barre de titre personnalisée ---
-        # Passer le chemin de l'icône .png
         self.title_bar = CustomTitleBar(self, title=f"Bienvenue dans {self.app_name}", icon_path="resources/images/logo-gdj.png") 
         outer_layout.addWidget(self.title_bar)
 
-        # --- Ajouter une QFrame comme séparateur --- 
         separator_line = QFrame(self)
-        separator_line.setFrameShape(QFrame.HLine) # Ligne horizontale
-        separator_line.setFrameShadow(QFrame.Plain) # Ombre simple ou QFrame.Sunken
-        separator_line.setFixedHeight(1) # Hauteur de 1 pixel
-        separator_line.setStyleSheet(f"background-color: #313335; border: none;") # Couleur sidebar, pas de bordure QSS
+        separator_line.setObjectName("TitleSeparatorLine")
+        separator_line.setFrameShape(QFrame.HLine)
+        separator_line.setFrameShadow(QFrame.Plain)
+        separator_line.setFixedHeight(1)
         outer_layout.addWidget(separator_line)
 
-        # --- Créer le widget conteneur pour le reste de l'UI (sidebar + content) ---
         main_content_widget = QWidget()
-        main_layout = QHBoxLayout(main_content_widget) # Le layout original devient celui-ci
+        main_layout = QHBoxLayout(main_content_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # --- Barre Latérale Gauche (avec QButtonGroup) ---
+        # --- Barre Latérale Gauche (Inchangée) ---
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
         sidebar.setFixedWidth(170)
@@ -329,52 +75,36 @@ class WelcomePage(QWidget):
         sidebar_layout.setContentsMargins(0, 8, 0, 8)
         sidebar_layout.setSpacing(3)
         
-        # Section Logo / Nom / Version (Utilisation des variables)
+        # Section Logo (Inchangée)
         logo_section_layout = QHBoxLayout()
         logo_section_layout.setContentsMargins(12, 8, 12, 15)
         logo_section_layout.setSpacing(8)
-        
-        # Changer pour afficher le vrai logo
         logo_label = QLabel()
+        logo_label.setObjectName("SidebarLogoLabel")
         logo_pixmap = QPixmap("resources/images/logo-gdj.png")
         if not logo_pixmap.isNull():
-            # Augmenter la taille à 64x64
             logo_label.setPixmap(logo_pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            logo_label.setStyleSheet("background-color: transparent; border: none;") 
         else:
-            logo_label.setText("GDJ") # Texte de secours si logo non trouvé
-            logo_label.setStyleSheet(f"background-color: {LOGO_BACKGROUND}; color: white; border-radius: 5px; padding: 5px;")
-        # Ajuster la taille fixe
+            logo_label.setText("GDJ")
         logo_label.setFixedSize(64, 64)
         logo_label.setAlignment(Qt.AlignCenter)
         logo_section_layout.addWidget(logo_label, 0, Qt.AlignTop)
-
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(0)
-        
-        # Utiliser self.app_name
         app_name_label = QLabel(self.app_name)
-        app_name_label.setFont(SIDEBAR_APPNAME_FONT)
-        app_name_label.setStyleSheet(f"color: {DARK_TEXT_COLOR}; padding-top: 0px; padding-bottom: 0px; background-color: transparent;")
-        
-        # Utiliser self.version_str
+        app_name_label.setObjectName("SidebarAppName")
         version_label = QLabel(self.version_str)
-        version_label.setFont(SIDEBAR_VERSION_FONT)
-        version_label.setStyleSheet(f"color: {DARK_SECONDARY_TEXT_COLOR}; padding-top: 0px; background-color: transparent;")
-        
+        version_label.setObjectName("SidebarVersion")
         text_layout.addWidget(app_name_label)
         text_layout.addWidget(version_label)
-        # text_layout.addStretch() # Pas de stretch
-        
         logo_section_layout.addLayout(text_layout, 0)
         logo_section_layout.addStretch()
         sidebar_layout.addLayout(logo_section_layout)
 
-        # Boutons de navigation + QButtonGroup
-        self.sidebar_button_group = QButtonGroup(self) # Créer le groupe
-        self.sidebar_button_group.setExclusive(True) # Assurer l'exclusivité
-        
+        # Boutons de navigation (Inchangés)
+        self.sidebar_button_group = QButtonGroup(self)
+        self.sidebar_button_group.setExclusive(True)
         button_layout = QVBoxLayout()
         button_layout.setSpacing(1)
         button_layout.setContentsMargins(5, 0, 5, 0)
@@ -382,50 +112,34 @@ class WelcomePage(QWidget):
         for name, checked in button_info.items():
             btn_container = QFrame()
             btn_container.setObjectName("SidebarButtonContainer")
-            # Définir la propriété 'checked' initiale pour le QSS
             btn_container.setProperty("checked", checked)
-            
             btn_hbox = QHBoxLayout(btn_container)
             btn_hbox.setContentsMargins(8, 6, 8, 6)
             btn_hbox.setSpacing(5)
-            
             btn = QPushButton(name)
             btn.setObjectName("SidebarButton")
             btn.setCheckable(True)
-            btn.setChecked(checked) # L'état logique est géré par QButtonGroup
-            btn.setFont(SIDEBAR_FONT)
+            btn.setChecked(checked)
             btn_hbox.addWidget(btn, 1)
-            
             self.sidebar_button_group.addButton(btn)
-            
-            # Placeholder pour alignement
             placeholder = QSpacerItem(16, 16, QSizePolicy.Fixed, QSizePolicy.Fixed)
             btn_hbox.addSpacerItem(placeholder)
-                 
             button_layout.addWidget(btn_container)
-            # Rétablir la connexion pour que le style QSS suive l'état du bouton
-            # Connecter toggled du bouton pour mettre à jour la propriété du conteneur
-            # ET forcer la réévaluation du style
             btn.toggled.connect(
                 lambda state, c=btn_container: (
                     c.setProperty("checked", state), 
-                    c.style().unpolish(c), # Forcer la suppression de l'ancien style
-                    c.style().polish(c)   # Forcer l'application du nouveau style
+                    c.style().unpolish(c), 
+                    c.style().polish(c)   
                 )
             )
-            
         sidebar_layout.addLayout(button_layout)
         sidebar_layout.addStretch()
-
-        # Connecter le clic du groupe au slot de changement de page
-        # Note: buttonClicked émet le bouton cliqué
         self.sidebar_button_group.buttonClicked.connect(self._change_page)
 
-        # Bouton Settings
+        # Bouton Settings (Inchangé)
         settings_layout = QHBoxLayout()
         settings_layout.setContentsMargins(12, 0, 12, 5)
         btn_settings = QPushButton("⚙")
-        btn_settings.setFont(SETTINGS_ICON_FONT)
         btn_settings.setObjectName("SettingsButton")
         btn_settings.setFixedSize(26, 26)
         settings_layout.addWidget(btn_settings)
@@ -433,662 +147,42 @@ class WelcomePage(QWidget):
         sidebar_layout.addLayout(settings_layout)
         main_layout.addWidget(sidebar)
 
-        # --- Zone de Contenu Principal (QStackedWidget) ---
+        # --- Zone de Contenu Principal (QStackedWidget) --- 
         self.stacked_widget.setObjectName("ContentArea")
 
-        # --- Ajout des pages au QStackedWidget principal --- 
-        # Ajout des widgets créés dans __init__ (ou via _create_... méthodes)
-        self.stacked_widget.addWidget(self.documents_widget)
-        self.stacked_widget.addWidget(self.preferences_widget)
-        self.stacked_widget.addWidget(self.about_page_instance) # Ajout de l'instance AboutPage
+        # --- Ajout des PAGES INSTANCIÉES au QStackedWidget --- 
+        self.stacked_widget.addWidget(self.documents_page_instance)
+        self.stacked_widget.addWidget(self.preferences_page_instance) # Utiliser l'instance
+        self.stacked_widget.addWidget(self.about_page_instance)
         
-        # --- Ajout du StackedWidget au layout principal (vérifié présent) --- 
         main_layout.addWidget(self.stacked_widget, 1) 
 
-        # --- Ajouter le widget de contenu principal (sidebar+stack) au layout extérieur ---
         main_content_widget.setLayout(main_layout)
-        outer_layout.addWidget(main_content_widget, 1) # Donner stretch au contenu
+        outer_layout.addWidget(main_content_widget, 1)
 
-        # Titre fenêtre (géré par la barre perso maintenant)
-        # self.setWindowTitle(f"Bienvenue dans {self.app_name}") 
         self.setMinimumSize(1000, 700)
 
-    def _create_dashboard_box(self, title, icon_path=None):
-        """ Helper RE-MODIFIÉ V4: N'ajoute title_hbox que si titre/icône existe. """
-        box = QFrame()
-        box.setObjectName("DashboardBox")
-        box.setFrameShape(QFrame.StyledPanel)
-        box.setMinimumWidth(400) 
-        
-        internal_layout = QVBoxLayout()
-        internal_layout.setContentsMargins(0,0,0,0) # Pas de marges internes pour la boîte elle-même
-        internal_layout.setSpacing(0) # Pas d'espacement pour la boîte elle-même
-        box.setLayout(internal_layout)
-
-        # --- Créer et ajouter la section titre SEULEMENT si titre ou icône est fourni --- 
-        if title or (icon_path and os.path.exists(icon_path)):
-            title_hbox = QHBoxLayout()
-            # Marges pour la ligne titre/icône
-            title_hbox.setContentsMargins(15, 8, 15, 8) 
-            title_hbox.setSpacing(8) # Espace icone-titre
-
-            if icon_path and os.path.exists(icon_path):
-                icon_label = QLabel()
-                pixmap = QPixmap(icon_path)
-                icon_label.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                icon_label.setFixedSize(20, 20)
-                icon_label.setStyleSheet("background-color: transparent; border: none;")
-                title_hbox.addWidget(icon_label)
-            elif icon_path: 
-                print(f"Avertissement: Icône non trouvée à {icon_path}")
-
-            if title: # Ajouter le label titre seulement si un titre existe
-                title_label = QLabel(title)
-                title_label.setObjectName("DashboardBoxTitle") 
-                title_hbox.addWidget(title_label)
-                
-            title_hbox.addStretch()
-
-            # Ajouter le HBox titre/icône au layout vertical principal
-            internal_layout.addLayout(title_hbox)
-            
-            # Ajouter le séparateur MANUELLEMENT SEULEMENT si un titre est fourni
-            # (La condition if title externe assure déjà que le titre existe)
-            separator_line = QFrame()
-            separator_line.setFrameShape(QFrame.HLine)
-            separator_line.setStyleSheet(f"border: none; border-top: 1px solid {DARK_BORDER_COLOR}; margin-top: 5px; margin-bottom: 5px;") 
-            internal_layout.addWidget(separator_line)
-
-        # Retourner la boîte ET le layout interne (où le contenu spécifique sera ajouté)
-        return box, internal_layout
-
+    # --- _change_page (MODIFIÉ pour utiliser les instances) --- 
     def _change_page(self, button):
-        """ Slot appelé quand un bouton de la sidebar est cliqué. """
         text = button.text()
-        print(f"Changing page to: {text}") # Debug
+        print(f"WelcomePage: Changing main page to: {text}") # Debug
         if text == "Documents":
-            # Afficher le widget placeholder pour l'instant
-            self.stacked_widget.setCurrentWidget(self.documents_widget)
-            # La logique du stack interne sera dans DocumentsController
-            # if hasattr(self, 'documents_stack'): 
-            #     self.documents_stack.setCurrentWidget(self.documents_list_page)
+            self.stacked_widget.setCurrentWidget(self.documents_page_instance)
         elif text == "Preference":
-            # Afficher le widget placeholder pour l'instant
-            self.stacked_widget.setCurrentWidget(self.preferences_widget)
+            self.stacked_widget.setCurrentWidget(self.preferences_page_instance)
         elif text == "A Propos":
-            # Afficher l'instance de AboutPage
             self.stacked_widget.setCurrentWidget(self.about_page_instance)
         else:
-            # Cas par défaut (probablement Documents)
-            self.stacked_widget.setCurrentWidget(self.documents_widget) 
-            # La logique du stack interne sera dans DocumentsController
-            # if hasattr(self, 'documents_stack'):
-            #     self.documents_stack.setCurrentWidget(self.documents_list_page)
+            self.stacked_widget.setCurrentWidget(self.documents_page_instance)
 
-    def apply_dark_theme(self):
-        # Styles restaurés + ajout hauteur fixe pour titres
-        stylesheet = f"""
-            QWidget {{ 
-                color: {DARK_TEXT_COLOR};
-                background-color: {DARK_WIDGET_BACKGROUND};
-                font-family: \"Segoe UI\";
-                font-size: 9pt;
-                border: none;
-            }}
-            #Sidebar {{ background-color: {DARK_BACKGROUND}; }}
-            /* ... Styles Barre Latérale (Boutons, Conteneurs, Badge, Settings) ... */
-            QFrame#SidebarButtonContainer {{ background-color: transparent; border-radius: 4px; }}
-            QFrame#SidebarButtonContainer:hover {{ background-color: {ITEM_HOVER_BACKGROUND}; }}
-            QFrame#SidebarButtonContainer[checked="true"] {{ background-color: {ACCENT_COLOR}; }}
-            QPushButton#SidebarButton {{ background-color: transparent; color: {DARK_SIDEBAR_TEXT_INACTIVE}; border: none; padding: 0px; text-align: left; }}
-            QPushButton#SidebarButton:checked {{ color: white; font-weight: normal; }}
-            QFrame#SidebarButtonContainer:hover QPushButton#SidebarButton:!checked {{ color: {DARK_TEXT_COLOR}; }}
-            /* ... (Badge, SettingsButton styles) ... */
-            QLabel#SidebarBadge {{ background-color: {BADGE_BACKGROUND}; color: {BADGE_TEXT}; border-radius: 8px; font-size: 7pt; font-weight: bold; min-width: 16px; max-width: 16px; min-height: 16px; max-height: 16px; padding: 1px 0px 0px 0px; }}
-            QFrame#SidebarButtonContainer[checked="true"] QLabel#SidebarBadge {{ background-color: {BADGE_SELECTED_BACKGROUND}; color: {BADGE_SELECTED_TEXT}; }}
-            QPushButton#SettingsButton {{ background-color: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; padding: 0px; border-radius: 4px; }}
-            QPushButton#SettingsButton:hover {{ background-color: {ITEM_HOVER_BACKGROUND}; }}
-
-            #ContentArea {{
-                background-color: {DARK_WIDGET_BACKGROUND};
-                border-left: 1px solid {DARK_BACKGROUND};
-            }}
-            #ContentArea > QWidget {{ background-color: {DARK_WIDGET_BACKGROUND}; }}
-
-            /* --- Style DashboardBox GÉNÉRALISÉ --- */
-            /* Appliquer aux QFrame nommées DashboardBox DANS ContentArea */
-            #ContentArea QFrame#DashboardBox {{
-                background-color: {BOX_BACKGROUND};
-                border-radius: 6px;
-                /* margin: 5px; Retiré pour l'instant, géré par layout parent si besoin */
-            }}
-            
-            /* --- Styles SPÉCIFIQUES Page Préférences --- */
-            #ContentArea QFrame#DashboardBoxTitle {{ 
-                 /* Style titre (hauteur fixe, etc.) */
-                color: {DARK_TEXT_COLOR};
-                font-weight: bold;
-                font-size: 10pt;
-                /* padding: 8px 0px 8px 15px; Retiré */
-                /* border-bottom: 1px solid {DARK_BORDER_COLOR}; Retiré */
-                /* margin-bottom: 5px; Retiré */ 
-                background-color: transparent; /* Garder transparent */
-                min-height: 25px; /* Garder hauteur */
-                max-height: 25px; 
-            }}
-            /* Règle labels QFormLayout (laissée telle quelle, style direct prioritaire) */
-            #ContentArea QFrame#DashboardBox QFormLayout QLabel {{
-                 /* Style labels formulaire préférences (style direct prioritaire) */
-                color: {DARK_SECONDARY_TEXT_COLOR};
-                font-size: 9pt;
-                background: transparent; 
-                border: none; 
-                padding: 4px 0px; 
-                min-height: 20px;
-            }}
-            /* Style GÉNÉRALISÉ pour QLineEdit/QComboBox dans les boîtes */
-            #ContentArea QFrame#DashboardBox QLineEdit, 
-            #ContentArea QFrame#DashboardBox QComboBox {{
-                background-color: {SEARCH_BACKGROUND};
-                border: 1px solid {SEARCH_BORDER};
-                border-radius: 4px;
-                padding: 4px 6px;
-                color: {DARK_TEXT_COLOR};
-                min-height: 20px;
-            }}
-            /* --- Suppression de l'ajustement spécifique pour SearchInput --- */
-            /*
-            QLineEdit#SearchInput {{
-                border-top-left-radius: 0px;
-                border-bottom-left-radius: 0px;
-                border-left: none;
-                padding-left: 6px; 
-            }}
-            */
-            #ContentArea QFrame#DashboardBox QLineEdit:focus, 
-            #ContentArea QFrame#DashboardBox QComboBox:focus {{
-                 border: 1px solid {ACCENT_COLOR};
-            }}
-            /* Styles spécifiques QComboBox GÉNÉRALISÉS */
-            #ContentArea QFrame#DashboardBox QComboBox::drop-down {{
-                 border: none; 
-                 subcontrol-origin: padding;
-                 subcontrol-position: top right;
-                 width: 15px;
-            }}
-            #ContentArea QFrame#DashboardBox QComboBox::down-arrow {{
-                 width: 10px; 
-                 height: 10px;
-            }}
-            #ContentArea QFrame#DashboardBox QComboBox QAbstractItemView {{
-                 background-color: {ITEM_HOVER_BACKGROUND};
-                 border: 1px solid {DARK_BORDER_COLOR};
-                 selection-background-color: {ACCENT_COLOR};
-                 color: {DARK_TEXT_COLOR};
-                 padding: 2px;
-            }}
-
-            /* --- Autres styles --- */
-            /* Style Liste Projets Récent (doit rester avec BOX_BACKGROUND) */
-            #ProjectList {{
-                background-color: {BOX_BACKGROUND}; 
-                border: none;
-            }}
-            #ProjectList::item {{ border: none; padding: 0px; margin: 0px; background-color: transparent; color: transparent; }}
-            #ProjectList::item:hover {{ background-color: {ITEM_SELECTED_BACKGROUND}; border-radius: 4px; }}
-            #ProjectList::item:selected {{ background-color: {ITEM_SELECTED_BACKGROUND}; border-radius: 4px; }}
-            
-            QPushButton#ItemOptionsButton {{ background-color: transparent; color: {DARK_SECONDARY_TEXT_COLOR}; border: none; border-radius: 3px; font-weight: bold; padding: 0px 0px 2px 0px; }}
-            QPushButton#ItemOptionsButton:hover {{ background-color: #5a5e61; color: {DARK_TEXT_COLOR}; }}
-            
-            /* Style Scrollbar (doit rester avec BOX_BACKGROUND) */
-            QScrollBar:vertical {{
-                border: none;
-                background: {BOX_BACKGROUND}; 
-                width: 14px;
-                margin: 0px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: #5c5f61;
-                min-height: 30px;
-                border-radius: 7px;
-                border: none;
-            }}
-            QScrollBar::handle:vertical:hover {{ background: #6c6f71; }}
-            QScrollBar::handle:vertical:pressed {{ background: #7c7f81; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: none; }}
-
-            /* --- Nouveau style pour les boutons dans le formulaire --- */
-            QPushButton#FormButton {{
-                background-color: {ACTION_BUTTON_BACKGROUND};
-                border: 1px solid {ACTION_BUTTON_BORDER};
-                color: {DARK_TEXT_COLOR};
-                padding: 3px 8px; /* Ajuster padding */
-                border-radius: 4px;
-                /* min-height: 20px; La taille fixe est définie dans init_ui */
-                text-align: center;
-            }}
-            QPushButton#FormButton:hover {{
-                background-color: #565a5e;
-                border: 1px solid {ACTION_BUTTON_HOVER_BORDER};
-            }}
-            QPushButton#FormButton:pressed {{
-                background-color: #606468;
-            }}
-            /* --- Fin nouveau style --- */
-
-            /* --- Style pour le bouton Plus --- */
-            QPushButton#PlusButton {{
-                background-color: {ACTION_BUTTON_BACKGROUND};
-                border: 1px solid {ACTION_BUTTON_BORDER};
-                color: {DARK_TEXT_COLOR};
-                border-radius: 4px; /* Ou 12px pour rond */
-                font-weight: bold;
-                padding: 0px; /* Ajuster si nécessaire pour centrer le + */
-            }}
-            QPushButton#PlusButton:hover {{
-                background-color: #565a5e;
-                border: 1px solid {ACTION_BUTTON_HOVER_BORDER};
-            }}
-            QPushButton#PlusButton:pressed {{
-                background-color: #606468;
-            }}
-            /* --- Fin Style bouton Plus --- */
-
-            /* --- Nouveau style pour boutons Nouveau/Ouvrir (type nav) --- */
-            QPushButton#TopNavButton {{
-                background-color: transparent;
-                border: none;
-                color: {DARK_TEXT_COLOR};
-                padding: 4px 10px;
-                border-radius: 4px;
-                text-align: center;
-            }}
-            QPushButton#TopNavButton:hover {{
-                background-color: {ACCENT_COLOR};
-                color: white;
-            }}
-            QPushButton#TopNavButton:pressed {{
-                background-color: #003d82;
-            }}
-            /* --- Fin nouveau style --- */
-
-            /* --- Style pour le QTextBrowser du README (dans sa QFrame) --- */
-            #ContentArea QFrame#DashboardBox QTextBrowser#ReadmeBrowser {{
-                background-color: transparent;
-                border: none;
-                color: {DARK_TEXT_COLOR}; /* Couleur texte par défaut */
-                /* Les styles spécifiques (h1, code, etc.) peuvent être surchargés */
-                /* par le HTML généré ou des styles QSS plus fins */
-            }}
-            #ContentArea QFrame#DashboardBox QTextBrowser#ReadmeBrowser a {{
-                color: {ACCENT_COLOR}; /* Couleur des liens */
-                text-decoration: none;
-            }}
-             #ContentArea QFrame#DashboardBox QTextBrowser#ReadmeBrowser a:hover {{
-                 text-decoration: underline;
-             }}
-
-            /* --- Style pour le QTextBrowser des Notes (dans sa QFrame via AboutReleaseNotesPage) --- */
-            QTextBrowser#NotesBrowser {{
-                background-color: transparent; 
-                border: none;
-                color: {DARK_TEXT_COLOR};
-            }}
-            QTextBrowser#NotesBrowser a {{
-                color: {ACCENT_COLOR};
-                text-decoration: none;
-            }}
-            QTextBrowser#NotesBrowser a:hover {{
-                 text-decoration: underline;
-            }}
-            /* --- Fin style NotesBrowser --- */
-        """
-        self.setStyleSheet(stylesheet)
-        # self.preferences_widget.setObjectName("PreferencesPage") # Sera fait dans PreferencesPage
-
-    def on_recent_item_activated(self, item):
-        list_widget = self.sender()
-        widget_item = list_widget.itemWidget(item)
-        if isinstance(widget_item, ProjectListItemWidget):
-            document_path = widget_item.path_str
-            print(f"Opening recent document: {document_path}")
-            full_path = os.path.expanduser(document_path)
-            self.controller.open_specific_document(full_path)
-
-    def _select_signature_image(self):
-        """ Ouvre une boîte de dialogue pour sélectionner une image et l'affiche. """
-        # S'assurer que le label existe
-        if not self.signature_image_label:
-            print("Erreur: Le QLabel pour l'image n'existe pas.")
-            return
-
-        # Ouvrir le dialogue de fichier
-        options = QFileDialog.Options()
-        # options |= QFileDialog.DontUseNativeDialog # Décommenter si problème avec dialogue natif
-        file_path, _ = QFileDialog.getOpenFileName(self,
-                                                  "Sélectionner une image de signature",
-                                                  "", # Répertoire initial
-                                                  "Images (*.png *.jpg *.jpeg *.bmp)",
-                                                  options=options)
-        
-        if file_path:
-            # Charger le QPixmap
-            pixmap = QPixmap(file_path)
-            if pixmap.isNull():
-                print(f"Erreur: Impossible de charger l'image depuis {file_path}")
-                # Optionnel: Afficher une erreur dans le label
-                self.signature_image_label.setText("Erreur")
-                self.signature_image_label.setVisible(True)
-                return
-
-            # Redimensionner l'image pour s'adapter au label
-            label_size = self.signature_image_label.size()
-            scaled_pixmap = pixmap.scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            
-            # Afficher l'image dans le label
-            self.signature_image_label.setPixmap(scaled_pixmap)
-            self.signature_image_label.setVisible(True) # Rendre visible
-            print(f"Image sélectionnée: {file_path}")
-
-    # --- Slots pour naviguer dans le stack Documents --- 
-    def _show_new_document_page(self):
-        self.documents_stack.setCurrentWidget(self.documents_new_page)
-
-    def _show_document_list_page(self):
-        self.documents_stack.setCurrentWidget(self.documents_list_page)
-
-    # ==========================================================================
-    # ======================== Création des pages ============================
-    # ==========================================================================
-    
-    # --- MÉTHODE _create_documents_page (Ajustement Layout + Séparateur Manuel) --- 
-    def _create_documents_page(self):
-        """Crée le widget complet pour la page/section Documents (version pré-refactor)."""
-        documents_widget = QWidget() 
-        page_documents_layout = QVBoxLayout(documents_widget)
-        page_documents_layout.setContentsMargins(0, 0, 0, 0)
-        page_documents_layout.setSpacing(0)
-
-        self.documents_stack = QStackedWidget()
-
-        # --- Page 1.1: Liste des Documents (UNE SEULE QFrame maintenant) --- 
-        self.documents_list_page = QWidget()
-        list_page_layout = QVBoxLayout(self.documents_list_page)
-        # Rétablir la marge supérieure initiale du layout de la page
-        list_page_layout.setContentsMargins(10, 10, 10, 10) # Top margin set back to 10
-        # Remettre l'espacement comme avant
-        list_page_layout.setSpacing(10) 
-        
-        # --- Boîte Principale (Sans titre, contiendra recherche+boutons+liste) --- 
-        # Appel à _create_dashboard_box avec title=None
-        main_doc_box, main_doc_box_layout = self._create_dashboard_box(title=None)
-        # Rétablir la marge supérieure interne à 8
-        main_doc_box_layout.setContentsMargins(15, 8, 15, 10) # Top margin set back to 8
-        main_doc_box_layout.setSpacing(10) # Espacement entre barre et liste
-
-        # --- Recréer la barre de recherche et boutons --- 
-        top_bar_layout = QHBoxLayout()
-        search_input = QLineEdit()
-        search_input.setPlaceholderText("Recherche de documents")
-        search_input.setObjectName("SearchInput")
-        search_input.setFixedHeight(26)
-        top_bar_layout.addWidget(search_input, 1) 
-        btn_new = QPushButton("Nouveau")
-        btn_new.setObjectName("TopNavButton")
-        btn_new.setFixedHeight(26)
-        btn_new.setFont(DEFAULT_FONT)
-        btn_new.clicked.connect(self._show_new_document_page) 
-        btn_open = QPushButton("Ouvrir")
-        btn_open.setObjectName("TopNavButton")
-        btn_open.setFixedHeight(26)
-        btn_open.setFont(DEFAULT_FONT)
-        btn_open.clicked.connect(self.controller.open_document) 
-        top_bar_layout.addWidget(btn_new)
-        top_bar_layout.addWidget(btn_open)
-        
-        # Ajouter la barre au DÉBUT du layout interne de la boîte principale
-        main_doc_box_layout.addLayout(top_bar_layout)
-
-        # --- Ajouter un séparateur MANUELLEMENT ici --- 
-        manual_separator = QFrame()
-        manual_separator.setFrameShape(QFrame.HLine)
-        manual_separator.setStyleSheet(f"border: none; border-top: 1px solid {DARK_BORDER_COLOR}; margin-top: 5px; margin-bottom: 5px;") 
-        main_doc_box_layout.addWidget(manual_separator)
-
-        # --- Liste des projets (ajoutée au même layout interne APRES le séparateur manuel) --- 
-        self.recent_list_widget = QListWidget()
-        self.recent_list_widget.setObjectName("ProjectList")
-        self.recent_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.recent_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.recent_list_widget.setFocusPolicy(Qt.NoFocus)
-        projects = get_recent_projects_data()
-        if projects:
-             for project_data in projects:
-                item = QListWidgetItem(self.recent_list_widget)
-                item_widget = ProjectListItemWidget(
-                    project_data["name"],
-                    project_data["path"],
-                    project_data.get("icon", "?")
-                )
-                item.setSizeHint(item_widget.sizeHint())
-                self.recent_list_widget.addItem(item)
-                self.recent_list_widget.setItemWidget(item, item_widget)
-        self.recent_list_widget.itemDoubleClicked.connect(self.on_recent_item_activated)
-        
-        # Ajouter la liste APRÈS la barre de recherche/boutons dans le layout interne
-        main_doc_box_layout.addWidget(self.recent_list_widget, 1) # Avec stretch vertical
-        
-        # Ajouter la boîte principale unique au layout de la page
-        list_page_layout.addWidget(main_doc_box, 1) # Donner le stretch à la boîte
-        
-        self.documents_stack.addWidget(self.documents_list_page)
-
-        # --- Page 1.2: Nouvelle Page Document --- 
-        self.documents_new_page = QWidget()
-        new_page_container_layout = QVBoxLayout(self.documents_new_page)
-        new_page_container_layout.setContentsMargins(10, 10, 10, 10)
-        new_page_container_layout.setSpacing(10)
-
-        new_doc_box, new_doc_box_layout = self._create_dashboard_box("Créer un nouveau document")
-        
-        btn_back_to_list = QPushButton("Retour") 
-        btn_back_to_list.setObjectName("TopNavButton")
-        btn_back_to_list.setFixedWidth(80) 
-        btn_back_to_list.clicked.connect(self._show_document_list_page)
-        
-        new_doc_form_layout = QFormLayout()
-        new_doc_form_layout.setContentsMargins(0, 5, 0, 5)
-        new_doc_form_layout.setSpacing(10)
-        new_doc_form_layout.setVerticalSpacing(12)
-        label_doc_type = QLabel("Document:")
-        label_doc_type.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        cb_new_doc_type = QComboBox()
-        cb_new_doc_type.addItems(["Document Standard", "Rapport Mensuel", "Présentation Client", "Autre..."])
-        new_doc_form_layout.addRow(label_doc_type, cb_new_doc_type)
-        # ... (Ajouter d'autres champs du formulaire si nécessaire) ...
-        
-        new_doc_box_layout.addLayout(new_doc_form_layout)
-        new_doc_box_layout.addStretch(1) # Pousse le formulaire vers le haut
-
-        # Ajouter la boîte au layout de la page (SANS stretch vertical)
-        new_page_container_layout.addWidget(new_doc_box, 0)
-        # SUPPRESSION de la deuxième boîte erronée
-        # new_page_container_layout.addWidget(second_new_doc_box, 1)
-
-        # Ajouter le bouton Retour au layout principal (en bas à gauche)
-        new_page_container_layout.addWidget(btn_back_to_list, 0, Qt.AlignBottom | Qt.AlignLeft)
-
-        self.documents_stack.addWidget(self.documents_new_page)
-
-        page_documents_layout.addWidget(self.documents_stack)
-        return documents_widget
-        
-    def _create_preferences_page(self):
-        """Crée le widget complet pour la page Préférences."""
-        preferences_widget = QWidget()
-        prefs_main_layout = QGridLayout(preferences_widget)
-        prefs_main_layout.setSpacing(15)
-        prefs_main_layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Garder une référence au label image (si nécessaire ici)
-        self.signature_image_label = None 
-        
-        # Section "Mon profile"
-        profile_box, box_content_layout_prof = self._create_dashboard_box("Mon profile", icon_path="resources/icons/clear/round_account_box.png") 
-        profile_form_layout = QFormLayout() 
-        profile_form_layout.setContentsMargins(15, 10, 15, 15) 
-        profile_form_layout.setSpacing(10)
-        profile_form_layout.setVerticalSpacing(12)
-        label_nom = QLabel("Nom:")
-        label_nom.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        profile_form_layout.addRow(label_nom, QLineEdit(placeholderText="Entrez votre nom"))
-        label_prenom = QLabel("Prénom:")
-        label_prenom.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        profile_form_layout.addRow(label_prenom, QLineEdit(placeholderText="Entrez votre prénom"))
-        label_tel = QLabel("Numéro de téléphone:")
-        label_tel.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        profile_form_layout.addRow(label_tel, QLineEdit(placeholderText="XXX-XXX-XXXX"))
-        label_courriel = QLabel("Courriel:")
-        label_courriel.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        profile_form_layout.addRow(label_courriel, QLineEdit(placeholderText="nom@example.com"))
-        label_signature = QLabel("Signature Numerique:")
-        label_signature.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        signature_widget_container = QWidget()
-        signature_widget_container.setStyleSheet("background: transparent;")
-        signature_layout = QHBoxLayout(signature_widget_container)
-        signature_layout.setContentsMargins(0, 0, 0, 0)
-        signature_layout.setSpacing(5)
-        btn_plus_signature = QPushButton("+")
-        btn_plus_signature.setObjectName("PlusButton")
-        btn_plus_signature.setFixedSize(24, 24)
-        btn_plus_signature.clicked.connect(self._select_signature_image)
-        self.signature_image_label = QLabel()
-        self.signature_image_label.setMinimumHeight(24)
-        self.signature_image_label.setStyleSheet("background: transparent;")
-        self.signature_image_label.setAlignment(Qt.AlignCenter)
-        self.signature_image_label.setText("...")
-        signature_layout.addWidget(btn_plus_signature)         
-        signature_layout.addWidget(self.signature_image_label, 1)
-        profile_form_layout.addRow(label_signature, signature_widget_container)
-        box_content_layout_prof.addLayout(profile_form_layout) 
-        box_content_layout_prof.addStretch(1)
-        prefs_main_layout.addWidget(profile_box, 0, 0)
-
-        # Section "Jacmar"
-        jacmar_box, box_content_layout_jac = self._create_dashboard_box("Jacmar", icon_path="resources/icons/clear/round_corporate_fare.png")
-        jacmar_form_layout = QFormLayout()
-        jacmar_form_layout.setContentsMargins(15, 10, 15, 15)
-        jacmar_form_layout.setSpacing(10)
-        jacmar_form_layout.setVerticalSpacing(12)
-        cb_emplacement = QComboBox(); cb_emplacement.addItems(["Jacmar", "Autre..."])
-        label_emplacement = QLabel("Emplacement:")
-        label_emplacement.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        jacmar_form_layout.addRow(label_emplacement, cb_emplacement)
-        cb_dept = QComboBox(); cb_dept.addItems(["Ingénierie", "Production", "Ventes", "..."])
-        label_dept = QLabel("Département:")
-        label_dept.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        jacmar_form_layout.addRow(label_dept, cb_dept)
-        cb_titre = QComboBox(); cb_titre.addItems(["Chargé de projet", "Technicien", "Directeur", "..."])
-        label_titre = QLabel("Titre:")
-        label_titre.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        jacmar_form_layout.addRow(label_titre, cb_titre)
-        cb_super = QComboBox(); cb_super.addItems(["Personne A", "Personne B", "..."])
-        label_super = QLabel("Superviseur:")
-        label_super.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        jacmar_form_layout.addRow(label_super, cb_super)
-        cb_plafond = QComboBox(); cb_plafond.addItems(["Standard", "Élevé", "Aucun", "..."])
-        label_plafond = QLabel("Plafond de déplacement:")
-        label_plafond.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        jacmar_form_layout.addRow(label_plafond, cb_plafond)
-        box_content_layout_jac.addLayout(jacmar_form_layout)
-        box_content_layout_jac.addStretch(1)
-        prefs_main_layout.addWidget(jacmar_box, 0, 1)
-
-        # Section "Application"
-        app_box, box_content_layout_app = self._create_dashboard_box("Application", icon_path="resources/icons/clear/round_category.png")
-        app_form_layout = QFormLayout()
-        app_form_layout.setContentsMargins(15, 10, 15, 15)
-        app_form_layout.setSpacing(10)
-        app_form_layout.setVerticalSpacing(12)
-        cb_theme = QComboBox(); cb_theme.addItems(["Sombre (Défaut)", "Clair", "Système"]) 
-        label_theme = QLabel("Thème:")
-        label_theme.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        app_form_layout.addRow(label_theme, cb_theme)
-        label_auto_update = QLabel("Mise a jour automatique:")
-        label_auto_update.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        toggle_auto_update = SimpleToggle()
-        toggle_container_auto = QWidget()
-        toggle_container_auto.setStyleSheet("background: transparent;")
-        toggle_layout_auto = QHBoxLayout(toggle_container_auto)
-        toggle_layout_auto.setContentsMargins(0, 0, 0, 0)
-        toggle_layout_auto.addWidget(toggle_auto_update, 0, Qt.AlignLeft | Qt.AlignVCenter)
-        toggle_layout_auto.addStretch(1)
-        app_form_layout.addRow(label_auto_update, toggle_container_auto)
-        label_show_notes = QLabel("Afficher la note de version:")
-        label_show_notes.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        toggle_show_notes = SimpleToggle()
-        toggle_container_notes = QWidget()
-        toggle_container_notes.setStyleSheet("background: transparent;")
-        toggle_layout_notes = QHBoxLayout(toggle_container_notes)
-        toggle_layout_notes.setContentsMargins(0, 0, 0, 0)
-        toggle_layout_notes.addWidget(toggle_show_notes, 0, Qt.AlignLeft | Qt.AlignVCenter)
-        app_form_layout.addRow(label_show_notes, toggle_container_notes)
-        box_content_layout_app.addLayout(app_form_layout)
-        box_content_layout_app.addStretch(1)
-        prefs_main_layout.addWidget(app_box, 1, 0)
-
-        # Section "Gestion des preferences"
-        mgmt_box, box_content_layout_mgmt = self._create_dashboard_box("Gestion des preferences", icon_path="resources/icons/clear/round_smart_button.png") 
-        prefs_form_layout = QFormLayout()
-        prefs_form_layout.setContentsMargins(15, 10, 15, 15) 
-        prefs_form_layout.setSpacing(10)
-        prefs_form_layout.setVerticalSpacing(12)
-        label_export = QLabel("Exporter:")
-        label_export.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        btn_export = QPushButton("")
-        btn_export.setObjectName("FormButton")
-        btn_export.setIcon(QIcon("resources/icons/clear/round_file_download.png"))
-        btn_export.setIconSize(QSize(20, 20))
-        btn_export.setFixedSize(30, 30)
-        btn_export.setToolTip("Exporter les préférences")
-        prefs_form_layout.addRow(label_export, btn_export)
-        label_import = QLabel("Importer:")
-        label_import.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        btn_import = QPushButton("")
-        btn_import.setObjectName("FormButton") 
-        btn_import.setIcon(QIcon("resources/icons/clear/round_file_upload.png"))
-        btn_import.setIconSize(QSize(20, 20))
-        btn_import.setFixedSize(30, 30)
-        btn_import.setToolTip("Importer les préférences")
-        prefs_form_layout.addRow(label_import, btn_import)
-        label_save = QLabel("Sauvegarder:")
-        label_save.setStyleSheet(f"background: transparent; border: none; color: {DARK_SECONDARY_TEXT_COLOR}; min-height: 20px; padding: 4px 0px;")
-        btn_save = QPushButton("")
-        btn_save.setObjectName("FormButton") 
-        btn_save.setIcon(QIcon("resources/icons/clear/round_save.png"))
-        btn_save.setIconSize(QSize(20, 20))
-        btn_save.setFixedSize(30, 30)
-        btn_save.setToolTip("Sauvegarder les préférences")
-        prefs_form_layout.addRow(label_save, btn_save)
-        box_content_layout_mgmt.addLayout(prefs_form_layout)
-        box_content_layout_mgmt.addStretch(1)
-        prefs_main_layout.addWidget(mgmt_box, 1, 1)
-
-        prefs_main_layout.setRowStretch(2, 1) 
-        prefs_main_layout.setColumnStretch(2, 1) 
-        
-        return preferences_widget # Retourner le widget principal
-
-# --- Section pour tester la page seule --- 
+# --- Section pour tester la page seule (Inchangée) --- 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
     
     class DummyController:
-        def create_new_document(self): print("Action: Créer Nouveau Document")
         def open_document(self): print("Action: Ouvrir Document")
         def open_specific_document(self, path): print(f"Action: Ouvrir Document Spécifique: {path}")
+        def create_new_document(self): print("Action: Créer Nouveau Document")
 
     app = QApplication(sys.argv)
     app.setStyle('Fusion')

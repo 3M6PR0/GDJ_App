@@ -1,0 +1,333 @@
+/* resources/styles/global.qss */
+
+/* 
+ * Styles globaux de l'application.
+ * Utilise les placeholders {{NOM_CONSTANTE}} qui seront remplacés
+ * par les valeurs de config/theme.py via stylesheet_loader.py
+ */
+
+/* Style de base pour tous les widgets */
+QWidget {
+    color: {{COLOR_TEXT_PRIMARY}};
+    background-color: {{COLOR_PRIMARY_DARKEST}};
+    font-family: "Segoe UI";
+    font-size: 9pt;
+    border: none;
+}
+
+/* Fenêtre principale */
+QWidget#WelcomeWindow {
+    /* Peut rester vide si QWidget global suffit */
+}
+
+/* Barre latérale */
+QFrame#Sidebar {
+    background-color: {{COLOR_PRIMARY_DARK}};
+}
+
+/* Zone de contenu principale */
+QStackedWidget#ContentArea {
+    background-color: {{COLOR_PRIMARY_DARKEST}};
+    border-left: 1px solid {{COLOR_PRIMARY_DARK}};
+}
+
+/* Style par défaut pour les widgets DANS la zone de contenu */
+QStackedWidget#ContentArea > QWidget {
+    background-color: {{COLOR_PRIMARY_DARKEST}};
+}
+
+/* -- Styles Sidebar (Boutons, etc.) -- */
+QFrame#SidebarButtonContainer {
+    background-color: transparent;
+    border-radius: {{RADIUS_DEFAULT}};
+}
+QFrame#SidebarButtonContainer:hover {
+    background-color: {{COLOR_ITEM_HOVER}};
+}
+QFrame#SidebarButtonContainer[checked="true"] {
+    background-color: {{COLOR_ACCENT}};
+}
+QPushButton#SidebarButton {
+    background-color: transparent;
+    color: {{COLOR_TEXT_INACTIVE}};
+    border: none; 
+    padding: 0px;
+    text-align: left;
+}
+QPushButton#SidebarButton:checked {
+    color: {{COLOR_TEXT_ON_ACCENT}};
+    font-weight: normal;
+}
+QFrame#SidebarButtonContainer:hover QPushButton#SidebarButton:!checked {
+    color: {{COLOR_TEXT_PRIMARY}};
+}
+
+/* Badge (si utilisé) */
+QLabel#SidebarBadge {
+    background-color: {{COLOR_BADGE_BACKGROUND}};
+    color: {{COLOR_BADGE_TEXT}};
+    border-radius: {{RADIUS_BADGE}};
+    font-size: 7pt;
+    font-weight: bold;
+    min-width: 16px; max-width: 16px;
+    min-height: 16px; max-height: 16px;
+    padding: 1px 0px 0px 0px;
+}
+QFrame#SidebarButtonContainer[checked="true"] QLabel#SidebarBadge {
+    background-color: {{COLOR_BADGE_SELECTED_BACKGROUND}};
+    color: {{COLOR_BADGE_SELECTED_TEXT}};
+}
+
+/* Bouton Settings */
+QPushButton#SettingsButton {
+    background-color: transparent;
+    border: none;
+    color: {{COLOR_TEXT_SECONDARY}};
+    padding: 0px;
+    border-radius: {{RADIUS_DEFAULT}};
+}
+QPushButton#SettingsButton:hover {
+    background-color: {{COLOR_ITEM_HOVER}};
+}
+
+/* --- Styles Généraux pour Widgets Communs --- */
+/* (Peuvent être surchargés par les styles de page/composant) */
+
+/* Rendre tous les QLabel transparents par défaut */
+QLabel {
+    background-color: transparent;
+}
+
+QPushButton {
+    /* Style de base pour les boutons si nécessaire */
+}
+
+QLineEdit {
+    background-color: {{COLOR_SEARCH_BACKGROUND}};
+    border: 1px solid {{COLOR_PRIMARY_LIGHTEST}};
+    border-radius: {{RADIUS_DEFAULT}};
+    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}};
+    color: {{COLOR_TEXT_PRIMARY}};
+    min-height: 20px; /* Ou {{INPUT_HEIGHT_DEFAULT}} si défini */
+}
+QLineEdit:focus {
+    border: 1px solid {{COLOR_ACCENT}};
+}
+
+QComboBox {
+    background-color: {{COLOR_SEARCH_BACKGROUND}};
+    border: 1px solid {{COLOR_PRIMARY_LIGHTEST}};
+    border-radius: {{RADIUS_DEFAULT}};
+    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}};
+    color: {{COLOR_TEXT_PRIMARY}};
+    min-height: 20px;
+}
+QComboBox:focus {
+    border: 1px solid {{COLOR_ACCENT}};
+}
+QComboBox::drop-down {
+    border: none; 
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 15px;
+}
+QComboBox::down-arrow {
+    /* image: url(...); */
+    width: 10px; 
+    height: 10px;
+}
+QComboBox QAbstractItemView {
+    background-color: {{COLOR_ITEM_HOVER}};
+    border: 1px solid {{COLOR_PRIMARY_LIGHT}};
+    selection-background-color: {{COLOR_ACCENT}};
+    color: {{COLOR_TEXT_PRIMARY}};
+    padding: 2px;
+}
+
+/* ScrollBar (Style modifié pour fond correspondant au parent Frame) */
+QScrollBar:vertical {
+    border: none;
+    /* Mettre le fond de la même couleur que Frame#CustomFrame */
+    background: {{COLOR_PRIMARY_MEDIUM}}; 
+    width: 14px;
+    margin: 0px; 
+}
+QScrollBar::handle:vertical {
+    /* Style de la poignée inchangé */
+    background: #5c5f61; 
+    min-height: 30px;
+    border-radius: 7px;
+    border: none;
+}
+QScrollBar::handle:vertical:hover {
+    background: #6c6f71;
+}
+QScrollBar::handle:vertical:pressed {
+    background: #7c7f81;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+    /* Fond correspondant au parent Frame */
+    background: {{COLOR_PRIMARY_MEDIUM}};
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    /* Fond correspondant au parent Frame */
+    background: {{COLOR_PRIMARY_MEDIUM}};
+}
+
+/* Style pour le séparateur sous la barre de titre */
+QFrame#TitleSeparatorLine {
+    background-color: {{COLOR_PRIMARY_DARK}}; /* Ou COLOR_PRIMARY_LIGHT ? */
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}
+
+/* --- Styles Spécifiques aux Pages --- */
+
+/* Rendre les QTextBrowser des pages About transparents */
+QTextBrowser#ReadmeBrowser, 
+QTextBrowser#NotesBrowser {
+    background-color: transparent;
+    border: none; /* Assurer qu'il n'y a pas de bordure non plus */
+}
+
+/* Optionnel: Styles spécifiques pour les liens dans ces browsers */
+QTextBrowser#ReadmeBrowser a,
+QTextBrowser#NotesBrowser a {
+    color: {{COLOR_ACCENT}};
+    text-decoration: none;
+}
+QTextBrowser#ReadmeBrowser a:hover,
+QTextBrowser#NotesBrowser a:hover {
+    text-decoration: underline;
+}
+
+/* --- Style spécifique pour les boutons de navigation type TopNavButton --- */
+QPushButton#TopNavButton {
+    background-color: transparent;
+    border: none;
+    color: {{COLOR_TEXT_PRIMARY}};
+    padding: 4px 10px;
+    border-radius: {{RADIUS_DEFAULT}};
+    text-align: center;
+}
+QPushButton#TopNavButton:hover {
+    background-color: {{COLOR_ACCENT}}; 
+    color: {{COLOR_TEXT_ON_ACCENT}}; 
+}
+QPushButton#TopNavButton:pressed {
+    background-color: {{COLOR_ACCENT_PRESSED}};
+    color: {{COLOR_TEXT_ON_ACCENT}}; 
+}
+
+/* Ajouter d'autres styles spécifiques aux pages ici */ 
+
+/* Retiré: Styles pour le badge de version dans QTextBrowser - Géré en ligne */
+
+/* Styles globaux qui pourraient affecter le badge (optionnel) */
+QTextBrowser {
+    /* Peut-être définir une police par défaut ici si nécessaire */
+}
+
+/* Ciblage plus spécifique si possible (ex: via nom d'objet) */
+QTextBrowser#ReadmeBrowser table.version-badge {
+    display: inline-block; 
+    border-collapse: collapse; 
+    border-spacing: 0; 
+    line-height: 1.2; 
+    font-size: 8pt; 
+    font-weight: bold; 
+    vertical-align: middle; 
+    border-radius: 4px; /* Ou {{RADIUS_DEFAULT}} */
+    overflow: hidden;
+    margin-bottom: 10px; 
+}
+
+QTextBrowser#ReadmeBrowser td.version-badge-label,
+QTextBrowser#ReadmeBrowser td.version-badge-value {
+    color: white; 
+    padding: 3px 6px;
+    border: none; 
+}
+
+QTextBrowser#ReadmeBrowser td.version-badge-label {
+    background-color: {{COLOR_PRIMARY_DARK}}; 
+}
+
+QTextBrowser#ReadmeBrowser td.version-badge-value {
+    background-color: {{COLOR_ACCENT}}; 
+}
+
+/* --- Style pour le widget SimpleToggle --- */
+SimpleToggle {
+    /* 1. S'assurer que le fond intrinsèque du widget est transparent */
+    background-color: transparent; 
+    
+    /* 2. Tenter de forcer la couleur utilisée pour le rail (état décoché) 
+       en redéfinissant le rôle QPalette.Dark spécifiquement pour ce widget. */
+    palette-dark: transparent; 
+    
+    /* 3. S'assurer que les autres couleurs utilisées par paintEvent 
+       (Highlight pour état coché, BrightText pour le handle) restent correctes.
+       On peut les définir explicitement si nécessaire, ou espérer que
+       les valeurs par défaut du thème global conviennent. */
+    /* palette-highlight: {{COLOR_ACCENT}}; */ /* Ex: si besoin */
+    /* palette-bright-text: {{COLOR_WHITE}}; */ /* Ex: si besoin */
+} 
+
+/* --- Style pour les boutons d'icône dans les formulaires (#FormButton) --- */
+QPushButton#FormButton {
+    background-color: transparent;
+    border: none;
+    padding: 2px; 
+    border-radius: {{RADIUS_DEFAULT}}; 
+}
+QPushButton#FormButton:hover {
+    background-color: {{COLOR_ITEM_HOVER}}; 
+}
+QPushButton#FormButton:pressed {
+    background-color: {{COLOR_ACCENT_PRESSED}};
+} 
+
+/* --- Style pour la liste de projets (#ProjectList) --- */
+QListWidget#ProjectList {
+    background-color: transparent;
+    border: none; 
+}
+QListWidget#ProjectList::item {
+    border: none;
+    padding: 5px 0px; /* Ajouter un peu d'espace vertical entre items */
+}
+QListWidget#ProjectList::item:hover {
+    background-color: {{COLOR_ITEM_HOVER}};
+    border-radius: {{RADIUS_DEFAULT}};
+}
+QListWidget#ProjectList::item:selected {
+    background-color: {{COLOR_ACCENT}}; 
+    border-radius: {{RADIUS_DEFAULT}};
+}
+
+/* Style pour le texte dans les items de la liste */
+/* (Assure la lisibilité sur fond normal, hover, et sélectionné) */
+QLabel#ProjectListName {
+    color: {{COLOR_TEXT_PRIMARY}};
+    font-weight: bold; 
+    background-color: transparent;
+}
+QLabel#ProjectListPath {
+    color: {{COLOR_TEXT_SECONDARY}};
+    font-size: 8pt;
+    background-color: transparent;
+}
+/* Pour item sélectionné/survolé */
+QListWidget#ProjectList::item:selected QLabel#ProjectListName,
+QListWidget#ProjectList::item:selected QLabel#ProjectListPath,
+QListWidget#ProjectList::item:hover QLabel#ProjectListName,
+QListWidget#ProjectList::item:hover QLabel#ProjectListPath {
+    color: {{COLOR_TEXT_ON_ACCENT}}; /* Ou une autre couleur claire */
+} 
+
+/* Retiré: Styles pour #DocActionButton car non utilisé */
+
+/* ... (autres styles s'il y en a après) ... */ 
