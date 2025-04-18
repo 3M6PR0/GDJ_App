@@ -1,6 +1,5 @@
-from PyQt5.QtWidgets import QDialog
+from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFileDialog
 from dialogs.new_document_dialog import NewDocumentDialog
-from pages.home_page import HomePage
 from pages.document_page import DocumentPage
 from pages.profile_page import ProfilePage
 from models.profile import Profile
@@ -13,6 +12,10 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QMessageBox, QDialog,
 from PyQt5.QtCore import Qt
 from config import CONFIG
 from updater.update_checker import check_for_updates
+
+# --- Import des nouvelles pages/fenêtres ---
+from pages.welcome_page import WelcomePage
+from ui.main_window import MainWindow
 
 # --- Classe pour la boîte de dialogue des notes de version ---
 class ReleaseNotesDialog(QDialog):
@@ -37,17 +40,14 @@ class ReleaseNotesDialog(QDialog):
         self.setLayout(layout)
 
 class MainController:
-    def __init__(self, main_window):
-        self.main_window = main_window
+    def __init__(self):
+        self.main_window = None
+        self.welcome_page = None
         self.documents = {}
         self.profile_page = None
 
         # Au démarrage, charger le profil depuis le fichier JSON.
         self.profile = Profile.load_from_file()
-
-        # Charger la page d'accueil dans le QTabWidget
-        self.home_page = HomePage(self)
-        self.main_window.tab_widget.addTab(self.home_page, "Accueil")
 
         # --- Chemins et versions --- (Déplacé ici pour être accessible par plusieurs méthodes)
         self.app_base_path = self._get_app_base_path()
@@ -60,16 +60,39 @@ class MainController:
         self.check_show_release_notes_on_update() # Renommée pour clarté
         check_for_updates()
 
-        # --- Connexions Menu --- (Ajouter la nouvelle connexion)
-        self.main_window.action_new.triggered.connect(self.create_new_document)
-        self.main_window.action_open.triggered.connect(self.open_document)
-        self.main_window.action_close.triggered.connect(self.close_current_document)
-        self.main_window.action_profile.triggered.connect(self.open_profile_page)
-        # !! Assurez-vous que l'action existe dans votre UI avec le nom 'actionAfficherNotesVersion' !!
-        try:
-            self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
-        except AttributeError:
-            print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI. Ajoutez-la au menu Aide.")
+    def show_welcome_page(self):
+        """Crée et affiche la page de bienvenue, en passant les infos nécessaires."""
+        if self.welcome_page is None:
+            app_name = CONFIG.get('APP_NAME', 'MonApp') # Récupérer nom depuis config
+            # Passer app_name et version au constructeur de WelcomePage
+            self.welcome_page = WelcomePage(self, app_name, self.current_version_str)
+        self.welcome_page.show()
+
+    def _ensure_main_window_exists(self):
+        """Crée la MainWindow si elle n'existe pas et établit les connexions."""
+        if self.main_window is None:
+            self.main_window = MainWindow()
+            
+            # Connecter les actions du menu de la MainWindow au contrôleur
+            self.main_window.action_new.triggered.connect(self.create_new_document_from_menu)
+            self.main_window.action_open.triggered.connect(self.open_document_from_menu)
+            self.main_window.action_close.triggered.connect(self.close_current_document)
+            self.main_window.action_profile.triggered.connect(self.open_profile_page)
+            try:
+                self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
+            except AttributeError:
+                print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
+            
+            # Vérifications qui dépendent de la fenêtre principale
+            self.check_show_release_notes_on_update()
+            
+        # Fermer la fenêtre de bienvenue si elle est ouverte
+        if self.welcome_page and self.welcome_page.isVisible():
+            self.welcome_page.close()
+        
+        # Afficher la fenêtre principale si elle était cachée
+        if not self.main_window.isVisible():
+            self.main_window.show()
 
     def _get_app_base_path(self):
         """ Détermine le chemin de base de l'application (installée ou dev). """
@@ -107,6 +130,9 @@ class MainController:
 
     def check_show_release_notes_on_update(self):
         """ Vérifie s'il faut afficher les notes APRES une mise à jour. """
+        if self.main_window is None: # Ne pas exécuter si la fenêtre principale n'est pas prête
+             print("Différé: Vérification des notes de version jusqu'à l'initialisation de MainWindow.")
+             return
         print("Vérification pour affichage des notes de version post-mise à jour...")
         last_run_version_file = os.path.join(self.data_path, "last_run_version.txt")
         last_run_version_str = self._read_version_file(last_run_version_file)
@@ -120,9 +146,7 @@ class MainController:
 
             if current_v > last_run_v:
                 print("Nouvelle version détectée, affichage des notes...")
-                # On utilise la méthode show_release_notes_dialog pour éviter duplication
                 self.show_release_notes_dialog(auto_update_context=True)
-                # Mettre à jour le fichier last_run_version APRÈS l'affichage
                 self._write_last_run_version(last_run_version_file, self.current_version_str)
             else:
                 print("Pas une nouvelle version, pas d'affichage des notes post-màj.")
@@ -133,6 +157,7 @@ class MainController:
 
     def show_release_notes_dialog(self, auto_update_context=False):
         """ Affiche la boîte de dialogue avec les notes de version. """
+        self._ensure_main_window_exists()
         if not auto_update_context:
              print("Affichage manuel des notes de version...")
 
@@ -155,54 +180,109 @@ class MainController:
         dialog.exec_()
 
     def create_new_document(self):
+        """Action appelée par le bouton 'Nouveau' de WelcomePage."""
+        self._ensure_main_window_exists()
         dialog = NewDocumentDialog(self.main_window)
         if dialog.exec_() == QDialog.Accepted:
             doc_type, data = dialog.get_data()
-            new_doc = None
-            if doc_type == "Rapport Dépense":
-                from models.documents.rapport_depense import RapportDepense
-                new_doc = RapportDepense(title=f"{doc_type} - {data.get('nom')}", depenses=[data.get('montant')])
-            elif doc_type == "Écriture Comptable":
-                from models.documents.ecriture_comptable import EcritureComptable
-                new_doc = EcritureComptable(title=f"{doc_type} - {data.get('titre')}", operations=[data.get('operation')])
-            elif doc_type == "Rapport Temps Sup":
-                from models.documents.rapport_temps_sup import RapportTempsSup
-                new_doc = RapportTempsSup(title=f"{doc_type} - {data.get('titre')}", heures=float(data.get('heures', 0)))
-            elif doc_type == "CSA":
-                from models.documents.csa import CSA
-                new_doc = CSA(title=f"{doc_type} - {data.get('titre')}", details=data.get('details'))
-            elif doc_type == "Système Vision":
-                from models.documents.systeme_vision import SystemeVision
-                new_doc = SystemeVision(title=f"{doc_type} - {data.get('titre')}", vision_params=data.get('vision_params'))
-            elif doc_type == "Robot":
-                from models.documents.robot import Robot
-                new_doc = Robot(title=f"{doc_type} - {data.get('titre')}", config=data.get('config'))
-            if new_doc:
-                doc_page = DocumentPage(title=new_doc.title, document=new_doc)
-                idx = self.main_window.tab_widget.addTab(doc_page, doc_page.title)
-                self.main_window.tab_widget.setCurrentIndex(idx)
-                self.documents[new_doc.title] = doc_page
+            self._create_and_add_document_tab(doc_type, data)
 
     def open_document(self):
-        # Exemple de création d'un document ouvert
-        doc = DocumentPage(title="Document Ouvert", document=None)
-        idx = self.main_window.tab_widget.addTab(doc, doc.title)
+        """Action appelée par le bouton 'Ouvrir' de WelcomePage."""
+        self._ensure_main_window_exists()
+        # Logique pour ouvrir un fichier via QFileDialog
+        options = QFileDialog.Options()
+        filePath, _ = QFileDialog.getOpenFileName(self.main_window, 
+                                                  "Ouvrir un document GDJ", "", 
+                                                  "GDJ Documents (*.gdj);;Tous les fichiers (*.*)", options=options)
+        if filePath:
+            print(f"Ouverture du document: {filePath}")
+            # Ici, il faudrait charger le document depuis le fichier
+            # Pour l'instant, on simule comme avant
+            self._open_and_add_document_tab(f"Doc: {os.path.basename(filePath)}", None) # Passe le chemin ou titre
+            
+    def open_specific_document(self, path):
+        """Action appelée par double-clic sur un item récent dans WelcomePage."""
+        self._ensure_main_window_exists()
+        print(f"Ouverture du document spécifique: {path}")
+        # Ici, il faudrait charger le document depuis le `path`
+        # Simulé pour l'instant
+        self._open_and_add_document_tab(f"Doc: {os.path.basename(path)}", None) 
+        
+    def create_new_document_from_menu(self):
+        """Action appelée par le menu Fichier > Nouveau."""
+        # Pas besoin d'appeler _ensure_main_window_exists ici car le menu n'est visible
+        # que si la fenêtre principale existe déjà.
+        dialog = NewDocumentDialog(self.main_window)
+        if dialog.exec_() == QDialog.Accepted:
+            doc_type, data = dialog.get_data()
+            self._create_and_add_document_tab(doc_type, data)
+            
+    def open_document_from_menu(self):
+        """Action appelée par le menu Fichier > Ouvrir."""
+        options = QFileDialog.Options()
+        filePath, _ = QFileDialog.getOpenFileName(self.main_window, "Ouvrir un document GDJ", "", "GDJ Documents (*.gdj);;Tous les fichiers (*.*)", options=options)
+        if filePath:
+            print(f"Ouverture du document (menu): {filePath}")
+            self._open_and_add_document_tab(f"Doc: {os.path.basename(filePath)}", None)
+
+    def _create_and_add_document_tab(self, doc_type, data):
+        """Factorisation de la logique de création d'un nouveau document et ajout d'onglet."""
+        new_doc = None
+        if doc_type == "Rapport Dépense":
+            from models.documents.rapport_depense import RapportDepense
+            new_doc = RapportDepense(title=f"{doc_type} - {data.get('nom')}", depenses=[data.get('montant')])
+        elif doc_type == "Écriture Comptable":
+            from models.documents.ecriture_comptable import EcritureComptable
+            new_doc = EcritureComptable(title=f"{doc_type} - {data.get('titre')}", operations=[data.get('operation')])
+        elif doc_type == "Rapport Temps Sup":
+            from models.documents.rapport_temps_sup import RapportTempsSup
+            new_doc = RapportTempsSup(title=f"{doc_type} - {data.get('titre')}", heures=float(data.get('heures', 0)))
+        elif doc_type == "CSA":
+            from models.documents.csa import CSA
+            new_doc = CSA(title=f"{doc_type} - {data.get('titre')}", details=data.get('details'))
+        elif doc_type == "Système Vision":
+            from models.documents.systeme_vision import SystemeVision
+            new_doc = SystemeVision(title=f"{doc_type} - {data.get('titre')}", vision_params=data.get('vision_params'))
+        elif doc_type == "Robot":
+            from models.documents.robot import Robot
+            new_doc = Robot(title=f"{doc_type} - {data.get('titre')}", config=data.get('config'))
+        else: # Ajout d'un cas par défaut ou log
+            print(f"Type de document inconnu ou non géré: {doc_type}")
+            return
+            
+        if new_doc:
+            doc_page = DocumentPage(title=new_doc.title, document=new_doc)
+            idx = self.main_window.tab_widget.addTab(doc_page, doc_page.title)
+            self.main_window.tab_widget.setCurrentIndex(idx)
+            self.documents[new_doc.title] = doc_page
+
+    def _open_and_add_document_tab(self, title, document_data):
+        """Factorisation de la logique d'ouverture d'un document et ajout d'onglet."""
+        # Ici, il faudrait implémenter la logique de chargement du document
+        # à partir de document_data (qui pourrait être un chemin de fichier)
+        # Pour l'instant, on crée une page vide avec le titre
+        doc_page = DocumentPage(title=title, document=None) # Passer les données chargées ici
+        idx = self.main_window.tab_widget.addTab(doc_page, doc_page.title)
         self.main_window.tab_widget.setCurrentIndex(idx)
-        self.documents[doc.title] = doc
+        self.documents[title] = doc_page # Utiliser un identifiant unique si le titre n'est pas fiable
 
     def close_current_document(self):
-        idx = self.main_window.tab_widget.currentIndex()
-        # On empêche la fermeture de la page Accueil
-        if idx == 0:
+        """Ferme l'onglet de document actif (inchangé, mais s'assure que main_window existe)."""
+        if not self.main_window or self.main_window.tab_widget.count() == 0: # Vérif si fenêtre/onglets existent
             return
+        idx = self.main_window.tab_widget.currentIndex()
         widget = self.main_window.tab_widget.widget(idx)
-        self.main_window.tab_widget.removeTab(idx)
-        if widget.title in self.documents:
-            del self.documents[widget.title]
+        if widget: # S'assurer qu'on a bien récupéré un widget
+            title_to_remove = widget.title # Utiliser le titre stocké dans le widget si possible
+            self.main_window.tab_widget.removeTab(idx)
+            if title_to_remove in self.documents:
+                del self.documents[title_to_remove]
 
     def open_profile_page(self):
+        """Ouvre l'onglet du profil (s'assure que main_window existe)."""
+        self._ensure_main_window_exists()
         if not self.profile_page:
-            # Passage de l'objet profil déjà chargé à la page profil
             self.profile_page = ProfilePage(self.profile)
             idx = self.main_window.tab_widget.addTab(self.profile_page, "Profil")
         else:
