@@ -12,6 +12,9 @@ from PyQt5.QtGui import QIcon, QPixmap, QColor, QPalette, QFont, QPainter, QPen,
 import markdown 
 import re # Importer re localement pour la suppression
 
+# Importer la barre de titre personnalisée
+from ui.components.custom_titlebar import CustomTitleBar
+
 # Couleurs encore plus affinées - **FOCUS SUR LES FONDS**
 DARK_BACKGROUND = "#313335" # Sidebar (moins sombre)
 DARK_WIDGET_BACKGROUND = "#2b2b2b" # ContentArea (plus sombre)
@@ -261,6 +264,14 @@ class WelcomePage(QWidget):
         self.app_name = app_name
         self.version_str = version_str
         self.setFont(DEFAULT_FONT)
+        
+        # --- Rendre la fenêtre sans cadre --- 
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        # Optionnel: Permettre le clic droit sur la barre des tâches pour menu système
+        self.setWindowFlags(self.windowFlags() | Qt.WindowContextHelpButtonHint)
+        # Donner un nom à la fenêtre pour référence facile
+        self.setObjectName("WelcomeWindow") 
+
         # Garder références aux pages pour le slot
         self.documents_widget = QWidget()
         self.preferences_widget = QWidget()
@@ -270,7 +281,27 @@ class WelcomePage(QWidget):
         self.apply_dark_theme()
         
     def init_ui(self):
-        main_layout = QHBoxLayout(self)
+        # --- Layout principal devient QVBoxLayout pour inclure la barre de titre --- 
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0,0,0,0)
+        outer_layout.setSpacing(0)
+
+        # --- Créer et ajouter la barre de titre personnalisée ---
+        # Passer le chemin de l'icône .png
+        self.title_bar = CustomTitleBar(self, title=f"Bienvenue dans {self.app_name}", icon_path="resources/images/logo-gdj.png") 
+        outer_layout.addWidget(self.title_bar)
+
+        # --- Ajouter une QFrame comme séparateur --- 
+        separator_line = QFrame(self)
+        separator_line.setFrameShape(QFrame.HLine) # Ligne horizontale
+        separator_line.setFrameShadow(QFrame.Plain) # Ombre simple ou QFrame.Sunken
+        separator_line.setFixedHeight(1) # Hauteur de 1 pixel
+        separator_line.setStyleSheet(f"background-color: #313335; border: none;") # Couleur sidebar, pas de bordure QSS
+        outer_layout.addWidget(separator_line)
+
+        # --- Créer le widget conteneur pour le reste de l'UI (sidebar + content) ---
+        main_content_widget = QWidget()
+        main_layout = QHBoxLayout(main_content_widget) # Le layout original devient celui-ci
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
@@ -287,11 +318,19 @@ class WelcomePage(QWidget):
         logo_section_layout.setContentsMargins(12, 8, 12, 15)
         logo_section_layout.setSpacing(8)
         
-        logo_label = QLabel("PC") # Garder logo générique
-        logo_label.setFont(LOGO_FONT)
+        # Changer pour afficher le vrai logo
+        logo_label = QLabel()
+        logo_pixmap = QPixmap("resources/images/logo-gdj.png")
+        if not logo_pixmap.isNull():
+            # Augmenter la taille à 64x64
+            logo_label.setPixmap(logo_pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            logo_label.setStyleSheet("background-color: transparent; border: none;") 
+        else:
+            logo_label.setText("GDJ") # Texte de secours si logo non trouvé
+            logo_label.setStyleSheet(f"background-color: {LOGO_BACKGROUND}; color: white; border-radius: 5px; padding: 5px;")
+        # Ajuster la taille fixe
+        logo_label.setFixedSize(64, 64)
         logo_label.setAlignment(Qt.AlignCenter)
-        logo_label.setFixedSize(32, 32)
-        logo_label.setStyleSheet(f"background-color: {LOGO_BACKGROUND}; color: white; border-radius: 5px;")
         logo_section_layout.addWidget(logo_label, 0, Qt.AlignTop)
 
         text_layout = QVBoxLayout()
@@ -873,8 +912,12 @@ class WelcomePage(QWidget):
         # --- Ajout du StackedWidget au layout principal (vérifié présent) --- 
         main_layout.addWidget(self.stacked_widget, 1) 
 
-        # Titre fenêtre 
-        self.setWindowTitle(f"Bienvenue dans {self.app_name}") 
+        # --- Ajouter le widget de contenu principal (sidebar+stack) au layout extérieur ---
+        main_content_widget.setLayout(main_layout)
+        outer_layout.addWidget(main_content_widget, 1) # Donner stretch au contenu
+
+        # Titre fenêtre (géré par la barre perso maintenant)
+        # self.setWindowTitle(f"Bienvenue dans {self.app_name}") 
         self.setMinimumSize(1000, 700)
 
     def _create_dashboard_box(self, title, icon_path=None):
