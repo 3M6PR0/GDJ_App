@@ -7,10 +7,11 @@ import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget,
     QFrame, QSpacerItem, QSizePolicy, QLineEdit, QScrollArea, QListWidgetItem,
-    QMenu, QAction, QStackedWidget, QComboBox, QFormLayout
+    QMenu, QAction, QStackedWidget, QComboBox, QFormLayout, QAbstractItemView,
+    QApplication
 )
-from PyQt5.QtCore import Qt, QSize, QPoint, pyqtSignal
-from PyQt5.QtGui import QIcon, QPixmap, QColor, QBrush, QPen, QPainter
+from PyQt5.QtCore import Qt, QSize, QPoint, pyqtSignal, QUrl
+from PyQt5.QtGui import QIcon, QPixmap, QColor, QBrush, QPen, QPainter, QDesktopServices
 
 # Constantes de couleur/police/données supprimées
 
@@ -94,13 +95,18 @@ class ProjectIconWidget(QWidget):
 
 # --- ProjectListItemWidget (Nettoyé) ---
 class ProjectListItemWidget(QWidget):
+    # Définir les signaux pour les actions du menu
+    open_requested = pyqtSignal(str)
+    browse_requested = pyqtSignal(str)
+    remove_requested = pyqtSignal(str)
+    # Pas besoin de signal pour copier
+
     def __init__(self, name, path_str, icon_initials="?", list_item=None, parent=None):
         super().__init__(parent)
         self.name = name
-        self.path_str = path_str
+        self.path_str = path_str # Stocker le chemin complet
         self.icon_initials = icon_initials
-        # setStyleSheet transparent retiré (devrait être géré par QListWidget::item)
-        self.setMouseTracking(True)
+        self.setMouseTracking(True) 
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 5, 5, 5)
@@ -112,13 +118,9 @@ class ProjectListItemWidget(QWidget):
         text_layout = QVBoxLayout()
         text_layout.setSpacing(-2)
         self.name_label = QLabel(name)
-        self.name_label.setObjectName("ProjectListName") # ID pour style
-        # setFont retiré
-        # setStyleSheet retiré
-        self.path_label = QLabel(path_str)
-        self.path_label.setObjectName("ProjectListPath") # ID pour style
-        # setFont retiré
-        # setStyleSheet retiré
+        self.name_label.setObjectName("ProjectListName")
+        self.path_label = QLabel(path_str) # Afficher le chemin complet reçu
+        self.path_label.setObjectName("ProjectListPath") 
         text_layout.addWidget(self.name_label)
         text_layout.addWidget(self.path_label)
         text_layout.addStretch()
@@ -126,28 +128,84 @@ class ProjectListItemWidget(QWidget):
         layout.addLayout(text_layout)
         layout.addStretch(1)
         
-        self.options_button = QPushButton("...")
-        self.options_button.setObjectName("ItemOptionsButton") # Style via QSS
-        self.options_button.setFixedSize(20, 20)
-        self.options_button.setVisible(False)
-        # setStyleSheet retiré
+        self.options_button = QPushButton("") 
+        self.options_button.setIcon(QIcon("resources/icons/dark/round_more_vert.png"))
+        self.options_button.setIconSize(QSize(16, 16)) 
+        self.options_button.setObjectName("ItemOptionsButton") 
+        self.options_button.setFixedSize(20, 20) 
+        self.options_button.setVisible(False) 
+        self.options_button.setToolTip("Options") 
         self.options_button.clicked.connect(self._show_context_menu)
         layout.addWidget(self.options_button, 0, Qt.AlignRight | Qt.AlignVCenter)
 
-    # enterEvent et leaveEvent restent pour la visibilité du bouton
+    # enterEvent/leaveEvent ne gèrent plus QUE la visibilité
     def enterEvent(self, event):
         self.options_button.setVisible(True)
         super().enterEvent(event)
-
+    
     def leaveEvent(self, event):
         self.options_button.setVisible(False)
         super().leaveEvent(event)
 
-    def _show_context_menu(self):
-        # Le style du menu devrait être défini dans global.qss
+    def _create_context_menu(self):
+        """Crée et retourne le menu contextuel avec ses actions."""
         menu = QMenu(self)
-        # Actions...
-        pass
+        
+        open_action = QAction("Ouvrir le document", self)
+        open_action.triggered.connect(self._handle_open)
+        menu.addAction(open_action)
+
+        browse_action = QAction("Ouvrir dans le navigateur", self)
+        browse_action.triggered.connect(self._handle_browse)
+        menu.addAction(browse_action)
+
+        copy_action = QAction("Copier le chemin", self)
+        copy_action.triggered.connect(self._handle_copy)
+        menu.addAction(copy_action)
+
+        menu.addSeparator()
+
+        remove_action = QAction("Retirer des documents recents", self)
+        remove_action.triggered.connect(self._handle_remove)
+        menu.addAction(remove_action)
+        
+        return menu
+
+    def _show_context_menu(self):
+        """Affiche le menu contextuel sous le bouton d'options."""
+        menu = self._create_context_menu()
+        # Positionner le menu sous le bouton
+        button_pos = self.options_button.mapToGlobal(QPoint(0, self.options_button.height()))
+        menu.exec_(button_pos)
+        
+    def contextMenuEvent(self, event):
+        """Affiche le menu contextuel lors d'un clic droit sur l'item."""
+        menu = self._create_context_menu()
+        # Positionner le menu à la position globale du curseur
+        menu.exec_(event.globalPos()) 
+
+    # --- Slots pour les actions du menu --- 
+    def _handle_open(self):
+        print(f"Action: Ouvrir {self.path_str}")
+        self.open_requested.emit(self.path_str)
+
+    def _handle_browse(self):
+        dir_path = os.path.dirname(self.path_str) # Obtenir le répertoire parent
+        print(f"Action: Ouvrir répertoire {dir_path}")
+        # Utiliser QDesktopServices pour ouvrir le dossier
+        QDesktopServices.openUrl(QUrl.fromLocalFile(dir_path)) 
+        # Émettre un signal si le parent doit être notifié
+        self.browse_requested.emit(dir_path)
+
+    def _handle_copy(self):
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.path_str)
+        print(f"Action: Copié {self.path_str}")
+        # Pas besoin d'émettre de signal ici généralement
+
+    def _handle_remove(self):
+        print(f"Action: Retirer {self.path_str}")
+        self.remove_requested.emit(self.path_str)
 
 # --- Classe DocumentsPage (Nettoyée) --- 
 class DocumentsPage(QWidget):
@@ -223,6 +281,8 @@ class DocumentsPage(QWidget):
         self.recent_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.recent_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.recent_list_widget.setFocusPolicy(Qt.NoFocus)
+        # Désactiver la sélection visuelle des items
+        self.recent_list_widget.setSelectionMode(QAbstractItemView.NoSelection) 
         
         projects = self.load_project_data() 
         if projects:
@@ -237,7 +297,7 @@ class DocumentsPage(QWidget):
                 item.setSizeHint(item_widget.sizeHint())
                 self.recent_list_widget.addItem(item)
                 self.recent_list_widget.setItemWidget(item, item_widget)
-        self.recent_list_widget.itemDoubleClicked.connect(self._on_recent_item_activated)
+        self.recent_list_widget.itemClicked.connect(self._on_recent_item_activated)
         
         # Ajouter la liste directement au layout du Frame
         main_doc_box_layout.addWidget(self.recent_list_widget, 1)

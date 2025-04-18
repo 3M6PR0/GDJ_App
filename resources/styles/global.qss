@@ -330,4 +330,18 @@ QListWidget#ProjectList::item:hover QLabel#ProjectListPath {
 
 /* Retiré: Styles pour #DocActionButton car non utilisé */
 
+/* --- Style pour le bouton d'options dans les items de liste --- */
+QPushButton#ItemOptionsButton {
+    background: none; 
+    border: none; 
+    border-radius: 10px; /* Utiliser une valeur fixe en pixels */
+    padding: 1px; 
+}
+/* Revenir au pseudo-état :hover standard */
+QPushButton#ItemOptionsButton:hover {
+    background-color: {{COLOR_ACCENT}}; 
+    border-radius: 10px; /* Utiliser une valeur fixe en pixels */
+}
+/* Retiré: Règle :pressed non demandée */
+
 /* ... (autres styles s'il y en a après) ... */ 
