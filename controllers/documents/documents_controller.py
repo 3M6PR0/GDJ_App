@@ -35,43 +35,54 @@ class DocumentsController(QObject):
         super().__init__()
         self.view = view
         self.main_controller = main_controller # Pour appeler open_document etc.
+        self._connect_signals()
 
-        # Connecter les signaux des widgets de la vue aux slots de ce contrôleur
-        self.view.btn_new.clicked.connect(self.show_new_document_page)
-        self.view.btn_back_to_list.clicked.connect(self.show_document_list_page)
+    def _connect_signals(self):
+        # Connecter les signaux principaux de la page Documents au MainController
         
-        # Connecter les signaux émis par la vue pour les actions globales
-        self.view.open_document_requested.connect(self.request_open_document)
-        self.view.open_specific_document_requested.connect(self.request_open_specific_document)
+        # Le bouton "Ouvrir" de la page documents devrait probablement ouvrir 
+        # le dialogue standard, comme l'action du menu.
+        self.view.open_document_requested.connect(self.main_controller.open_document_from_menu)
+        
+        # L'ouverture d'un item spécifique (simple clic sur item) est correcte
+        self.view.open_specific_document_requested.connect(self.main_controller.open_specific_document)
+        
+        # La demande de création depuis la page de sélection de type devrait 
+        # appeler la même logique que l'action du menu.
+        self.view.create_new_document_requested.connect(self.main_controller.create_new_document_from_menu)
 
-    @pyqtSlot()
-    def show_new_document_page(self):
-        """Affiche la page de création de nouveau document dans le stack interne."""
-        print("DocumentsController: Switching to New Document Page") # Debug
-        self.view.documents_stack.setCurrentWidget(self.view.documents_new_page)
+        # Retiré: La navigation interne est gérée par la vue
+        # self.view.btn_back_to_list.clicked.connect(self.show_document_list_page) 
 
-    @pyqtSlot()
-    def show_document_list_page(self):
-        """Affiche la page de liste des documents récents dans le stack interne."""
-        print("DocumentsController: Switching to Document List Page") # Debug
-        self.view.documents_stack.setCurrentWidget(self.view.documents_list_page)
+        # Les connexions pour les actions du menu contextuel des items (browse, remove)
+        # devront être ajoutées si on veut que le contrôleur les gère.
+        # Exemple: 
+        # self.connect_list_item_signals() # Appeler une méthode qui boucle sur les items?
 
-    @pyqtSlot()
-    def request_open_document(self):
-        """Relaye la demande d'ouverture de document au contrôleur principal."""
-        print("DocumentsController: Relaying 'Open Document' request to main controller") # Debug
-        if hasattr(self.main_controller, 'open_document'):
-            self.main_controller.open_document()
-        else:
-            print("Erreur: main_controller n'a pas de méthode 'open_document'")
+        print("DocumentsController signals connected.")
 
-    @pyqtSlot(str)
-    def request_open_specific_document(self, file_path):
-        """Relaye la demande d'ouverture d'un document spécifique au contrôleur principal."""
-        print(f"DocumentsController: Relaying 'Open Specific Document' ({file_path}) request to main controller") # Debug
-        if hasattr(self.main_controller, 'open_specific_document'):
-            self.main_controller.open_specific_document(file_path)
-        else:
-            print("Erreur: main_controller n'a pas de méthode 'open_specific_document'")
+    # --- Méthodes de navigation (potentiellement redondantes) --- 
+    # La vue gère maintenant son propre QStackedWidget
+    # def show_document_list_page(self):
+    #     print("Controller: Showing document list page")
+    #     self.view.documents_stack.setCurrentIndex(0) # Ou utiliser setCurrentWidget
+
+    # def show_new_document_page(self):
+    #     print("Controller: Showing new document page")
+    #     self.view.documents_stack.setCurrentIndex(1) # Ou utiliser setCurrentWidget
+    
+    # --- Autres méthodes du contrôleur --- 
+    def load_recent_projects(self):
+        # Logique pour charger les projets récents
+        pass
+    
+    def add_project_to_recents(self, path):
+        # Logique pour ajouter un projet aux récents
+        pass
+        
+    def remove_project_from_recents(self, path):
+        # Logique pour retirer un projet des récents
+        print(f"Controller: TODO - Remove {path} from recent projects list")
+        # Il faudra probablement mettre à jour la vue ici
 
     print("DocumentsController (dans controllers/documents/) initialized") # Debug 

@@ -45,7 +45,8 @@ Frame#CustomFrame QPushButton#TopNavButton {
     background-color: transparent;
     border: none;
     color: {{COLOR_TEXT_PRIMARY}};
-    padding: 4px 10px;
+    /* Utiliser le même padding que QLineEdit/QComboBox pour uniformité */
+    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}}; 
     border-radius: {{RADIUS_DEFAULT}};
     text-align: center;
     min-width: 60px; 
@@ -53,10 +54,12 @@ Frame#CustomFrame QPushButton#TopNavButton {
 Frame#CustomFrame QPushButton#TopNavButton:hover {
     background-color: {{COLOR_ACCENT}}; 
     color: {{COLOR_TEXT_ON_ACCENT}};
+    /* Le padding est hérité */
 }
 Frame#CustomFrame QPushButton#TopNavButton:pressed {
     background-color: {{COLOR_ACCENT_PRESSED}};
     color: {{COLOR_TEXT_ON_ACCENT}};
+    /* Le padding est hérité */
 }
 
 /* Styles additionnels pour des variantes si vous utilisez setProperty */

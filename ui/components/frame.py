@@ -10,28 +10,26 @@ class Frame(QFrame):
         self.setObjectName("CustomFrame") 
         self.setFrameShape(QFrame.StyledPanel)
         
+        # Layout principal qui contiendra l'en-tête, le séparateur ET le layout de contenu
         self.internal_layout = QVBoxLayout(self) 
-        self.internal_layout.setContentsMargins(10, 1, 10, 1)
+        self.internal_layout.setContentsMargins(1, 1, 1, 1) # Garder petite marge pour radius
         self.internal_layout.setSpacing(0) 
 
         self.title_label = None 
         self.separator_line = None
 
+        # --- En-tête (si nécessaire) --- 
         if title or (icon_path and os.path.exists(icon_path)) or header_widget:
             title_hbox = QHBoxLayout()
-            # Ne pas définir les marges/spacing ici par défaut
-            # title_hbox.setContentsMargins(15, 8, 15, 8) 
-            # title_hbox.setSpacing(8)
-
+            # Appliquer les marges et l'espacement standard de l'en-tête DANS TOUS LES CAS
+            title_hbox.setContentsMargins(15, 8, 15, 8) 
+            title_hbox.setSpacing(8)
+            
             if header_widget:
-                # Ajouter le widget personnalisé SANS marges/spacing supplémentaires du HBox
-                title_hbox.setContentsMargins(0, 0, 0, 0) # Forcer 0 marge pour ce HBox
-                title_hbox.setSpacing(0) # Forcer 0 spacing pour ce HBox
+                # Ajouter le widget personnalisé
                 title_hbox.addWidget(header_widget, 1) 
             else:
-                # Appliquer les marges/spacing UNIQUEMENT pour l'en-tête titre/icône
-                title_hbox.setContentsMargins(15, 8, 15, 8) 
-                title_hbox.setSpacing(8)
+                # Ajouter titre/icône par défaut
                 if icon_path and os.path.exists(icon_path):
                     icon_label = QLabel()
                     pixmap = QPixmap(icon_path)
@@ -54,7 +52,17 @@ class Frame(QFrame):
             self.separator_line.setObjectName("CustomFrameSeparator")
             self.internal_layout.addWidget(self.separator_line)
 
+        # --- Zone de contenu (toujours créée) --- 
+        self.content_layout = QVBoxLayout() 
+        # Ajouter des marges/padding PAR DEFAUT pour le contenu?
+        # Ces valeurs pourront être modifiées par l'utilisateur du Frame si besoin.
+        self.content_layout.setContentsMargins(15, 10, 15, 15) 
+        self.content_layout.setSpacing(12) 
+        # Ajouter le layout de contenu au layout principal, avec stretch
+        self.internal_layout.addLayout(self.content_layout, 1) 
+
     def get_content_layout(self):
-        return self.internal_layout
+        """Retourne le QVBoxLayout destiné au contenu SOUS l'en-tête."""
+        return self.content_layout
 
 print("ui/components/frame.py défini") # Debug 

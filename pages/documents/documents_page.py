@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize, QPoint, pyqtSignal, QUrl
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QBrush, QPen, QPainter, QDesktopServices
+# Importer la page de sélection de type
+from pages.documents.documents_type_selection_page import DocumentsTypeSelectionPage
 
 # Constantes de couleur/police/données supprimées
 
@@ -211,6 +213,8 @@ class ProjectListItemWidget(QWidget):
 class DocumentsPage(QWidget):
     open_document_requested = pyqtSignal()
     open_specific_document_requested = pyqtSignal(str)
+    # Ajouter signal pour la navigation interne
+    create_new_document_requested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -241,13 +245,12 @@ class DocumentsPage(QWidget):
         top_bar_layout.addWidget(self.search_input, 1)
         
         self.btn_new = QPushButton("Nouveau")
-        # Utiliser le même ID que les boutons Retour/Notes
-        self.btn_new.setObjectName("TopNavButton") 
+        self.btn_new.setObjectName("TopNavButton")
         self.btn_new.setFixedHeight(26)
+        self.btn_new.clicked.connect(self.show_type_selection_page) 
         
         self.btn_open = QPushButton("Ouvrir")
-        # Utiliser le même ID que les boutons Retour/Notes
-        self.btn_open.setObjectName("TopNavButton") 
+        self.btn_open.setObjectName("TopNavButton")
         self.btn_open.setFixedHeight(26)
         self.btn_open.clicked.connect(self.open_document_requested.emit)
         
@@ -294,6 +297,8 @@ class DocumentsPage(QWidget):
                     project_data["path"],
                     project_data.get("icon", "?")
                 )
+                item_widget.open_requested.connect(self.open_specific_document_requested) # Connecter signal
+                # Connecter autres signaux (browse, remove) si nécessaire au contrôleur
                 item.setSizeHint(item_widget.sizeHint())
                 self.recent_list_widget.addItem(item)
                 self.recent_list_widget.setItemWidget(item, item_widget)
@@ -306,44 +311,15 @@ class DocumentsPage(QWidget):
         list_page_layout.addWidget(main_doc_box, 1)
         self.documents_stack.addWidget(self.documents_list_page)
 
-        # --- Page 1.2: Nouvelle Page Document --- 
-        self.documents_new_page = QWidget()
-        new_page_container_layout = QVBoxLayout(self.documents_new_page)
-        new_page_container_layout.setContentsMargins(10, 10, 10, 10)
-        new_page_container_layout.setSpacing(10)
+        # --- Page 1.2: Instancier la VRAIE page de sélection de type --- 
+        self.documents_type_selection_page = DocumentsTypeSelectionPage()
+        # Connecter ses signaux
+        self.documents_type_selection_page.create_requested.connect(self._handle_create_request)
+        self.documents_type_selection_page.cancel_requested.connect(self.show_documents_list)
+        # Ajouter la page de sélection au stack
+        self.documents_stack.addWidget(self.documents_type_selection_page)
 
-        # Utiliser le composant Frame avec titre
-        new_doc_box = Frame(title="Créer un nouveau document") 
-        new_doc_box_layout = new_doc_box.get_content_layout()
-        # Marges/Spacing gérés par Frame
-        
-        self.btn_back_to_list = QPushButton("Retour") 
-        self.btn_back_to_list.setObjectName("TopNavButton") # ID pour style QSS
-        self.btn_back_to_list.setFixedWidth(80)
-        
-        new_doc_form_layout = QFormLayout()
-        new_doc_form_layout.setContentsMargins(15, 10, 15, 10) # Ajouter marges internes au contenu
-        new_doc_form_layout.setSpacing(10)
-        new_doc_form_layout.setVerticalSpacing(12)
-        label_doc_type = QLabel("Document:") # Style via QLabel dans QFormLayout (QSS)
-        label_doc_type.setObjectName("FormLabel") # ID optionnel
-        # setStyleSheet supprimé
-        cb_new_doc_type = QComboBox() # Style via QComboBox (QSS)
-        cb_new_doc_type.addItems(["Document Standard", "Rapport Mensuel", "Présentation Client", "Autre..."])
-        new_doc_form_layout.addRow(label_doc_type, cb_new_doc_type)
-        # ... (Autres champs)
-        
-        new_doc_box_layout.addLayout(new_doc_form_layout)
-        new_doc_box_layout.addStretch(1)
-
-        new_page_container_layout.addWidget(new_doc_box, 0) # Ne pas étirer la boîte
-        new_page_container_layout.addStretch(1) # Ajouter un espace extensible en dessous
-        new_page_container_layout.addWidget(self.btn_back_to_list, 0, Qt.AlignBottom | Qt.AlignLeft)
-
-        self.documents_stack.addWidget(self.documents_new_page)
         page_documents_layout.addWidget(self.documents_stack)
-
-        # Appel à apply_styles supprimé
 
     def load_project_data(self):
         # Remplacer ceci par la logique réelle de chargement des projets
@@ -363,7 +339,25 @@ class DocumentsPage(QWidget):
             full_path = os.path.expanduser(document_path)
             self.open_specific_document_requested.emit(full_path)
 
-    # Méthode _create_dashboard_box supprimée (remplacée par Frame)
-    # Méthode apply_styles supprimée
+    # --- Méthodes de navigation et slots --- 
+    def show_documents_list(self):
+        self.documents_stack.setCurrentWidget(self.documents_list_page)
+        
+    def show_type_selection_page(self):
+        print("DEBUG: show_type_selection_page() called")
+        # Le contrôleur devrait remplir la combobox avant d'afficher
+        # Exemple: self.controller.populate_doc_types(self.documents_type_selection_page)
+        if self.documents_stack and self.documents_type_selection_page:
+            print(f"DEBUG: Switching stack to {self.documents_type_selection_page}")
+            self.documents_stack.setCurrentWidget(self.documents_type_selection_page)
+        else:
+            print("ERREUR: documents_stack ou documents_type_selection_page non initialisé!")
+        
+    def _handle_create_request(self, selected_type):
+        print(f"DocumentsPage: Demande de création reçue pour type: {selected_type}")
+        # Émettre un signal vers le contrôleur principal ou gérer ici
+        self.create_new_document_requested.emit(selected_type)
+        # Revenir à la liste après la demande?
+        self.show_documents_list()
 
 print("DocumentsPage (dans pages/documents/) defined") 
