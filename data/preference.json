@@ -1,0 +1,21 @@
+{
+    "profile": {
+        "nom": "NomT",
+        "prenom": "PrenomT",
+        "telephone": "1234567890",
+        "courriel": "test@jacmar.ca",
+        "signature_path": "C:/Users/etienne.mg/Desktop/Jacmar/Important/Signature_processed.png"
+    },
+    "jacmar": {
+        "emplacement": "Jacmar",
+        "departement": "Ingénierie",
+        "titre": "Technicien",
+        "superviseur": "Personne B",
+        "plafond": 0
+    },
+    "application": {
+        "theme": "Sombre (Défaut)",
+        "auto_update": true,
+        "show_note": false
+    }
+}

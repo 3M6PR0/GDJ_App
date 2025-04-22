@@ -17,7 +17,14 @@ QWidget {
 
 /* Fenêtre principale */
 QWidget#WelcomeWindow {
-    /* Peut rester vide si QWidget global suffit */
+    /* Doit rester sans style direct pour que la transparence fonctionne */
+}
+
+/* Conteneur intérieur pour les coins arrondis */
+QWidget#MainContainerWidget {
+    background-color: {{COLOR_PRIMARY_DARKEST}}; /* Appliquer le fond ici */
+    border-radius: 10px;
+    border: none; /* Explicitement sans bordure */
 }
 
 /* Barre latérale */
