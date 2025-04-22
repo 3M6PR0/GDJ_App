@@ -24,6 +24,12 @@ class Profile:
         """Retourne une représentation dictionnaire de l'objet."""
         return self.__dict__
 
+    def update_from_dict(self, data: dict):
+        """Met à jour les attributs depuis un dictionnaire."""
+        for key, value in data.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+
 class Jacmar:
     """Préférences spécifiques à Jacmar."""
     def __init__(self,
@@ -42,6 +48,19 @@ class Jacmar:
         """Retourne une représentation dictionnaire de l'objet."""
         return self.__dict__
 
+    def update_from_dict(self, data: dict):
+        """Met à jour les attributs depuis un dictionnaire."""
+        for key, value in data.items():
+            if hasattr(self, key):
+                # Assurer la conversion en int pour plafond
+                if key == 'plafond':
+                    try:
+                        setattr(self, key, int(value))
+                    except (ValueError, TypeError):
+                        setattr(self, key, 0) # Valeur par défaut en cas d'erreur
+                else:
+                    setattr(self, key, value)
+
 class Application:
     """Préférences relatives à l'application elle-même."""
     def __init__(self,
@@ -55,6 +74,16 @@ class Application:
     def to_dict(self):
         """Retourne une représentation dictionnaire de l'objet."""
         return self.__dict__
+
+    def update_from_dict(self, data: dict):
+        """Met à jour les attributs depuis un dictionnaire."""
+        for key, value in data.items():
+            if hasattr(self, key):
+                # Assurer la conversion en bool pour les booléens
+                if key in ['auto_update', 'show_note']:
+                    setattr(self, key, bool(value))
+                else:
+                    setattr(self, key, value)
 
 class Preference:
     """Classe principale contenant toutes les préférences."""
@@ -94,21 +123,48 @@ class Preference:
         except Exception as e:
             print(f"Erreur lors de la sauvegarde des préférences dans {filepath}: {e}")
 
-    # def load(self, filepath):
-    #     # ... logique de chargement
-    #     pass
+    def load(self, filepath="data/preference.json"):
+        """Charge les préférences depuis un fichier JSON et met à jour l'objet."""
+        if not os.path.exists(filepath):
+            print(f"Fichier de préférences non trouvé: {filepath}. Utilisation des valeurs par défaut.")
+            return False # Indiquer que le chargement a échoué
+            
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                loaded_data = json.load(f)
+            
+            # Mettre à jour les sous-objets avec les données chargées
+            if 'profile' in loaded_data and isinstance(loaded_data['profile'], dict):
+                self.profile.update_from_dict(loaded_data['profile'])
+            if 'jacmar' in loaded_data and isinstance(loaded_data['jacmar'], dict):
+                self.jacmar.update_from_dict(loaded_data['jacmar'])
+            if 'application' in loaded_data and isinstance(loaded_data['application'], dict):
+                self.application.update_from_dict(loaded_data['application'])
+                
+            print(f"Préférences chargées avec succès depuis {filepath}")
+            return True # Indiquer le succès
+            
+        except json.JSONDecodeError as e:
+            print(f"Erreur de décodage JSON dans {filepath}: {e}. Utilisation des valeurs par défaut.")
+            return False
+        except Exception as e:
+            print(f"Erreur lors du chargement des préférences depuis {filepath}: {e}. Utilisation des valeurs par défaut.")
+            return False
 
 # Exemple d'utilisation:
 if __name__ == '__main__':
-    prefs = Preference()
-
-    # Modifier quelques préférences pour le test
-    prefs.profile.nom = "Dupont"
-    prefs.profile.prenom = "Jean"
-    prefs.application.theme = "Dark"
-    prefs.jacmar.plafond = 500
-
-    # Sauvegarder les préférences
-    prefs.save() # Sauvegarde dans data/preference.json par défaut
-
-    # Vous pouvez vérifier le contenu du fichier data/preference.json généré
+    # Créer des préférences initiales et sauvegarder
+    prefs_to_save = Preference()
+    prefs_to_save.profile.nom = "Sauvegardé"
+    prefs_to_save.application.theme = "Noir"
+    prefs_to_save.save("data/test_prefs.json")
+    print("-----")
+    
+    # Créer une nouvelle instance vide et charger
+    prefs_to_load = Preference() # Commence avec les valeurs par défaut
+    print(f"Avant chargement - Nom: {prefs_to_load.profile.nom}, Thème: {prefs_to_load.application.theme}")
+    loaded_ok = prefs_to_load.load("data/test_prefs.json")
+    if loaded_ok:
+        print(f"Après chargement - Nom: {prefs_to_load.profile.nom}, Thème: {prefs_to_load.application.theme}")
+    else:
+        print("Chargement échoué.")

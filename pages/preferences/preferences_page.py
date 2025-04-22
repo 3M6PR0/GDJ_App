@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, QPropertyAnimation, pyqtSignal
 # QFont, QPainter, QPen, QBrush retirés (SimpleToggle gardé mais stylisé par QSS)
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPen, QPalette # Rajouter les imports nécessaires pour SimpleToggle.paintEvent
+import functools # Importer functools
 
 # Constantes de couleur/police supprimées
 
@@ -82,10 +83,15 @@ class PreferencesPage(QWidget):
     save_prefs_requested = pyqtSignal()
     import_prefs_requested = pyqtSignal()
     export_prefs_requested = pyqtSignal()
+    # Signal pour indiquer qu'un champ doit être réinitialisé (optionnel, on peut tout gérer dans le contrôleur)
+    # field_revert_requested = pyqtSignal(str) # Le nom du champ à réinitialiser
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("PreferencesPageWidget")
+        # Dictionnaires pour stocker les widgets créés dynamiquement si nécessaire
+        self.input_widgets = {}
+        self.refresh_buttons = {}
         self.init_ui()
 
     def init_ui(self):
@@ -109,14 +115,18 @@ class PreferencesPage(QWidget):
         profile_form_layout.setSpacing(10)
         profile_form_layout.setVerticalSpacing(12)
         
-        self.le_nom = QLineEdit(placeholderText="Entrez votre nom") # Style via QSS
-        profile_form_layout.addRow(self._create_form_label("Nom:"), self.le_nom)
-        self.le_prenom = QLineEdit(placeholderText="Entrez votre prénom") # Style via QSS
-        profile_form_layout.addRow(self._create_form_label("Prénom:"), self.le_prenom)
-        self.le_tel = QLineEdit(placeholderText="XXX-XXX-XXXX") # Style via QSS
-        profile_form_layout.addRow(self._create_form_label("Numéro de téléphone:"), self.le_tel)
-        self.le_courriel = QLineEdit(placeholderText="nom@example.com") # Style via QSS
-        profile_form_layout.addRow(self._create_form_label("Courriel:"), self.le_courriel)
+        # Création des champs avec leurs boutons refresh
+        self.le_nom = QLineEdit(placeholderText="Entrez votre nom")
+        profile_form_layout.addRow(self._create_form_label("Nom:"), self._wrap_widget_with_refresh(self.le_nom, "profile.nom"))
+        
+        self.le_prenom = QLineEdit(placeholderText="Entrez votre prénom")
+        profile_form_layout.addRow(self._create_form_label("Prénom:"), self._wrap_widget_with_refresh(self.le_prenom, "profile.prenom"))
+        
+        self.le_tel = QLineEdit(placeholderText="XXX-XXX-XXXX")
+        profile_form_layout.addRow(self._create_form_label("Numéro de téléphone:"), self._wrap_widget_with_refresh(self.le_tel, "profile.telephone"))
+        
+        self.le_courriel = QLineEdit(placeholderText="nom@example.com")
+        profile_form_layout.addRow(self._create_form_label("Courriel:"), self._wrap_widget_with_refresh(self.le_courriel, "profile.courriel"))
         
         # Widget Signature
         signature_widget_container = QWidget()
@@ -149,21 +159,21 @@ class PreferencesPage(QWidget):
         jacmar_form_layout.setContentsMargins(15, 10, 15, 15)
         jacmar_form_layout.setSpacing(10)
         jacmar_form_layout.setVerticalSpacing(12)
-        self.cb_emplacement = QComboBox() # Style via QSS
+        self.cb_emplacement = QComboBox()
         self.cb_emplacement.addItems(["Jacmar", "Autre..."])
-        jacmar_form_layout.addRow(self._create_form_label("Emplacement:"), self.cb_emplacement)
-        self.cb_dept = QComboBox() # Style via QSS
+        jacmar_form_layout.addRow(self._create_form_label("Emplacement:"), self._wrap_widget_with_refresh(self.cb_emplacement, "jacmar.emplacement"))
+        self.cb_dept = QComboBox()
         self.cb_dept.addItems(["Ingénierie", "Production", "Ventes", "..."])
-        jacmar_form_layout.addRow(self._create_form_label("Département:"), self.cb_dept)
-        self.cb_titre = QComboBox() # Style via QSS
+        jacmar_form_layout.addRow(self._create_form_label("Département:"), self._wrap_widget_with_refresh(self.cb_dept, "jacmar.departement"))
+        self.cb_titre = QComboBox()
         self.cb_titre.addItems(["Chargé de projet", "Technicien", "Directeur", "..."])
-        jacmar_form_layout.addRow(self._create_form_label("Titre:"), self.cb_titre)
-        self.cb_super = QComboBox() # Style via QSS
+        jacmar_form_layout.addRow(self._create_form_label("Titre:"), self._wrap_widget_with_refresh(self.cb_titre, "jacmar.titre"))
+        self.cb_super = QComboBox()
         self.cb_super.addItems(["Personne A", "Personne B", "..."])
-        jacmar_form_layout.addRow(self._create_form_label("Superviseur:"), self.cb_super)
-        self.cb_plafond = QComboBox() # Style via QSS
-        self.cb_plafond.addItems(["Standard", "Élevé", "Aucun", "..."])
-        jacmar_form_layout.addRow(self._create_form_label("Plafond de déplacement:"), self.cb_plafond)
+        jacmar_form_layout.addRow(self._create_form_label("Superviseur:"), self._wrap_widget_with_refresh(self.cb_super, "jacmar.superviseur"))
+        self.cb_plafond = QComboBox()
+        self.cb_plafond.addItems(["0", "100", "500", "1000"])
+        jacmar_form_layout.addRow(self._create_form_label("Plafond de déplacement:"), self._wrap_widget_with_refresh(self.cb_plafond, "jacmar.plafond"))
         box_content_layout_jac.addLayout(jacmar_form_layout)
         box_content_layout_jac.addStretch(1)
         prefs_main_layout.addWidget(jacmar_box, 0, 1)
@@ -175,13 +185,13 @@ class PreferencesPage(QWidget):
         app_form_layout.setContentsMargins(15, 10, 15, 15)
         app_form_layout.setSpacing(10)
         app_form_layout.setVerticalSpacing(12)
-        self.cb_theme = QComboBox() # Style via QSS
-        self.cb_theme.addItems(["Sombre (Défaut)", "Clair", "Système"])
-        app_form_layout.addRow(self._create_form_label("Thème:"), self.cb_theme)
-        self.toggle_auto_update = SimpleToggle() # Style via QSS sur SimpleToggle
-        app_form_layout.addRow(self._create_form_label("Mise a jour automatique:"), self._wrap_widget_in_hbox(self.toggle_auto_update))
-        self.toggle_show_notes = SimpleToggle() # Style via QSS sur SimpleToggle
-        app_form_layout.addRow(self._create_form_label("Afficher la note de version:"), self._wrap_widget_in_hbox(self.toggle_show_notes))
+        self.cb_theme = QComboBox()
+        self.cb_theme.addItems(["Default", "Dark", "Light"])
+        app_form_layout.addRow(self._create_form_label("Thème:"), self._wrap_widget_with_refresh(self.cb_theme, "application.theme"))
+        self.toggle_auto_update = SimpleToggle()
+        app_form_layout.addRow(self._create_form_label("Mise a jour automatique:"), self._wrap_widget_with_refresh(self.toggle_auto_update, "application.auto_update"))
+        self.toggle_show_notes = SimpleToggle()
+        app_form_layout.addRow(self._create_form_label("Afficher la note de version:"), self._wrap_widget_with_refresh(self.toggle_show_notes, "application.show_note"))
         box_content_layout_app.addLayout(app_form_layout)
         box_content_layout_app.addStretch(1)
         prefs_main_layout.addWidget(app_box, 1, 0)
@@ -222,8 +232,10 @@ class PreferencesPage(QWidget):
         return label
 
     def _wrap_widget_in_hbox(self, widget):
+        # Ancienne méthode gardée pour compatibilité si appelée ailleurs, mais dépréciée
+        # pour les champs principaux
+        print("Warning: _wrap_widget_in_hbox est dépréciée pour les champs principaux, utiliser _wrap_widget_with_refresh")
         container = QWidget()
-        # Rendre ce conteneur spécifique transparent
         container.setStyleSheet("background-color: transparent;")
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -231,9 +243,33 @@ class PreferencesPage(QWidget):
         layout.addStretch(1)
         return container
 
+    def _wrap_widget_with_refresh(self, input_widget, pref_path):
+        """Crée un container QHBoxLayout avec le widget d'entrée et un bouton refresh caché."""
+        container = QWidget()
+        container.setStyleSheet("background-color: transparent;") # Le container est transparent
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5) # Espace entre widget et bouton
+
+        layout.addWidget(input_widget, 1) # Le widget prend l'espace
+
+        refresh_button = self._create_icon_button("resources/icons/clear/round_refresh.png", 
+                                                  f"Réinitialiser {pref_path.split('.')[-1]} à la valeur sauvegardée")
+        refresh_button.setObjectName(f"refresh_{pref_path.replace('.', '_')}") # Nom d'objet unique
+        refresh_button.setFixedSize(20, 20) # Bouton plus petit
+        refresh_button.setIconSize(QSize(16, 16))
+        refresh_button.setVisible(False) # Caché par défaut
+        layout.addWidget(refresh_button, 0) # Le bouton ne prend pas d'espace en largeur
+
+        # Stocker les références pour le contrôleur
+        self.input_widgets[pref_path] = input_widget
+        self.refresh_buttons[pref_path] = refresh_button
+
+        return container
+
     def _create_icon_button(self, icon_path, tooltip):
         btn = QPushButton("")
-        btn.setObjectName("FormButton") # ID pour style QSS
+        btn.setObjectName("FormButton") # Utiliser cet ID pour style général
         btn.setIcon(QIcon(icon_path))
         btn.setIconSize(QSize(20, 20))
         btn.setFixedSize(30, 30)
@@ -261,5 +297,15 @@ class PreferencesPage(QWidget):
 
     # Méthode _create_dashboard_box supprimée (remplacée par Frame)
     # Méthode apply_styles supprimée
+
+    # --- Méthodes pour le contrôleur ---
+    def get_input_widget(self, pref_path):
+        return self.input_widgets.get(pref_path)
+
+    def get_refresh_button(self, pref_path):
+        return self.refresh_buttons.get(pref_path)
+
+    def get_all_pref_paths(self):
+        return list(self.input_widgets.keys())
 
 print("PreferencesPage (dans pages/preferences/) defined") 

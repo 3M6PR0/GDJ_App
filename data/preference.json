@@ -1,7 +1,7 @@
 {
     "profile": {
-        "nom": "NomT",
-        "prenom": "PrenomT",
+        "nom": "NomT2",
+        "prenom": "PrenomT2",
         "telephone": "1234567890",
         "courriel": "test@jacmar.ca",
         "signature_path": "C:/Users/etienne.mg/Desktop/Jacmar/Important/Signature_processed.png"
@@ -14,8 +14,8 @@
         "plafond": 0
     },
     "application": {
-        "theme": "Sombre (Défaut)",
+        "theme": "Default",
         "auto_update": true,
-        "show_note": false
+        "show_note": true
     }
 }
