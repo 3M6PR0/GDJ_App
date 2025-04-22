@@ -6,6 +6,9 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap, QFont
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 # Importer la barre de titre personnalisée
 from ui.components.custom_titlebar import CustomTitleBar
 
@@ -57,7 +60,8 @@ class WelcomePage(QWidget):
         outer_layout.setContentsMargins(0,0,0,0)
         outer_layout.setSpacing(0)
 
-        self.title_bar = CustomTitleBar(self, title=f"Bienvenue dans {self.app_name}", icon_path="resources/images/logo-gdj.png") 
+        # --- Utiliser get_resource_path pour l'icône de la barre de titre --- 
+        self.title_bar = CustomTitleBar(self, title=f"Bienvenue dans {self.app_name}", icon_path=get_resource_path("resources/images/logo-gdj.png")) 
         outer_layout.addWidget(self.title_bar)
 
         separator_line = QFrame(self)
@@ -86,7 +90,8 @@ class WelcomePage(QWidget):
         logo_section_layout.setSpacing(8)
         logo_label = QLabel()
         logo_label.setObjectName("SidebarLogoLabel")
-        logo_pixmap = QPixmap("resources/images/logo-gdj.png")
+        # --- Utiliser get_resource_path pour le logo --- 
+        logo_pixmap = QPixmap(get_resource_path("resources/images/logo-gdj.png"))
         if not logo_pixmap.isNull():
             logo_label.setPixmap(logo_pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
@@ -144,7 +149,8 @@ class WelcomePage(QWidget):
         settings_layout = QHBoxLayout()
         settings_layout.setContentsMargins(12, 0, 12, 5)
         btn_settings = QPushButton()
-        settings_icon_path = "resources/icons/clear/round_settings.png"
+        # --- Utiliser get_resource_path pour l'icône settings --- 
+        settings_icon_path = get_resource_path("resources/icons/clear/round_settings.png")
         settings_icon = QIcon(settings_icon_path)
         if not settings_icon.isNull():
             btn_settings.setIcon(settings_icon)

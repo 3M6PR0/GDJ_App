@@ -1,28 +1,31 @@
 # utils/config_loader.py
 import json
 import os
-from config import CONFIG
+# Retirer: from config import CONFIG
+
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
 
 def load_config_data(filename="config_data.json"):
-    data_path = "data"
-    if isinstance(CONFIG, dict):
-        data_path = CONFIG.get("DATA_PATH", "data")
-    else:
-        print("Avertissement: CONFIG n'est pas un dictionnaire, utilise data/ par défaut")
-
-    filepath = os.path.join(data_path, filename)
+    """Charge un fichier de config JSON depuis le dossier data via get_resource_path."""
+    # Construire le chemin relatif dans data
+    relative_path = os.path.join("data", filename)
+    # Obtenir le chemin absolu
+    absolute_filepath = get_resource_path(relative_path)
+    print(f"DEBUG: Chemin {filename} calculé par config_loader: {absolute_filepath}") # Ajout debug
     
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        # Lire depuis le chemin absolu
+        with open(absolute_filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"Erreur: Fichier de données JSON non trouvé: {filepath}")
+        print(f"Erreur: Fichier de données JSON non trouvé: {absolute_filepath}")
         return {}
     except json.JSONDecodeError:
-        print(f"Erreur: Impossible de décoder le JSON dans {filepath}")
+        print(f"Erreur: Impossible de décoder le JSON dans {absolute_filepath}")
         return {}
     except Exception as e:
-        print(f"Erreur inattendue lors du chargement de {filepath}: {e}")
+        print(f"Erreur inattendue lors du chargement de {absolute_filepath}: {e}")
         return {}
 
 print("utils/config_loader.py défini")

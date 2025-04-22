@@ -35,6 +35,9 @@ except ImportError:
     # Définir une classe factice pour éviter les erreurs si l'import échoue
     class ProjectListItemWidget: pass 
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 class DocumentsController(QObject):
     def __init__(self, view: DocumentsPage, main_controller, preferences_controller):
         """
@@ -78,31 +81,35 @@ class DocumentsController(QObject):
         # Afficher la page initiale (la liste des récents)
         self.show_recent_list_page() 
 
-    def _load_config_data(self, filepath="data/config_data.json"):
-        """Charge les types, la structure des documents et les données Jacmar."""
+    def _load_config_data(self, relative_filepath="data/config_data.json"):
+        """Charge la config depuis le chemin relatif via get_resource_path."""
         self.document_types = []
-        self.document_fields_map = {} # Map: {type_doc: [champ1, champ2]} 
-        self.jacmar_data = {} # Map: {champ: [val1, val2]} (incluant plafond)
-        self.jacmar_plafonds_keys = [] # Juste les clés pour le cas spécial
+        self.document_fields_map = {}
+        self.jacmar_data = {}
+        self.jacmar_plafonds_keys = []
+
+        # Construire le chemin absolu
+        config_full_path = get_resource_path(relative_filepath)
+        print(f"DEBUG: Chemin config_data.json calculé: {config_full_path}") # Ajout debug
 
         try:
-            if not os.path.exists(filepath):
-                print(f"Avertissement: Fichier config introuvable: {filepath}")
+            # Utiliser le chemin absolu
+            if not os.path.exists(config_full_path):
+                print(f"Avertissement: Fichier config introuvable: {config_full_path}")
                 return
             
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(config_full_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
                 
             # Charger les types et la structure des champs par type
             document_config = config_data.get("document", {})
             self.document_types = list(document_config.keys())
-            self.document_fields_map = document_config # Garder le dict entier
+            self.document_fields_map = document_config
             print(f"Types de documents chargés: {self.document_types}")
             
             # Charger les données Jacmar
             jacmar_config = config_data.get("jacmar", {})
-            self.jacmar_data = jacmar_config # Garder le dict entier
-            # Traitement spécial pour récupérer les clés de plafond
+            self.jacmar_data = jacmar_config
             plafond_list = self.jacmar_data.get("plafond_deplacement", [])
             if plafond_list and isinstance(plafond_list, list) and isinstance(plafond_list[0], dict):
                 self.jacmar_plafonds_keys = list(plafond_list[0].keys())
@@ -112,8 +119,7 @@ class DocumentsController(QObject):
             print(f"Données Jacmar chargées.")
 
         except Exception as e:
-            print(f"Erreur chargement config: {e}")
-            # Laisser les listes/dicts vides
+            print(f"Erreur chargement config ({config_full_path}): {e}")
             
     def _populate_type_selection_combo(self):
         """Appelle la méthode de la vue TypeSelection pour remplir son ComboBox."""

@@ -7,28 +7,26 @@ from updater.update_checker import check_for_updates
 # from pages.welcome_page import WelcomePage
 # Importer le loader et les chemins
 from utils.stylesheet_loader import load_stylesheet
-import os # Pour construire les chemins
 
 def main():
     app = QApplication(sys.argv)
     
     # --- Charger et appliquer la feuille de style globale ---
     try:
-        # Définir les chemins vers les fichiers QSS
-        # Utiliser os.path.join pour la compatibilité multi-OS
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        global_qss_path = os.path.join(script_dir, 'resources', 'styles', 'global.qss')
-        frame_qss_path = os.path.join(script_dir, 'resources', 'styles', 'frame.qss')
-        # Ajouter d'autres fichiers QSS spécifiques ici si nécessaire
-        # custom_titlebar_qss_path = os.path.join(script_dir, 'resources', 'styles', 'custom_titlebar.qss')
+        # --- Définir directement les chemins relatifs --- 
+        # Retirer: script_dir = os.path.dirname(os.path.abspath(__file__))
+        # Retirer: global_qss_path = os.path.join(script_dir, 'resources', 'styles', 'global.qss')
+        # Retirer: frame_qss_path = os.path.join(script_dir, 'resources', 'styles', 'frame.qss')
         
+        # Passer les chemins RELATIFS à load_stylesheet
         qss_files = [
-            global_qss_path,
-            frame_qss_path,
-            # custom_titlebar_qss_path,
+            "resources/styles/global.qss",
+            "resources/styles/frame.qss",
+            # Ajoutez d'autres fichiers QSS ici si nécessaire
+            # "resources/styles/custom_titlebar.qss",
         ]
         
-        # Charger, combiner et formater
+        # Charger, combiner et formater (load_stylesheet utilise get_resource_path)
         combined_stylesheet = load_stylesheet(qss_files)
         
         # Appliquer à l'application

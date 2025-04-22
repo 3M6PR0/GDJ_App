@@ -24,12 +24,15 @@ PrivilegesRequired=lowest
 Source: "GDJ.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Inclure le contenu du dossier de l'aide à la mise à jour (compilé en one-folder)
 Source: "updater\*"; DestDir: "{app}\updater"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Inclure le dossier resources (icônes, styles)
+Source: "..\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Inclure les fichiers de données
 Source: "..\data\config_data.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 Source: "..\data\profile.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 Source: "..\data\version.txt"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 ; Inclure les notes de version
 Source: "..\RELEASE_NOTES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Crée un raccourci dans le menu Démarrer qui lancera GDJ.exe

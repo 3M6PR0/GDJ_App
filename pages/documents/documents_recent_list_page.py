@@ -14,6 +14,9 @@ from PyQt5.QtGui import QIcon, QPixmap, QColor, QBrush, QPen, QPainter, QDesktop
 # Importer le composant Frame
 from ui.components.frame import Frame
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 # --- Classe HoverButton (peut être supprimée si non utilisée) --- 
 class HoverButton(QPushButton):
     def __init__(self, text, parent=None):
@@ -75,7 +78,10 @@ class ProjectListItemWidget(QWidget):
         self.path_label = QLabel(path_str); self.path_label.setObjectName("ProjectListPath")
         text_layout.addWidget(self.name_label); text_layout.addWidget(self.path_label); text_layout.addStretch()
         layout.addLayout(text_layout); layout.addStretch(1)
-        self.options_button = QPushButton(""); self.options_button.setIcon(QIcon("resources/icons/dark/round_more_vert.png"))
+        # --- Utiliser get_resource_path pour l'icône --- 
+        options_icon_path = get_resource_path("resources/icons/dark/round_more_vert.png")
+        self.options_button = QPushButton("")
+        self.options_button.setIcon(QIcon(options_icon_path))
         self.options_button.setIconSize(QSize(16, 16)); self.options_button.setObjectName("ItemOptionsButton")
         self.options_button.setFixedSize(20, 20); self.options_button.setVisible(False)
         self.options_button.setToolTip("Options"); self.options_button.clicked.connect(self._show_context_menu)

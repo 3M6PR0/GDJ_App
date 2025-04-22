@@ -11,8 +11,11 @@ import functools
 import datetime # Importer datetime
 from ui.components.frame import Frame
 
-# Définir le chemin de l'icône (corrigé)
-RESET_ICON_PATH = "resources/icons/clear/round_refresh.png" 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
+# Définir le chemin de l'icône en utilisant la fonction utilitaire
+RESET_ICON_PATH = get_resource_path("resources/icons/clear/round_refresh.png")
 
 # Liste des mois (pourrait être générée avec locale si besoin)
 MONTHS = [

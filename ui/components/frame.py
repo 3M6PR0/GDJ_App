@@ -4,6 +4,9 @@ from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QWidget
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt # Ajout pour Qt.KeepAspectRatio etc.
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 class Frame(QFrame):
     def __init__(self, title=None, icon_path=None, header_widget: QWidget = None, parent=None):
         super().__init__(parent)
@@ -19,7 +22,10 @@ class Frame(QFrame):
         self.separator_line = None
 
         # --- En-tête (si nécessaire) --- 
-        if title or (icon_path and os.path.exists(icon_path)) or header_widget:
+        # Utiliser une variable pour vérifier si un en-tête est nécessaire
+        has_header_content = title or icon_path or header_widget
+        
+        if has_header_content:
             title_hbox = QHBoxLayout()
             # Appliquer les marges et l'espacement standard de l'en-tête DANS TOUS LES CAS
             title_hbox.setContentsMargins(15, 8, 15, 8) 
@@ -29,15 +35,17 @@ class Frame(QFrame):
                 # Ajouter le widget personnalisé
                 title_hbox.addWidget(header_widget, 1) 
             else:
-                # Ajouter titre/icône par défaut
-                if icon_path and os.path.exists(icon_path):
-                    icon_label = QLabel()
-                    pixmap = QPixmap(icon_path)
-                    icon_label.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                    icon_label.setFixedSize(20, 20)
-                    title_hbox.addWidget(icon_label)
-                elif icon_path: 
-                     print(f"Avertissement: Icône non trouvée à {icon_path}")
+                # --- En-tête par défaut : Utiliser get_resource_path --- 
+                if icon_path:
+                    absolute_icon_path = get_resource_path(icon_path)
+                    if os.path.exists(absolute_icon_path):
+                        icon_label = QLabel()
+                        pixmap = QPixmap(absolute_icon_path)
+                        icon_label.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                        icon_label.setFixedSize(20, 20)
+                        title_hbox.addWidget(icon_label)
+                    else: 
+                        print(f"Avertissement: Icône de Frame non trouvée à {absolute_icon_path}")
 
                 if title:
                     self.title_label = QLabel(title)
@@ -47,6 +55,7 @@ class Frame(QFrame):
                 title_hbox.addStretch()
             self.internal_layout.addLayout(title_hbox) 
             
+            # Ajouter le séparateur seulement si un en-tête a été ajouté
             self.separator_line = QFrame()
             self.separator_line.setFrameShape(QFrame.HLine)
             self.separator_line.setObjectName("CustomFrameSeparator")

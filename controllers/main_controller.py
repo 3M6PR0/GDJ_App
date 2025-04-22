@@ -13,6 +13,9 @@ from PyQt5.QtCore import Qt
 from config import CONFIG
 from updater.update_checker import check_for_updates
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 # --- Import des nouvelles pages/fenêtres ---
 from pages.welcome_page import WelcomePage
 from ui.main_window import MainWindow
@@ -49,15 +52,13 @@ class MainController:
         # Au démarrage, charger le profil depuis le fichier JSON.
         self.profile = Profile.load_from_file()
 
-        # --- Chemins et versions --- (Déplacé ici pour être accessible par plusieurs méthodes)
-        self.app_base_path = self._get_app_base_path()
-        self.data_path = os.path.join(self.app_base_path, CONFIG.get("DATA_PATH", "data"))
-        self.version_file = os.path.join(self.data_path, "version.txt")
-        self.release_notes_file = os.path.join(self.app_base_path, "RELEASE_NOTES.md")
+        # --- Utiliser get_resource_path pour les chemins --- 
+        self.version_file = get_resource_path("data/version.txt")
+        self.release_notes_file = get_resource_path("RELEASE_NOTES.md")
         self.current_version_str = self._read_version_file(self.version_file)
 
         # --- Vérifications au démarrage ---
-        self.check_show_release_notes_on_update() # Renommée pour clarté
+        self.check_show_release_notes_on_update() 
         check_for_updates()
 
     def show_welcome_page(self):
@@ -94,17 +95,8 @@ class MainController:
         if not self.main_window.isVisible():
             self.main_window.show()
 
-    def _get_app_base_path(self):
-        """ Détermine le chemin de base de l'application (installée ou dev). """
-        if getattr(sys, 'frozen', False):
-            # Application compilée (installée)
-            return os.path.dirname(sys.executable)
-        else:
-            # En développement
-            return os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Remonter d'un niveau si controller est dans un sous-dossier
-
     def _read_version_file(self, file_path):
-        """ Lit un fichier de version (version.txt ou last_run_version.txt). """
+        """ Lit un fichier de version (reçoit le chemin complet). """
         if not os.path.exists(file_path):
             print(f"Fichier version non trouvé: {file_path}")
             return "0.0.0" # Version par défaut si non trouvé
@@ -117,7 +109,7 @@ class MainController:
             return "0.0.0"
 
     def _write_last_run_version(self, file_path, current_version):
-        """ Écrit la version actuelle dans last_run_version.txt. """
+        """ Écrit dans un fichier de version (reçoit le chemin complet). """
         config = configparser.ConfigParser()
         config["Version"] = {"value": current_version}
         try:
@@ -130,11 +122,11 @@ class MainController:
 
     def check_show_release_notes_on_update(self):
         """ Vérifie s'il faut afficher les notes APRES une mise à jour. """
-        if self.main_window is None: # Ne pas exécuter si la fenêtre principale n'est pas prête
-             print("Différé: Vérification des notes de version jusqu'à l'initialisation de MainWindow.")
+        if self.main_window is None:
+             print("Différé: Vérification des notes de version...")
              return
         print("Vérification pour affichage des notes de version post-mise à jour...")
-        last_run_version_file = os.path.join(self.data_path, "last_run_version.txt")
+        last_run_version_file = get_resource_path("data/last_run_version.txt")
         last_run_version_str = self._read_version_file(last_run_version_file)
 
         print(f"  Version actuelle: {self.current_version_str}")

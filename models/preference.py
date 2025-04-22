@@ -6,6 +6,9 @@ import os
 # Importation optionnelle pour Path, mais utilisons str pour l'instant pour simplifier
 # from pathlib import Path
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 class Profile:
     """Préférences relatives au profil utilisateur."""
     def __init__(self,
@@ -80,11 +83,13 @@ class Application:
 
 class Preference:
     """Classe principale contenant toutes les préférences."""
+    # --- Chemin par défaut relatif --- 
+    DEFAULT_PREF_FILENAME = "data/preference.json"
+
     def __init__(self,
                  profile: Profile = None,
                  jacmar: Jacmar = None,
                  application: Application = None):
-        # Initialise avec des instances par défaut si aucune n'est fournie
         self.profile = profile if profile is not None else Profile()
         self.jacmar = jacmar if jacmar is not None else Jacmar()
         self.application = application if application is not None else Application()
@@ -97,33 +102,42 @@ class Preference:
             "application": self.application.to_dict()
         }
 
-    def save(self, filepath="data/preference.json"):
-        """Sauvegarde les préférences actuelles dans un fichier JSON."""
+    def save(self, relative_filepath=DEFAULT_PREF_FILENAME):
+        """Sauvegarde les préférences actuelles via get_resource_path."""
+        # Construire le chemin absolu
+        absolute_filepath = get_resource_path(relative_filepath)
+        print(f"DEBUG: Chemin sauvegarde prefs calculé: {absolute_filepath}") # Ajout debug
         try:
             # S'assurer que le répertoire existe
-            dir_path = os.path.dirname(filepath)
-            if dir_path: # S'assurer qu'il y a un chemin de dossier (pas juste un nom de fichier)
+            dir_path = os.path.dirname(absolute_filepath)
+            if dir_path:
                 os.makedirs(dir_path, exist_ok=True)
             
-            # Convertir l'objet en dictionnaire
             data_to_save = self.to_dict()
             
-            # Écrire dans le fichier JSON
-            with open(filepath, 'w', encoding='utf-8') as f:
+            # Écrire dans le fichier JSON en utilisant le chemin absolu
+            with open(absolute_filepath, 'w', encoding='utf-8') as f:
                 json.dump(data_to_save, f, ensure_ascii=False, indent=4)
-            print(f"Préférences sauvegardées avec succès dans {filepath}")
+            print(f"Préférences sauvegardées avec succès dans {absolute_filepath}")
             
         except Exception as e:
-            print(f"Erreur lors de la sauvegarde des préférences dans {filepath}: {e}")
+            print(f"Erreur lors de la sauvegarde des préférences dans {absolute_filepath}: {e}")
 
-    def load(self, filepath="data/preference.json"):
-        """Charge les préférences depuis un fichier JSON et met à jour l'objet."""
-        if not os.path.exists(filepath):
-            print(f"Fichier de préférences non trouvé: {filepath}. Utilisation des valeurs par défaut.")
-            return False # Indiquer que le chargement a échoué
+    def load(self, relative_filepath=DEFAULT_PREF_FILENAME):
+        """Charge les préférences via get_resource_path."""
+        # Construire le chemin absolu
+        absolute_filepath = get_resource_path(relative_filepath)
+        print(f"DEBUG: Chemin chargement prefs calculé: {absolute_filepath}") # Ajout debug
+
+        if not os.path.exists(absolute_filepath):
+            print(f"Fichier de préférences non trouvé: {absolute_filepath}. Utilisation des valeurs par défaut.")
+            # Initialiser avec les valeurs par défaut (déjà fait dans __init__)
+            # self.__init__() # Réinitialiser explicitement ?
+            return False
             
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            # Lire depuis le chemin absolu
+            with open(absolute_filepath, 'r', encoding='utf-8') as f:
                 loaded_data = json.load(f)
             
             # Mettre à jour les sous-objets avec les données chargées
@@ -134,14 +148,14 @@ class Preference:
             if 'application' in loaded_data and isinstance(loaded_data['application'], dict):
                 self.application.update_from_dict(loaded_data['application'])
                 
-            print(f"Préférences chargées avec succès depuis {filepath}")
-            return True # Indiquer le succès
+            print(f"Préférences chargées avec succès depuis {absolute_filepath}")
+            return True
             
         except json.JSONDecodeError as e:
-            print(f"Erreur de décodage JSON dans {filepath}: {e}. Utilisation des valeurs par défaut.")
+            print(f"Erreur JSON dans {absolute_filepath}: {e}...")
             return False
         except Exception as e:
-            print(f"Erreur lors du chargement des préférences depuis {filepath}: {e}. Utilisation des valeurs par défaut.")
+            print(f"Erreur chargement {absolute_filepath}: {e}...")
             return False
 
 # Exemple d'utilisation:

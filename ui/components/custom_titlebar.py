@@ -4,6 +4,9 @@ from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QSpacerIt
 from PyQt5.QtCore import Qt, QPoint, QSize
 from PyQt5.QtGui import QIcon, QPixmap
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 # Utiliser les couleurs définies dans welcome_page ou les redéfinir/importer
 # Pour simplifier, je vais utiliser des valeurs codées ici, mais l'idéal serait
 # de partager les constantes de couleur.
@@ -26,14 +29,18 @@ class CustomTitleBar(QWidget):
         layout.setSpacing(0)
 
         # Icône (Optionnel)
-        if icon_path and os.path.exists(icon_path):
-            icon_label = QLabel(self)
-            pixmap = QPixmap(icon_path)
-            icon_label.setPixmap(pixmap.scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            icon_label.setFixedSize(32, self.height()) # Ajuster largeur (26 + padding)
-            icon_label.setStyleSheet("background-color: transparent; padding-left: 5px;")
-            layout.addWidget(icon_label)
-            layout.addSpacing(5) # Petit espace après l'icône
+        if icon_path: # Vérifier si un chemin relatif est fourni
+             absolute_icon_path = get_resource_path(icon_path)
+             if os.path.exists(absolute_icon_path):
+                 icon_label = QLabel(self)
+                 pixmap = QPixmap(absolute_icon_path)
+                 icon_label.setPixmap(pixmap.scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                 icon_label.setFixedSize(32, self.height()) # Ajuster largeur (26 + padding)
+                 icon_label.setStyleSheet("background-color: transparent; padding-left: 5px;")
+                 layout.addWidget(icon_label)
+                 layout.addSpacing(5) # Petit espace après l'icône
+             else:
+                 print(f"WARN: Icône de fenêtre non trouvée: {absolute_icon_path}")
 
         # Titre
         self.title_label = QLabel(title, self)
@@ -47,7 +54,9 @@ class CustomTitleBar(QWidget):
 
         # Bouton Minimiser
         self.btn_minimize = QPushButton("", self) # Texte retiré
-        self.btn_minimize.setIcon(QIcon("resources/icons/clear/round_minimize.png"))
+        # --- Utiliser get_resource_path --- 
+        minimize_icon_path = get_resource_path("resources/icons/clear/round_minimize.png")
+        self.btn_minimize.setIcon(QIcon(minimize_icon_path))
         self.btn_minimize.setIconSize(QSize(16, 16)) # Taille icône
         self.btn_minimize.setFixedSize(btn_size)
         self.btn_minimize.setObjectName("TitleBarButton")
@@ -57,7 +66,9 @@ class CustomTitleBar(QWidget):
 
         # Bouton Maximiser/Restaurer
         self.btn_maximize = QPushButton("", self) # Texte retiré
-        self.btn_maximize.setIcon(QIcon("resources/icons/clear/round_crop_square.png"))
+        # --- Utiliser get_resource_path --- 
+        maximize_icon_path = get_resource_path("resources/icons/clear/round_crop_square.png")
+        self.btn_maximize.setIcon(QIcon(maximize_icon_path))
         self.btn_maximize.setIconSize(QSize(16, 16)) # Taille icône
         self.btn_maximize.setFixedSize(btn_size)
         self.btn_maximize.setObjectName("TitleBarButton")
@@ -68,7 +79,9 @@ class CustomTitleBar(QWidget):
 
         # Bouton Fermer
         self.btn_close = QPushButton("", self) # Texte retiré
-        self.btn_close.setIcon(QIcon("resources/icons/clear/round_close.png"))
+        # --- Utiliser get_resource_path --- 
+        close_icon_path = get_resource_path("resources/icons/clear/round_close.png")
+        self.btn_close.setIcon(QIcon(close_icon_path))
         self.btn_close.setIconSize(QSize(16, 16)) # Taille icône
         self.btn_close.setFixedSize(btn_size)
         self.btn_close.setObjectName("TitleBarButtonClose") # Nom différent pour style hover rouge

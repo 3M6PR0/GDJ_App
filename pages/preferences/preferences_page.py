@@ -9,6 +9,9 @@ from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, Q
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPen, QPalette # Rajouter les imports nécessaires pour SimpleToggle.paintEvent
 import functools # Importer functools
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 # Constantes de couleur/police supprimées
 
 # --- SimpleToggle (Nettoyé) ---
@@ -160,7 +163,7 @@ class PreferencesPage(QWidget):
             Frame.get_content_layout = lambda s: QVBoxLayout(s)
         
         # --- Section "Mon profile" ---
-        profile_box = Frame(title="Mon profile", icon_path="resources/icons/clear/round_account_box.png")
+        profile_box = Frame(title="Mon profile", icon_path=get_resource_path("resources/icons/clear/round_account_box.png"))
         box_content_layout_prof = profile_box.get_content_layout()
         profile_form_layout = QFormLayout()
         profile_form_layout.setContentsMargins(15, 10, 15, 15)
@@ -201,7 +204,7 @@ class PreferencesPage(QWidget):
         prefs_main_layout.addWidget(profile_box, 0, 0)
 
         # --- Section "Jacmar" ---
-        jacmar_box = Frame(title="Jacmar", icon_path="resources/icons/clear/round_corporate_fare.png")
+        jacmar_box = Frame(title="Jacmar", icon_path=get_resource_path("resources/icons/clear/round_corporate_fare.png"))
         box_content_layout_jac = jacmar_box.get_content_layout()
         jacmar_form_layout = QFormLayout()
         jacmar_form_layout.setContentsMargins(15, 10, 15, 15)
@@ -229,7 +232,7 @@ class PreferencesPage(QWidget):
         prefs_main_layout.addWidget(jacmar_box, 0, 1)
 
         # --- Section "Application" ---
-        app_box = Frame(title="Application", icon_path="resources/icons/clear/round_category.png")
+        app_box = Frame(title="Application", icon_path=get_resource_path("resources/icons/clear/round_category.png"))
         box_content_layout_app = app_box.get_content_layout()
         app_form_layout = QFormLayout()
         app_form_layout.setContentsMargins(15, 10, 15, 15)
@@ -247,7 +250,7 @@ class PreferencesPage(QWidget):
         prefs_main_layout.addWidget(app_box, 1, 0)
 
         # --- Section "Gestion des preferences" ---
-        mgmt_box = Frame(title="Gestion des preferences", icon_path="resources/icons/clear/round_smart_button.png")
+        mgmt_box = Frame(title="Gestion des preferences", icon_path=get_resource_path("resources/icons/clear/round_smart_button.png"))
         box_content_layout_mgmt = mgmt_box.get_content_layout()
         prefs_form_layout = QFormLayout()
         prefs_form_layout.setContentsMargins(15, 10, 15, 15)
@@ -309,8 +312,9 @@ class PreferencesPage(QWidget):
         input_widget.setSizePolicy(size_policy)
         layout.addWidget(input_widget, 1)
 
-        # Créer et configurer le bouton refresh
-        refresh_button = self._create_icon_button("resources/icons/clear/round_refresh.png", 
+        # Créer et configurer le bouton refresh en utilisant get_resource_path
+        refresh_icon_path = get_resource_path("resources/icons/clear/round_refresh.png")
+        refresh_button = self._create_icon_button(refresh_icon_path, 
                                                   f"Réinitialiser {pref_path.split('.')[-1]}...")
         refresh_button.setObjectName(f"refresh_{pref_path.replace('.', '_')}")
         refresh_button.setFixedSize(20, 20)
@@ -329,10 +333,13 @@ class PreferencesPage(QWidget):
 
         return container
 
-    def _create_icon_button(self, icon_path, tooltip):
+    def _create_icon_button(self, relative_icon_path, tooltip):
+        """Crée un bouton avec une icône chargée via get_resource_path."""
         btn = QPushButton("")
-        btn.setObjectName("FormButton") # Utiliser cet ID pour style général
-        btn.setIcon(QIcon(icon_path))
+        btn.setObjectName("FormButton")
+        # --- Utiliser get_resource_path ici --- 
+        absolute_icon_path = get_resource_path(relative_icon_path)
+        btn.setIcon(QIcon(absolute_icon_path))
         btn.setIconSize(QSize(20, 20))
         btn.setFixedSize(30, 30)
         btn.setToolTip(tooltip)

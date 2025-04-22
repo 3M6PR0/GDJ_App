@@ -10,6 +10,9 @@ from packaging import version  # Pour comparer les versions
 from config import CONFIG
 from PyQt5.QtWidgets import QMessageBox
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 # Paramètres de votre dépôt GitHub (à adapter)
 REPO_OWNER = "3M6PR0"  # Remplacez par le nom de votre compte ou organisation
 REPO_NAME = "GDJ_App"      # Remplacez par le nom de votre repository
@@ -17,21 +20,25 @@ REPO_NAME = "GDJ_App"      # Remplacez par le nom de votre repository
 # URL de l'API GitHub pour la dernière release
 GITHUB_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
 
-# Chemin local pour stocker la version (ex. data/version.txt)
-VERSION_FILE = os.path.join(CONFIG.get("DATA_PATH", "data"), "version.txt")
-
-# Chemin vers l'exécutable update helper (à générer et placer dans un dossier dédié, par exemple "updater")
-app_dir = os.path.dirname(sys.executable)
-UPDATER_EXECUTABLE = os.path.join(app_dir, "updater", "update_helper.exe")
+# --- Utiliser get_resource_path --- 
+VERSION_FILE = get_resource_path(os.path.join(CONFIG.get("DATA_PATH", "data"), "version.txt"))
+# Chemin vers l'exécutable update helper (calculé une seule fois)
+UPDATER_EXECUTABLE = get_resource_path(os.path.join("updater", "update_helper.exe"))
 
 
 def get_local_version():
-    """Lit la version locale depuis le fichier version.txt en utilisant configparser."""
+    """Lit la version locale depuis le fichier version.txt."""
+    # VERSION_FILE est maintenant le chemin absolu
     if not os.path.exists(VERSION_FILE):
+        print(f"DEBUG: {VERSION_FILE} non trouvé.") # Debug
         return "0.0.0"
     config = configparser.ConfigParser()
-    config.read(VERSION_FILE, encoding="utf-8")
-    return config.get("Version", "value").strip()
+    try:
+        config.read(VERSION_FILE, encoding="utf-8")
+        return config.get("Version", "value").strip()
+    except Exception as e:
+        print(f"Erreur lecture {VERSION_FILE}: {e}") # Debug
+        return "0.0.0"
 
 
 def get_remote_release_info():
@@ -69,32 +76,27 @@ def prompt_update(remote_version):
 
 
 def launch_updater(installer_url):
-    """Lance l'update helper en lui passant l'URL de l'installateur en paramètre."""
+    """Lance l'update helper en lui passant l'URL de l'installateur."""
     try:
         print("Tentative de lancement de l'update helper...")
-        # Définir le chemin vers l'updater
-        app_dir = os.path.dirname(sys.executable)
-        UPDATER_EXECUTABLE = os.path.join(app_dir, "updater", "update_helper.exe")
+        # Utiliser la constante globale UPDATER_EXECUTABLE
         print(f"Chemin updater: {UPDATER_EXECUTABLE}")
 
-        # Vérifier si l'updater existe AVANT de le lancer
         if not os.path.exists(UPDATER_EXECUTABLE):
             print(f"Erreur : {UPDATER_EXECUTABLE} non trouvé.")
             QMessageBox.critical(None, "Erreur de mise à jour",
                                  f"Le fichier nécessaire à la mise à jour est introuvable.\nChemin attendu : {UPDATER_EXECUTABLE}")
-            return # Sortir de la fonction, l'application reste ouverte
+            return
 
         print("Lancement de l'update helper avec l'URL :", installer_url)
         subprocess.Popen([UPDATER_EXECUTABLE, installer_url])
         print("Update helper lancé, fermeture de l'application principale.")
-        sys.exit(0) # Fermeture de l'application actuelle
+        sys.exit(0)
 
     except Exception as e:
         print("Erreur lors du lancement de l'updater :", e)
-        # Afficher l'erreur à l'utilisateur
         QMessageBox.critical(None, "Erreur de mise à jour",
                              f"Une erreur est survenue lors du lancement de la mise à jour :\n{e}")
-        # L'application reste ouverte car sys.exit(0) n'est pas atteint
 
 
 def check_for_updates():

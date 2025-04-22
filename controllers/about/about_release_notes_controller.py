@@ -4,10 +4,14 @@
 import os
 from PyQt5.QtCore import QObject
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+
 # Import de la vue correspondante (ajuster si nécessaire)
 # from pages.about.about_release_notes_page import AboutReleaseNotesPage
 
-RELEASE_NOTES_PATH = "RELEASE_NOTES.md" # Chemin relatif depuis la racine du projet
+# --- Constante pour le chemin relatif ---
+RELEASE_NOTES_PATH = "RELEASE_NOTES.md" 
 
 class AboutReleaseNotesController(QObject): # <- Nom de classe mis à jour
     def __init__(self, view: 'QWidget'): # ou AboutReleaseNotesPage
@@ -16,13 +20,12 @@ class AboutReleaseNotesController(QObject): # <- Nom de classe mis à jour
         self.load_notes()
 
     def load_notes(self):
-        """Charge le contenu du fichier RELEASE_NOTES.md."""
+        """Charge RELEASE_NOTES.md via get_resource_path."""
         content = "Impossible de charger le fichier RELEASE_NOTES.md"
         try:
-            # Construire le chemin absolu en remontant de deux niveaux
-            # controllers/about -> controllers -> racine
-            script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            notes_full_path = os.path.join(script_dir, RELEASE_NOTES_PATH)
+            # --- Utiliser get_resource_path --- 
+            notes_full_path = get_resource_path(RELEASE_NOTES_PATH)
+            print(f"DEBUG: Chemin RELEASE_NOTES calculé: {notes_full_path}") # Ajout debug
             
             if os.path.exists(notes_full_path):
                 with open(notes_full_path, 'r', encoding='utf-8') as f:

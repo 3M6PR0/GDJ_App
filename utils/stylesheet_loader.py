@@ -2,14 +2,16 @@ import os
 import re
 # Importer theme depuis le même répertoire utils
 from . import theme
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
 
-def load_stylesheet(qss_files):
-    # Réécriture complète pour s'assurer qu'il n'y a pas de caractères cachés
+def load_stylesheet(relative_qss_files):
     """
     Charge et combine plusieurs fichiers QSS, en injectant les variables de thème.
+    Utilise get_resource_path pour trouver les fichiers.
 
     Args:
-        qss_files (list): Une liste de chemins vers les fichiers .qss à charger.
+        relative_qss_files (list): Une liste de chemins relatifs vers les fichiers .qss.
 
     Returns:
         str: La feuille de style QSS combinée et formatée.
@@ -21,14 +23,18 @@ def load_stylesheet(qss_files):
                   if not key.startswith('__') and isinstance(value, str)}
     
     # Lire et combiner les fichiers
-    for filepath in qss_files:
+    for relative_filepath in relative_qss_files:
+        # --- Obtenir le chemin absolu --- 
+        absolute_filepath = get_resource_path(relative_filepath)
+        print(f"DEBUG: Chargement QSS depuis: {absolute_filepath}") # Ajout debug
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            # --- Lire depuis le chemin absolu --- 
+            with open(absolute_filepath, 'r', encoding='utf-8') as f:
                 combined_qss += f.read() + "\n" # Ajouter un saut de ligne entre fichiers
         except FileNotFoundError:
-            print(f"Avertissement: Fichier QSS non trouvé: {filepath}")
+            print(f"Avertissement: Fichier QSS non trouvé: {absolute_filepath}")
         except Exception as e:
-            print(f"Erreur lors de la lecture du fichier QSS {filepath}: {e}")
+            print(f"Erreur lors de la lecture du fichier QSS {absolute_filepath}: {e}")
             
     # Remplacer les placeholders {{NOM_CONSTANTE}}
     def replace_placeholder(match):
