@@ -1,5 +1,8 @@
 import sys
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtGui import QIcon
+from utils.paths import get_resource_path
+import os
 # from ui.main_window import MainWindow  # We'll launch this from the controller now
 from controllers.main_controller import MainController
 from updater.update_checker import check_for_updates
@@ -10,6 +13,18 @@ from utils.stylesheet_loader import load_stylesheet
 
 def main():
     app = QApplication(sys.argv)
+    
+    # --- DÉFINIR L'ICÔNE DE L'APPLICATION GLOBALE ---
+    try:
+        icon_path = get_resource_path("resources/images/logo-gdj.ico")
+        if os.path.exists(icon_path):
+            app.setWindowIcon(QIcon(icon_path))
+            print(f"Icône de l'application définie sur : {icon_path}")
+        else:
+            print(f"Avertissement: Icône de l'application non trouvée à {icon_path}")
+    except Exception as e:
+        print(f"Erreur lors de la définition de l'icône de l'application: {e}")
+    # --------------------------------------------------
     
     # --- Charger et appliquer la feuille de style globale ---
     try:

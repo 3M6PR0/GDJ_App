@@ -1,15 +1,16 @@
 from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFileDialog
-from dialogs.new_document_dialog import NewDocumentDialog
+from PyQt5.QtCore import Qt
+# --- AJOUT DE L'IMPORT QIcon ---
+from PyQt5.QtGui import QIcon
 from pages.document_page import DocumentPage
-from pages.profile_page import ProfilePage
-from models.profile import Profile
+# from pages.profile_page import ProfilePage # Commenté
+# from models.profile import Profile # Commenté
 import os
 import sys
 import configparser
 from packaging import version
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QMessageBox, QDialog,
                              QVBoxLayout, QTextBrowser, QPushButton, QSizePolicy)
-from PyQt5.QtCore import Qt
 from config import CONFIG
 from updater.update_checker import check_for_updates
 
@@ -47,10 +48,6 @@ class MainController:
         self.main_window = None
         self.welcome_page = None
         self.documents = {}
-        self.profile_page = None
-
-        # Au démarrage, charger le profil depuis le fichier JSON.
-        self.profile = Profile.load_from_file()
 
         # --- Utiliser get_resource_path pour les chemins --- 
         self.version_file = get_resource_path("data/version.txt")
@@ -67,18 +64,35 @@ class MainController:
             app_name = CONFIG.get('APP_NAME', 'MonApp') # Récupérer nom depuis config
             # Passer app_name et version au constructeur de WelcomePage
             self.welcome_page = WelcomePage(self, app_name, self.current_version_str)
+            # --- DÉFINIR L'ICÔNE DE LA FENÊTRE DE BIENVENUE ---
+            try:
+                icon_path = get_resource_path("resources/images/logo-gdj.ico")
+                if os.path.exists(icon_path):
+                    self.welcome_page.setWindowIcon(QIcon(icon_path))
+                else:
+                    print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+            except Exception as e:
+                print(f"Erreur lors de la définition de l'icône pour WelcomePage: {e}")
         self.welcome_page.show()
 
     def _ensure_main_window_exists(self):
         """Crée la MainWindow si elle n'existe pas et établit les connexions."""
         if self.main_window is None:
             self.main_window = MainWindow()
+            # --- DÉFINIR L'ICÔNE DE LA FENÊTRE PRINCIPALE ---
+            try:
+                icon_path = get_resource_path("resources/images/logo-gdj.ico")
+                if os.path.exists(icon_path):
+                    self.main_window.setWindowIcon(QIcon(icon_path))
+                else:
+                     print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+            except Exception as e:
+                 print(f"Erreur lors de la définition de l'icône pour MainWindow: {e}")
             
             # Connecter les actions du menu de la MainWindow au contrôleur
             self.main_window.action_new.triggered.connect(self.create_new_document_from_menu)
             self.main_window.action_open.triggered.connect(self.open_document_from_menu)
             self.main_window.action_close.triggered.connect(self.close_current_document)
-            self.main_window.action_profile.triggered.connect(self.open_profile_page)
             try:
                 self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
             except AttributeError:
@@ -174,10 +188,8 @@ class MainController:
     def create_new_document(self):
         """Action appelée par le bouton 'Nouveau' de WelcomePage."""
         self._ensure_main_window_exists()
-        dialog = NewDocumentDialog(self.main_window)
-        if dialog.exec_() == QDialog.Accepted:
-            doc_type, data = dialog.get_data()
-            self._create_and_add_document_tab(doc_type, data)
+        print("Fonctionnalité 'Nouveau Document' (via WelcomePage) désactivée car NewDocumentDialog est supprimé.")
+        pass # Ne fait rien pour l'instant
 
     def open_document(self):
         """Action appelée par le bouton 'Ouvrir' de WelcomePage."""
@@ -205,10 +217,8 @@ class MainController:
         """Action appelée par le menu Fichier > Nouveau."""
         # Pas besoin d'appeler _ensure_main_window_exists ici car le menu n'est visible
         # que si la fenêtre principale existe déjà.
-        dialog = NewDocumentDialog(self.main_window)
-        if dialog.exec_() == QDialog.Accepted:
-            doc_type, data = dialog.get_data()
-            self._create_and_add_document_tab(doc_type, data)
+        print("Fonctionnalité 'Nouveau Document' (via Menu) désactivée car NewDocumentDialog est supprimé.")
+        pass # Ne fait rien pour l'instant
             
     def open_document_from_menu(self):
         """Action appelée par le menu Fichier > Ouvrir."""
@@ -270,13 +280,3 @@ class MainController:
             self.main_window.tab_widget.removeTab(idx)
             if title_to_remove in self.documents:
                 del self.documents[title_to_remove]
-
-    def open_profile_page(self):
-        """Ouvre l'onglet du profil (s'assure que main_window existe)."""
-        self._ensure_main_window_exists()
-        if not self.profile_page:
-            self.profile_page = ProfilePage(self.profile)
-            idx = self.main_window.tab_widget.addTab(self.profile_page, "Profil")
-        else:
-            idx = self.main_window.tab_widget.indexOf(self.profile_page)
-        self.main_window.tab_widget.setCurrentIndex(idx)

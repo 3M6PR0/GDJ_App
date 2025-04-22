@@ -88,6 +88,7 @@ def compile_gdj():
             "--windowed", 
             "--clean", 
             "--name=GDJ", 
+            "--icon=resources/images/logo-gdj.ico",
             # Retirer toute option --add-data concernant "resources" si elle existait
             # Exemple: # "--add-data=resources;resources", 
             "main.py"

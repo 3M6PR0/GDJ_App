@@ -28,7 +28,6 @@ Source: "updater\*"; DestDir: "{app}\updater"; Flags: ignoreversion recursesubdi
 Source: "..\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Inclure les fichiers de données
 Source: "..\data\config_data.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
-Source: "..\data\profile.json"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 Source: "..\data\version.txt"; DestDir: "{app}\data"; Flags: recursesubdirs createallsubdirs
 ; Inclure les notes de version
 Source: "..\RELEASE_NOTES.md"; DestDir: "{app}"; Flags: ignoreversion
