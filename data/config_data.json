@@ -1,5 +1,9 @@
 {
-    "profile": {
+    "jacmar": {
+        "emplacements": [
+            "Mascouche",
+            "Quebec"
+          ],
         "departements": [
           "Bureau",
           "Entrepôt",
@@ -7,9 +11,19 @@
           "Représentant",
           "Service"
         ],
-        "emplacements": [
-          "Mascouche",
-          "Quebec"
+        "titres": [
+          "President",
+          "Directeur",
+          "Receptionniste",
+          "Conseiller technique",
+          "Représentant externe",
+          "Expedition",
+          "Dessinateur",
+          "Estimateur",
+          "Technicien",
+          "Ingenieur",
+          "Charge de projet",
+          "Superviseur"
         ],
         "superviseurs": [
           "Gabriel Jacques",
@@ -27,10 +41,26 @@
             "Cap 1": 1200.0,
             "Cap 2": 3000.0
           }
-        ],
-        "themes": [
-          "Clair",
-          "Sombre"
         ]
+    },
+    "document": {
+        "Rapport de depense": [
+          "emplacements",
+          "departements",
+          "superviseurs",
+          "plafond_deplacement"
+        ],
+        "Ecriture comptable": [
+          "Mascouche",
+          "Quebec"
+        ],
+        "Rapport de temps supplémentaire": [
+          "Mascouche",
+          "Quebec"
+        ],
+        "CSA": [
+          "Mascouche",
+          "Quebec"
+        ] 
     }
 }

@@ -4,6 +4,8 @@
 
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
 from PyQt5.QtWidgets import QListWidgetItem # Pour vérifier le type d'item
+import json
+import os
 
 # Import de la vue principale et des vues/contrôleurs des sous-pages
 # from pages.documents.documents_page import DocumentsPage
@@ -46,6 +48,9 @@ class DocumentsController(QObject):
         self.view = view
         self.main_controller = main_controller # Pour appeler open_document etc.
         
+        # Charger les types de documents depuis la config
+        self._load_document_types()
+        
         # Instancier les sous-pages réelles
         self.recent_list_page = DocumentsRecentListPage()
         self.type_selection_page = DocumentsTypeSelectionPage()
@@ -62,11 +67,45 @@ class DocumentsController(QObject):
         # Supprimer l'ajout de documents_new_page au stack
         # self.view.documents_stack.addWidget(self.documents_new_page)
         
+        # Peupler le ComboBox de la page de sélection AVANT de connecter les signaux
+        self._populate_type_selection_combo()
+        
         # Connecter les signaux (principalement depuis les contrôleurs/pages enfants)
         self._connect_signals()
         
         # Afficher la page initiale (la liste des récents)
         self.show_recent_list_page() 
+
+    def _load_document_types(self, filepath="data/config_data.json"):
+        """Charge les types de documents disponibles depuis le fichier config."""
+        self.document_types = [] # Initialiser
+        try:
+            if not os.path.exists(filepath):
+                print(f"Avertissement: Fichier de configuration introuvable: {filepath}")
+                return
+            
+            with open(filepath, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+                
+            document_config = config_data.get("document", {})
+            self.document_types = list(document_config.keys())
+            print(f"Types de documents chargés: {self.document_types}")
+            
+        except json.JSONDecodeError as e:
+            print(f"Erreur de décodage JSON dans {filepath}: {e}")
+        except Exception as e:
+            print(f"Erreur lors du chargement des types de documents depuis {filepath}: {e}")
+            
+    def _populate_type_selection_combo(self):
+        """Appelle la méthode de la vue TypeSelection pour remplir son ComboBox."""
+        try:
+            if hasattr(self.type_selection_page, 'set_document_types'):
+                self.type_selection_page.set_document_types(self.document_types)
+                print("ComboBox Type de document peuplé.")
+            else:
+                print("Erreur: La vue TypeSelection n'a pas de méthode set_document_types.")
+        except Exception as e:
+            print(f"Erreur lors du peuplement du ComboBox Type de document: {e}")
 
     def _connect_signals(self):
         # --- Signaux venant de DocumentsRecentListController --- 

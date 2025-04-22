@@ -2,9 +2,9 @@ import sys
 import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSpacerItem,
-    QSizePolicy, QLineEdit, QGridLayout, QFormLayout, QComboBox, QStyleOption # QStyleOption importé ici
+    QSizePolicy, QLineEdit, QGridLayout, QFormLayout, QComboBox, QStyleOption, QGraphicsOpacityEffect # QStyleOption importé ici
 )
-from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, QPropertyAnimation, pyqtSignal
+from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, QPropertyAnimation, pyqtSignal, QEvent
 # QFont, QPainter, QPen, QBrush retirés (SimpleToggle gardé mais stylisé par QSS)
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPen, QPalette # Rajouter les imports nécessaires pour SimpleToggle.paintEvent
 import functools # Importer functools
@@ -77,7 +77,59 @@ class SimpleToggle(QWidget):
         handle_rect = QRect(handle_x, padding, handle_diameter, handle_diameter)
         painter.drawEllipse(handle_rect)
 
-# --- Classe PreferencesPage (Nettoyée) --- 
+# --- Nouveau Widget Personnalisé --- 
+class SignaturePreviewWidget(QWidget):
+    clicked = pyqtSignal() # Signal émis au clic
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pixmap = QPixmap() # Pixmap à afficher
+        self.setMinimumHeight(50) # Hauteur minimale
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Cliquez pour choisir une image de signature")
+        # Le fond sera hérité ou défini par QSS via son nom d'objet
+        self.setObjectName("SignaturePreviewWidget") 
+
+    def setPixmap(self, pixmap):
+        if pixmap is None:
+            self._pixmap = QPixmap() # Créer un QPixmap vide
+        else:
+            self._pixmap = pixmap
+        self.update() # Demander un redessin
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        rect = self.rect()
+
+        # --- Dessiner le fond ARRONDI --- 
+        bg_color = self.palette().color(QPalette.Base)
+        radius = 4.0 # Utiliser la valeur de notre setStyleSheet (4px)
+        painter.setPen(Qt.NoPen) # Pas de contour pour le fond
+        painter.setBrush(QBrush(bg_color)) # Définir la couleur de remplissage
+        painter.drawRoundedRect(rect, radius, radius) # Dessiner le rectangle arrondi
+
+        if self._pixmap.isNull():
+            # Dessiner "..." si pas d'image
+            painter.setPen(self.palette().color(QPalette.Text))
+            painter.drawText(rect, Qt.AlignCenter, "Cliquez ici...")
+        else:
+            # Calculer la taille et la position du pixmap redimensionné
+            target_rect = rect.adjusted(2, 2, -2, -2) # Petit padding
+            scaled_pixmap = self._pixmap.scaled(target_rect.size(), 
+                                                Qt.KeepAspectRatio, 
+                                                Qt.SmoothTransformation)
+            # Centrer le pixmap dans la zone
+            x = target_rect.x() + (target_rect.width() - scaled_pixmap.width()) / 2
+            y = target_rect.y() + (target_rect.height() - scaled_pixmap.height()) / 2
+            painter.drawPixmap(int(x), int(y), scaled_pixmap)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+# --- Classe PreferencesPage (Modifiée) --- 
 class PreferencesPage(QWidget):
     select_signature_requested = pyqtSignal()
     save_prefs_requested = pyqtSignal()
@@ -89,9 +141,9 @@ class PreferencesPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("PreferencesPageWidget")
-        # Dictionnaires pour stocker les widgets créés dynamiquement si nécessaire
         self.input_widgets = {}
         self.refresh_buttons = {}
+        self.refresh_effects = {}
         self.init_ui()
 
     def init_ui(self):
@@ -129,24 +181,20 @@ class PreferencesPage(QWidget):
         profile_form_layout.addRow(self._create_form_label("Courriel:"), self._wrap_widget_with_refresh(self.le_courriel, "profile.courriel"))
         
         # Widget Signature
-        signature_widget_container = QWidget()
-        # setStyleSheet supprimé
-        signature_layout = QHBoxLayout(signature_widget_container)
-        signature_layout.setContentsMargins(0, 0, 0, 0)
-        signature_layout.setSpacing(5)
-        btn_plus_signature = QPushButton("+")
-        btn_plus_signature.setObjectName("PlusButton") # Style via QSS
-        btn_plus_signature.setFixedSize(24, 24)
-        btn_plus_signature.clicked.connect(self.select_signature_requested.emit)
-        self.signature_image_label = QLabel()
-        self.signature_image_label.setObjectName("SignaturePreviewLabel") # ID pour QSS
-        self.signature_image_label.setMinimumHeight(24)
-        # setStyleSheet supprimé
-        self.signature_image_label.setAlignment(Qt.AlignCenter)
-        self.signature_image_label.setText("...")
-        signature_layout.addWidget(btn_plus_signature)
-        signature_layout.addWidget(self.signature_image_label, 1)
-        profile_form_layout.addRow(self._create_form_label("Signature Numerique:"), signature_widget_container)
+        self.signature_display_widget = SignaturePreviewWidget()
+        # --- REMETTRE le setStyleSheet pour le fond et radius --- 
+        self.signature_display_widget.setStyleSheet("""
+            QWidget#SignaturePreviewWidget {
+                background-color: #555555; /* Gris moyen */
+                border-radius: 4px; 
+                border: 1px solid #777777; /* Optionnel */
+            }
+        """)
+        self.signature_display_widget.clicked.connect(self.select_signature_requested.emit)
+        
+        # L'ajouter via la méthode wrap pour inclure le bouton refresh
+        profile_form_layout.addRow(self._create_form_label("Signature Numerique:"), 
+                                   self._wrap_widget_with_refresh(self.signature_display_widget, "profile.signature_path"))
         
         box_content_layout_prof.addLayout(profile_form_layout)
         box_content_layout_prof.addStretch(1)
@@ -159,21 +207,23 @@ class PreferencesPage(QWidget):
         jacmar_form_layout.setContentsMargins(15, 10, 15, 15)
         jacmar_form_layout.setSpacing(10)
         jacmar_form_layout.setVerticalSpacing(12)
+        
+        # Créer les ComboBox vides ici
         self.cb_emplacement = QComboBox()
-        self.cb_emplacement.addItems(["Jacmar", "Autre..."])
         jacmar_form_layout.addRow(self._create_form_label("Emplacement:"), self._wrap_widget_with_refresh(self.cb_emplacement, "jacmar.emplacement"))
+        
         self.cb_dept = QComboBox()
-        self.cb_dept.addItems(["Ingénierie", "Production", "Ventes", "..."])
         jacmar_form_layout.addRow(self._create_form_label("Département:"), self._wrap_widget_with_refresh(self.cb_dept, "jacmar.departement"))
+        
         self.cb_titre = QComboBox()
-        self.cb_titre.addItems(["Chargé de projet", "Technicien", "Directeur", "..."])
         jacmar_form_layout.addRow(self._create_form_label("Titre:"), self._wrap_widget_with_refresh(self.cb_titre, "jacmar.titre"))
+        
         self.cb_super = QComboBox()
-        self.cb_super.addItems(["Personne A", "Personne B", "..."])
         jacmar_form_layout.addRow(self._create_form_label("Superviseur:"), self._wrap_widget_with_refresh(self.cb_super, "jacmar.superviseur"))
+        
         self.cb_plafond = QComboBox()
-        self.cb_plafond.addItems(["0", "100", "500", "1000"])
         jacmar_form_layout.addRow(self._create_form_label("Plafond de déplacement:"), self._wrap_widget_with_refresh(self.cb_plafond, "jacmar.plafond"))
+        
         box_content_layout_jac.addLayout(jacmar_form_layout)
         box_content_layout_jac.addStretch(1)
         prefs_main_layout.addWidget(jacmar_box, 0, 1)
@@ -244,26 +294,38 @@ class PreferencesPage(QWidget):
         return container
 
     def _wrap_widget_with_refresh(self, input_widget, pref_path):
-        """Crée un container QHBoxLayout avec le widget d'entrée et un bouton refresh caché."""
+        """Crée un container QHBoxLayout avec le widget d'entrée et un bouton refresh invisible via opacité.
+           Fonctionne avec QLineEdit, QComboBox, SimpleToggle, et SignaturePreviewWidget.
+        """
         container = QWidget()
-        container.setStyleSheet("background-color: transparent;") # Le container est transparent
+        container.setStyleSheet("background-color: transparent;")
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5) # Espace entre widget et bouton
+        layout.setSpacing(5)
 
-        layout.addWidget(input_widget, 1) # Le widget prend l'espace
+        # S'assurer que le widget principal prend de la place
+        size_policy = input_widget.sizePolicy()
+        size_policy.setHorizontalStretch(1)
+        input_widget.setSizePolicy(size_policy)
+        layout.addWidget(input_widget, 1)
 
+        # Créer et configurer le bouton refresh
         refresh_button = self._create_icon_button("resources/icons/clear/round_refresh.png", 
-                                                  f"Réinitialiser {pref_path.split('.')[-1]} à la valeur sauvegardée")
-        refresh_button.setObjectName(f"refresh_{pref_path.replace('.', '_')}") # Nom d'objet unique
-        refresh_button.setFixedSize(20, 20) # Bouton plus petit
+                                                  f"Réinitialiser {pref_path.split('.')[-1]}...")
+        refresh_button.setObjectName(f"refresh_{pref_path.replace('.', '_')}")
+        refresh_button.setFixedSize(20, 20)
         refresh_button.setIconSize(QSize(16, 16))
-        refresh_button.setVisible(False) # Caché par défaut
-        layout.addWidget(refresh_button, 0) # Le bouton ne prend pas d'espace en largeur
 
-        # Stocker les références pour le contrôleur
+        # Utiliser l'effet d'opacité
+        opacity_effect = QGraphicsOpacityEffect(refresh_button)
+        opacity_effect.setOpacity(0.0) # Invisible par défaut
+        refresh_button.setGraphicsEffect(opacity_effect)
+        layout.addWidget(refresh_button, 0)
+
+        # Stocker les références
         self.input_widgets[pref_path] = input_widget
         self.refresh_buttons[pref_path] = refresh_button
+        self.refresh_effects[pref_path] = opacity_effect
 
         return container
 
@@ -277,27 +339,14 @@ class PreferencesPage(QWidget):
         return btn
 
     def update_signature_preview(self, pixmap=None, error_text=None):
-        if not self.signature_image_label:
-            return
+        # Met à jour le pixmap dans notre widget personnalisé
         if error_text:
-            self.signature_image_label.setText(error_text)
-            self.signature_image_label.setVisible(True)
-        elif pixmap and not pixmap.isNull():
-            label_size = self.signature_image_label.size()
-            if not label_size.isValid() or label_size.height() < 10:
-                label_size = QSize(100, 30)
-                self.signature_image_label.setMinimumSize(label_size)
-            scaled_pixmap = pixmap.scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.signature_image_label.setPixmap(scaled_pixmap)
-            self.signature_image_label.setText("")
-            self.signature_image_label.setVisible(True)
+             print(f"Erreur signature: {error_text}") # Afficher dans console
+             # On pourrait afficher l'erreur sur le widget lui-même mais c'est plus complexe
+             self.signature_display_widget.setPixmap(None) # Effacer l'image
         else:
-            self.signature_image_label.setText("...")
-            self.signature_image_label.setVisible(True)
-
-    # Méthode _create_dashboard_box supprimée (remplacée par Frame)
-    # Méthode apply_styles supprimée
-
+            self.signature_display_widget.setPixmap(pixmap) # Mettre à jour le pixmap (None si vide)
+            
     # --- Méthodes pour le contrôleur ---
     def get_input_widget(self, pref_path):
         return self.input_widgets.get(pref_path)
@@ -305,7 +354,30 @@ class PreferencesPage(QWidget):
     def get_refresh_button(self, pref_path):
         return self.refresh_buttons.get(pref_path)
 
+    def get_refresh_effect(self, pref_path):
+        """Retourne l'effet d'opacité associé au bouton refresh."""
+        return self.refresh_effects.get(pref_path)
+
     def get_all_pref_paths(self):
         return list(self.input_widgets.keys())
+
+    def populate_jacmar_combos(self, emplacements, departements, titres, superviseurs, plafonds):
+        """Remplit les ComboBox de la section Jacmar avec les listes fournies."""
+        print("Peuplement des ComboBox Jacmar dans la vue...")
+        self.cb_emplacement.clear()
+        self.cb_emplacement.addItems(emplacements if emplacements else ["N/A"])
+        
+        self.cb_dept.clear()
+        self.cb_dept.addItems(departements if departements else ["N/A"])
+        
+        self.cb_titre.clear()
+        self.cb_titre.addItems(titres if titres else ["N/A"])
+        
+        self.cb_super.clear()
+        self.cb_super.addItems(superviseurs if superviseurs else ["N/A"])
+        
+        self.cb_plafond.clear()
+        # Utiliser les clés extraites pour les plafonds
+        self.cb_plafond.addItems(plafonds if plafonds else ["N/A"])
 
 print("PreferencesPage (dans pages/preferences/) defined") 

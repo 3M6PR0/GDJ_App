@@ -24,7 +24,7 @@ class DocumentsTypeSelectionPage(QWidget):
 
         # --- Créer le contenu de l'en-tête --- 
         header_layout = QHBoxLayout()
-        document_label = QLabel("Document:")
+        document_label = QLabel("Nouveau document:")
         document_label.setObjectName("FormLabel")
         document_label.setFixedHeight(26)
         header_layout.addWidget(document_label)

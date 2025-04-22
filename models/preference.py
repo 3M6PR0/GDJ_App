@@ -37,7 +37,7 @@ class Jacmar:
                  departement: str = "",
                  titre: str = "",
                  superviseur: str = "",
-                 plafond: int = 0):
+                 plafond: str = ""):
         self.emplacement = emplacement
         self.departement = departement
         self.titre = titre
@@ -52,14 +52,7 @@ class Jacmar:
         """Met à jour les attributs depuis un dictionnaire."""
         for key, value in data.items():
             if hasattr(self, key):
-                # Assurer la conversion en int pour plafond
-                if key == 'plafond':
-                    try:
-                        setattr(self, key, int(value))
-                    except (ValueError, TypeError):
-                        setattr(self, key, 0) # Valeur par défaut en cas d'erreur
-                else:
-                    setattr(self, key, value)
+                setattr(self, key, value)
 
 class Application:
     """Préférences relatives à l'application elle-même."""

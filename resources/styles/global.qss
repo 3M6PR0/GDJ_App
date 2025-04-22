@@ -97,6 +97,23 @@ QPushButton#SettingsButton:hover {
     background-color: {{COLOR_ITEM_HOVER}};
 }
 
+/* RETIRER le style TEMPORAIRE pour déboguer l'aperçu de signature */
+/*
+QLabel#SignaturePreviewLabel {
+    background-color: red; 
+    border: 1px solid yellow; 
+}
+*/
+
+/* Style pour le widget d'aperçu de signature (TEST - COMMENTÉ) */
+/*
+QWidget#SignaturePreviewWidget {
+    background-color: lime; 
+    border: 2px solid magenta; 
+    border-radius: {{RADIUS_DEFAULT}}; 
+}
+*/
+
 /* --- Styles Généraux pour Widgets Communs --- */
 /* (Peuvent être surchargés par les styles de page/composant) */
 

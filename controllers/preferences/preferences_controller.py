@@ -3,10 +3,11 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox, QLineEdit, QComboBox # Ajo
 from PyQt5.QtGui import QPixmap # Import correct pour QPixmap
 import json # Assurer que json est importé
 import functools # Ajouter functools
+import os # Ajouter os pour le chemin
 
 # Importer le modèle Preference
 from models.preference import Preference
-from pages.preferences.preferences_page import SimpleToggle # Assurer l'import de SimpleToggle
+from pages.preferences.preferences_page import SimpleToggle, SignaturePreviewWidget # Ajouter SignaturePreviewWidget
 
 def _get_nested_attr(obj, attr_path, default=None):
     """Accède à un attribut imbriqué en utilisant une chaîne de caractères (ex: 'profile.nom').""" 
@@ -31,6 +32,9 @@ class PreferencesController(QObject):
         self.view = view
         self.main_controller = main_controller
 
+        # Charger les données de configuration pour les ComboBox
+        self._load_config_data()
+
         # 1. Charger les préférences sauvegardées
         self.saved_preferences = Preference()
         self.saved_preferences.load() # Charge depuis data/preference.json
@@ -46,6 +50,9 @@ class PreferencesController(QObject):
         # Stocker le chemin de la signature (basé sur l'état courant/initial)
         self._selected_signature_path = self.current_preferences.profile.signature_path
 
+        # Peupler les ComboBox de la vue AVANT de mettre à jour avec les prefs
+        self._populate_view_combos()
+
         # Connecter les signaux standard (save/import/export/signature)
         self._connect_standard_signals()
         # Connecter les signaux pour la détection de modification et la réinitialisation
@@ -56,6 +63,63 @@ class PreferencesController(QObject):
         # Comparer l'état courant initial avec l'état SAUVEGARDE
         self._check_all_fields_initial()
 
+    def _load_config_data(self, filepath="data/config_data.json"):
+        """Charge les listes déroulantes depuis le fichier de configuration."""
+        # Initialiser avec des listes vides en cas d'échec
+        self.jacmar_emplacements = []
+        self.jacmar_departements = []
+        self.jacmar_titres = []
+        self.jacmar_superviseurs = []
+        self.jacmar_plafonds_dict = {} # Stocker le dict {clé: valeur_num}
+
+        try:
+            if not os.path.exists(filepath):
+                print(f"Avertissement: Fichier de configuration introuvable: {filepath}")
+                return
+                
+            with open(filepath, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+            
+            jacmar_config = config_data.get("jacmar", {})
+            self.jacmar_emplacements = jacmar_config.get("emplacements", [])
+            self.jacmar_departements = jacmar_config.get("departements", [])
+            self.jacmar_titres = jacmar_config.get("titres", [])
+            self.jacmar_superviseurs = jacmar_config.get("superviseurs", [])
+            
+            # Traitement spécial pour plafond_deplacement
+            plafond_list = jacmar_config.get("plafond_deplacement", [])
+            if plafond_list and isinstance(plafond_list, list) and isinstance(plafond_list[0], dict):
+                self.jacmar_plafonds_dict = plafond_list[0]
+                self.jacmar_plafonds = list(self.jacmar_plafonds_dict.keys()) # Toujours les clés pour le ComboBox
+            else:
+                self.jacmar_plafonds = []
+                self.jacmar_plafonds_dict = {}
+                
+            print(f"Données de configuration chargées depuis {filepath}")
+
+        except json.JSONDecodeError as e:
+            print(f"Erreur de décodage JSON dans {filepath}: {e}")
+        except Exception as e:
+            print(f"Erreur lors du chargement de {filepath}: {e}")
+            
+    def _populate_view_combos(self):
+        """Appelle la méthode de la vue pour remplir les ComboBox Jacmar."""
+        try:
+            # Vérifier si la méthode existe sur la vue
+            if hasattr(self.view, 'populate_jacmar_combos'):
+                self.view.populate_jacmar_combos(
+                    emplacements=self.jacmar_emplacements,
+                    departements=self.jacmar_departements,
+                    titres=self.jacmar_titres,
+                    superviseurs=self.jacmar_superviseurs,
+                    plafonds=self.jacmar_plafonds
+                )
+                print("ComboBox Jacmar peuplés.")
+            else:
+                print("Erreur: La vue n'a pas de méthode populate_jacmar_combos.")
+        except Exception as e:
+            print(f"Erreur lors du peuplement des ComboBox: {e}")
+
     def _connect_standard_signals(self):
         """Connecte les signaux généraux de la vue."""
         self.view.select_signature_requested.connect(self.select_signature_image)
@@ -64,28 +128,31 @@ class PreferencesController(QObject):
         self.view.save_prefs_requested.connect(self.save_preferences)
         
     def _connect_modification_signals(self):
-        """Connecte les signaux de changement des widgets d'entrée et les clics des boutons refresh."""
+        """Connecte les signaux de changement et les clics refresh."""
         for pref_path in self.view.get_all_pref_paths():
             input_widget = self.view.get_input_widget(pref_path)
             refresh_button = self.view.get_refresh_button(pref_path)
 
             if input_widget and refresh_button:
-                # Connecter le signal de modification du widget d'entrée
+                # --- Connexion du signal de modification --- 
                 signal = None
+                slot_check = functools.partial(self._check_field_modification, input_widget, pref_path)
+                
                 if isinstance(input_widget, QLineEdit):
                     signal = input_widget.textChanged
                 elif isinstance(input_widget, QComboBox):
-                    # Utiliser currentTextChanged pour gérer aussi la saisie
                     signal = input_widget.currentTextChanged 
                 elif isinstance(input_widget, SimpleToggle):
                     signal = input_widget.toggled
+                elif isinstance(input_widget, SignaturePreviewWidget):
+                    # Pour SignaturePreviewWidget, il n'y a pas de signal de changement direct.
+                    # La vérification se fera après select_signature_image, import, revert, save.
+                    pass # Ne rien connecter ici pour le signal de modif
                 
                 if signal:
-                    # Utiliser functools.partial pour passer le widget au slot
-                    slot_check = functools.partial(self._check_field_modification, input_widget, pref_path)
                     signal.connect(slot_check)
                 
-                # Connecter le clic du bouton refresh
+                # --- Connexion du clic du bouton refresh --- 
                 slot_revert = functools.partial(self._revert_field_value, input_widget, pref_path)
                 refresh_button.clicked.connect(slot_revert)
             else:
@@ -100,66 +167,79 @@ class PreferencesController(QObject):
                 self._check_field_modification(input_widget, pref_path)
 
     def _check_field_modification(self, input_widget, pref_path):
-        """Compare la valeur actuelle du widget avec la valeur SAUVEGARDEE.
-           Affiche/cache le bouton refresh.
-        """
-        refresh_button = self.view.get_refresh_button(pref_path)
-        if not refresh_button:
+        """Compare la valeur actuelle avec la valeur SAUVEGARDEE et gère l'opacité du bouton."""
+        opacity_effect = self.view.get_refresh_effect(pref_path)
+        if not opacity_effect:
+            # Essayer de récupérer le bouton pour être sûr (au cas où l'effet n'existe pas)
+            refresh_button = self.view.get_refresh_button(pref_path)
+            if refresh_button: refresh_button.setVisible(False) # Fallback sécurité
             return
-        
+
         saved_value = _get_nested_attr(self.saved_preferences, pref_path)
         current_value = None
-        
-        # Obtenir la valeur actuelle et la convertir au type attendu pour comparaison
+        is_different = False
+
         try:
             if isinstance(input_widget, QLineEdit):
                 current_value = input_widget.text()
             elif isinstance(input_widget, QComboBox):
                 current_value = input_widget.currentText()
-                # Comparaison spécifique pour plafond (int vs str)
                 if pref_path == 'jacmar.plafond':
-                    saved_value = str(saved_value) # Comparer comme chaînes
+                    saved_value = str(saved_value)
             elif isinstance(input_widget, SimpleToggle):
                 current_value = input_widget.isChecked()
+            elif isinstance(input_widget, SignaturePreviewWidget):
+                # Comparer les chemins mémorisés
+                current_value = self._selected_signature_path 
+                # S'assurer que les None ou "" sont traités pareil
+                saved_value = saved_value if saved_value else ""
+                current_value = current_value if current_value else ""
             else:
-                # Type de widget non géré
-                refresh_button.setVisible(False)
-                return 
-        except Exception as e:
-            print(f"Erreur lecture valeur widget {pref_path}: {e}")
-            refresh_button.setVisible(False) # Cacher en cas d'erreur
-            return
+                current_value = None # Type non géré
 
-        # Comparer les valeurs
-        is_different = (current_value != saved_value)
-        # print(f"Check {pref_path}: Current='{current_value}' ({type(current_value)}), Saved='{saved_value}' ({type(saved_value)}), Different={is_different}")
-        refresh_button.setVisible(is_different)
+            if current_value is not None:
+                 is_different = (current_value != saved_value)
+
+        except Exception as e:
+            print(f"Erreur lecture/comparaison valeur widget {pref_path}: {e}")
+            is_different = False # Erreur -> pas différent
+
+        # Mettre à jour l'opacité de l'effet
+        opacity_effect.setOpacity(1.0 if is_different else 0.0)
+        # Optionnel: Gérer l'état enabled en plus de l'opacité si besoin
+        # refresh_button = self.view.get_refresh_button(pref_path)
+        # if refresh_button: refresh_button.setEnabled(is_different)
 
     def _revert_field_value(self, input_widget, pref_path):
         """Réinitialise la valeur du widget à la valeur SAUVEGARDEE."""
         print(f"Réinitialisation du champ: {pref_path}")
         saved_value = _get_nested_attr(self.saved_preferences, pref_path)
+        opacity_effect = self.view.get_refresh_effect(pref_path)
         
         try:
             if isinstance(input_widget, QLineEdit):
                 input_widget.setText(str(saved_value))
             elif isinstance(input_widget, QComboBox):
-                # Trouver l'index correspondant au texte sauvegardé
                 index = input_widget.findText(str(saved_value), Qt.MatchFixedString)
                 if index >= 0:
                     input_widget.setCurrentIndex(index)
                 else:
-                    # Si la valeur sauvegardée n'est plus dans la liste, on ne fait rien ou on met une valeur par défaut
                     print(f"Avertissement: Impossible de trouver '{saved_value}' dans {pref_path} QComboBox.")
-                    # input_widget.setCurrentIndex(0) # Optionnel: revenir au premier élément
             elif isinstance(input_widget, SimpleToggle):
                 input_widget.setChecked(bool(saved_value))
+            elif isinstance(input_widget, SignaturePreviewWidget):
+                # Réinitialiser le chemin mémorisé et mettre à jour l'aperçu
+                self._selected_signature_path = saved_value if saved_value else ""
+                pixmap = QPixmap(self._selected_signature_path) if self._selected_signature_path else QPixmap()
+                input_widget.setPixmap(pixmap if not pixmap.isNull() else None)
             
-            # Après réinitialisation, la valeur correspond, donc on cache le bouton
-            # (peut être redondant si le signal de modification est bien émis, mais plus sûr)
-            refresh_button = self.view.get_refresh_button(pref_path)
-            if refresh_button:
-                refresh_button.setVisible(False)
+            # Rendre le bouton transparent après réinitialisation
+            if opacity_effect:
+                opacity_effect.setOpacity(0.0)
+            # Optionnel: Désactiver aussi
+            # refresh_button = self.view.get_refresh_button(pref_path)
+            # if refresh_button: refresh_button.setEnabled(False)
+
         except Exception as e:
             print(f"Erreur lors de la réinitialisation de {pref_path}: {e}")
 
@@ -184,9 +264,18 @@ class PreferencesController(QObject):
         self.view.cb_dept.setCurrentText(self.current_preferences.jacmar.departement)
         self.view.cb_titre.setCurrentText(self.current_preferences.jacmar.titre)
         self.view.cb_super.setCurrentText(self.current_preferences.jacmar.superviseur)
-        # Attention: Plafond est un int dans le modèle, mais texte dans QComboBox. Conversion nécessaire.
-        # Pour l'instant, on suppose une correspondance texte simple. À adapter si besoin.
-        self.view.cb_plafond.setCurrentText(str(self.current_preferences.jacmar.plafond)) 
+        
+        # Mettre à jour ComboBox Plafond avec la CLÉ (string) sauvegardée
+        plafond_key = self.current_preferences.jacmar.plafond # Peut être int ou str après chargement
+        # --- Assurer que c'est une string pour findText --- 
+        index = self.view.cb_plafond.findText(str(plafond_key), Qt.MatchFixedString)
+        if index >= 0:
+            self.view.cb_plafond.setCurrentIndex(index)
+        else:
+            # Si la clé sauvegardée n'existe plus dans la config, sélectionner le premier item?
+            print(f"Avertissement: Clé de plafond sauvegardée \'{plafond_key}\' non trouvée...")
+            if self.view.cb_plafond.count() > 0:
+                self.view.cb_plafond.setCurrentIndex(0)
 
         # Section Application
         self.view.cb_theme.setCurrentText(self.current_preferences.application.theme)
@@ -215,13 +304,46 @@ class PreferencesController(QObject):
                 print(f"Image sélectionnée par contrôleur: {file_path}")
                 self.view.update_signature_preview(pixmap)
                 self._selected_signature_path = file_path # Mémoriser le chemin choisi
-        # Si aucun fichier n'est choisi, _selected_signature_path garde sa valeur précédente
+            
+            # --- Vérifier la modification après sélection --- 
+            self._check_field_modification(self.view.signature_display_widget, "profile.signature_path")
+        # Si annulé, ne rien faire, la vérification n'est pas nécessaire
 
     @pyqtSlot()
     def export_preferences(self):
-        """ Logique pour exporter les préférences (placeholder). """
+        """ Ouvre une boîte de dialogue pour choisir où exporter les préférences actuelles (état courant de l'UI)."""
         print("Préférences Contrôleur: Exportation demandée...")
-        # Logique future: ouvrir QFileDialog.getSaveFileName, sérialiser les prefs, écrire fichier
+        options = QFileDialog.Options()
+        # Suggérer un nom de fichier par défaut
+        suggested_filename = "preference.json"
+        file_path, _ = QFileDialog.getSaveFileName(self.view, 
+                                                   "Exporter les préférences sous...", 
+                                                   suggested_filename, # Fichier suggéré
+                                                   "Fichiers JSON (*.json);;Tous les fichiers (*)", 
+                                                   options=options)
+        
+        if not file_path:
+            print("Exportation annulée par l'utilisateur.")
+            return
+            
+        # S'assurer que l'extension .json est présente si l'utilisateur ne l'a pas mise
+        if not file_path.lower().endswith('.json'):
+            file_path += '.json'
+            
+        print(f"Tentative d'exportation vers: {file_path}")
+        try:
+            # Sauvegarder l'état COURANT (celui affiché, potentiellement modifié/importé)
+            # dans le fichier choisi par l'utilisateur.
+            # Note: Cela NE met PAS à jour self.saved_preferences ni ne sauvegarde dans data/preference.json
+            self.current_preferences.save(filepath=file_path)
+            QMessageBox.information(self.view,
+                                    "Exportation réussie",
+                                    f"Les préférences actuelles ont été exportées avec succès vers:\n{file_path}")
+        except Exception as e:
+            print(f"Erreur lors de l'exportation vers {file_path}: {e}")
+            QMessageBox.critical(self.view,
+                                 "Erreur d'exportation",
+                                 f"Une erreur est survenue lors de l'exportation des préférences:\n{e}")
 
     @pyqtSlot()
     def import_preferences(self):
@@ -300,19 +422,8 @@ class PreferencesController(QObject):
             self.current_preferences.jacmar.departement = self.view.cb_dept.currentText()
             self.current_preferences.jacmar.titre = self.view.cb_titre.currentText()
             self.current_preferences.jacmar.superviseur = self.view.cb_super.currentText()
-            # Conversion pour plafond - Simpliste, suppose que le texte est un int valide
-            try:
-                plafond_text = self.view.cb_plafond.currentText()
-                # Gérer les cas non numériques si nécessaire (ex: "Aucun" -> 0)
-                if plafond_text.isdigit():
-                    self.current_preferences.jacmar.plafond = int(plafond_text)
-                else:
-                    # Logique par défaut ou gestion d'erreur si le texte n'est pas un chiffre
-                    self.current_preferences.jacmar.plafond = 0 # Exemple simple
-                    print(f"Avertissement: Plafond non numérique '{plafond_text}', mis à 0.")
-            except ValueError:
-                self.current_preferences.jacmar.plafond = 0 # Fallback
-                print(f"Erreur de conversion du plafond '{plafond_text}', mis à 0.")
+            # --- Sauvegarder la CLÉ (string) sélectionnée pour le plafond --- 
+            self.current_preferences.jacmar.plafond = self.view.cb_plafond.currentText()
 
             # Mettre à jour l'objet Application
             self.current_preferences.application.theme = self.view.cb_theme.currentText()
@@ -328,9 +439,10 @@ class PreferencesController(QObject):
             self.saved_preferences.jacmar.update_from_dict(saved_data["jacmar"])
             self.saved_preferences.application.update_from_dict(saved_data["application"])
             
-            # Cacher tous les boutons refresh car état courant == état sauvegardé
+            # Remettre l'opacité de tous les boutons à 0.0
+            # L'appel existant à _check_all_fields_initial fera cela
             self._check_all_fields_initial() 
-            QMessageBox.information(self.view, "Sauvegarde", "Préférences sauvegardées avec succès.")
+            QMessageBox.information(self.view, "Sauvegarde", "Préférences sauvegardées.") # Message plus court
 
         except Exception as e:
             print(f"Erreur lors de la mise à jour ou sauvegarde des préférences: {e}")

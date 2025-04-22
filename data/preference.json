@@ -1,20 +1,20 @@
 {
     "profile": {
-        "nom": "NomT2",
-        "prenom": "PrenomT2",
-        "telephone": "1234567890",
-        "courriel": "test@jacmar.ca",
+        "nom": "Etienne",
+        "prenom": "Manseau",
+        "telephone": "4383914368",
+        "courriel": "etienne.mg@jacmar.ca",
         "signature_path": "C:/Users/etienne.mg/Desktop/Jacmar/Important/Signature_processed.png"
     },
     "jacmar": {
-        "emplacement": "Jacmar",
-        "departement": "Ingénierie",
+        "emplacement": "Mascouche",
+        "departement": "Service",
         "titre": "Technicien",
-        "superviseur": "Personne B",
-        "plafond": 0
+        "superviseur": "Gabriel Jacques",
+        "plafond": "Cap 1"
     },
     "application": {
-        "theme": "Default",
+        "theme": "Dark",
         "auto_update": true,
         "show_note": true
     }
