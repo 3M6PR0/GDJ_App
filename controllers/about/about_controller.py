@@ -125,4 +125,9 @@ class AboutController(QObject):
         else:
              print("ERREUR: Tentative d'affichage Notes mais stack non trouvé dans show_release_notes")
 
+    # Ajouter une méthode pour afficher la page par défaut
+    def show_default_page(self):
+        """Affiche la page par défaut (README)."""
+        self.show_readme()
+
     print("AboutController (dans controllers/about/) initialized with subpages") # Debug 

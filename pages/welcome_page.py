@@ -162,18 +162,43 @@ class WelcomePage(QWidget):
 
         self.setMinimumSize(1000, 700)
 
-    # --- _change_page (MODIFIÉ pour utiliser les instances) --- 
-    def _change_page(self, button):
-        text = button.text()
-        print(f"WelcomePage: Changing main page to: {text}") # Debug
-        if text == "Documents":
-            self.stacked_widget.setCurrentWidget(self.documents_page_instance)
-        elif text == "Preference":
-            self.stacked_widget.setCurrentWidget(self.preferences_page_instance)
-        elif text == "A Propos":
-            self.stacked_widget.setCurrentWidget(self.about_page_instance)
+    # --- _change_page (CORRIGÉ pour accepter le bouton) ---
+    def _change_page(self, button): # Accepter l'objet bouton
+        """Change la page affichée dans le QStackedWidget central."""
+        button_text = button.text() # Récupérer le texte du bouton
+        target_widget = None # Initialiser à None
+        if button_text == "Documents":
+            target_widget = self.documents_page_instance
+            # CORRECTION: Utiliser l'instance directe du contrôleur
+            if hasattr(self.documents_controller_instance, 'show_default_page'):
+                print("Debug: Calling DocumentsController.show_default_page()")
+                self.documents_controller_instance.show_default_page()
+            else:
+                print("Warning: show_default_page not found on documents_controller_instance")
+
+        elif button_text == "A Propos":
+            target_widget = self.about_page_instance
+            # CORRECTION: Utiliser l'instance directe du contrôleur
+            if hasattr(self.about_controller_instance, 'show_default_page'):
+                print("Debug: Calling AboutController.show_default_page()")
+                self.about_controller_instance.show_default_page()
+            else:
+                print("Warning: show_default_page not found on about_controller_instance")
+
+        elif button_text == "Preference":
+            target_widget = self.preferences_page_instance
+            # Pas de show_default_page nécessaire pour Préférences pour l'instant
+
         else:
-            self.stacked_widget.setCurrentWidget(self.documents_page_instance)
+            print(f"Debug: Bouton non reconnu: {button_text} (from button: {button})") # Log amélioré
+            return
+
+        # Vérifier si target_widget a été assigné avant de l'utiliser
+        if target_widget:
+            self.stacked_widget.setCurrentWidget(target_widget)
+            print(f"Debug: Changement de page vers {button_text} (Widget: {target_widget})")
+        else:
+            print(f"Error: target_widget is None for button {button_text}")
 
 # --- Section pour tester la page seule (Inchangée) --- 
 if __name__ == '__main__':

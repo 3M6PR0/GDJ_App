@@ -12,6 +12,16 @@ from PyQt5.QtWidgets import QListWidgetItem # Pour vérifier le type d'item
 # from pages.documents.type_selection_page import TypeSelectionPage
 # from .type_selection_controller import TypeSelectionController
 
+# Importer les VUES (Le conteneur et les pages réelles)
+from pages.documents.documents_page import DocumentsPage # Le conteneur
+from pages.documents.documents_recent_list_page import DocumentsRecentListPage
+from pages.documents.documents_type_selection_page import DocumentsTypeSelectionPage
+# Supprimer l'import de DocumentsNewPage (s'il existe)
+# from pages.documents.documents_new_page import DocumentsNewPage
+
+# Importer le contrôleur spécifique à la liste
+from controllers.documents.documents_recent_list_controller import DocumentsRecentListController
+
 # Importer la classe ProjectListItemWidget (suppose qu'elle est accessible)
 # Idéalement, elle serait dans un module partagé ui.components
 try:
@@ -24,7 +34,7 @@ except ImportError:
     class ProjectListItemWidget: pass 
 
 class DocumentsController(QObject):
-    def __init__(self, view, main_controller):
+    def __init__(self, view: DocumentsPage, main_controller):
         """
         Initialise le contrôleur pour la page Documents.
 
@@ -35,54 +45,102 @@ class DocumentsController(QObject):
         super().__init__()
         self.view = view
         self.main_controller = main_controller # Pour appeler open_document etc.
+        
+        # Instancier les sous-pages réelles
+        self.recent_list_page = DocumentsRecentListPage()
+        self.type_selection_page = DocumentsTypeSelectionPage()
+        # Supprimer l'instanciation de documents_new_page
+        # self.documents_new_page = DocumentsNewPage(self)
+        
+        # Instancier le contrôleur pour la liste des récents
+        # On lui passe sa vue (recent_list_page) et une référence à ce contrôleur (self)
+        self.recent_list_controller = DocumentsRecentListController(self.recent_list_page, self)
+        
+        # Ajouter les pages au QStackedWidget de la vue (DocumentsPage)
+        self.view.documents_stack.addWidget(self.recent_list_page)
+        self.view.documents_stack.addWidget(self.type_selection_page)
+        # Supprimer l'ajout de documents_new_page au stack
+        # self.view.documents_stack.addWidget(self.documents_new_page)
+        
+        # Connecter les signaux (principalement depuis les contrôleurs/pages enfants)
         self._connect_signals()
+        
+        # Afficher la page initiale (la liste des récents)
+        self.show_recent_list_page() 
 
     def _connect_signals(self):
-        # Connecter les signaux principaux de la page Documents au MainController
+        # --- Signaux venant de DocumentsRecentListController --- 
+        self.recent_list_controller.request_page_change.connect(self._handle_page_change_request)
+        self.recent_list_controller.request_open_document_dialog.connect(self.main_controller.open_document_from_menu)
+        self.recent_list_controller.request_open_specific_document.connect(self.main_controller.open_specific_document)
+        self.recent_list_controller.request_remove_recent.connect(self._handle_remove_recent)
+
+        # --- Signaux venant de DocumentsTypeSelectionPage --- 
+        self.type_selection_page.create_requested.connect(self._handle_create_request)
+        self.type_selection_page.cancel_requested.connect(self.show_recent_list_page) # Navigation retour
+
+        # Supprimer les signaux venant de DocumentsNewPage
+        # # --- Signaux venant de DocumentsNewPage ---
+        # self.documents_new_page.create_requested.connect(self._handle_create_request)
+        # self.documents_new_page.cancel_requested.connect(self.show_recent_list_page) # Navigation retour
+
+        print("DocumentsController: Signals from sub-controllers/pages connected.")
+
+    # --- Slots pour gérer la navigation interne et les actions --- 
+    @pyqtSlot(str)
+    def _handle_page_change_request(self, page_name):
+        if page_name == "type_selection":
+            self.show_type_selection_page()
+        # Supprimer la condition pour documents_new
+        # elif page_name == "documents_new":
+        #     self.show_new_document_page()
+        else:
+            print(f"Warning: Unknown page change requested: {page_name}")
+            self.show_recent_list_page() # Retour à la liste par défaut
+
+    @pyqtSlot()
+    def show_recent_list_page(self):
+        print("DocumentsController: Showing Recent List Page")
+        self.view.show_page(self.recent_list_page)
         
-        # Le bouton "Ouvrir" de la page documents devrait probablement ouvrir 
-        # le dialogue standard, comme l'action du menu.
-        self.view.open_document_requested.connect(self.main_controller.open_document_from_menu)
+    @pyqtSlot()
+    def show_type_selection_page(self):
+        print("DocumentsController: Showing Type Selection Page")
+        # TODO: Remplir la combobox depuis le contrôleur principal ou un modèle
+        # doc_types = self.main_controller.get_available_document_types()
+        # self.type_selection_page.set_document_types(doc_types)
+        self.view.show_page(self.type_selection_page)
         
-        # L'ouverture d'un item spécifique (simple clic sur item) est correcte
-        self.view.open_specific_document_requested.connect(self.main_controller.open_specific_document)
+    @pyqtSlot(str)
+    def _handle_create_request(self, selected_type):
+        print(f"DocumentsController: Create requested for type: {selected_type}")
+        # Relayer au contrôleur principal pour la création effective
+        # self.main_controller.create_document_of_type(selected_type)
+        print(f"TODO: Call main controller to create document of type {selected_type}")
+        self.show_recent_list_page() # Revenir à la liste après
         
-        # La demande de création depuis la page de sélection de type devrait 
-        # appeler la même logique que l'action du menu.
-        self.view.create_new_document_requested.connect(self.main_controller.create_new_document_from_menu)
+    @pyqtSlot(str)
+    def _handle_remove_recent(self, path):
+        print(f"DocumentsController: Remove recent requested: {path}")
+        # Logique pour retirer du modèle de données "récent"
+        # success = self.main_controller.remove_from_recent_list(path)
+        # Rafraîchir la liste si succès
+        # if success:
+        #     self.recent_list_controller.load_recent_documents() 
+        print(f"TODO: Call main controller to remove {path} from recents and refresh list")
 
-        # Retiré: La navigation interne est gérée par la vue
-        # self.view.btn_back_to_list.clicked.connect(self.show_document_list_page) 
+    # Retiré: load_recent_projects - Géré par recent_list_controller
+    # Retiré: remove_project_from_recents - Géré par _handle_remove_recent
 
-        # Les connexions pour les actions du menu contextuel des items (browse, remove)
-        # devront être ajoutées si on veut que le contrôleur les gère.
-        # Exemple: 
-        # self.connect_list_item_signals() # Appeler une méthode qui boucle sur les items?
-
-        print("DocumentsController signals connected.")
-
-    # --- Méthodes de navigation (potentiellement redondantes) --- 
-    # La vue gère maintenant son propre QStackedWidget
-    # def show_document_list_page(self):
-    #     print("Controller: Showing document list page")
-    #     self.view.documents_stack.setCurrentIndex(0) # Ou utiliser setCurrentWidget
-
-    # def show_new_document_page(self):
-    #     print("Controller: Showing new document page")
-    #     self.view.documents_stack.setCurrentIndex(1) # Ou utiliser setCurrentWidget
-    
-    # --- Autres méthodes du contrôleur --- 
-    def load_recent_projects(self):
-        # Logique pour charger les projets récents
-        pass
-    
-    def add_project_to_recents(self, path):
-        # Logique pour ajouter un projet aux récents
-        pass
-        
-    def remove_project_from_recents(self, path):
-        # Logique pour retirer un projet des récents
-        print(f"Controller: TODO - Remove {path} from recent projects list")
-        # Il faudra probablement mettre à jour la vue ici
+    print("DocumentsController updated for sub-pages")
 
     print("DocumentsController (dans controllers/documents/) initialized") # Debug 
+
+    # Ajouter une méthode pour afficher la page par défaut
+    def show_default_page(self):
+        """Affiche la page par défaut pour la section Documents (liste des récents)."""
+        self.show_recent_list_page() 
+
+    # Supprimer la méthode show_new_document_page
+    # def show_new_document_page(self):
+    #     self.view.show_page(self.documents_new_page) 
