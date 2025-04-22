@@ -26,7 +26,6 @@
           "Superviseur"
         ],
         "superviseurs": [
-          "Gabriel Jacques",
           "Jean-Pierre Godin",
           "Simon Desrosiers",
           "Gabriel Jacques",
@@ -45,6 +44,7 @@
     },
     "document": {
         "Rapport de depense": [
+          "date",
           "nom",
           "prenom",
           "emplacements",
@@ -53,8 +53,10 @@
           "plafond_deplacement"
         ],
         "Ecriture comptable": [
-          "Mascouche",
-          "Quebec"
+          "date",
+          "nom",
+          "prenom",
+          "emplacements"
         ],
         "Rapport de temps supplémentaire": [
           "Mascouche",

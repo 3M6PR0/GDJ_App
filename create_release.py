@@ -57,10 +57,11 @@ RELEASE_BODY = f"# Notes de version - {TAG_NAME}\n\n{release_notes_content}"
 DRAFT = False
 PRERELEASE = False
 
-# Récupération du token GitHub depuis la variable d'environnement
-GITHUB_TOKEN = os.getenv("GH_TOKEN")
+# Récupération du token GitHub depuis la variable d'environnement (NOM CORRIGÉ)
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") # Lire GITHUB_TOKEN au lieu de GH_TOKEN
 if not GITHUB_TOKEN:
-    print("Erreur: Le token GitHub n'est pas défini dans la variable d'environnement GH_TOKEN.")
+    # Mettre à jour le message d'erreur également
+    print("Erreur: Le token GitHub n'est pas défini dans la variable d'environnement GITHUB_TOKEN.") 
     sys.exit(1)
 
 # URL de l'API GitHub pour les releases
@@ -76,13 +77,26 @@ INSTALLER_OUTPUT = os.path.join("installer", "Output", "GDJ_Installer.exe")  # S
 def compile_gdj():
     """
     Compile GDJ.exe avec PyInstaller en mode onefile et windowed.
+    Les ressources (styles, icônes) ne sont PAS incluses dans l'EXE.
     """
     print("Compilation de GDJ.exe avec PyInstaller...")
     try:
+        # Construire la commande SANS --add-data pour les ressources
+        cmd = [
+            "pyinstaller", 
+            "--onefile", 
+            "--windowed", 
+            "--clean", 
+            "--name=GDJ", 
+            # Retirer toute option --add-data concernant "resources" si elle existait
+            # Exemple: # "--add-data=resources;resources", 
+            "main.py"
+        ]
+        print("Commande PyInstaller pour GDJ:", cmd)
         subprocess.run(
-            ["pyinstaller", "--onefile", "--windowed", "--clean", "--name=GDJ", "main.py"],
+            cmd, # Utiliser la liste cmd construite
             check=True,
-            capture_output=True, # Capturer stdout/stderr pour ne pas polluer la sortie principale
+            capture_output=True, # Capturer stdout/stderr
             text=True
         )
         print("Compilation de GDJ.exe terminée.")
@@ -200,6 +214,11 @@ def upload_asset(upload_url, asset_path, asset_label=None):
 
 # ---------- Main ----------
 def main():
+    # Étape 0 : Récupérer le tag
+    TAG_NAME = get_version_from_file()
+    if not TAG_NAME.startswith("v"):
+        TAG_NAME = "v" + TAG_NAME
+
     # Étape 1 : Compiler GDJ.exe avec PyInstaller (onefile).
     compile_gdj()
     gdj_path_dist = os.path.join("dist", "GDJ.exe")
@@ -210,19 +229,15 @@ def main():
 
     # Étape 1.5 : Compiler update_helper (one-folder) avec PyInstaller.
     compile_update_helper()
-    # Le résultat est maintenant un dossier dist/update_helper
     updater_folder_dist = os.path.join("dist", "update_helper")
-    updater_dest_folder_installer = os.path.join("installer", "updater") # Dossier cible pour Inno Setup
+    updater_dest_folder_installer = os.path.join("installer", "updater")
     if not os.path.exists(updater_folder_dist):
         print("Erreur : Le dossier de l'updater n'a pas été trouvé dans 'dist'.")
         sys.exit(1)
 
-    # Supprimer l'ancien dossier de destination s'il existe et le recréer
     if os.path.exists(updater_dest_folder_installer):
         shutil.rmtree(updater_dest_folder_installer)
-    # os.makedirs(updater_dest_folder_installer, exist_ok=True) # copytree le crée
 
-    # Copier GDJ.exe et le dossier update_helper dans le dossier installer
     try:
         print(f"Copie de {gdj_path_dist} vers {gdj_path_installer_src}...")
         shutil.copy(gdj_path_dist, gdj_path_installer_src)
@@ -238,14 +253,44 @@ def main():
     compile_innosetup()
     if not os.path.exists(INSTALLER_OUTPUT):
         print("Erreur : L'installateur n'a pas été trouvé...")
-        # Nettoyage si l'installeur échoue
-        if os.path.exists(gdj_path_installer_src):
-            os.remove(gdj_path_installer_src)
-        if os.path.exists(updater_dest_folder_installer):
-            shutil.rmtree(updater_dest_folder_installer)
+        if os.path.exists(gdj_path_installer_src): os.remove(gdj_path_installer_src)
+        if os.path.exists(updater_dest_folder_installer): shutil.rmtree(updater_dest_folder_installer)
         sys.exit(1)
 
-    # Étape 3 : Créer la release GitHub à partir de la branche main.
+    # *** NOUVEAU: Créer et pousser le tag Git ***
+    print(f"Création et push du tag Git {TAG_NAME}...")
+    try:
+        # D'abord, s'assurer que le tag n'existe pas localement pour éviter une erreur si on le recrée
+        # subprocess.run(['git', 'tag', '-d', TAG_NAME], check=False) # Optionnel: supprimer le tag local s'il existe
+        subprocess.run(['git', 'tag', TAG_NAME], check=True, capture_output=True, text=True) # Créer le tag
+        print(f"Tag local {TAG_NAME} créé.")
+        subprocess.run(['git', 'push', 'origin', TAG_NAME], check=True, capture_output=True, text=True) # Pousser le tag
+        print(f"Tag {TAG_NAME} poussé avec succès sur origin.")
+    except subprocess.CalledProcessError as e:
+        # Analyser l'erreur pour voir si le tag ou le push a échoué parce qu'il existait déjà
+        error_message = e.stderr.lower()
+        if "already exists" in error_message:
+            print(f"Avertissement : Le tag {TAG_NAME} existe déjà localement ou sur l'origin. On continue.")
+            # Essayer de pousser au cas où il n'existe que localement
+            try:
+                subprocess.run(['git', 'push', 'origin', TAG_NAME], check=True, capture_output=True, text=True)
+                print(f"Tag {TAG_NAME} poussé avec succès (existait localement).")
+            except subprocess.CalledProcessError as push_error:
+                 if "already exists" in push_error.stderr.lower() or "up-to-date" in push_error.stderr.lower():
+                     print(f"Le tag {TAG_NAME} existe déjà sur l'origin.")
+                 else:
+                     print(f"Erreur lors du push du tag existant {TAG_NAME}: {push_error}")
+                     print(f"Stderr: {push_error.stderr}")
+                     # Décider si on arrête ou pas. Pour l'instant on continue avec prudence.
+                     # sys.exit(1)
+        else:
+            print(f"Erreur lors de la création/push du tag {TAG_NAME}: {e}")
+            print(f"Stderr: {e.stderr}")
+            print("Arrêt du script car le tag n'a pas pu être créé/poussé.")
+            sys.exit(1)
+    # ****************************************
+
+    # Étape 3 : Créer la release GitHub à partir du tag.
     release_info = create_release()
 
     # Étape 4 : Uploader l'installateur sur la release.

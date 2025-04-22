@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QFrame, QSpacerItem, QSizePolicy,
                              QStackedWidget, QButtonGroup)
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon, QPixmap, QFont
 
 # Importer la barre de titre personnalisée
 from ui.components.custom_titlebar import CustomTitleBar
@@ -139,17 +139,41 @@ class WelcomePage(QWidget):
             )
         sidebar_layout.addLayout(button_layout)
         sidebar_layout.addStretch()
-        self.sidebar_button_group.buttonClicked.connect(self._change_page)
 
-        # Bouton Settings (Inchangé)
+        # Bouton Settings (MODIFIÉ pour utiliser une icône)
         settings_layout = QHBoxLayout()
         settings_layout.setContentsMargins(12, 0, 12, 5)
-        btn_settings = QPushButton("⚙")
+        btn_settings = QPushButton()
+        settings_icon_path = "resources/icons/clear/round_settings.png"
+        settings_icon = QIcon(settings_icon_path)
+        if not settings_icon.isNull():
+            btn_settings.setIcon(settings_icon)
+            btn_settings.setIconSize(QSize(18, 18))
+        else:
+            print(f"WARN: Icône Settings non trouvée: {settings_icon_path}, utilisation texte.")
+            btn_settings.setText("⚙")
+            btn_settings.setFont(QFont("Arial", 12))
         btn_settings.setObjectName("SettingsButton")
         btn_settings.setFixedSize(26, 26)
+        btn_settings.setFlat(True)
+        btn_settings.setToolTip("Préférences")
+        pref_button = None
+        for btn in self.sidebar_button_group.buttons():
+            if btn.text() == "Preference":
+                pref_button = btn
+                break
+        if pref_button:
+            btn_settings.clicked.connect(lambda: self._change_page(pref_button) if pref_button else None)
+            btn_settings.clicked.connect(lambda: pref_button.setChecked(True) if pref_button else None)
+        else:
+            print("WARN: Bouton 'Preference' non trouvé pour connecter le bouton Settings")
         settings_layout.addWidget(btn_settings)
         settings_layout.addStretch()
         sidebar_layout.addLayout(settings_layout)
+
+        # Connecter le groupe de boutons APRES que tous les boutons (y compris pref_button) existent
+        self.sidebar_button_group.buttonClicked.connect(self._change_page)
+
         main_layout.addWidget(sidebar)
 
         # --- Zone de Contenu Principal (QStackedWidget) --- 

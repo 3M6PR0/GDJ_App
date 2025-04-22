@@ -6,11 +6,14 @@ import re
 import markdown
 from PyQt5.QtCore import QObject
 
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path 
+
 # Import de la vue correspondante (ajuster si nécessaire)
 # from pages.about.about_readme_page import AboutReadmePage
 
+# --- Constante pour le chemin relatif --- 
 README_PATH = "README.md"
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class AboutReadmeController(QObject):
     def __init__(self, view: 'QWidget', version_str: str = "?.?.?", parent=None):
@@ -20,11 +23,12 @@ class AboutReadmeController(QObject):
         self.load_and_process_readme()
 
     def load_and_process_readme(self):
-        """Charge README, injecte badge HTML avec styles en ligne (couleurs en dur), et convertit."""
+        """Charge README via get_resource_path, injecte badge, et convertit."""
         html_content = "<p>Chargement...</p>"
         try:
-            # --- Charger le README ---
-            readme_full_path = os.path.join(project_root, README_PATH)
+            # --- Charger le README en utilisant get_resource_path --- 
+            readme_full_path = get_resource_path(README_PATH)
+            print(f"DEBUG: Chemin README calculé: {readme_full_path}") # Ajout debug
             if os.path.exists(readme_full_path):
                 with open(readme_full_path, 'r', encoding='utf-8') as f:
                     markdown_content = f.read()

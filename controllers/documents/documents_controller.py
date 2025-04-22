@@ -210,8 +210,11 @@ class DocumentsController(QObject):
     def _on_document_type_selected(self, selected_type):
         """Appelé quand le type de document change. Pré-remplit avec les préférences."""
         print(f"--- _on_document_type_selected: Type='{selected_type}' ---") 
+        # Récupérer la liste des champs depuis la map
         fields_to_display = self.document_fields_map.get(selected_type, []) 
-        print(f"DEBUG: Champs à afficher: {fields_to_display}")
+        # *** DEBUG: Afficher les champs récupérés ***
+        print(f"DEBUG: Champs récupérés depuis config pour '{selected_type}': {fields_to_display}") 
+        # *******************************************
             
         data_for_view = {}
         print("DEBUG: Préparation data_for_view avec valeurs par défaut des préférences...")
@@ -245,11 +248,18 @@ class DocumentsController(QObject):
 
         for field_name in fields_to_display:
             print(f"  - Traitement champ: {field_name}")
-            field_type_from_config = self.jacmar_data.get(field_name) # Pour déterminer le type (liste -> combo)
-            is_combo = isinstance(field_type_from_config, list) or field_name == "plafond_deplacement"
-            widget_type = "combo" if is_combo else "lineedit" # Simplification (nom/prenom sont lineedit)
             
-            # Cas spéciaux pour nom/prenom qui sont toujours lineedit
+            # --- Traitement spécial pour le champ "date" --- 
+            if field_name == "date":
+                data_for_view[field_name] = {"type": "month_year_combo"}
+                print("    -> Type: month_year_combo")
+                continue # Passer au champ suivant
+            
+            # --- Traitement des autres champs --- 
+            field_type_from_config = self.jacmar_data.get(field_name)
+            is_combo = isinstance(field_type_from_config, list) or field_name == "plafond_deplacement"
+            widget_type = "combo" if is_combo else "lineedit"
+            
             if field_name in ["nom", "prenom"]:
                 widget_type = "lineedit"
 
@@ -264,11 +274,9 @@ class DocumentsController(QObject):
 
             # --- Construire l'entrée pour data_for_view --- 
             if widget_type == "lineedit":
-                 # Utiliser la valeur par défaut trouvée, sinon la valeur existante (Erreur Prefs ou "")
                  current_value = default_value if default_value is not None else ""
-                 # Spécial pour nom/prenom: garder "Erreur Prefs" si lookup échoue encore ? Ou juste vide ? Préférer vide.
                  if field_name in ["nom", "prenom"] and default_value is None:
-                     current_value = "" # Mettre vide si pref non trouvée après correction
+                     current_value = ""
                  data_for_view[field_name] = {"type": "lineedit", "value": current_value}
                  print(f"    -> Type: lineedit, Valeur: '{current_value}'")
             
@@ -282,7 +290,7 @@ class DocumentsController(QObject):
                 data_for_view[field_name] = {"type": "combo", "options": options, "default": default_value}
                 print(f"    -> Type: combo, Options: {options}, Défaut: '{default_value}'")
             
-            else: # Fallback (ne devrait pas arriver avec la logique ci-dessus)
+            else:
                 print(f"    -> WARN: Type de widget non déterminé pour {field_name}")
                 data_for_view[field_name] = {"type": "label", "value": "Erreur type widget"} 
 
