@@ -30,15 +30,20 @@ class WelcomePage(QWidget):
         self.setWindowFlags(self.windowFlags() | Qt.WindowContextHelpButtonHint)
         self.setObjectName("WelcomeWindow") 
 
-        # --- Instancier les pages/contrôleurs principaux --- 
-        self.documents_page_instance = DocumentsPage()
-        self.documents_controller_instance = DocumentsController(self.documents_page_instance, self.controller)
-        
-        # Section Préférences
+        # Section Préférences (créée AVANT DocumentsController)
         self.preferences_page_instance = PreferencesPage()
         # Le contrôleur principal n'est pas passé ici pour l'instant
         self.preferences_controller_instance = PreferencesController(self.preferences_page_instance)
 
+        # --- Instancier les pages/contrôleurs principaux --- 
+        self.documents_page_instance = DocumentsPage()
+        # Passer l'instance de preferences_controller_instance ici
+        self.documents_controller_instance = DocumentsController(
+            self.documents_page_instance,
+            self.controller, # Le main_controller
+            self.preferences_controller_instance # La référence directe
+        )
+        
         # Section A Propos
         self.about_page_instance = AboutPage()
         self.about_controller_instance = AboutController(self.about_page_instance, version_str=self.version_str)

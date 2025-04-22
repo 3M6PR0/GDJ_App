@@ -36,20 +36,22 @@ except ImportError:
     class ProjectListItemWidget: pass 
 
 class DocumentsController(QObject):
-    def __init__(self, view: DocumentsPage, main_controller):
+    def __init__(self, view: DocumentsPage, main_controller, preferences_controller):
         """
         Initialise le contrôleur pour la page Documents.
 
         Args:
             view (DocumentsPage): L'instance de la vue (page Documents).
             main_controller: L'instance du contrôleur principal de l'application.
+            preferences_controller: L'instance du contrôleur des préférences.
         """
         super().__init__()
         self.view = view
         self.main_controller = main_controller # Pour appeler open_document etc.
+        self.preferences_controller = preferences_controller
         
-        # Charger les types de documents depuis la config
-        self._load_document_types()
+        # Charger les données de config (types et structure/données jacmar)
+        self._load_config_data()
         
         # Instancier les sous-pages réelles
         self.recent_list_page = DocumentsRecentListPage()
@@ -76,25 +78,42 @@ class DocumentsController(QObject):
         # Afficher la page initiale (la liste des récents)
         self.show_recent_list_page() 
 
-    def _load_document_types(self, filepath="data/config_data.json"):
-        """Charge les types de documents disponibles depuis le fichier config."""
-        self.document_types = [] # Initialiser
+    def _load_config_data(self, filepath="data/config_data.json"):
+        """Charge les types, la structure des documents et les données Jacmar."""
+        self.document_types = []
+        self.document_fields_map = {} # Map: {type_doc: [champ1, champ2]} 
+        self.jacmar_data = {} # Map: {champ: [val1, val2]} (incluant plafond)
+        self.jacmar_plafonds_keys = [] # Juste les clés pour le cas spécial
+
         try:
             if not os.path.exists(filepath):
-                print(f"Avertissement: Fichier de configuration introuvable: {filepath}")
+                print(f"Avertissement: Fichier config introuvable: {filepath}")
                 return
             
             with open(filepath, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
                 
+            # Charger les types et la structure des champs par type
             document_config = config_data.get("document", {})
             self.document_types = list(document_config.keys())
+            self.document_fields_map = document_config # Garder le dict entier
             print(f"Types de documents chargés: {self.document_types}")
             
-        except json.JSONDecodeError as e:
-            print(f"Erreur de décodage JSON dans {filepath}: {e}")
+            # Charger les données Jacmar
+            jacmar_config = config_data.get("jacmar", {})
+            self.jacmar_data = jacmar_config # Garder le dict entier
+            # Traitement spécial pour récupérer les clés de plafond
+            plafond_list = self.jacmar_data.get("plafond_deplacement", [])
+            if plafond_list and isinstance(plafond_list, list) and isinstance(plafond_list[0], dict):
+                self.jacmar_plafonds_keys = list(plafond_list[0].keys())
+            else:
+                self.jacmar_plafonds_keys = []
+                
+            print(f"Données Jacmar chargées.")
+
         except Exception as e:
-            print(f"Erreur lors du chargement des types de documents depuis {filepath}: {e}")
+            print(f"Erreur chargement config: {e}")
+            # Laisser les listes/dicts vides
             
     def _populate_type_selection_combo(self):
         """Appelle la méthode de la vue TypeSelection pour remplir son ComboBox."""
@@ -108,22 +127,24 @@ class DocumentsController(QObject):
             print(f"Erreur lors du peuplement du ComboBox Type de document: {e}")
 
     def _connect_signals(self):
-        # --- Signaux venant de DocumentsRecentListController --- 
+        """Connecte tous les signaux nécessaires."""
+        # Signaux venant de RecentListController
         self.recent_list_controller.request_page_change.connect(self._handle_page_change_request)
         self.recent_list_controller.request_open_document_dialog.connect(self.main_controller.open_document_from_menu)
         self.recent_list_controller.request_open_specific_document.connect(self.main_controller.open_specific_document)
         self.recent_list_controller.request_remove_recent.connect(self._handle_remove_recent)
 
-        # --- Signaux venant de DocumentsTypeSelectionPage --- 
+        # Signaux venant de TypeSelectionPage
         self.type_selection_page.create_requested.connect(self._handle_create_request)
-        self.type_selection_page.cancel_requested.connect(self.show_recent_list_page) # Navigation retour
-
-        # Supprimer les signaux venant de DocumentsNewPage
-        # # --- Signaux venant de DocumentsNewPage ---
-        # self.documents_new_page.create_requested.connect(self._handle_create_request)
-        # self.documents_new_page.cancel_requested.connect(self.show_recent_list_page) # Navigation retour
-
-        print("DocumentsController: Signals from sub-controllers/pages connected.")
+        self.type_selection_page.cancel_requested.connect(self.show_recent_list_page)
+        # === Vérifier la connexion ===
+        try:
+            self.type_selection_page.type_combo.currentTextChanged.connect(self._on_document_type_selected)
+            print("DEBUG: Connecté type_combo.currentTextChanged à _on_document_type_selected")
+        except Exception as e:
+            print(f"ERREUR connexion type_combo: {e}")
+        
+        print("DocumentsController: Signaux connectés.")
 
     # --- Slots pour gérer la navigation interne et les actions --- 
     @pyqtSlot(str)
@@ -144,11 +165,28 @@ class DocumentsController(QObject):
         
     @pyqtSlot()
     def show_type_selection_page(self):
+        """Affiche la page de sélection de type ET déclenche la mise à jour initiale des champs."""
         print("DocumentsController: Showing Type Selection Page")
-        # TODO: Remplir la combobox depuis le contrôleur principal ou un modèle
-        # doc_types = self.main_controller.get_available_document_types()
-        # self.type_selection_page.set_document_types(doc_types)
+        # Assurer que le combo est peuplé (redondant si fait dans init, mais sûr)
+        # self._populate_type_selection_combo() 
+        
+        # Afficher la page
         self.view.show_page(self.type_selection_page)
+        
+        # --- Déclencher la mise à jour initiale des champs dynamiques --- 
+        try:
+            initial_type = self.type_selection_page.type_combo.currentText()
+            if initial_type:
+                print(f"DEBUG: Déclenchement initial pour le type: {initial_type}")
+                self._on_document_type_selected(initial_type)
+            else:
+                print("DEBUG: Aucun type initial sélectionné dans le ComboBox.")
+                # Optionnel: Appeler update_content_area avec des données vides
+                if hasattr(self.type_selection_page, 'update_content_area'):
+                     self.type_selection_page.update_content_area({}) 
+                     
+        except Exception as e:
+            print(f"ERREUR lors du déclenchement initial des champs: {e}")
         
     @pyqtSlot(str)
     def _handle_create_request(self, selected_type):
@@ -167,6 +205,98 @@ class DocumentsController(QObject):
         # if success:
         #     self.recent_list_controller.load_recent_documents() 
         print(f"TODO: Call main controller to remove {path} from recents and refresh list")
+
+    @pyqtSlot(str)
+    def _on_document_type_selected(self, selected_type):
+        """Appelé quand le type de document change. Pré-remplit avec les préférences."""
+        print(f"--- _on_document_type_selected: Type='{selected_type}' ---") 
+        fields_to_display = self.document_fields_map.get(selected_type, []) 
+        print(f"DEBUG: Champs à afficher: {fields_to_display}")
+            
+        data_for_view = {}
+        print("DEBUG: Préparation data_for_view avec valeurs par défaut des préférences...")
+        
+        # --- Helper function to safely get nested attributes --- 
+        def get_pref_value(base_obj, path, default=None):
+            try:
+                attrs = path.split('.')
+                obj = base_obj
+                for attr in attrs:
+                    obj = getattr(obj, attr)
+                return obj
+            except AttributeError:
+                print(f"    -> Attribut non trouvé dans les prefs: {path}")
+                return default
+            except Exception as e:
+                print(f"    -> Erreur accès pref {path}: {e}")
+                return default
+
+        # --- Map des noms de champs config vers les chemins des attributs de Prefs --- 
+        pref_path_map = {
+            "nom": "profile.nom",
+            "prenom": "profile.prenom",
+            "emplacements": "jacmar.emplacement",
+            "departements": "jacmar.departement",
+            "titres": "jacmar.titre",
+            "superviseurs": "jacmar.superviseur",
+            "plafond_deplacement": "jacmar.plafond",
+            # Ajoutez d'autres mappings si nécessaire
+        }
+
+        for field_name in fields_to_display:
+            print(f"  - Traitement champ: {field_name}")
+            field_type_from_config = self.jacmar_data.get(field_name) # Pour déterminer le type (liste -> combo)
+            is_combo = isinstance(field_type_from_config, list) or field_name == "plafond_deplacement"
+            widget_type = "combo" if is_combo else "lineedit" # Simplification (nom/prenom sont lineedit)
+            
+            # Cas spéciaux pour nom/prenom qui sont toujours lineedit
+            if field_name in ["nom", "prenom"]:
+                widget_type = "lineedit"
+
+            default_value = None
+            pref_path = pref_path_map.get(field_name)
+
+            if pref_path:
+                default_value = get_pref_value(self.preferences_controller.current_preferences, pref_path)
+                print(f"    -> Pref trouvée ({pref_path}): '{default_value}'")
+            else:
+                print(f"    -> Pas de mapping de pref défini pour: {field_name}")
+
+            # --- Construire l'entrée pour data_for_view --- 
+            if widget_type == "lineedit":
+                 # Utiliser la valeur par défaut trouvée, sinon la valeur existante (Erreur Prefs ou "")
+                 current_value = default_value if default_value is not None else ""
+                 # Spécial pour nom/prenom: garder "Erreur Prefs" si lookup échoue encore ? Ou juste vide ? Préférer vide.
+                 if field_name in ["nom", "prenom"] and default_value is None:
+                     current_value = "" # Mettre vide si pref non trouvée après correction
+                 data_for_view[field_name] = {"type": "lineedit", "value": current_value}
+                 print(f"    -> Type: lineedit, Valeur: '{current_value}'")
+            
+            elif widget_type == "combo":
+                options = []
+                if field_name == "plafond_deplacement":
+                    options = self.jacmar_plafonds_keys
+                else:
+                    options = self.jacmar_data.get(field_name, [])
+                
+                data_for_view[field_name] = {"type": "combo", "options": options, "default": default_value}
+                print(f"    -> Type: combo, Options: {options}, Défaut: '{default_value}'")
+            
+            else: # Fallback (ne devrait pas arriver avec la logique ci-dessus)
+                print(f"    -> WARN: Type de widget non déterminé pour {field_name}")
+                data_for_view[field_name] = {"type": "label", "value": "Erreur type widget"} 
+
+        print(f"DEBUG: data_for_view préparé: {data_for_view}")
+        print(f"DEBUG: Appel de update_content_area sur la vue...")
+        try:
+            if hasattr(self.type_selection_page, 'update_content_area'):
+                self.type_selection_page.update_content_area(data_for_view)
+                print("DEBUG: update_content_area appelé avec succès.")
+            else:
+                print("ERREUR: La vue TypeSelection n'a pas de méthode update_content_area.")
+        except Exception as e:
+             print(f"ERREUR lors de l'appel à update_content_area: {e}")
+        print("--- Fin _on_document_type_selected ---")
 
     # Retiré: load_recent_projects - Géré par recent_list_controller
     # Retiré: remove_project_from_recents - Géré par _handle_remove_recent

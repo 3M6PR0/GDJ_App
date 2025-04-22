@@ -45,6 +45,8 @@
     },
     "document": {
         "Rapport de depense": [
+          "nom",
+          "prenom",
           "emplacements",
           "departements",
           "superviseurs",
