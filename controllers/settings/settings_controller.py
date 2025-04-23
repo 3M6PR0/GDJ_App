@@ -299,4 +299,52 @@ class SettingsController(QObject):
              self.view.lbl_update_status.setText(f"Erreur lancement installeur: {e}")
              self._set_idle_state()
 
+    # --- NOUVELLE MÉTHODE PUBLIQUE --- 
+    def initiate_update_from_prompt(self, update_info):
+        """Lance le téléchargement directement à partir des infos fournies."""
+        print(f"Initiating update download directly with info: {update_info}")
+        if update_info and update_info.get("available") and update_info.get("url"):
+            # Stocker ces infos comme si on venait de les vérifier
+            self.last_update_info = update_info
+            installer_url = update_info["url"]
+            
+            # Passer à l'état téléchargement
+            self._set_downloading_state()
+            
+            # Définir le dossier de destination (identique à _perform_update)
+            temp_dir = os.path.join(os.getenv('LOCALAPPDATA', '.'), CONFIG.get('APP_NAME', 'GDJ'), 'temp_updates')
+            os.makedirs(temp_dir, exist_ok=True)
+            print(f"Download destination folder: {temp_dir}")
+
+            # Créer et démarrer le thread de téléchargement (identique à _perform_update)
+            # S'assurer qu'un téléchargement n'est pas déjà en cours (sécurité)
+            if self.download_thread is not None:
+                 print("Warning: Download thread already exists. Cancelling previous one?")
+                 # Optionnel: Tenter d'annuler l'ancien avant de lancer le nouveau?
+                 # Pour l'instant, on écrase les références, l'ancien thread pourrait continuer un peu
+                 # S'il est géré correctement par Qt (parent=self), il sera détruit.
+            
+            self.download_thread = QThread(self) # parent=self pour cleanup
+            self.download_worker = DownloadWorker(installer_url, temp_dir)
+            self.download_worker.moveToThread(self.download_thread)
+
+            # Connecter les signaux du worker
+            self.download_worker.progress.connect(self._update_download_progress)
+            self.download_worker.finished.connect(self._download_finished)
+            self.download_worker.error.connect(self._download_error)
+
+            # Connecter le démarrage/fin du thread
+            self.download_thread.started.connect(self.download_worker.run)
+            self.download_worker.finished.connect(self.download_thread.quit)
+            self.download_thread.finished.connect(self.download_thread.deleteLater)
+            self.download_worker.finished.connect(self.download_worker.deleteLater)
+
+            print("Starting download thread from prompt...")
+            self.download_thread.start()
+
+        else:
+             print("ERROR: initiate_update_from_prompt called with invalid update info.")
+             # Revenir à l'état par défaut au cas où
+             self._set_idle_state()
+
 # Ajouter d'autres méthodes si nécessaire (ex: pour gérer des retours de check_for_updates) 

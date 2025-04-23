@@ -59,13 +59,6 @@ def main():
     # controller to open the main window later.
     controller.show_welcome_page() 
     
-    # window = MainWindow() # Old way
-    # controller = MainController(window) # Old way
-    # window.show() # Old way
-    
-    # Update check can still run early
-    check_for_updates()
-    
     sys.exit(app.exec_())
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@ import sys
 import os
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QFrame, QSpacerItem, QSizePolicy,
-                             QStackedWidget, QButtonGroup)
+                             QStackedWidget, QButtonGroup, QAbstractButton)
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
 from PyQt5.QtGui import QIcon, QPixmap, QFont
 
@@ -236,26 +236,44 @@ class WelcomePage(QWidget):
             print(f"  Unchecked sidebar button: {checked_button.text()}")
 
     def navigate_to_section(self, section_name):
-        """Trouve le bouton correspondant au nom et le coche pour changer de section."""
+        """Trouve le bouton correspondant ou gère le cas spécial 'Paramètres'."""
         print(f"Attempting programmatic navigation to section: {section_name}")
+        
+        # --- CAS SPÉCIAL POUR PARAMÈTRES --- 
+        if section_name == "Paramètres":
+             print("  Special case: Navigating to Settings page directly.")
+             self._show_settings_page_from_button() # Appeler la méthode du bouton engrenage
+             return True # Indiquer le succès
+        # ----------------------------------
+        
         button_found = False
+        target_button = None
         for btn in self.sidebar_button_group.buttons():
             if btn.text() == section_name:
-                if not btn.isChecked(): # Éviter de re-checker si déjà sélectionné
-                    print(f"  Button '{section_name}' found. Setting checked to True...")
-                    btn.setChecked(True) # Ceci devrait déclencher _change_page via le signal
-                else:
-                    print(f"  Button '{section_name}' already checked. Triggering _change_page manually...")
-                    # Si déjà coché, le signal ne sera pas émis, il faut appeler le slot manuellement.
-                    self._change_page(btn)
+                target_button = btn
                 button_found = True
                 break
-        if not button_found:
-            print(f"ERROR: Button for section '{section_name}' not found in sidebar group.")
-    # --- FIN NOUVELLE MÉTHODE ---
+        
+        if button_found and target_button:
+            if not target_button.isChecked(): 
+                print(f"  Button '{section_name}' found. Setting checked to True...")
+                target_button.setChecked(True) # Déclenchera _change_page
+            else:
+                print(f"  Button '{section_name}' already checked. Triggering _change_page manually...")
+                self._change_page(target_button) # Appeler manuellement si déjà coché
+            return True # Indiquer le succès
+        else:
+            print(f"  Button for section '{section_name}' not found in sidebar.")
+            return False # Indiquer l'échec
 
-    # --- _change_page MODIFIÉ --- 
-    def _change_page(self, button): 
+    # --- AJOUT DE LA MÉTHODE GETTER --- 
+    def get_settings_controller(self):
+        """Retourne l'instance du SettingsController gérée par cette page."""
+        return self.settings_controller_instance
+    # ---------------------------------
+
+    @Slot(QAbstractButton)
+    def _change_page(self, button: QAbstractButton): 
         """Change la page affichée et gère la navigation vers les notes de version."""
         button_text = button.text() 
         target_widget = None 

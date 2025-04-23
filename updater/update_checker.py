@@ -132,46 +132,48 @@ def check_for_updates(manual_check=False):
             update_info["available"] = True
             update_info["version"] = remote_version
             
-            # --- Ne pas appeler prompt si manual_check est True --- 
+            # --- Récupérer l'URL de l'installeur DANS TOUS LES CAS si MàJ trouvée ---
+            assets = release_info.get("assets", [])
+            installer_name_expected = "gdj_installer.exe"
+            installer_url = None
+            for asset in assets:
+                name = asset.get("name", "").lower()
+                if installer_name_expected == name:
+                    installer_url = asset.get("browser_download_url")
+                    break
+            update_info["url"] = installer_url
+            
+            # --- Gestion spécifique vérification automatique --- 
             if not manual_check:
                 print("Automatic check found update, prompting user...")
+                if not installer_url:
+                    # Si pas d'URL, on ne peut pas proposer la MàJ, même si version >
+                    status_message = f"Mise à jour trouvée ({remote_version}) mais asset introuvable."
+                    update_info["available"] = False # Marquer non dispo
+                    return status_message, update_info # Retourner ce statut
+                    
+                # Proposer la MàJ seulement si URL existe
                 if prompt_update(remote_version):
-                    assets = release_info.get("assets", [])
-                    installer_name_expected = "gdj_installer.exe"
-                    print(f"Recherche de l'asset '{installer_name_expected}'...")
-                    installer_url = None
-                    for asset in assets:
-                        name = asset.get("name", "").lower()
-                        print(f"  - Asset trouvé : {name}")
-                        if installer_name_expected == name:
-                            installer_url = asset.get("browser_download_url")
-                            print(f"    -> Correspondance trouvée ! URL : {installer_url}")
-                            break
-                    update_info["url"] = installer_url # Stocker l'URL trouvée
-                    if installer_url:
-                        launch_updater(installer_url)
-                    else:
-                        status_message = f"Erreur : Installateur ({installer_name_expected}) non trouvé."
-                        update_info["available"] = False # Marquer comme non dispo si asset manque
-                        # QMessageBox.warning(...) # Gardé car critique
+                    print("User accepted the update prompt.")
+                    # NE PAS LANCER L'UPDATER ICI
+                    # launch_updater(installer_url)
+                    # RETOURNER UN STATUT SPÉCIFIQUE
+                    return "USER_CONFIRMED_UPDATE", update_info
                 else:
+                    print("User declined the update prompt.")
                     status_message = "Mise à jour refusée par l'utilisateur."
                     update_info["available"] = False # Refusée = non dispo pour l'instant
+                    # Retourner ce statut
+                    return "UPDATE_DECLINED", update_info
             else:
-                 # En mode manuel, on récupère juste l'URL si possible pour plus tard
-                 print("Manual check found update. Storing info.")
-                 assets = release_info.get("assets", [])
-                 installer_name_expected = "gdj_installer.exe"
-                 installer_url = None
-                 for asset in assets:
-                     name = asset.get("name", "").lower()
-                     if installer_name_expected == name:
-                         installer_url = asset.get("browser_download_url")
-                         break
-                 update_info["url"] = installer_url 
+                 # Mode manuel: On a déjà l'URL dans update_info. Le statut est juste "Trouvée"
+                 print("Manual check found update. Info stored.")
                  if not installer_url:
                       status_message = f"Mise à jour trouvée ({remote_version}) mais asset introuvable."
-                      update_info["available"] = False # Si pas d'asset, l'update n'est pas réellement "disponible"
+                      update_info["available"] = False
+                 # On retourne le statut standard et l'info (qui contient l'URL ou None)
+                 # Le SettingsController décidera quoi faire
+
         else:
             status_message = "À jour"
             print("Aucune mise à jour disponible.")
@@ -188,7 +190,7 @@ def check_for_updates(manual_check=False):
             print("Manual Check: Échec de la vérification des mises à jour.")
             # RETIRER: QMessageBox.warning(None, "Mise à jour", f"Impossible de vérifier les mises à jour.\nErreur: {e}")
     
-    # Retourner un tuple: (message, info_dict)
+    # Retourner le message final et l'info
     return status_message, update_info
 
 print("updater/update_checker.py défini")

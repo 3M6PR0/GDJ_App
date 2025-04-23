@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFileDialog
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 # --- AJOUT DE L'IMPORT QIcon ---
 from PyQt5.QtGui import QIcon
 from pages.document_page import DocumentPage
@@ -54,8 +54,8 @@ class MainController:
         self.documents = {}
         self.about_page = None
         self.about_controller_instance = None
-        # --- Flag pour la navigation post-mise à jour ---
         self.navigate_to_notes_after_welcome = False 
+        self._startup_update_check_done = False
 
         # --- Corrected Logic AGAIN (Focus on Version Comparison) --- 
         self.version_file = get_resource_path("data/version.txt")
@@ -94,16 +94,11 @@ class MainController:
             print("DEBUG __init__: Writing current version to last_run_version.txt because navigation flag is set.")
             self._write_last_run_version(last_run_version_file, self.current_version_str)
             
-        # --- Always show WelcomePage initially --- 
-        print("DEBUG __init__: Showing WelcomePage (navigation if needed will happen after show)...")
-        self.show_welcome_page()
-        # ---------------------------------------
-        
-        print("--- Exiting MainController __init__ (before GitHub check) ---")
-        check_for_updates()
+        # --- Exiting MainController __init__ --- 
+        print("--- Exiting MainController __init__ --- ")
 
     def show_welcome_page(self):
-        """Crée et affiche la page de bienvenue, et navigue si nécessaire."""
+        """Crée et affiche la page de bienvenue, et lance la vérif MàJ."""
         if self.welcome_page is None:
             app_name = CONFIG.get('APP_NAME', 'MonApp')
             self.welcome_page = WelcomePage(self, app_name, self.current_version_str)
@@ -120,7 +115,16 @@ class MainController:
         self.welcome_page.show()
         print("DEBUG show_welcome_page: WelcomePage shown.")
 
-        # --- Check flag and navigate AFTER showing WelcomePage --- 
+        # --- MODIFICATION : Appeler la vérification SEULEMENT si pas déjà faite --- 
+        if not self._startup_update_check_done:
+             print("DEBUG show_welcome_page: Performing startup update check (first time)...")
+             self._perform_startup_update_check()
+             self._startup_update_check_done = True # Marquer comme fait
+        else:
+             print("DEBUG show_welcome_page: Startup update check already performed.")
+        # --------------------------------------------------------------------
+
+        # --- Gestion de la navigation vers les notes (reste pareil) ---
         if self.navigate_to_notes_after_welcome:
             print("DEBUG show_welcome_page: Flag is True, attempting navigation to 'A Propos' section...")
             try:
@@ -141,37 +145,70 @@ class MainController:
         print(">>> Entering _ensure_main_window_exists method...")
         print(f"--- Checking if self.main_window is None (Current value: {self.main_window is None})...")
         if self.main_window is None:
-            print("--- Condition self.main_window is None PASSED. Creating MainWindow...") # Log
-            self.main_window = MainWindow()
-            # --- Définir l'icône de la fenêtre principale ---
+            print("--- Condition self.main_window is None PASSED. Attempting to create MainWindow instance...")
             try:
-                icon_path = get_resource_path("resources/images/logo-gdj.ico")
-                if os.path.exists(icon_path):
-                    self.main_window.setWindowIcon(QIcon(icon_path))
-                else:
-                     print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
-            except Exception as e:
-                 print(f"Erreur lors de la définition de l'icône pour MainWindow: {e}")
-            
-            # Connecter les actions du menu de la MainWindow au contrôleur
-            self.main_window.action_new.triggered.connect(self.create_new_document_from_menu)
-            self.main_window.action_open.triggered.connect(self.open_document_from_menu)
-            self.main_window.action_close.triggered.connect(self.close_current_document)
-            try:
-                self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
-            except AttributeError:
-                print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
-            
-        # Fermer la fenêtre de bienvenue si elle est ouverte
-        if self.welcome_page and self.welcome_page.isVisible():
-            print("--- Closing WelcomePage as MainWindow is ensured ---") # ADDED LOG
-            self.welcome_page.close()
-        
-        # Afficher la fenêtre principale si elle était cachée
-        if not self.main_window.isVisible():
-            print("--- Showing MainWindow as it was not visible ---") # ADDED LOG
-            self.main_window.show()
-        print("<<< Exiting _ensure_main_window_exists method...") # ADDED EXIT LOG
+                # --- AJOUT TRY/EXCEPT ET LOGGING ---
+                print("--- BEFORE MainWindow() instantiation ---")
+                # --- Import local pour être sûr (peut-être redondant mais sûr) ---
+                from ui.main_window import MainWindow
+                self.main_window = MainWindow() # <--- Potential failure point
+                print(f"--- AFTER MainWindow() instantiation. self.main_window is None: {self.main_window is None} ---")
+                # ------------------------------------
+
+                # --- DÉFINIR LA RÉFÉRENCE DU MainController DANS MainWindow ---
+                # (Seulement si l'instantiation a réussi)
+                print("--- Calling main_window.set_main_controller(self) ---")
+                self.main_window.set_main_controller(self)
+                # ------------------------------------------------------------
+
+                # --- Définir l'icône de la fenêtre principale ---
+                try:
+                    icon_path = get_resource_path("resources/images/logo-gdj.ico")
+                    if os.path.exists(icon_path):
+                        self.main_window.setWindowIcon(QIcon(icon_path))
+                    else:
+                         print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+                except Exception as e_icon:
+                     print(f"Erreur lors de la définition de l'icône pour MainWindow: {e_icon}")
+
+                # Connecter les actions du menu de la MainWindow au contrôleur
+                print("--- Connecting MainWindow menu actions ---")
+                self.main_window.action_new.triggered.connect(self.create_new_document_from_menu)
+                self.main_window.action_open.triggered.connect(self.open_document_from_menu)
+                self.main_window.action_close.triggered.connect(self.close_current_document)
+                try:
+                    self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
+                except AttributeError:
+                    print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
+                print("--- MainWindow menu actions connected ---")
+
+            except Exception as e_init:
+                # --- CAPTURER L'ERREUR D'INITIALISATION ---
+                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                print(f"CRITICAL ERROR: Exception during MainWindow instantiation: {e_init}")
+                import traceback
+                traceback.print_exc() # Afficher la trace complète de l'erreur
+                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                # S'assurer que main_window reste None en cas d'échec
+                self.main_window = None
+            # --- FIN AJOUT ---
+
+        # On continue seulement si main_window a été créé avec succès
+        if self.main_window:
+            # Fermer la fenêtre de bienvenue si elle est ouverte
+            if self.welcome_page and self.welcome_page.isVisible():
+                 print("--- Closing WelcomePage as MainWindow is ensured ---")
+                 self.welcome_page.close()
+
+            # Afficher la fenêtre principale si elle était cachée
+            if not self.main_window.isVisible():
+                 print("--- Showing MainWindow as it was not visible ---")
+                 self.main_window.show()
+        else:
+             print("--- MainWindow is still None after creation attempt. Cannot proceed. --- ")
+
+        print(f"--- Final check before exiting _ensure_main_window_exists. self.main_window is None: {self.main_window is None} ---")
+        print("<<< Exiting _ensure_main_window_exists method...")
 
     def _read_version_file(self, file_path):
         """ Lit un fichier de version (reçoit le chemin complet). """
@@ -345,3 +382,135 @@ class MainController:
             print("Navigation vers l'onglet À Propos effectuée.")
         else:
             print("Erreur: Impossible de trouver l'index de la page À Propos après création/vérification.")
+
+    # --- NOUVELLE MÉTHODE POUR LA VÉRIFICATION AU DÉMARRAGE ---
+    def _perform_startup_update_check(self):
+        """Vérifie les MàJ au démarrage et planifie l'action si confirmée."""
+        try:
+            status, update_info = check_for_updates()
+            print(f"Startup update check status: {status}")
+            if status == "USER_CONFIRMED_UPDATE":
+                print("User confirmed update from startup prompt. Scheduling navigation within WelcomePage...")
+                self._pending_update_info = update_info
+                # --- APPELER LA NOUVELLE MÉTHODE VIA QTIMER --- 
+                QTimer.singleShot(0, self._navigate_welcome_to_settings_and_update)
+            elif status == "UPDATE_DECLINED":
+                 print("Startup update declined by user.")
+            elif update_info and not update_info.get('available') and status != "À jour":
+                 print(f"Startup update check notice: {status}") # Affiche les erreurs etc.
+
+        except Exception as e:
+            print(f"Error during startup update check: {e}")
+            if hasattr(self, '_pending_update_info'):
+                 del self._pending_update_info
+
+    # --- NOUVELLE MÉTHODE POUR GÉRER DANS WELCOMEPAGE --- 
+    def _navigate_welcome_to_settings_and_update(self):
+        """Navigue vers les paramètres DANS WelcomePage et lance la MàJ."""
+        print("Navigating WelcomePage to settings and initiating update...")
+        if hasattr(self, '_pending_update_info') and self._pending_update_info:
+            update_info = self._pending_update_info.copy() # Prendre une copie
+            if hasattr(self, '_pending_update_info'):
+                del self._pending_update_info # Nettoyer
+
+            if self.welcome_page:
+                try:
+                    # 1. Naviguer dans WelcomePage
+                    print("Calling welcome_page.navigate_to_section('Paramètres')...")
+                    # Assumons True pour succès, False/Exception pour échec
+                    navigation_successful = self.welcome_page.navigate_to_section("Paramètres") 
+
+                    if navigation_successful:
+                         print("Navigation to WelcomePage settings section successful.")
+                         # 2. Récupérer le SettingsController de WelcomePage
+                         print("Getting SettingsController from WelcomePage...")
+                         settings_controller = self.welcome_page.get_settings_controller()
+
+                         if settings_controller:
+                              print("Got SettingsController instance from WelcomePage.")
+                              # 3. Lancer le téléchargement
+                              print("Calling initiate_update_from_prompt on WelcomePage's SettingsController...")
+                              settings_controller.initiate_update_from_prompt(update_info)
+                         else:
+                              print("ERROR: welcome_page.get_settings_controller() returned None.")
+                    else:
+                         print("ERROR: welcome_page.navigate_to_section('Paramètres') failed or returned False.")
+
+                except AttributeError as ae:
+                     print(f"ERROR: WelcomePage is missing a required method (navigate_to_section or get_settings_controller): {ae}")
+                except Exception as e:
+                     print(f"ERROR: An unexpected error occurred during WelcomePage navigation/update initiation: {e}")
+            else:
+                print("ERROR: WelcomePage instance is None. Cannot navigate.")
+        else:
+            print("Warning: _navigate_welcome_to_settings_and_update called but no pending update info found.")
+
+    def _ensure_main_window_exists(self):
+        """Crée la MainWindow si elle n'existe pas et établit les connexions."""
+        print(">>> Entering _ensure_main_window_exists method...")
+        print(f"--- Checking if self.main_window is None (Current value: {self.main_window is None})...")
+        if self.main_window is None:
+            print("--- Condition self.main_window is None PASSED. Attempting to create MainWindow instance...")
+            try:
+                # --- AJOUT TRY/EXCEPT ET LOGGING ---
+                print("--- BEFORE MainWindow() instantiation ---")
+                # --- Import local pour être sûr (peut-être redondant mais sûr) ---
+                from ui.main_window import MainWindow
+                self.main_window = MainWindow() # <--- Potential failure point
+                print(f"--- AFTER MainWindow() instantiation. self.main_window is None: {self.main_window is None} ---")
+                # ------------------------------------
+
+                # --- DÉFINIR LA RÉFÉRENCE DU MainController DANS MainWindow ---
+                # (Seulement si l'instantiation a réussi)
+                print("--- Calling main_window.set_main_controller(self) ---")
+                self.main_window.set_main_controller(self)
+                # ------------------------------------------------------------
+
+                # --- Définir l'icône de la fenêtre principale ---
+                try:
+                    icon_path = get_resource_path("resources/images/logo-gdj.ico")
+                    if os.path.exists(icon_path):
+                        self.main_window.setWindowIcon(QIcon(icon_path))
+                    else:
+                         print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+                except Exception as e_icon:
+                     print(f"Erreur lors de la définition de l'icône pour MainWindow: {e_icon}")
+
+                # Connecter les actions du menu de la MainWindow au contrôleur
+                print("--- Connecting MainWindow menu actions ---")
+                self.main_window.action_new.triggered.connect(self.create_new_document_from_menu)
+                self.main_window.action_open.triggered.connect(self.open_document_from_menu)
+                self.main_window.action_close.triggered.connect(self.close_current_document)
+                try:
+                    self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
+                except AttributeError:
+                    print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
+                print("--- MainWindow menu actions connected ---")
+
+            except Exception as e_init:
+                # --- CAPTURER L'ERREUR D'INITIALISATION ---
+                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                print(f"CRITICAL ERROR: Exception during MainWindow instantiation: {e_init}")
+                import traceback
+                traceback.print_exc() # Afficher la trace complète de l'erreur
+                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                # S'assurer que main_window reste None en cas d'échec
+                self.main_window = None
+            # --- FIN AJOUT ---
+
+        # On continue seulement si main_window a été créé avec succès
+        if self.main_window:
+            # Fermer la fenêtre de bienvenue si elle est ouverte
+            if self.welcome_page and self.welcome_page.isVisible():
+                 print("--- Closing WelcomePage as MainWindow is ensured ---")
+                 self.welcome_page.close()
+
+            # Afficher la fenêtre principale si elle était cachée
+            if not self.main_window.isVisible():
+                 print("--- Showing MainWindow as it was not visible ---")
+                 self.main_window.show()
+        else:
+             print("--- MainWindow is still None after creation attempt. Cannot proceed. --- ")
+
+        print(f"--- Final check before exiting _ensure_main_window_exists. self.main_window is None: {self.main_window is None} ---")
+        print("<<< Exiting _ensure_main_window_exists method...")
