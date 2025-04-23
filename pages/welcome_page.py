@@ -3,7 +3,7 @@ import os
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QFrame, QSpacerItem, QSizePolicy,
                              QStackedWidget, QButtonGroup)
-from PyQt5.QtCore import Qt, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
 from PyQt5.QtGui import QIcon, QPixmap, QFont
 
 # --- Import de la fonction utilitaire --- 
@@ -20,6 +20,9 @@ from controllers.documents.documents_controller import DocumentsController
 # --- Importer PreferencesPage et PreferencesController --- 
 from pages.preferences.preferences_page import PreferencesPage
 from controllers.preferences.preferences_controller import PreferencesController
+# --- AJOUT IMPORTS POUR SETTINGS ---
+from pages.settings.settings_page import SettingsPage
+from controllers.settings.settings_controller import SettingsController
 
 # --- WelcomePage (Nettoyée) --- 
 class WelcomePage(QWidget):
@@ -50,6 +53,11 @@ class WelcomePage(QWidget):
         # Section A Propos
         self.about_page_instance = AboutPage()
         self.about_controller_instance = AboutController(self.about_page_instance, version_str=self.version_str)
+        
+        # --- AJOUT INSTANCES SETTINGS --- 
+        self.settings_page_instance = SettingsPage()
+        # Passer le main_controller au SettingsController
+        self.settings_controller_instance = SettingsController(self.settings_page_instance, self.controller)
         
         self.stacked_widget = QStackedWidget()
         
@@ -145,7 +153,7 @@ class WelcomePage(QWidget):
         sidebar_layout.addLayout(button_layout)
         sidebar_layout.addStretch()
 
-        # Bouton Settings (MODIFIÉ pour utiliser une icône)
+        # Bouton Settings 
         settings_layout = QHBoxLayout()
         settings_layout.setContentsMargins(12, 0, 12, 5)
         btn_settings = QPushButton()
@@ -163,21 +171,21 @@ class WelcomePage(QWidget):
         btn_settings.setFixedSize(26, 26)
         btn_settings.setFlat(True)
         btn_settings.setToolTip("Préférences")
-        pref_button = None
-        for btn in self.sidebar_button_group.buttons():
-            if btn.text() == "Preference":
-                pref_button = btn
-                break
-        if pref_button:
-            btn_settings.clicked.connect(lambda: self._change_page(pref_button) if pref_button else None)
-            btn_settings.clicked.connect(lambda: pref_button.setChecked(True) if pref_button else None)
-        else:
-            print("WARN: Bouton 'Preference' non trouvé pour connecter le bouton Settings")
+        # --- MODIFIER LA CONNEXION DU BOUTON SETTINGS --- 
+        # Au lieu de checker le bouton Préférences, on appelle une méthode pour montrer la page Settings
+        # if pref_button:
+        #     btn_settings.clicked.connect(lambda: self._change_page(pref_button) if pref_button else None)
+        #     btn_settings.clicked.connect(lambda: pref_button.setChecked(True) if pref_button else None)
+        # else:
+        #     print("WARN: Bouton 'Preference' non trouvé pour connecter le bouton Settings")
+        btn_settings.clicked.connect(self._show_settings_page_from_button)
+        # -------------------------------------------------
+        
         settings_layout.addWidget(btn_settings)
         settings_layout.addStretch()
         sidebar_layout.addLayout(settings_layout)
 
-        # Connecter le groupe de boutons APRES que tous les boutons (y compris pref_button) existent
+        # Connecter le groupe de boutons APRES que tous les boutons (...) existent
         self.sidebar_button_group.buttonClicked.connect(self._change_page)
 
         # --- Sélectionner la page par défaut (Documents) --- 
@@ -194,10 +202,11 @@ class WelcomePage(QWidget):
         # --- Zone de Contenu Principal (QStackedWidget) --- 
         self.stacked_widget.setObjectName("ContentArea")
 
-        # --- Ajout des PAGES INSTANCIÉES au QStackedWidget --- 
+        # --- AJOUTER SETTINGS PAGE AU STACKED WIDGET --- 
         self.stacked_widget.addWidget(self.documents_page_instance)
-        self.stacked_widget.addWidget(self.preferences_page_instance) # Utiliser l'instance
+        self.stacked_widget.addWidget(self.preferences_page_instance) 
         self.stacked_widget.addWidget(self.about_page_instance)
+        self.stacked_widget.addWidget(self.settings_page_instance)
         
         main_layout.addWidget(self.stacked_widget, 1) 
 
@@ -206,7 +215,26 @@ class WelcomePage(QWidget):
 
         self.setMinimumSize(1000, 700)
 
-    # --- NOUVELLE MÉTHODE --- 
+    # --- NOUVELLE MÉTHODE SLOT pour bouton settings ---
+    @Slot()
+    def _show_settings_page_from_button(self):
+        """Slot spécifique pour le clic sur le bouton engrenage."""
+        print("Settings button clicked, showing Settings Page...")
+        # Assurer qu'aucun bouton latéral n'est coché
+        # Désélectionner tous les boutons peut causer des problèmes si un doit rester actif
+        # Alternative: Ne rien faire ici et laisser le bouton actif précédent l'être.
+        # Ou: Créer un bouton "Paramètres" dans la liste latérale et le cocher ici.
+        # Pour l'instant, on change juste la page :
+        self.stacked_widget.setCurrentWidget(self.settings_page_instance)
+        # Optionnel: décocher le bouton latéral actif s'il y en a un
+        checked_button = self.sidebar_button_group.checkedButton()
+        if checked_button:
+            # Mettre le groupe temporairement non exclusif pour permettre la décochage
+            self.sidebar_button_group.setExclusive(False)
+            checked_button.setChecked(False)
+            self.sidebar_button_group.setExclusive(True)
+            print(f"  Unchecked sidebar button: {checked_button.text()}")
+
     def navigate_to_section(self, section_name):
         """Trouve le bouton correspondant au nom et le coche pour changer de section."""
         print(f"Attempting programmatic navigation to section: {section_name}")

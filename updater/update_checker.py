@@ -99,35 +99,96 @@ def launch_updater(installer_url):
                              f"Une erreur est survenue lors du lancement de la mise à jour :\n{e}")
 
 
-def check_for_updates():
-    """Fonction principale à appeler au démarrage pour vérifier et proposer une mise à jour."""
-    local_version = get_local_version()
-    release_info = get_remote_release_info()
-    if not release_info:
-        return
+def check_for_updates(manual_check=False):
+    """
+    Vérifie les mises à jour sur GitHub et lance l'updater si nécessaire.
+    Retourne un message de statut pour affichage.
+    
+    Args:
+        manual_check (bool): True si la vérification est déclenchée manuellement.
+                             Affecte seulement le message de retour.
+                             
+    Returns:
+        str: Un message décrivant le résultat ("À jour", "MàJ X trouvée", "Erreur: ...")
+    """
+    status_message = "Statut : Inconnu"
+    update_info = {"available": False, "version": None, "url": None} # Pour retourner plus d'infos
+    try:
+        local_version = get_local_version()
+        release_info = get_remote_release_info()
+        if not release_info:
+            status_message = "Erreur : Impossible de contacter GitHub."
+            if manual_check:
+                print("Manual Check: " + status_message)
+            return status_message, update_info # Sortir tôt
 
-    remote_version = release_info.get("tag_name", "0.0.0")
-    print(f"Version locale : {local_version} | Version distante : {remote_version}")
+        remote_version = release_info.get("tag_name", "0.0.0")
+        print(f"Version locale : {local_version} | Version distante : {remote_version}")
 
-    if is_new_version_available(local_version, remote_version):
-        if prompt_update(remote_version):
-            assets = release_info.get("assets", [])
-            installer_url = None
-            installer_name_expected = "gdj_installer.exe"
-            print(f"Recherche de l'asset '{installer_name_expected}'...")
-            for asset in assets:
-                name = asset.get("name", "").lower()
-                print(f"  - Asset trouvé : {name}")
-                if installer_name_expected == name:
-                    installer_url = asset.get("browser_download_url")
-                    print(f"    -> Correspondance trouvée ! URL : {installer_url}")
-                    break
+        is_new = is_new_version_available(local_version, remote_version)
 
-            if installer_url:
-                launch_updater(installer_url)
+        if is_new:
+            status_message = f"Mise à jour trouvée : {remote_version}"
+            update_info["available"] = True
+            update_info["version"] = remote_version
+            
+            # --- Ne pas appeler prompt si manual_check est True --- 
+            if not manual_check:
+                print("Automatic check found update, prompting user...")
+                if prompt_update(remote_version):
+                    assets = release_info.get("assets", [])
+                    installer_name_expected = "gdj_installer.exe"
+                    print(f"Recherche de l'asset '{installer_name_expected}'...")
+                    installer_url = None
+                    for asset in assets:
+                        name = asset.get("name", "").lower()
+                        print(f"  - Asset trouvé : {name}")
+                        if installer_name_expected == name:
+                            installer_url = asset.get("browser_download_url")
+                            print(f"    -> Correspondance trouvée ! URL : {installer_url}")
+                            break
+                    update_info["url"] = installer_url # Stocker l'URL trouvée
+                    if installer_url:
+                        launch_updater(installer_url)
+                    else:
+                        status_message = f"Erreur : Installateur ({installer_name_expected}) non trouvé."
+                        update_info["available"] = False # Marquer comme non dispo si asset manque
+                        # QMessageBox.warning(...) # Gardé car critique
+                else:
+                    status_message = "Mise à jour refusée par l'utilisateur."
+                    update_info["available"] = False # Refusée = non dispo pour l'instant
             else:
-                print("Aucun installateur trouvé dans les assets de la release.")
-                QMessageBox.warning(None, "Mise à jour impossible",
-                                    f"Impossible de trouver le fichier d'installation ({installer_name_expected}) dans la dernière release.")
-    else:
-        print("Aucune mise à jour disponible.")
+                 # En mode manuel, on récupère juste l'URL si possible pour plus tard
+                 print("Manual check found update. Storing info.")
+                 assets = release_info.get("assets", [])
+                 installer_name_expected = "gdj_installer.exe"
+                 installer_url = None
+                 for asset in assets:
+                     name = asset.get("name", "").lower()
+                     if installer_name_expected == name:
+                         installer_url = asset.get("browser_download_url")
+                         break
+                 update_info["url"] = installer_url 
+                 if not installer_url:
+                      status_message = f"Mise à jour trouvée ({remote_version}) mais asset introuvable."
+                      update_info["available"] = False # Si pas d'asset, l'update n'est pas réellement "disponible"
+        else:
+            status_message = "À jour"
+            print("Aucune mise à jour disponible.")
+            if manual_check:
+                print("Manual Check: " + status_message)
+                # RETIRER: QMessageBox.information(None, "Mise à jour", "Votre application est à jour.")
+
+    except Exception as e:
+        error_text = str(e)
+        print(f"Erreur lors de la vérification des mises à jour: {error_text}")
+        status_message = f"Erreur lors de la vérification : {error_text}"
+        update_info["available"] = False
+        if manual_check:
+            print("Manual Check: Échec de la vérification des mises à jour.")
+            # RETIRER: QMessageBox.warning(None, "Mise à jour", f"Impossible de vérifier les mises à jour.\nErreur: {e}")
+    
+    # Retourner un tuple: (message, info_dict)
+    return status_message, update_info
+
+print("updater/update_checker.py défini")
