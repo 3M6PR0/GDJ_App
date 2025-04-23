@@ -76,21 +76,19 @@ INSTALLER_OUTPUT = os.path.join("installer", "Output", "GDJ_Installer.exe")  # S
 # ---------- Fonctions ----------
 def compile_gdj():
     """
-    Compile GDJ.exe avec PyInstaller en mode onefile et windowed.
-    Les ressources (styles, icônes) ne sont PAS incluses dans l'EXE.
+    Compile GDJ.exe avec PyInstaller en mode onefile.
+    TEMPORAIREMENT SANS --windowed pour le débogage.
     """
-    print("Compilation de GDJ.exe avec PyInstaller...")
+    print("Compilation de GDJ.exe avec PyInstaller (SANS --windowed pour debug)...")
     try:
-        # Construire la commande SANS --add-data pour les ressources
         cmd = [
             "pyinstaller", 
             "--onefile", 
-            "--windowed", 
+            # --- TEMPORAIREMENT COMMENTÉ POUR DEBUG ---
+            # "--windowed", 
             "--clean", 
             "--name=GDJ", 
             "--icon=resources/images/logo-gdj.ico",
-            # Retirer toute option --add-data concernant "resources" si elle existait
-            # Exemple: # "--add-data=resources;resources", 
             "main.py"
         ]
         print("Commande PyInstaller pour GDJ:", cmd)

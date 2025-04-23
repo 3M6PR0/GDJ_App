@@ -20,6 +20,9 @@ from utils.paths import get_resource_path
 # --- Import des nouvelles pages/fenêtres ---
 from pages.welcome_page import WelcomePage
 from ui.main_window import MainWindow
+# --- AJOUT IMPORTS POUR ABOUT ---
+from pages.about.about_page import AboutPage
+from controllers.about.about_controller import AboutController
 
 # --- Classe pour la boîte de dialogue des notes de version ---
 class ReleaseNotesDialog(QDialog):
@@ -45,24 +48,64 @@ class ReleaseNotesDialog(QDialog):
 
 class MainController:
     def __init__(self):
+        print("--- Entering MainController __init__ ---")
         self.main_window = None
         self.welcome_page = None
         self.documents = {}
+        self.about_page = None
+        self.about_controller_instance = None
+        # --- Flag pour la navigation post-mise à jour ---
+        self.navigate_to_notes_after_welcome = False 
 
-        # --- Utiliser get_resource_path pour les chemins --- 
+        # --- Corrected Logic AGAIN (Focus on Version Comparison) --- 
         self.version_file = get_resource_path("data/version.txt")
         self.release_notes_file = get_resource_path("RELEASE_NOTES.md")
         self.current_version_str = self._read_version_file(self.version_file)
+        
+        last_run_version_file = get_resource_path("data/last_run_version.txt")
+        last_run_version_str = self._read_version_file(last_run_version_file) 
+        print(f"DEBUG __init__: Current Version='{self.current_version_str}', Last Run Version Read='{last_run_version_str}'")
 
-        # --- Vérifications au démarrage ---
-        self.check_show_release_notes_on_update() 
+        do_navigate_on_startup = False
+        try:
+            current_v = version.parse(self.current_version_str)
+            last_run_v = version.parse(last_run_version_str) 
+            # Navigate if current version is strictly greater than the last run version
+            if current_v > last_run_v:
+                do_navigate_on_startup = True
+                print(f"DEBUG __init__: Update detected (current {current_v} > last run {last_run_v}). Setting navigation flag.")
+            else:
+                 print(f"DEBUG __init__: No update detected (current {current_v} <= last run {last_run_v}).")
+        except version.InvalidVersion:
+            # Treat parse error (like first run "0.0.0") as needing navigation
+            print(f"DEBUG __init__: InvalidVersion detected. Setting navigation flag for first run/update.")
+            try:
+                 version.parse(self.current_version_str) # Check current is valid
+                 do_navigate_on_startup = True
+            except version.InvalidVersion:
+                 print("ERROR __init__: Current version is also invalid. Navigation flag set to False.")
+                 do_navigate_on_startup = False
+
+        # Set the flag for later use in show_welcome_page
+        self.navigate_to_notes_after_welcome = do_navigate_on_startup
+
+        # If navigation is needed, update the last_run_version file NOW
+        if do_navigate_on_startup:
+            print("DEBUG __init__: Writing current version to last_run_version.txt because navigation flag is set.")
+            self._write_last_run_version(last_run_version_file, self.current_version_str)
+            
+        # --- Always show WelcomePage initially --- 
+        print("DEBUG __init__: Showing WelcomePage (navigation if needed will happen after show)...")
+        self.show_welcome_page()
+        # ---------------------------------------
+        
+        print("--- Exiting MainController __init__ (before GitHub check) ---")
         check_for_updates()
 
     def show_welcome_page(self):
-        """Crée et affiche la page de bienvenue, en passant les infos nécessaires."""
+        """Crée et affiche la page de bienvenue, et navigue si nécessaire."""
         if self.welcome_page is None:
-            app_name = CONFIG.get('APP_NAME', 'MonApp') # Récupérer nom depuis config
-            # Passer app_name et version au constructeur de WelcomePage
+            app_name = CONFIG.get('APP_NAME', 'MonApp')
             self.welcome_page = WelcomePage(self, app_name, self.current_version_str)
             # --- DÉFINIR L'ICÔNE DE LA FENÊTRE DE BIENVENUE ---
             try:
@@ -73,13 +116,34 @@ class MainController:
                     print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
             except Exception as e:
                 print(f"Erreur lors de la définition de l'icône pour WelcomePage: {e}")
+        
         self.welcome_page.show()
+        print("DEBUG show_welcome_page: WelcomePage shown.")
+
+        # --- Check flag and navigate AFTER showing WelcomePage --- 
+        if self.navigate_to_notes_after_welcome:
+            print("DEBUG show_welcome_page: Flag is True, attempting navigation to 'A Propos' section...")
+            try:
+                # Assume welcome_page has this method
+                self.welcome_page.navigate_to_section("A Propos") 
+                print("DEBUG show_welcome_page: Called welcome_page.navigate_to_section('A Propos').")
+                # The WelcomePage logic should handle activating the correct sub-tab 
+                # and resetting the flag self.navigate_to_notes_after_welcome to False.
+            except AttributeError:
+                print("ERROR show_welcome_page: WelcomePage does not have method 'navigate_to_section'.")
+            except Exception as e:
+                 print(f"ERROR show_welcome_page: Exception during navigation call: {e}")
+        else:
+             print("DEBUG show_welcome_page: Flag is False, no automatic navigation needed.")
 
     def _ensure_main_window_exists(self):
         """Crée la MainWindow si elle n'existe pas et établit les connexions."""
+        print(">>> Entering _ensure_main_window_exists method...")
+        print(f"--- Checking if self.main_window is None (Current value: {self.main_window is None})...")
         if self.main_window is None:
+            print("--- Condition self.main_window is None PASSED. Creating MainWindow...") # Log
             self.main_window = MainWindow()
-            # --- DÉFINIR L'ICÔNE DE LA FENÊTRE PRINCIPALE ---
+            # --- Définir l'icône de la fenêtre principale ---
             try:
                 icon_path = get_resource_path("resources/images/logo-gdj.ico")
                 if os.path.exists(icon_path):
@@ -98,16 +162,16 @@ class MainController:
             except AttributeError:
                 print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
             
-            # Vérifications qui dépendent de la fenêtre principale
-            self.check_show_release_notes_on_update()
-            
         # Fermer la fenêtre de bienvenue si elle est ouverte
         if self.welcome_page and self.welcome_page.isVisible():
+            print("--- Closing WelcomePage as MainWindow is ensured ---") # ADDED LOG
             self.welcome_page.close()
         
         # Afficher la fenêtre principale si elle était cachée
         if not self.main_window.isVisible():
+            print("--- Showing MainWindow as it was not visible ---") # ADDED LOG
             self.main_window.show()
+        print("<<< Exiting _ensure_main_window_exists method...") # ADDED EXIT LOG
 
     def _read_version_file(self, file_path):
         """ Lit un fichier de version (reçoit le chemin complet). """
@@ -134,38 +198,16 @@ class MainController:
         except Exception as e:
             print(f"Erreur écriture {file_path}: {e}")
 
-    def check_show_release_notes_on_update(self):
-        """ Vérifie s'il faut afficher les notes APRES une mise à jour. """
-        if self.main_window is None:
-             print("Différé: Vérification des notes de version...")
-             return
-        print("Vérification pour affichage des notes de version post-mise à jour...")
-        last_run_version_file = get_resource_path("data/last_run_version.txt")
-        last_run_version_str = self._read_version_file(last_run_version_file)
-
-        print(f"  Version actuelle: {self.current_version_str}")
-        print(f"  Dernière version exécutée: {last_run_version_str}")
-
-        try:
-            current_v = version.parse(self.current_version_str)
-            last_run_v = version.parse(last_run_version_str)
-
-            if current_v > last_run_v:
-                print("Nouvelle version détectée, affichage des notes...")
-                self.show_release_notes_dialog(auto_update_context=True)
-                self._write_last_run_version(last_run_version_file, self.current_version_str)
-            else:
-                print("Pas une nouvelle version, pas d'affichage des notes post-màj.")
-        except version.InvalidVersion:
-            print("Erreur: Version invalide détectée lors vérif post-màj.")
-            if last_run_version_str == "0.0.0":
-                 self._write_last_run_version(last_run_version_file, self.current_version_str)
-
     def show_release_notes_dialog(self, auto_update_context=False):
-        """ Affiche la boîte de dialogue avec les notes de version. """
-        self._ensure_main_window_exists()
+        """ Affiche la boîte de dialogue modale avec les notes de version (pour action manuelle). """
+        # Ne pas appeler ensure_main_window si c'est le contexte auto (géré par check_...)
         if not auto_update_context:
+             self._ensure_main_window_exists()
              print("Affichage manuel des notes de version...")
+        else:
+             # Normalement, on ne devrait plus arriver ici dans le contexte auto
+             print("Avertissement: show_release_notes_dialog appelée en contexte auto ?")
+             return 
 
         notes_content = "Notes de version non trouvées."
         try:
@@ -181,7 +223,6 @@ class MainController:
             print(f"Erreur lecture {self.release_notes_file}: {e}")
             notes_content = f"# Notes de version - v{self.current_version_str}\n\nErreur lors de la lecture des notes de version: {e}"
 
-        # Afficher la boîte de dialogue
         dialog = ReleaseNotesDialog(self.current_version_str, notes_content, parent=self.main_window)
         dialog.exec_()
 
@@ -280,3 +321,27 @@ class MainController:
             self.main_window.tab_widget.removeTab(idx)
             if title_to_remove in self.documents:
                 del self.documents[title_to_remove]
+
+    def navigate_to_about_page(self):
+        """S'assure que la page 'À Propos' existe et la montre."""
+        self._ensure_main_window_exists() # Assure que la MainWindow est prête
+        
+        if self.about_page is None:
+            print("Création de la page À Propos et de son contrôleur...")
+            self.about_page = AboutPage()
+            # Créer et garder la référence au contrôleur
+            self.about_controller_instance = AboutController(self.about_page) 
+            
+            # Ajouter l'onglet s'il n'existe pas déjà (double sécurité)
+            if self.main_window.tab_widget.indexOf(self.about_page) == -1:
+                 self.main_window.tab_widget.addTab(self.about_page, "À Propos")
+            else:
+                 print("Avertissement: La page À Propos existait déjà dans les onglets ?")
+        
+        # Sélectionner l'onglet 'À Propos'
+        idx = self.main_window.tab_widget.indexOf(self.about_page)
+        if idx != -1:
+            self.main_window.tab_widget.setCurrentIndex(idx)
+            print("Navigation vers l'onglet À Propos effectuée.")
+        else:
+            print("Erreur: Impossible de trouver l'index de la page À Propos après création/vérification.")

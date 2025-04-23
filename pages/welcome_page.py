@@ -180,6 +180,15 @@ class WelcomePage(QWidget):
         # Connecter le groupe de boutons APRES que tous les boutons (y compris pref_button) existent
         self.sidebar_button_group.buttonClicked.connect(self._change_page)
 
+        # --- Sélectionner la page par défaut (Documents) --- 
+        # Trouver le bouton "Documents" et le checker au démarrage
+        for btn in self.sidebar_button_group.buttons():
+            if btn.text() == "Documents":
+                btn.setChecked(True)
+                # Peut-être appeler _change_page ici aussi pour initialiser correctement ?
+                # self._change_page(btn) # Assure que la page est affichée
+                break
+        
         main_layout.addWidget(sidebar)
 
         # --- Zone de Contenu Principal (QStackedWidget) --- 
@@ -197,41 +206,79 @@ class WelcomePage(QWidget):
 
         self.setMinimumSize(1000, 700)
 
-    # --- _change_page (CORRIGÉ pour accepter le bouton) ---
-    def _change_page(self, button): # Accepter l'objet bouton
-        """Change la page affichée dans le QStackedWidget central."""
-        button_text = button.text() # Récupérer le texte du bouton
-        target_widget = None # Initialiser à None
+    # --- NOUVELLE MÉTHODE --- 
+    def navigate_to_section(self, section_name):
+        """Trouve le bouton correspondant au nom et le coche pour changer de section."""
+        print(f"Attempting programmatic navigation to section: {section_name}")
+        button_found = False
+        for btn in self.sidebar_button_group.buttons():
+            if btn.text() == section_name:
+                if not btn.isChecked(): # Éviter de re-checker si déjà sélectionné
+                    print(f"  Button '{section_name}' found. Setting checked to True...")
+                    btn.setChecked(True) # Ceci devrait déclencher _change_page via le signal
+                else:
+                    print(f"  Button '{section_name}' already checked. Triggering _change_page manually...")
+                    # Si déjà coché, le signal ne sera pas émis, il faut appeler le slot manuellement.
+                    self._change_page(btn)
+                button_found = True
+                break
+        if not button_found:
+            print(f"ERROR: Button for section '{section_name}' not found in sidebar group.")
+    # --- FIN NOUVELLE MÉTHODE ---
+
+    # --- _change_page MODIFIÉ --- 
+    def _change_page(self, button): 
+        """Change la page affichée et gère la navigation vers les notes de version."""
+        button_text = button.text() 
+        target_widget = None 
+        call_default_page = True # Variable pour savoir s'il faut appeler show_default_page
+        
         if button_text == "Documents":
             target_widget = self.documents_page_instance
-            # CORRECTION: Utiliser l'instance directe du contrôleur
-            if hasattr(self.documents_controller_instance, 'show_default_page'):
-                print("Debug: Calling DocumentsController.show_default_page()")
-                self.documents_controller_instance.show_default_page()
-            else:
-                print("Warning: show_default_page not found on documents_controller_instance")
-
+            controller_instance = self.documents_controller_instance
+            
         elif button_text == "A Propos":
             target_widget = self.about_page_instance
-            # CORRECTION: Utiliser l'instance directe du contrôleur
-            if hasattr(self.about_controller_instance, 'show_default_page'):
-                print("Debug: Calling AboutController.show_default_page()")
-                self.about_controller_instance.show_default_page()
-            else:
-                print("Warning: show_default_page not found on about_controller_instance")
+            controller_instance = self.about_controller_instance
+            
+            # --- LOGIQUE SPÉCIFIQUE POUR NOTES DE VERSION --- 
+            # Vérifier si on doit aller aux notes APRES avoir sélectionné "A Propos"
+            if self.controller and self.controller.navigate_to_notes_after_welcome:
+                print("DEBUG _change_page: 'A Propos' selected AND navigation flag is True.")
+                if hasattr(controller_instance, 'activate_release_notes_tab'):
+                    try:
+                        controller_instance.activate_release_notes_tab()
+                        print("  Called activate_release_notes_tab on AboutController.")
+                        # Important: Remettre le flag à False pour éviter de le refaire
+                        self.controller.navigate_to_notes_after_welcome = False
+                        print("  Navigation flag reset to False.")
+                        call_default_page = False # Ne pas appeler show_default_page si on a activé les notes
+                    except Exception as e:
+                         print(f"  ERROR calling activate_release_notes_tab: {e}")
+                else:
+                    print("  ERROR: AboutController does not have activate_release_notes_tab method.")
+            # --- FIN LOGIQUE NOTES --- 
 
         elif button_text == "Preference":
             target_widget = self.preferences_page_instance
-            # Pas de show_default_page nécessaire pour Préférences pour l'instant
+            controller_instance = self.preferences_controller_instance
+            call_default_page = False # Pas de page par défaut pour Préférences
 
         else:
-            print(f"Debug: Bouton non reconnu: {button_text} (from button: {button})") # Log amélioré
+            print(f"Debug: Bouton non reconnu: {button_text} (from button: {button})")
             return
 
-        # Vérifier si target_widget a été assigné avant de l'utiliser
+        # Appel show_default_page si nécessaire (uniquement si on n'a pas activé les notes)
+        if call_default_page and hasattr(controller_instance, 'show_default_page'):
+            print(f"Debug: Calling {controller_instance.__class__.__name__}.show_default_page()")
+            controller_instance.show_default_page()
+        elif call_default_page:
+             print(f"Warning: show_default_page not found on {controller_instance.__class__.__name__}")
+
+        # Changer la page affichée
         if target_widget:
             self.stacked_widget.setCurrentWidget(target_widget)
-            print(f"Debug: Changement de page vers {button_text} (Widget: {target_widget})")
+            print(f"Debug: Page changed to {button_text} (Widget: {target_widget})")
         else:
             print(f"Error: target_widget is None for button {button_text}")
 

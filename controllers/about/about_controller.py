@@ -122,8 +122,27 @@ class AboutController(QObject):
         if stack_widget is not None:
             stack_widget.setCurrentWidget(self.notes_page)
             print("Affichage des Notes de Version (via AboutController)")
+            # --- Optionnel: Forcer la sélection dans la liste de navigation ---
+            # Si la vue a une référence directe à la liste, on peut chercher l'item
+            if hasattr(self.view, 'navigation_widget'):
+                list_widget = self.view.navigation_widget
+                items = list_widget.findItems("Notes de version", Qt.MatchExactly)
+                if items:
+                    list_widget.setCurrentItem(items[0])
+                    print("Item 'Notes de version' sélectionné dans la liste de navigation.")
+                else:
+                    print("Avertissement: Item 'Notes de version' non trouvé dans la liste de navigation.")
+            # --- Fin optionnel ---
         else:
              print("ERREUR: Tentative d'affichage Notes mais stack non trouvé dans show_release_notes")
+
+    # --- MÉTHODE POUR ACTIVATION PROGRAMMATIQUE --- 
+    @Slot() # Peut aussi être appelé par un signal si besoin
+    def activate_release_notes_tab(self):
+        """Méthode publique pour activer l'onglet/page des notes de version."""
+        print("Activation programmatique de l'onglet Notes de version...")
+        self.show_release_notes() # Réutilise la logique existante
+    # --- FIN MÉTHODE ACTIVATION ---
 
     # Ajouter une méthode pour afficher la page par défaut
     def show_default_page(self):
