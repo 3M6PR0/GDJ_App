@@ -13,6 +13,9 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QMessageBox, QDialog,
                              QVBoxLayout, QTextBrowser, QPushButton, QSizePolicy)
 from config import CONFIG
 from updater.update_checker import check_for_updates
+from utils.stylesheet_loader import load_stylesheet
+import logging
+logger = logging.getLogger(__name__)
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
@@ -444,6 +447,24 @@ class MainController:
                 print("ERROR: WelcomePage instance is None. Cannot navigate.")
         else:
             print("Warning: _navigate_welcome_to_settings_and_update called but no pending update info found.")
+
+    # --- NOUVELLE MÉTHODE POUR APPLIQUER LE THÈME ---
+    def apply_theme(self, theme_name):
+        """Recharge et applique la feuille de style globale avec le thème spécifié."""
+        logger.info(f"Attempting to apply theme: '{theme_name}'")
+        try:
+            # Définir la liste des fichiers QSS globaux (doit être cohérente avec main.py)
+            qss_files = ["resources/styles/global.qss", "resources/styles/frame.qss"]
+            combined_stylesheet = load_stylesheet(qss_files, theme_name=theme_name)
+            app_instance = QApplication.instance()
+            if app_instance:
+                app_instance.setStyleSheet(combined_stylesheet)
+                logger.info(f"Theme '{theme_name}' applied successfully.")
+            else:
+                logger.error("Could not get QApplication instance to apply theme.")
+        except Exception as e:
+            logger.error(f"Error applying theme '{theme_name}': {e}", exc_info=True)
+    # --- FIN NOUVELLE MÉTHODE ---
 
     def _ensure_main_window_exists(self):
         """Crée la MainWindow si elle n'existe pas et établit les connexions."""

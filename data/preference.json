@@ -1,6 +1,6 @@
 {
     "profile": {
-        "nom": "Etienne",
+        "nom": "Etienne2",
         "prenom": "Manseau",
         "telephone": "4383914368",
         "courriel": "etienne.mg@jacmar.ca",
@@ -14,7 +14,7 @@
         "plafond": "Cap 1"
     },
     "application": {
-        "theme": "Dark",
+        "theme": "Clair",
         "auto_update": true,
         "show_note": true
     }

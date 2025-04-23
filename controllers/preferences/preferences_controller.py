@@ -1,9 +1,10 @@
 from PyQt5.QtCore import QObject, pyqtSlot, Qt
-from PyQt5.QtWidgets import QFileDialog, QMessageBox, QLineEdit, QComboBox # Ajouter QMessageBox pour feedback
+from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox, QLineEdit, QComboBox # Ajouter QMessageBox pour feedback
 from PyQt5.QtGui import QPixmap # Import correct pour QPixmap
 import json # Assurer que json est importé
 import functools # Ajouter functools
 import os # Ajouter os pour le chemin
+from utils.stylesheet_loader import load_stylesheet
 
 # Importer le modèle Preference
 from models.preference import Preference
@@ -127,32 +128,52 @@ class PreferencesController(QObject):
         self.view.import_prefs_requested.connect(self.import_preferences)
         self.view.save_prefs_requested.connect(self.save_preferences)
         
+        # --- CONNEXION POUR LE THÈME --- 
+        try:
+             # --- Utiliser la référence directe --- 
+             if hasattr(self.view, 'cb_theme') and isinstance(self.view.cb_theme, QComboBox):
+                  self.view.cb_theme.currentTextChanged.connect(self._on_theme_changed)
+                  print("Theme ComboBox connected to _on_theme_changed (via direct reference).")
+             else:
+                  print("Warning: self.view.cb_theme not found or not a QComboBox.")
+        except Exception as e:
+             print(f"Error connecting themeComboBox signal: {e}")
+        # ------------------------------
+
     def _connect_modification_signals(self):
         """Connecte les signaux de changement et les clics refresh."""
         for pref_path in self.view.get_all_pref_paths():
             input_widget = self.view.get_input_widget(pref_path)
             refresh_button = self.view.get_refresh_button(pref_path)
-
             if input_widget and refresh_button:
-                # --- Connexion du signal de modification --- 
+                # --- SUPPRESSION DU CAS SPÉCIAL POUR cb_theme --- 
+                # if input_widget == self.view.cb_theme:
+                #     slot_revert = functools.partial(self._revert_field_value, input_widget, pref_path)
+                #     refresh_button.clicked.connect(slot_revert)
+                #     continue 
+                # -------------------------------------------------
+                
+                # --- Connexion du signal de modification (TOUS les champs, y compris cb_theme) ---
                 signal = None
+                # Le slot_check appellera _check_field_modification pour TOUS les widgets
                 slot_check = functools.partial(self._check_field_modification, input_widget, pref_path)
                 
                 if isinstance(input_widget, QLineEdit):
                     signal = input_widget.textChanged
                 elif isinstance(input_widget, QComboBox):
-                    signal = input_widget.currentTextChanged 
+                    # Ceci s'appliquera maintenant aussi à cb_theme
+                    signal = input_widget.currentTextChanged
                 elif isinstance(input_widget, SimpleToggle):
                     signal = input_widget.toggled
                 elif isinstance(input_widget, SignaturePreviewWidget):
-                    # Pour SignaturePreviewWidget, il n'y a pas de signal de changement direct.
-                    # La vérification se fera après select_signature_image, import, revert, save.
-                    pass # Ne rien connecter ici pour le signal de modif
+                    # Signature gérée différemment (pas de signal direct)
+                    pass 
                 
                 if signal:
+                    # Connecter le changement de valeur à la vérification de modification
                     signal.connect(slot_check)
                 
-                # --- Connexion du clic du bouton refresh --- 
+                # --- Connexion du clic du bouton refresh (TOUS les champs) ---
                 slot_revert = functools.partial(self._revert_field_value, input_widget, pref_path)
                 refresh_button.clicked.connect(slot_revert)
             else:
@@ -422,39 +443,86 @@ class PreferencesController(QObject):
             self.current_preferences.jacmar.departement = self.view.cb_dept.currentText()
             self.current_preferences.jacmar.titre = self.view.cb_titre.currentText()
             self.current_preferences.jacmar.superviseur = self.view.cb_super.currentText()
-            # --- Sauvegarder la CLÉ (string) sélectionnée pour le plafond --- 
             self.current_preferences.jacmar.plafond = self.view.cb_plafond.currentText()
 
-            # Mettre à jour l'objet Application
-            self.current_preferences.application.theme = self.view.cb_theme.currentText()
+            # --- Mettre à jour l'objet Application (Y COMPRIS LE THÈME MAINTENANT) --- 
+            # Vérifier si le ComboBox existe avant de lire sa valeur
+            if hasattr(self.view, 'cb_theme'):
+                self.current_preferences.application.theme = self.view.cb_theme.currentText() 
+            else:
+                 print("Warning: cb_theme not found during save_preferences.")
             self.current_preferences.application.auto_update = self.view.toggle_auto_update.isChecked()
             self.current_preferences.application.show_note = self.view.toggle_show_notes.isChecked()
+            # ----------------------------------------------------------------------
 
-            # Appeler la méthode save du modèle
-            self.current_preferences.save() # Utilise le chemin par défaut "data/preference.json"
+            # Appeler la méthode save du modèle (sauvegarde TOUT l'objet current)
+            self.current_preferences.save()
             
-            # --- Mettre à jour self.saved_preferences pour refléter le nouvel état sauvegardé --- 
+            # Mettre à jour self.saved_preferences pour refléter le nouvel état sauvegardé
             saved_data = self.current_preferences.to_dict()
             self.saved_preferences.profile.update_from_dict(saved_data["profile"])
             self.saved_preferences.jacmar.update_from_dict(saved_data["jacmar"])
             self.saved_preferences.application.update_from_dict(saved_data["application"])
             
-            # Remettre l'opacité de tous les boutons à 0.0
-            # L'appel existant à _check_all_fields_initial fera cela
-            self._check_all_fields_initial() 
-            QMessageBox.information(self.view, "Sauvegarde", "Préférences sauvegardées.") # Message plus court
+            self._check_all_fields_initial() # Remettre opacité boutons refresh à 0
+            QMessageBox.information(self.view, "Sauvegarde", "Préférences sauvegardées.")
 
         except Exception as e:
             print(f"Erreur lors de la mise à jour ou sauvegarde des préférences: {e}")
             QMessageBox.warning(self.view, "Erreur", f"Impossible de sauvegarder les préférences: {e}")
 
-    # --- Slots optionnels pour réaction immédiate aux toggles ---
-    # @pyqtSlot(bool)
-    # def on_auto_update_toggled(self, checked):
-    #     print(f"Préférences Contrôleur: MàJ auto réglé sur {checked}")
+    # --- SLOT POUR LE CHANGEMENT DE THÈME --- 
+    @pyqtSlot(str)
+    def _on_theme_changed(self, theme_text):
+        """Slot appelé lorsque le ComboBox du thème change.
+           Applique UNIQUEMENT le thème VISUELLEMENT.
+           La mise à jour de la valeur et la sauvegarde se font via save_preferences.
+        """
+        print(f"Theme ComboBox changed to: {theme_text} - Applying visual change only.")
+        # Déterminer la valeur à appliquer visuellement
+        theme_to_apply = 'Sombre' # Défaut
+        if theme_text == "Clair":
+            theme_to_apply = 'Clair'
+        elif theme_text == "Sombre":
+            theme_to_apply = 'Sombre'
+        # else: # Pas besoin de warning ici, on applique juste le défaut
 
-    # @pyqtSlot(bool)
-    # def on_show_notes_toggled(self, checked):
-    #     print(f"Préférences Contrôleur: Affichage notes réglé sur {checked}")
+        # --- SUPPRESSION de la mise à jour de self.current_preferences --- 
+        # try:
+        #     self.current_preferences.application.theme = new_theme_value
+        #     print(f"Current preference theme updated in memory to: {new_theme_value}")
+        # except AttributeError:
+        #      print("ERROR: Could not set current_preferences.application.theme")
+        #      return
+        # ----------------------------------------------------------------
+
+        # --- Laisser la vérification du bouton reset (basée sur widget vs saved) ---
+        # Cette partie est maintenant gérée par _check_field_modification connecté
+        # via _connect_modification_signals, donc on peut la commenter ici aussi
+        # pour éviter double appel.
+        # if hasattr(self.view, 'cb_theme'):
+        #     self._check_field_modification(self.view.cb_theme, "application.theme")
+        # --------------------------------------------------------------------------
+
+        # --- Recharger et appliquer le style globalement (immédiatement) --- 
+        if self.main_controller and hasattr(self.main_controller, 'apply_theme'):
+            print(f"Calling main_controller.apply_theme('{theme_to_apply}')...")
+            self.main_controller.apply_theme(theme_to_apply)
+        else:
+            # ... (fallback application directe)
+            print("Warning: MainController not available or missing 'apply_theme' method. Applying style directly.")
+            try:
+                qss_files = ["resources/styles/global.qss", "resources/styles/frame.qss"]
+                combined_stylesheet = load_stylesheet(qss_files, theme_name=theme_to_apply)
+                app_instance = QApplication.instance()
+                if app_instance:
+                    app_instance.setStyleSheet(combined_stylesheet)
+                    print("Global stylesheet reapplied directly.")
+                else:
+                    print("Error: QApplication.instance() returned None.")
+            except Exception as e_apply:
+                 print(f"Error reapplying stylesheet directly: {e_apply}")
+
+        # --- Pas de sauvegarde ici --- 
 
 print("PreferencesController (dans controllers/preferences/) defined") # Debug 

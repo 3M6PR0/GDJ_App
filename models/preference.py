@@ -60,9 +60,9 @@ class Jacmar:
 class Application:
     """Préférences relatives à l'application elle-même."""
     def __init__(self,
-                 theme: str = "Default", # Exemple de valeur par défaut
+                 theme: str = "Sombre",
                  auto_update: bool = True,
-                 show_note: bool = True): # Nom d'attribut corrigé
+                 show_note: bool = True):
         self.theme = theme
         self.auto_update = auto_update
         self.show_note = show_note
