@@ -16,6 +16,7 @@ from ui.components.frame import Frame
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+from utils import icon_loader
 
 # --- Classe HoverButton (peut être supprimée si non utilisée) --- 
 class HoverButton(QPushButton):
@@ -78,8 +79,9 @@ class ProjectListItemWidget(QWidget):
         self.path_label = QLabel(path_str); self.path_label.setObjectName("ProjectListPath")
         text_layout.addWidget(self.name_label); text_layout.addWidget(self.path_label); text_layout.addStretch()
         layout.addLayout(text_layout); layout.addStretch(1)
-        # --- Utiliser get_resource_path pour l'icône --- 
-        options_icon_path = get_resource_path("resources/icons/dark/round_more_vert.png")
+        # --- Utiliser icon_loader pour l'icône d'options --- 
+        options_icon_path = icon_loader.get_icon_path("round_more_vert.png")
+        # ---------------------------------------------------
         self.options_button = QPushButton("")
         self.options_button.setIcon(QIcon(options_icon_path))
         self.options_button.setIconSize(QSize(16, 16)); self.options_button.setObjectName("ItemOptionsButton")

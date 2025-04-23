@@ -14,6 +14,8 @@ from updater.update_checker import check_for_updates
 from utils.stylesheet_loader import load_stylesheet
 # --- AJOUT IMPORT PREFERENCE --- 
 from models.preference import Preference
+# --- AJOUT IMPORT ICON LOADER --- 
+from utils import icon_loader 
 
 # --- Logging initial et config --- 
 # ... (config logging existante)
@@ -50,24 +52,27 @@ try:
     except Exception as e_prefs:
         # --- Défaut mis à jour --- 
         logging.error(f"Error loading preferences to read initial theme: {e_prefs}. Using default '{initial_theme}'.", exc_info=True)
-    # ----------------------------------------
+    # --- DÉFINIR LE THÈME INITIAL POUR LES ICÔNES --- 
+    icon_loader.set_active_theme(initial_theme)
+    # --------------------------------------------
 
     def main():
         logging.info("Entering main() function.")
         app = QApplication(sys.argv)
         logging.info("QApplication instance created.")
         
-        # --- DÉFINIR L'ICÔNE DE L'APPLICATION GLOBALE ---
+        # --- Définition icône --- 
         try:
-            icon_path = get_resource_path("resources/images/logo-gdj.ico")
-            if os.path.exists(icon_path):
+            # --- Utiliser icon_loader --- 
+            icon_path = icon_loader.get_icon_path("logo-gdj.ico") 
+            if icon_path and os.path.exists(icon_path):
                 app.setWindowIcon(QIcon(icon_path))
-                print(f"Icône de l'application définie sur : {icon_path}")
+                logging.info(f"Application icon set from: {icon_path}")
             else:
-                print(f"Avertissement: Icône de l'application non trouvée à {icon_path}")
-        except Exception as e:
-            print(f"Erreur lors de la définition de l'icône de l'application: {e}")
-        # --------------------------------------------------
+                logging.warning(f"Application icon (logo-gdj.ico) not found at calculated path: {icon_path}")
+        except Exception as e_icon:
+            logging.error(f"Error setting application icon: {e_icon}", exc_info=True)
+        # --------------------------
         
         # --- Chargement QSS (utilise initial_theme, déjà correct) ---
         try:

@@ -450,20 +450,31 @@ class MainController:
 
     # --- NOUVELLE MÉTHODE POUR APPLIQUER LE THÈME ---
     def apply_theme(self, theme_name):
-        """Recharge et applique la feuille de style globale avec le thème spécifié."""
+        """Recharge et applique la feuille de style globale et met à jour le thème des icônes."""
         logger.info(f"Attempting to apply theme: '{theme_name}'")
+        # --- D'abord appliquer le style QSS --- 
+        style_applied = False
         try:
-            # Définir la liste des fichiers QSS globaux (doit être cohérente avec main.py)
             qss_files = ["resources/styles/global.qss", "resources/styles/frame.qss"]
             combined_stylesheet = load_stylesheet(qss_files, theme_name=theme_name)
             app_instance = QApplication.instance()
             if app_instance:
                 app_instance.setStyleSheet(combined_stylesheet)
-                logger.info(f"Theme '{theme_name}' applied successfully.")
+                logger.info(f"Theme '{theme_name}' style applied successfully.")
+                style_applied = True # Marquer le succès
             else:
-                logger.error("Could not get QApplication instance to apply theme.")
+                logger.error("Could not get QApplication instance to apply theme style.")
         except Exception as e:
-            logger.error(f"Error applying theme '{theme_name}': {e}", exc_info=True)
+            logger.error(f"Error applying theme style '{theme_name}': {e}", exc_info=True)
+            
+        # --- Ensuite, mettre à jour le thème des icônes (même si le style a échoué?) ---
+        # Ou seulement si style_applied est True ? Décision: Mettre à jour quand même
+        # car le thème logique a changé.
+        try:
+            icon_loader.set_active_theme(theme_name)
+        except Exception as e_icon:
+             logger.error(f"Error setting icon theme for '{theme_name}': {e_icon}", exc_info=True)
+
     # --- FIN NOUVELLE MÉTHODE ---
 
     def _ensure_main_window_exists(self):

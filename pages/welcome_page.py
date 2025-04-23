@@ -8,6 +8,7 @@ from PyQt5.QtGui import QIcon, QPixmap, QFont
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+from utils import icon_loader
 
 # Importer la barre de titre personnalisée
 from ui.components.custom_titlebar import CustomTitleBar
@@ -68,8 +69,9 @@ class WelcomePage(QWidget):
         outer_layout.setContentsMargins(0,0,0,0)
         outer_layout.setSpacing(0)
 
-        # --- Utiliser get_resource_path pour l'icône de la barre de titre --- 
-        self.title_bar = CustomTitleBar(self, title=f"Bienvenue dans {self.app_name}", icon_path=get_resource_path("resources/images/logo-gdj.png")) 
+        # --- Utiliser icon_loader pour l'icône de la barre de titre --- 
+        self.title_bar = CustomTitleBar(self, title=f"Bienvenue dans {self.app_name}", 
+                                        icon_base_name="logo-gdj.png")
         outer_layout.addWidget(self.title_bar)
 
         separator_line = QFrame(self)
@@ -98,8 +100,9 @@ class WelcomePage(QWidget):
         logo_section_layout.setSpacing(8)
         logo_label = QLabel()
         logo_label.setObjectName("SidebarLogoLabel")
-        # --- Utiliser get_resource_path pour le logo --- 
+        # --- Revenir à get_resource_path pour le logo --- 
         logo_pixmap = QPixmap(get_resource_path("resources/images/logo-gdj.png"))
+        # ------------------------------------------------
         if not logo_pixmap.isNull():
             logo_label.setPixmap(logo_pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
@@ -126,23 +129,47 @@ class WelcomePage(QWidget):
         button_layout = QVBoxLayout()
         button_layout.setSpacing(1)
         button_layout.setContentsMargins(5, 0, 5, 0)
-        button_info = {"Documents": True, "Preference": False, "A Propos": False}
-        for name, checked in button_info.items():
+        # --- Associer nom de bouton à nom d'icône --- 
+        button_info = {
+            "Documents": "round_description.png", 
+            "Preference": "round_tune.png", 
+            "A Propos": "round_info.png"
+        }
+        # Stocker les boutons pour référence
+        self.nav_buttons = {}
+        # --- Boucle modifiée pour ajouter les icônes --- 
+        for name, icon_name in button_info.items():
             btn_container = QFrame()
             btn_container.setObjectName("SidebarButtonContainer")
-            btn_container.setProperty("checked", checked)
+            btn_container.setProperty("checked", name == "Documents") # Check "Documents" par défaut
             btn_hbox = QHBoxLayout(btn_container)
             btn_hbox.setContentsMargins(8, 6, 8, 6)
-            btn_hbox.setSpacing(5)
-            btn = QPushButton(name)
+            btn_hbox.setSpacing(8) # Augmenter l'espacement pour l'icône
+            
+            # Créer le bouton
+            btn = QPushButton(name) 
             btn.setObjectName("SidebarButton")
             btn.setCheckable(True)
-            btn.setChecked(checked)
+            btn.setChecked(name == "Documents")
+            
+            # Ajouter l'icône via icon_loader
+            icon_path = icon_loader.get_icon_path(icon_name)
+            icon = QIcon(icon_path)
+            if not icon.isNull():
+                btn.setIcon(icon)
+                btn.setIconSize(QSize(16, 16))
+            else:
+                print(f"WARN: Icône {icon_name} non trouvée: {icon_path}")
+            
             btn_hbox.addWidget(btn, 1)
             self.sidebar_button_group.addButton(btn)
-            placeholder = QSpacerItem(16, 16, QSizePolicy.Fixed, QSizePolicy.Fixed)
-            btn_hbox.addSpacerItem(placeholder)
+            # Retirer le spacer pour que le texte soit centré avec l'icône
+            # placeholder = QSpacerItem(16, 16, QSizePolicy.Fixed, QSizePolicy.Fixed)
+            # btn_hbox.addSpacerItem(placeholder)
             button_layout.addWidget(btn_container)
+            self.nav_buttons[name] = btn # Stocker référence
+            
+            # Connexion pour style au survol/check (inchangé)
             btn.toggled.connect(
                 lambda state, c=btn_container: (
                     c.setProperty("checked", state), 
@@ -150,6 +177,7 @@ class WelcomePage(QWidget):
                     c.style().polish(c)   
                 )
             )
+        # -------------------------------------------------
         sidebar_layout.addLayout(button_layout)
         sidebar_layout.addStretch()
 
@@ -157,8 +185,8 @@ class WelcomePage(QWidget):
         settings_layout = QHBoxLayout()
         settings_layout.setContentsMargins(12, 0, 12, 5)
         btn_settings = QPushButton()
-        # --- Utiliser get_resource_path pour l'icône settings --- 
-        settings_icon_path = get_resource_path("resources/icons/clear/round_settings.png")
+        # --- Utiliser icon_loader pour l'icône settings --- 
+        settings_icon_path = icon_loader.get_icon_path("round_settings.png")
         settings_icon = QIcon(settings_icon_path)
         if not settings_icon.isNull():
             btn_settings.setIcon(settings_icon)

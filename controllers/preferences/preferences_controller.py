@@ -5,6 +5,7 @@ import json # Assurer que json est importé
 import functools # Ajouter functools
 import os # Ajouter os pour le chemin
 from utils.stylesheet_loader import load_stylesheet
+from utils import icon_loader # Ajouter import
 
 # Importer le modèle Preference
 from models.preference import Preference
@@ -509,8 +510,9 @@ class PreferencesController(QObject):
             print(f"Calling main_controller.apply_theme('{theme_to_apply}')...")
             self.main_controller.apply_theme(theme_to_apply)
         else:
-            # ... (fallback application directe)
-            print("Warning: MainController not available or missing 'apply_theme' method. Applying style directly.")
+            # Fallback: appliquer QSS et mettre à jour icônes manuellement ici
+            print("Warning: MainController not available or missing 'apply_theme' method. Applying style and setting icon theme directly.")
+            style_applied_directly = False
             try:
                 qss_files = ["resources/styles/global.qss", "resources/styles/frame.qss"]
                 combined_stylesheet = load_stylesheet(qss_files, theme_name=theme_to_apply)
@@ -518,10 +520,18 @@ class PreferencesController(QObject):
                 if app_instance:
                     app_instance.setStyleSheet(combined_stylesheet)
                     print("Global stylesheet reapplied directly.")
+                    style_applied_directly = True
                 else:
                     print("Error: QApplication.instance() returned None.")
             except Exception as e_apply:
                  print(f"Error reapplying stylesheet directly: {e_apply}")
+            
+            # --- Mettre à jour le thème icône ici aussi dans le fallback ---
+            try:
+                 icon_loader.set_active_theme(theme_to_apply)
+            except Exception as e_icon_fallback:
+                 print(f"Error setting icon theme in fallback: {e_icon_fallback}")
+            # --------------------------------------------------------------
 
         # --- Pas de sauvegarde ici --- 
 

@@ -32,11 +32,10 @@ class SettingsPage(QWidget):
         content_layout.setAlignment(Qt.AlignTop)
 
         # --- Section Mise à jour ---
-        self.update_frame = Frame(title="Mise à jour", icon_path="resources/icons/clear/round_update.png") 
-        # --- Récupérer le layout de contenu EXISTANT du Frame ---
+        self.update_frame = Frame(title="Mise à jour", icon_base_name="round_update.png")
         frame_content_layout = self.update_frame.get_content_layout()
-        frame_content_layout.setContentsMargins(15, 10, 15, 15) 
-        frame_content_layout.setSpacing(20) 
+        frame_content_layout.setContentsMargins(15, 10, 15, 15)
+        frame_content_layout.setSpacing(20)
 
         # --- Créer le layout horizontal principal (SANS parent ici) ---
         update_main_hbox = QHBoxLayout()

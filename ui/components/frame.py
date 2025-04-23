@@ -4,11 +4,12 @@ from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QWidget
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt # Ajout pour Qt.KeepAspectRatio etc.
 
-# --- Import de la fonction utilitaire --- 
-from utils.paths import get_resource_path
+# --- Import MODIFIÉ : utiliser icon_loader --- 
+# from utils.paths import get_resource_path
+from utils import icon_loader
 
 class Frame(QFrame):
-    def __init__(self, title=None, icon_path=None, header_widget: QWidget = None, parent=None):
+    def __init__(self, title=None, icon_base_name=None, header_widget: QWidget = None, parent=None):
         super().__init__(parent)
         self.setObjectName("CustomFrame") 
         self.setFrameShape(QFrame.StyledPanel)
@@ -23,7 +24,7 @@ class Frame(QFrame):
 
         # --- En-tête (si nécessaire) --- 
         # Utiliser une variable pour vérifier si un en-tête est nécessaire
-        has_header_content = title or icon_path or header_widget
+        has_header_content = title or icon_base_name or header_widget
         
         if has_header_content:
             title_hbox = QHBoxLayout()
@@ -35,9 +36,10 @@ class Frame(QFrame):
                 # Ajouter le widget personnalisé
                 title_hbox.addWidget(header_widget, 1) 
             else:
-                # --- En-tête par défaut : Utiliser get_resource_path --- 
-                if icon_path:
-                    absolute_icon_path = get_resource_path(icon_path)
+                # --- Utiliser icon_loader pour obtenir le chemin --- 
+                if icon_base_name:
+                    # Obtenir le chemin via l'icon_loader
+                    absolute_icon_path = icon_loader.get_icon_path(icon_base_name) 
                     if os.path.exists(absolute_icon_path):
                         icon_label = QLabel()
                         pixmap = QPixmap(absolute_icon_path)
@@ -45,7 +47,7 @@ class Frame(QFrame):
                         icon_label.setFixedSize(20, 20)
                         title_hbox.addWidget(icon_label)
                     else: 
-                        print(f"Avertissement: Icône de Frame non trouvée à {absolute_icon_path}")
+                        print(f"Avertissement: Icône de Frame '{icon_base_name}' non trouvée à {absolute_icon_path}")
 
                 if title:
                     self.title_label = QLabel(title)
@@ -74,4 +76,4 @@ class Frame(QFrame):
         """Retourne le QVBoxLayout destiné au contenu SOUS l'en-tête."""
         return self.content_layout
 
-print("ui/components/frame.py défini") # Debug 
+print("ui/components/frame.py défini avec intégration icon_loader") # Debug 

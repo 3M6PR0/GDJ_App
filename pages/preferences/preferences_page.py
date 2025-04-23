@@ -11,6 +11,7 @@ import functools # Importer functools
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+from utils import icon_loader # <-- AJOUT DE L'IMPORT
 
 # Constantes de couleur/police supprimées
 
@@ -163,7 +164,7 @@ class PreferencesPage(QWidget):
             Frame.get_content_layout = lambda s: QVBoxLayout(s)
         
         # --- Section "Mon profile" ---
-        profile_box = Frame(title="Mon profile", icon_path=get_resource_path("resources/icons/clear/round_account_box.png"))
+        profile_box = Frame(title="Mon profile", icon_base_name="round_account_box.png")
         box_content_layout_prof = profile_box.get_content_layout()
         profile_form_layout = QFormLayout()
         profile_form_layout.setContentsMargins(15, 10, 15, 15)
@@ -204,7 +205,7 @@ class PreferencesPage(QWidget):
         prefs_main_layout.addWidget(profile_box, 0, 0)
 
         # --- Section "Jacmar" ---
-        jacmar_box = Frame(title="Jacmar", icon_path=get_resource_path("resources/icons/clear/round_corporate_fare.png"))
+        jacmar_box = Frame(title="Jacmar", icon_base_name="round_corporate_fare.png")
         box_content_layout_jac = jacmar_box.get_content_layout()
         jacmar_form_layout = QFormLayout()
         jacmar_form_layout.setContentsMargins(15, 10, 15, 15)
@@ -232,7 +233,7 @@ class PreferencesPage(QWidget):
         prefs_main_layout.addWidget(jacmar_box, 0, 1)
 
         # --- Section "Application" ---
-        app_box = Frame(title="Application", icon_path=get_resource_path("resources/icons/clear/round_category.png"))
+        app_box = Frame(title="Application", icon_base_name="round_category.png")
         box_content_layout_app = app_box.get_content_layout()
         app_form_layout = QFormLayout()
         app_form_layout.setContentsMargins(15, 10, 15, 15)
@@ -250,22 +251,22 @@ class PreferencesPage(QWidget):
         prefs_main_layout.addWidget(app_box, 1, 0)
 
         # --- Section "Gestion des preferences" ---
-        mgmt_box = Frame(title="Gestion des preferences", icon_path=get_resource_path("resources/icons/clear/round_smart_button.png"))
+        mgmt_box = Frame(title="Gestion des preferences", icon_base_name="round_smart_button.png")
         box_content_layout_mgmt = mgmt_box.get_content_layout()
         prefs_form_layout = QFormLayout()
         prefs_form_layout.setContentsMargins(15, 10, 15, 15)
         prefs_form_layout.setSpacing(10)
         prefs_form_layout.setVerticalSpacing(12)
         
-        self.btn_export = self._create_icon_button("resources/icons/clear/round_file_download.png", "Exporter les préférences")
+        self.btn_export = self._create_icon_button("round_file_download.png", "Exporter les préférences")
         self.btn_export.clicked.connect(self.export_prefs_requested.emit)
         prefs_form_layout.addRow(self._create_form_label("Exporter:"), self.btn_export)
         
-        self.btn_import = self._create_icon_button("resources/icons/clear/round_file_upload.png", "Importer les préférences")
+        self.btn_import = self._create_icon_button("round_file_upload.png", "Importer les préférences")
         self.btn_import.clicked.connect(self.import_prefs_requested.emit)
         prefs_form_layout.addRow(self._create_form_label("Importer:"), self.btn_import)
         
-        self.btn_save = self._create_icon_button("resources/icons/clear/round_save.png", "Sauvegarder les préférences")
+        self.btn_save = self._create_icon_button("round_save.png", "Sauvegarder les préférences")
         self.btn_save.clicked.connect(self.save_prefs_requested.emit)
         prefs_form_layout.addRow(self._create_form_label("Sauvegarder:"), self.btn_save)
         
@@ -312,10 +313,11 @@ class PreferencesPage(QWidget):
         input_widget.setSizePolicy(size_policy)
         layout.addWidget(input_widget, 1)
 
-        # Créer et configurer le bouton refresh en utilisant get_resource_path
-        refresh_icon_path = get_resource_path("resources/icons/clear/round_refresh.png")
-        refresh_button = self._create_icon_button(refresh_icon_path, 
+        # --- Utiliser icon_loader pour le bouton refresh ---
+        # Passer seulement le nom de base à _create_icon_button
+        refresh_button = self._create_icon_button("round_refresh.png", 
                                                   f"Réinitialiser {pref_path.split('.')[-1]}...")
+        # --------------------------------------------------
         refresh_button.setObjectName(f"refresh_{pref_path.replace('.', '_')}")
         refresh_button.setFixedSize(20, 20)
         refresh_button.setIconSize(QSize(16, 16))
@@ -333,17 +335,18 @@ class PreferencesPage(QWidget):
 
         return container
 
-    def _create_icon_button(self, relative_icon_path, tooltip):
-        """Crée un bouton avec une icône chargée via get_resource_path."""
+    def _create_icon_button(self, icon_base_name, tooltip):
+        """Crée un bouton avec une icône chargée via icon_loader.""" # Doc mise à jour
         btn = QPushButton("")
         btn.setObjectName("FormButton")
-        # --- Utiliser get_resource_path ici --- 
-        absolute_icon_path = get_resource_path(relative_icon_path)
+        # --- Utiliser icon_loader ici --- 
+        absolute_icon_path = icon_loader.get_icon_path(icon_base_name) 
         btn.setIcon(QIcon(absolute_icon_path))
-        btn.setIconSize(QSize(20, 20))
-        btn.setFixedSize(30, 30)
+        btn.setIconSize(QSize(20, 20)) # Garder cette taille ?
+        btn.setFixedSize(30, 30)      # Garder cette taille ?
         btn.setToolTip(tooltip)
         return btn
+    # -----------------------------------------------------------
 
     def update_signature_preview(self, pixmap=None, error_text=None):
         # Met à jour le pixmap dans notre widget personnalisé
