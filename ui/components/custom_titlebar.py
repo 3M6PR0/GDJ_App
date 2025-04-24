@@ -8,6 +8,8 @@ from PyQt5.QtGui import QIcon, QPixmap
 from utils import icon_loader
 # --- AJOUT IMPORTS ---
 from utils.signals import signals
+# --- AJOUT IMPORT SPÉCIFIQUE --- 
+from utils.paths import get_resource_path 
 import logging
 logger = logging.getLogger(__name__)
 # -------------------
@@ -39,6 +41,9 @@ class CustomTitleBar(QWidget):
         self._maximize_icon_base = "round_crop_square.png"
         self._restore_icon_base = "round_filter_none.png" 
         self._close_icon_base = "round_close.png"
+        # --- AJOUT : Stocker aussi l'icône de la fenêtre --- 
+        self._window_icon_base = icon_base_name 
+        # -------------------------------------------------
         # --- AJOUT : État maximisé --- 
         self.is_maximized = False 
         # ------------------------------
@@ -48,19 +53,36 @@ class CustomTitleBar(QWidget):
         layout.setContentsMargins(5, 0, 0, 0) # Marge gauche pour aérer, 0 ailleurs
         layout.setSpacing(0)
 
-        # Icône (Optionnel)
-        if icon_base_name:
-             absolute_icon_path = icon_loader.get_icon_path(icon_base_name)
-             if os.path.exists(absolute_icon_path):
-                 icon_label = QLabel(self)
+        # Icône (Optionnel) - Chargement SANS thème
+        self.icon_label = QLabel(self) # Initialiser ici
+        # --- Utiliser self._window_icon_base --- 
+        if self._window_icon_base:
+             try:
+                 # Construire chemin base directement DANS images
+                 relative_logo_path = f"resources/images/{self._window_icon_base}" # Utiliser /images/
+                 absolute_icon_path = get_resource_path(relative_logo_path)
+             except Exception as e_path:
+                 logger.error(f"Erreur chemin logo '{self._window_icon_base}': {e_path}") # Utiliser l'attribut
+                 absolute_icon_path = None
+             
+             if absolute_icon_path and os.path.exists(absolute_icon_path):
                  pixmap = QPixmap(absolute_icon_path)
-                 icon_label.setPixmap(pixmap.scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                 icon_label.setFixedSize(32, self.height()) # Ajuster largeur (26 + padding)
-                 icon_label.setStyleSheet("background-color: transparent; padding-left: 5px;")
-                 layout.addWidget(icon_label)
-                 layout.addSpacing(5) # Petit espace après l'icône
+                 # Mettre à jour self.icon_label existant
+                 self.icon_label.setPixmap(pixmap.scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                 self.icon_label.setFixedSize(32, self.height()) 
+                 self.icon_label.setStyleSheet("background-color: transparent; padding-left: 5px;")
+                 # --- Remettre l'ajout du widget ICI --- 
+                 layout.addWidget(self.icon_label)
+                 layout.addSpacing(5)
+                 # -------------------------------------
              else:
-                 print(f"WARN: Icône de fenêtre '{icon_base_name}' non trouvée: {absolute_icon_path}")
+                 logger.warning(f"Icône de fenêtre (base) '{self._window_icon_base}' non trouvée.") # Utiliser l'attribut
+                 # Optionnel: Mettre un placeholder texte sur self.icon_label ?
+                 # self.icon_label.setText("[X]")
+        # --- Retirer l'ajout inconditionnel d'ici --- 
+        # layout.addWidget(self.icon_label) 
+        # layout.addSpacing(5)
+        # -------------------------------------------
 
         # Titre
         self.title_label = QLabel(title, self)

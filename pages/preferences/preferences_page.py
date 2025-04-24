@@ -292,8 +292,12 @@ class PreferencesPage(QWidget):
         box_content_layout_mgmt.addStretch(1)
         prefs_main_layout.addWidget(mgmt_box, 1, 1)
 
-        prefs_main_layout.setRowStretch(2, 1)
-        prefs_main_layout.setColumnStretch(2, 1)
+        # --- CORRECTION : Appliquer le stretch aux bonnes lignes/colonnes --- 
+        prefs_main_layout.setRowStretch(0, 1) # Ligne 0
+        prefs_main_layout.setRowStretch(1, 1) # Ligne 1
+        prefs_main_layout.setColumnStretch(0, 1) # Colonne 0
+        prefs_main_layout.setColumnStretch(1, 1) # Colonne 1
+        # -------------------------------------------------------------------
         
         # Appel à apply_styles supprimé
 
