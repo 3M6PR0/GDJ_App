@@ -95,6 +95,37 @@ class ProjectListItemWidget(QWidget):
     def leaveEvent(self, event): self.options_button.setVisible(False); super().leaveEvent(event)
     def _create_context_menu(self):
         menu = QMenu(self)
+        menu.setObjectName("RecentItemContextMenu")
+        # --- AJOUT: Appliquer le style des ITEMS directement --- 
+        # Utiliser des couleurs fixes pour tester (à adapter aux thèmes si besoin)
+        item_styles = """
+            QMenu#RecentItemContextMenu::item {
+                background-color: transparent; 
+                color: #bbbbbb; /* Texte clair par défaut */
+                padding: 4px 20px 4px 10px; 
+                border-radius: 4px; /* Coins arrondis pour l'item (utilise RADIUS_DEFAULT?) */
+                margin: 1px; 
+            }
+            QMenu#RecentItemContextMenu::item:selected { 
+                background-color: #0054b8; /* Couleur accent */
+                color: #ffffff; /* Texte sur accent */
+            }
+            QMenu#RecentItemContextMenu::item:pressed { 
+                background-color: #003d82; /* Couleur accent pressé */
+                color: #ffffff; 
+            }
+            QMenu#RecentItemContextMenu::separator {
+                height: 1px;
+                background-color: #5a5d5e; /* Gris clair (à ajuster) */
+                margin: 4px 0px; 
+            }
+            QMenu#RecentItemContextMenu::item:disabled {
+                color: #808080; /* Texte désactivé */
+                background-color: transparent;
+            }
+        """
+        menu.setStyleSheet(item_styles)
+        # ---------------------------------------------------
         actions = {"Ouvrir le document": self._handle_open, 
                    "Ouvrir dans le navigateur": self._handle_browse,
                    "Copier le chemin": self._handle_copy,
