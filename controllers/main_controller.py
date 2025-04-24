@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFileDialog
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSlot
 # --- AJOUT DE L'IMPORT QIcon ---
 from PyQt5.QtGui import QIcon
 from pages.document_page import DocumentPage
@@ -27,6 +27,8 @@ from ui.main_window import MainWindow
 # --- AJOUT IMPORTS POUR ABOUT ---
 from pages.about.about_page import AboutPage
 from controllers.about.about_controller import AboutController
+# --- AJOUT IMPORT DocumentWindow ---
+from windows.document_window import DocumentWindow
 
 # --- Classe pour la boîte de dialogue des notes de version ---
 class ReleaseNotesDialog(QDialog):
@@ -547,3 +549,27 @@ class MainController:
 
         print(f"--- Final check before exiting _ensure_main_window_exists. self.main_window is None: {self.main_window is None} ---")
         print("<<< Exiting _ensure_main_window_exists method...")
+
+    # --- NOUVELLE MÉTHODE pour afficher la DocumentWindow --- 
+    def show_new_document_window(self):
+        """Crée et affiche une nouvelle instance de DocumentWindow, maximisée."""
+        print("MainController: Création et affichage de DocumentWindow...")
+        
+        # --- Fermer la fenêtre de bienvenue si elle est ouverte --- 
+        if self.welcome_window and self.welcome_window.isVisible():
+            print("MainController: Fermeture de WelcomeWindow avant d'ouvrir DocumentWindow.")
+            self.welcome_window.close()
+        # --------------------------------------------------------
+        
+        try:
+            # Créer une nouvelle instance (pourrait être stockée si nécessaire)
+            self.new_doc_window = DocumentWindow()
+            # Afficher la fenêtre maximisée
+            self.new_doc_window.showMaximized()
+            # Optionnel: la rendre active
+            self.new_doc_window.activateWindow()
+            self.new_doc_window.raise_()
+            print("MainController: DocumentWindow affichée.")
+        except Exception as e:
+            print(f"ERREUR lors de la création/affichage de DocumentWindow: {e}")
+    # --------------------------------------------------------

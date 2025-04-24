@@ -196,12 +196,17 @@ class DocumentsController(QObject):
         
     @pyqtSlot(str)
     def _handle_create_request(self, selected_type):
-        print(f"DocumentsController: Create requested for type: {selected_type}")
-        # Relayer au contrôleur principal pour la création effective
-        # self.main_controller.create_document_of_type(selected_type)
-        print(f"TODO: Call main controller to create document of type {selected_type}")
-        self.show_recent_list_page() # Revenir à la liste après
-        
+        # L'argument selected_type est maintenant ignoré
+        print(f"DocumentsController: Create request received (type '{selected_type}' ignored).")
+        print("Calling main_controller to show the new document window.")
+        # Appeler la nouvelle méthode du contrôleur principal
+        try:
+            self.main_controller.show_new_document_window()
+        except Exception as e:
+            print(f"ERREUR lors de l'appel à main_controller.show_new_document_window: {e}")
+        # Ne plus revenir à la liste des documents récents ici
+        # self.show_recent_list_page()
+
     @pyqtSlot(str)
     def _handle_remove_recent(self, path):
         print(f"DocumentsController: Remove recent requested: {path}")
