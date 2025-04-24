@@ -5,14 +5,16 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QFormLayout, 
     QLineEdit, QSpacerItem, QSizePolicy, QGraphicsOpacityEffect
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QSize
-from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, pyqtSlot as Slot
+from PyQt5.QtGui import QFont, QIcon, QPixmap
 import functools
 import datetime # Importer datetime
 from ui.components.frame import Frame
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+from utils import icon_loader
+from utils.signals import signals
 
 # Définir le chemin de l'icône en utilisant la fonction utilitaire
 RESET_ICON_PATH = get_resource_path("resources/icons/clear/round_refresh.png")
@@ -36,7 +38,10 @@ class DocumentsTypeSelectionPage(QWidget):
         self.dynamic_content_container = None # Initialiser à None
         # Dictionnaire pour stocker (bouton, effet) associés aux widgets d'entrée
         self._reset_buttons_map = {}
+        self._header_icon_base_name = "round_file_add.png" # Nom de base de l'icône d'en-tête
+        self.header_icon_label = None # Pour stocker le QLabel de l'icône
         self._setup_ui()
+        signals.theme_changed_signal.connect(self.update_theme_icons)
 
     def _setup_ui(self):
         page_layout = QVBoxLayout(self)
@@ -45,6 +50,18 @@ class DocumentsTypeSelectionPage(QWidget):
 
         # --- Créer le contenu de l'en-tête --- 
         header_layout = QHBoxLayout()
+        self.header_icon_label = QLabel()
+        try:
+            icon_path = icon_loader.get_icon_path(self._header_icon_base_name)
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                self.header_icon_label.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                 print(f"WARN: Header icon '{self._header_icon_base_name}' not found at {icon_path}")
+            self.header_icon_label.setFixedSize(20, 20)
+        except Exception as e:
+            print(f"ERROR loading initial header icon: {e}")
+        header_layout.addWidget(self.header_icon_label)
         document_label = QLabel("Nouveau document:")
         document_label.setObjectName("FormLabel")
         document_label.setFixedHeight(26)
@@ -422,3 +439,23 @@ class DocumentsTypeSelectionPage(QWidget):
                         # Ajouter d'autres types si nécessaire
         print(f"Données dynamiques récupérées: {data}")
         return data 
+
+    @Slot(str)
+    def update_theme_icons(self, theme_name):
+        """Met à jour les icônes de la page lorsque le thème change."""
+        print(f"DEBUG: DocumentsTypeSelectionPage updating theme icons for theme: {theme_name}")
+        # Mettre à jour l'icône de l'en-tête
+        if self.header_icon_label and self._header_icon_base_name:
+            try:
+                new_icon_path = icon_loader.get_icon_path(self._header_icon_base_name)
+                new_pixmap = QPixmap(new_icon_path)
+                if not new_pixmap.isNull():
+                    self.header_icon_label.setPixmap(new_pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                    # print(f"DEBUG: Header icon updated to {new_icon_path}") # Optionnel
+                else:
+                    print(f"WARN: Header icon '{self._header_icon_base_name}' not found on theme update: {new_icon_path}")
+                    self.header_icon_label.setText("?") # Fallback texte si icône non trouvée
+            except Exception as e:
+                print(f"ERROR updating header icon in DocumentsTypeSelectionPage: {e}")
+                self.header_icon_label.setText("?") # Fallback texte en cas d'erreur
+        # Ajouter ici la mise à jour d'autres icônes spécifiques à cette page si nécessaire 
