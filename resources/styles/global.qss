@@ -173,14 +173,14 @@ QScrollBar:vertical {
     border: none;
     /* Mettre le fond de la même couleur que Frame#CustomFrame */
     background: {{COLOR_PRIMARY_MEDIUM}}; 
-    width: 14px;
+    width: 10px;
     margin: 0px; 
 }
 QScrollBar::handle:vertical {
     /* Style de la poignée inchangé */
     background: #5c5f61; 
     min-height: 30px;
-    border-radius: 7px;
+    border-radius: 5px;
     border: none;
 }
 QScrollBar::handle:vertical:hover {

@@ -1,0 +1,59 @@
+/* Vide - Styles maintenant dans global.qss ciblant QComboBox#StyledComboBox */
+
+/* Styles spécifiques pour les QComboBox ayant l'objectName "StyledComboBox" */
+
+/* Style du ComboBox lui-même */
+QComboBox#StyledComboBox {
+    background-color: {{COLOR_SEARCH_BACKGROUND}}; /* Utiliser la couleur de fond des champs de recherche/inputs */
+    border: 1px solid {{COLOR_PRIMARY_LIGHTEST}};
+    border-radius: {{RADIUS_DEFAULT}};
+    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}};
+    color: {{COLOR_TEXT_PRIMARY}};
+    min-height: 20px; /* Ou {{INPUT_HEIGHT_DEFAULT}} */
+}
+
+QComboBox#StyledComboBox:focus {
+    border: 1px solid {{COLOR_ACCENT}};
+}
+
+QComboBox#StyledComboBox::drop-down {
+    border: none; 
+    background-color: transparent;
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 15px;
+    /* Pas d'image ici, on laisse la flèche par défaut */
+}
+
+QComboBox#StyledComboBox::down-arrow {
+    /* Pourrait être stylé, mais la flèche par défaut s'adaptera au thème */
+    width: 10px; 
+    height: 10px;
+}
+
+/* Style pour la VUE DÉROULANTE (liste) */
+QComboBox#StyledComboBox QAbstractItemView {
+    background-color: {{COLOR_PRIMARY_MEDIUM}}; /* Fond demandé */
+    border: 1px solid {{COLOR_PRIMARY_DARK}}; /* Bordure (légèrement plus sombre pour définition) */
+    border-radius: {{RADIUS_DEFAULT}}; /* Coins arrondis */
+    padding: 4px; /* Padding interne global */
+    color: {{COLOR_TEXT_PRIMARY}}; /* Texte par défaut */
+    selection-background-color: {{COLOR_ITEM_SELECTED}}; /* Sélection/survol demandé */
+    selection-color: {{COLOR_TEXT_ON_ACCENT}}; /* Texte sur sélection/survol */
+    outline: 0px; /* Enlever bordure focus native */
+}
+
+/* Style pour chaque ITEM DANS la liste déroulante */
+QComboBox#StyledComboBox QAbstractItemView::item {
+    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}}; /* Padding interne (ex: 4px 8px) */
+    min-height: {{BUTTON_HEIGHT_DEFAULT}}; /* Hauteur minimale item (ex: 26px) */
+    border: none; /* Assurer pas de bordure sur l'item lui-même */
+    background-color: transparent; /* Fond transparent par défaut */
+}
+
+/* Style pour l'item SURVOLÉ/SÉLECTIONNÉ */
+QComboBox#StyledComboBox QAbstractItemView::item:selected,
+QComboBox#StyledComboBox QAbstractItemView::item:hover {
+    background-color: {{COLOR_ITEM_SELECTED}}; /* Utilise la couleur de sélection/survol demandée */
+    color: {{COLOR_TEXT_ON_ACCENT}}; /* Utilise la couleur de texte sur sélection */
+} 

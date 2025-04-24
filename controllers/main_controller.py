@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 from utils.paths import get_resource_path
 
 # --- Import des nouvelles pages/fenêtres ---
-from pages.welcome_page import WelcomePage
+# from pages.welcome_page import WelcomePage # ANCIEN
+from windows.welcome_window import WelcomeWindow # NOUVEAU
 from ui.main_window import MainWindow
 # --- AJOUT IMPORTS POUR ABOUT ---
 from pages.about.about_page import AboutPage
@@ -53,7 +54,7 @@ class MainController:
     def __init__(self):
         print("--- Entering MainController __init__ ---")
         self.main_window = None
-        self.welcome_page = None
+        self.welcome_window = None
         self.documents = {}
         self.about_page = None
         self.about_controller_instance = None
@@ -101,22 +102,22 @@ class MainController:
         print("--- Exiting MainController __init__ --- ")
 
     def show_welcome_page(self):
-        """Crée et affiche la page de bienvenue, et lance la vérif MàJ."""
-        if self.welcome_page is None:
+        """Crée et affiche la WelcomeWindow, et lance la vérif MàJ."""
+        if self.welcome_window is None:
             app_name = CONFIG.get('APP_NAME', 'MonApp')
-            self.welcome_page = WelcomePage(self, app_name, self.current_version_str)
+            self.welcome_window = WelcomeWindow(self, app_name, self.current_version_str)
             # --- DÉFINIR L'ICÔNE DE LA FENÊTRE DE BIENVENUE ---
             try:
                 icon_path = get_resource_path("resources/images/logo-gdj.ico")
                 if os.path.exists(icon_path):
-                    self.welcome_page.setWindowIcon(QIcon(icon_path))
+                    self.welcome_window.setWindowIcon(QIcon(icon_path))
                 else:
                     print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
             except Exception as e:
-                print(f"Erreur lors de la définition de l'icône pour WelcomePage: {e}")
+                print(f"Erreur lors de la définition de l'icône pour WelcomeWindow: {e}")
         
-        self.welcome_page.show()
-        print("DEBUG show_welcome_page: WelcomePage shown.")
+        self.welcome_window.show()
+        print("DEBUG show_welcome_page: WelcomeWindow shown.")
 
         # --- MODIFICATION : Appeler la vérification SEULEMENT si pas déjà faite --- 
         if not self._startup_update_check_done:
@@ -131,13 +132,13 @@ class MainController:
         if self.navigate_to_notes_after_welcome:
             print("DEBUG show_welcome_page: Flag is True, attempting navigation to 'A Propos' section...")
             try:
-                # Assume welcome_page has this method
-                self.welcome_page.navigate_to_section("A Propos") 
-                print("DEBUG show_welcome_page: Called welcome_page.navigate_to_section('A Propos').")
-                # The WelcomePage logic should handle activating the correct sub-tab 
+                # Assume welcome_window has this method
+                self.welcome_window.navigate_to_section("A Propos") 
+                print("DEBUG show_welcome_page: Called welcome_window.navigate_to_section('A Propos').")
+                # The WelcomeWindow logic should handle activating the correct sub-tab 
                 # and resetting the flag self.navigate_to_notes_after_welcome to False.
             except AttributeError:
-                print("ERROR show_welcome_page: WelcomePage does not have method 'navigate_to_section'.")
+                print("ERROR show_welcome_page: WelcomeWindow does not have method 'navigate_to_section'.")
             except Exception as e:
                  print(f"ERROR show_welcome_page: Exception during navigation call: {e}")
         else:
@@ -199,9 +200,9 @@ class MainController:
         # On continue seulement si main_window a été créé avec succès
         if self.main_window:
             # Fermer la fenêtre de bienvenue si elle est ouverte
-            if self.welcome_page and self.welcome_page.isVisible():
-                 print("--- Closing WelcomePage as MainWindow is ensured ---")
-                 self.welcome_page.close()
+            if self.welcome_window and self.welcome_window.isVisible():
+                 print("--- Closing WelcomeWindow as MainWindow is ensured ---")
+                 self.welcome_window.close()
 
             # Afficher la fenêtre principale si elle était cachée
             if not self.main_window.isVisible():
@@ -267,13 +268,13 @@ class MainController:
         dialog.exec_()
 
     def create_new_document(self):
-        """Action appelée par le bouton 'Nouveau' de WelcomePage."""
+        """Action appelée par le bouton 'Nouveau' de WelcomeWindow."""
         self._ensure_main_window_exists()
-        print("Fonctionnalité 'Nouveau Document' (via WelcomePage) désactivée car NewDocumentDialog est supprimé.")
+        print("Fonctionnalité 'Nouveau Document' (via WelcomeWindow) désactivée car NewDocumentDialog est supprimé.")
         pass # Ne fait rien pour l'instant
 
     def open_document(self):
-        """Action appelée par le bouton 'Ouvrir' de WelcomePage."""
+        """Action appelée par le bouton 'Ouvrir' de WelcomeWindow."""
         self._ensure_main_window_exists()
         # Logique pour ouvrir un fichier via QFileDialog
         options = QFileDialog.Options()
@@ -287,7 +288,7 @@ class MainController:
             self._open_and_add_document_tab(f"Doc: {os.path.basename(filePath)}", None) # Passe le chemin ou titre
             
     def open_specific_document(self, path):
-        """Action appelée par double-clic sur un item récent dans WelcomePage."""
+        """Action appelée par double-clic sur un item récent dans WelcomeWindow."""
         self._ensure_main_window_exists()
         print(f"Ouverture du document spécifique: {path}")
         # Ici, il faudrait charger le document depuis le `path`
@@ -393,7 +394,7 @@ class MainController:
             status, update_info = check_for_updates()
             print(f"Startup update check status: {status}")
             if status == "USER_CONFIRMED_UPDATE":
-                print("User confirmed update from startup prompt. Scheduling navigation within WelcomePage...")
+                print("User confirmed update from startup prompt. Scheduling navigation within WelcomeWindow...")
                 self._pending_update_info = update_info
                 # --- APPELER LA NOUVELLE MÉTHODE VIA QTIMER --- 
                 QTimer.singleShot(0, self._navigate_welcome_to_settings_and_update)
@@ -407,44 +408,44 @@ class MainController:
             if hasattr(self, '_pending_update_info'):
                  del self._pending_update_info
 
-    # --- NOUVELLE MÉTHODE POUR GÉRER DANS WELCOMEPAGE --- 
+    # --- NOUVELLE MÉTHODE POUR GÉRER DANS WELCOMEWINDOW --- 
     def _navigate_welcome_to_settings_and_update(self):
-        """Navigue vers les paramètres DANS WelcomePage et lance la MàJ."""
-        print("Navigating WelcomePage to settings and initiating update...")
+        """Navigue vers les paramètres DANS WelcomeWindow et lance la MàJ."""
+        print("Navigating WelcomeWindow to settings and initiating update...")
         if hasattr(self, '_pending_update_info') and self._pending_update_info:
             update_info = self._pending_update_info.copy() # Prendre une copie
             if hasattr(self, '_pending_update_info'):
                 del self._pending_update_info # Nettoyer
 
-            if self.welcome_page:
+            if self.welcome_window:
                 try:
-                    # 1. Naviguer dans WelcomePage
-                    print("Calling welcome_page.navigate_to_section('Paramètres')...")
+                    # 1. Naviguer dans WelcomeWindow
+                    print("Calling welcome_window.navigate_to_section('Paramètres')...")
                     # Assumons True pour succès, False/Exception pour échec
-                    navigation_successful = self.welcome_page.navigate_to_section("Paramètres") 
+                    navigation_successful = self.welcome_window.navigate_to_section("Paramètres") 
 
                     if navigation_successful:
-                         print("Navigation to WelcomePage settings section successful.")
-                         # 2. Récupérer le SettingsController de WelcomePage
-                         print("Getting SettingsController from WelcomePage...")
-                         settings_controller = self.welcome_page.get_settings_controller()
+                         print("Navigation to WelcomeWindow settings section successful.")
+                         # 2. Récupérer le SettingsController de WelcomeWindow
+                         print("Getting SettingsController from WelcomeWindow...")
+                         settings_controller = self.welcome_window.get_settings_controller()
 
                          if settings_controller:
-                              print("Got SettingsController instance from WelcomePage.")
+                              print("Got SettingsController instance from WelcomeWindow.")
                               # 3. Lancer le téléchargement
-                              print("Calling initiate_update_from_prompt on WelcomePage's SettingsController...")
+                              print("Calling initiate_update_from_prompt on WelcomeWindow's SettingsController...")
                               settings_controller.initiate_update_from_prompt(update_info)
                          else:
-                              print("ERROR: welcome_page.get_settings_controller() returned None.")
+                              print("ERROR: welcome_window.get_settings_controller() returned None.")
                     else:
-                         print("ERROR: welcome_page.navigate_to_section('Paramètres') failed or returned False.")
+                         print("ERROR: welcome_window.navigate_to_section('Paramètres') failed or returned False.")
 
                 except AttributeError as ae:
-                     print(f"ERROR: WelcomePage is missing a required method (navigate_to_section or get_settings_controller): {ae}")
+                     print(f"ERROR: WelcomeWindow is missing a required method (navigate_to_section or get_settings_controller): {ae}")
                 except Exception as e:
-                     print(f"ERROR: An unexpected error occurred during WelcomePage navigation/update initiation: {e}")
+                     print(f"ERROR: An unexpected error occurred during WelcomeWindow navigation/update initiation: {e}")
             else:
-                print("ERROR: WelcomePage instance is None. Cannot navigate.")
+                print("ERROR: WelcomeWindow instance is None. Cannot navigate.")
         else:
             print("Warning: _navigate_welcome_to_settings_and_update called but no pending update info found.")
 
@@ -533,9 +534,9 @@ class MainController:
         # On continue seulement si main_window a été créé avec succès
         if self.main_window:
             # Fermer la fenêtre de bienvenue si elle est ouverte
-            if self.welcome_page and self.welcome_page.isVisible():
-                 print("--- Closing WelcomePage as MainWindow is ensured ---")
-                 self.welcome_page.close()
+            if self.welcome_window and self.welcome_window.isVisible():
+                 print("--- Closing WelcomeWindow as MainWindow is ensured ---")
+                 self.welcome_window.close()
 
             # Afficher la fenêtre principale si elle était cachée
             if not self.main_window.isVisible():
