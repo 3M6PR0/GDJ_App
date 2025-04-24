@@ -25,6 +25,31 @@ from controllers.preferences.preferences_controller import PreferencesController
 from pages.settings.settings_page import SettingsPage
 from controllers.settings.settings_controller import SettingsController
 
+# --- AJOUT IMPORTS --- 
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
+# -------------------
+
+# --- Import de la fonction utilitaire --- 
+from utils.paths import get_resource_path
+from utils import icon_loader
+# --- AJOUT IMPORT --- 
+from utils.signals import signals 
+
+# Importer la barre de titre personnalisée
+from ui.components.custom_titlebar import CustomTitleBar
+
+# Importer les nouvelles pages/contrôleurs
+from pages.about.about_page import AboutPage
+from controllers.about.about_controller import AboutController
+from pages.documents.documents_page import DocumentsPage 
+from controllers.documents.documents_controller import DocumentsController
+# --- Importer PreferencesPage et PreferencesController --- 
+from pages.preferences.preferences_page import PreferencesPage
+from controllers.preferences.preferences_controller import PreferencesController
+# --- AJOUT IMPORTS POUR SETTINGS ---
+from pages.settings.settings_page import SettingsPage
+from controllers.settings.settings_controller import SettingsController
+
 # --- WelcomePage (Nettoyée) --- 
 class WelcomePage(QWidget):
     def __init__(self, controller, app_name="GDJ", version_str="?.?.?"):
@@ -184,37 +209,35 @@ class WelcomePage(QWidget):
         # Bouton Settings 
         settings_layout = QHBoxLayout()
         settings_layout.setContentsMargins(12, 0, 12, 5)
-        btn_settings = QPushButton()
-        # --- Utiliser icon_loader pour l'icône settings --- 
-        settings_icon_path = icon_loader.get_icon_path("round_settings.png")
+        # --- Stocker référence au bouton et nom icône --- 
+        self.btn_settings = QPushButton()
+        self._settings_icon_base = "round_settings.png"
+        # -------------------------------------------------
+        settings_icon_path = icon_loader.get_icon_path(self._settings_icon_base)
         settings_icon = QIcon(settings_icon_path)
         if not settings_icon.isNull():
-            btn_settings.setIcon(settings_icon)
-            btn_settings.setIconSize(QSize(18, 18))
+            self.btn_settings.setIcon(settings_icon)
+            self.btn_settings.setIconSize(QSize(18, 18))
         else:
             print(f"WARN: Icône Settings non trouvée: {settings_icon_path}, utilisation texte.")
-            btn_settings.setText("⚙")
-            btn_settings.setFont(QFont("Arial", 12))
-        btn_settings.setObjectName("SettingsButton")
-        btn_settings.setFixedSize(26, 26)
-        btn_settings.setFlat(True)
-        btn_settings.setToolTip("Préférences")
-        # --- MODIFIER LA CONNEXION DU BOUTON SETTINGS --- 
-        # Au lieu de checker le bouton Préférences, on appelle une méthode pour montrer la page Settings
-        # if pref_button:
-        #     btn_settings.clicked.connect(lambda: self._change_page(pref_button) if pref_button else None)
-        #     btn_settings.clicked.connect(lambda: pref_button.setChecked(True) if pref_button else None)
-        # else:
-        #     print("WARN: Bouton 'Preference' non trouvé pour connecter le bouton Settings")
-        btn_settings.clicked.connect(self._show_settings_page_from_button)
-        # -------------------------------------------------
+            self.btn_settings.setText("⚙")
+            self.btn_settings.setFont(QFont("Arial", 12))
+        self.btn_settings.setObjectName("SettingsButton")
+        self.btn_settings.setFixedSize(26, 26)
+        self.btn_settings.setFlat(True)
+        self.btn_settings.setToolTip("Préférences")
+        self.btn_settings.clicked.connect(self._show_settings_page_from_button)
         
-        settings_layout.addWidget(btn_settings)
+        settings_layout.addWidget(self.btn_settings)
         settings_layout.addStretch()
         sidebar_layout.addLayout(settings_layout)
 
         # Connecter le groupe de boutons APRES que tous les boutons (...) existent
         self.sidebar_button_group.buttonClicked.connect(self._change_page)
+
+        # --- Connecter le signal de thème pour l'icône Settings --- 
+        signals.theme_changed_signal.connect(self._update_settings_icon)
+        # ----------------------------------------------------------
 
         # --- Sélectionner la page par défaut (Documents) --- 
         # Trouver le bouton "Documents" et le checker au démarrage
@@ -355,6 +378,38 @@ class WelcomePage(QWidget):
             print(f"Debug: Page changed to {button_text} (Widget: {target_widget})")
         else:
             print(f"Error: target_widget is None for button {button_text}")
+
+    # --- AJOUT : Slot pour gérer la maximisation/restauration --- 
+    # (Doit être présent si la barre de titre l'utilise)
+    @Slot()
+    def _handle_maximize_restore(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+        # Informer la barre de titre si elle existe et a la méthode
+        if hasattr(self, 'title_bar') and hasattr(self.title_bar, 'setMaximizedState'):
+             self.title_bar.setMaximizedState(self.isMaximized())
+
+    # --- AJOUT : Slot pour mettre à jour l'icône Settings --- 
+    @Slot(str)
+    def _update_settings_icon(self, theme_name):
+        try:
+            new_icon_path = icon_loader.get_icon_path(self._settings_icon_base)
+            new_icon = QIcon(new_icon_path)
+            if not new_icon.isNull():
+                self.btn_settings.setIcon(new_icon)
+            else:
+                # Fallback texte
+                self.btn_settings.setIcon(QIcon()) 
+                self.btn_settings.setText("⚙") 
+                self.btn_settings.setFont(QFont("Arial", 12))
+        except Exception as e:
+            print(f"ERROR: Erreur lors de la mise à jour de l'icône Settings : {e}")
+            self.btn_settings.setIcon(QIcon())
+            self.btn_settings.setText("⚙") 
+            self.btn_settings.setFont(QFont("Arial", 12))
+    # ---------------------------------------------------------
 
 # --- Section pour tester la page seule (Inchangée) --- 
 if __name__ == '__main__':

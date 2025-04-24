@@ -1,5 +1,6 @@
 # utils/icon_loader.py
 import logging
+import os
 from utils.paths import get_resource_path
 
 logger = logging.getLogger(__name__)
@@ -26,14 +27,14 @@ def set_active_theme(theme_name: str):
 
 def get_icon_path(icon_base_name: str) -> str:
     """
-    Construit le chemin absolu vers une icône en fonction du thème actif.
+    Construit le chemin absolu vers une icône en fonction du thème actif,
+    avec fallback sur l'icône de base si l'icône spécifique au thème n'est pas trouvée.
 
     Args:
         icon_base_name (str): Le nom de base du fichier icône (ex: "round_update.png").
 
     Returns:
-        str: Le chemin absolu vers le fichier icône approprié pour le thème.
-             Retourne un chemin vide si le nom de base est vide.
+        str: Le chemin absolu vers le fichier icône approprié, ou un chemin vide si introuvable.
     """
     if not icon_base_name:
         return ""
@@ -48,12 +49,24 @@ def get_icon_path(icon_base_name: str) -> str:
     else:  # Défaut sur 'clear' pour "Sombre" ou autre valeur inattendue
         icon_subfolder = "clear"
         
-    relative_path = f"resources/icons/{icon_subfolder}/{icon_base_name}"
+    # Essayer le chemin spécifique au thème D'ABORD
+    relative_theme_path = f"resources/icons/{icon_subfolder}/{icon_base_name}"
+    absolute_theme_path = get_resource_path(relative_theme_path)
     
-    # Utiliser la fonction existante pour obtenir le chemin absolu (gère source/frozen)
-    absolute_path = get_resource_path(relative_path)
-    
-    # logger.debug(f"Icon path requested for '{icon_base_name}' (Theme: '{_active_theme}' -> Folder: '{icon_subfolder}') -> '{absolute_path}'")
-    return absolute_path
+    # Vérifier si le fichier existe
+    if os.path.exists(absolute_theme_path):
+        # logger.debug(f"Icon '{icon_base_name}' found for theme '{_active_theme}' (folder '{icon_subfolder}'): {absolute_theme_path}")
+        return absolute_theme_path
+    else:
+        # logger.warning(f"Icon '{icon_base_name}' NOT found for theme '{_active_theme}' (folder '{icon_subfolder}'). Path tried: {absolute_theme_path}")
+        # Essayer le chemin de base comme fallback
+        relative_base_path = f"resources/icons/{icon_base_name}"
+        absolute_base_path = get_resource_path(relative_base_path)
+        if os.path.exists(absolute_base_path):
+             # logger.info(f"Falling back to base icon '{icon_base_name}': {absolute_base_path}")
+             return absolute_base_path
+        else:
+             logger.error(f"Base icon '{icon_base_name}' also NOT found. Path tried: {absolute_base_path}")
+             return "" # Retourner vide si aucune icône n'est trouvée
 
-print("utils/icon_loader.py defined.") 
+print("utils/icon_loader.py defined with theme fallback.") 

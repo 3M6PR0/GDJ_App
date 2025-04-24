@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSpacerItem,
     QSizePolicy, QLineEdit, QGridLayout, QFormLayout, QComboBox, QStyleOption, QGraphicsOpacityEffect # QStyleOption importé ici
 )
-from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, QPropertyAnimation, pyqtSignal, QEvent
+from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, QPropertyAnimation, pyqtSignal, QEvent, pyqtSlot as Slot
 # QFont, QPainter, QPen, QBrush retirés (SimpleToggle gardé mais stylisé par QSS)
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPen, QPalette # Rajouter les imports nécessaires pour SimpleToggle.paintEvent
 import functools # Importer functools
@@ -12,6 +12,9 @@ import functools # Importer functools
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
 from utils import icon_loader # <-- AJOUT DE L'IMPORT
+# --- AJOUT IMPORT --- 
+from utils.signals import signals 
+# -------------------
 
 # Constantes de couleur/police supprimées
 
@@ -148,7 +151,13 @@ class PreferencesPage(QWidget):
         self.input_widgets = {}
         self.refresh_buttons = {}
         self.refresh_effects = {}
+        # --- AJOUT : Dictionnaire pour boutons thème --- 
+        self._theme_aware_buttons = {}
+        # ---------------------------------------------
         self.init_ui()
+        # --- AJOUT : Connecter signal thème --- 
+        signals.theme_changed_signal.connect(self._update_button_icons)
+        # --------------------------------------
 
     def init_ui(self):
         prefs_main_layout = QGridLayout(self)
@@ -261,14 +270,23 @@ class PreferencesPage(QWidget):
         self.btn_export = self._create_icon_button("round_file_download.png", "Exporter les préférences")
         self.btn_export.clicked.connect(self.export_prefs_requested.emit)
         prefs_form_layout.addRow(self._create_form_label("Exporter:"), self.btn_export)
+        # --- AJOUT : Stocker bouton action thème --- 
+        self._theme_aware_buttons[self.btn_export] = "round_file_download.png"
+        # -------------------------------------------
         
         self.btn_import = self._create_icon_button("round_file_upload.png", "Importer les préférences")
         self.btn_import.clicked.connect(self.import_prefs_requested.emit)
         prefs_form_layout.addRow(self._create_form_label("Importer:"), self.btn_import)
+        # --- AJOUT : Stocker bouton action thème --- 
+        self._theme_aware_buttons[self.btn_import] = "round_file_upload.png"
+        # -------------------------------------------
         
         self.btn_save = self._create_icon_button("round_save.png", "Sauvegarder les préférences")
         self.btn_save.clicked.connect(self.save_prefs_requested.emit)
         prefs_form_layout.addRow(self._create_form_label("Sauvegarder:"), self.btn_save)
+        # --- AJOUT : Stocker bouton action thème --- 
+        self._theme_aware_buttons[self.btn_save] = "round_save.png"
+        # -------------------------------------------
         
         box_content_layout_mgmt.addLayout(prefs_form_layout)
         box_content_layout_mgmt.addStretch(1)
@@ -332,6 +350,9 @@ class PreferencesPage(QWidget):
         self.input_widgets[pref_path] = input_widget
         self.refresh_buttons[pref_path] = refresh_button
         self.refresh_effects[pref_path] = opacity_effect
+        # --- AJOUT : Stocker bouton refresh thème --- 
+        self._theme_aware_buttons[refresh_button] = "round_refresh.png"
+        # --------------------------------------------
 
         return container
 
@@ -389,5 +410,28 @@ class PreferencesPage(QWidget):
         self.cb_plafond.clear()
         # Utiliser les clés extraites pour les plafonds
         self.cb_plafond.addItems(plafonds if plafonds else ["N/A"])
+
+    # --- AJOUT : Slot pour maj icones boutons --- 
+    @Slot(str)
+    def _update_button_icons(self, theme_name):
+        # logger.debug(f"PreferencesPage updating button icons for theme: {theme_name}")
+        for button, icon_base_name in self._theme_aware_buttons.items():
+            if not button: continue # Sécurité
+            try:
+                new_icon_path = icon_loader.get_icon_path(icon_base_name)
+                new_icon = QIcon(new_icon_path)
+                if not new_icon.isNull():
+                    button.setIcon(new_icon)
+                    # Optionnel: réappliquer la taille si elle changeait?
+                    # button.setIconSize(QSize(x, y)) 
+                else:
+                    # Fallback si icône non trouvée (même par défaut)
+                    button.setIcon(QIcon())
+                    button.setText("?") # Ou autre placeholder
+            except Exception as e:
+                print(f"ERROR: Updating icon '{icon_base_name}' for button '{button.objectName()}': {e}")
+                button.setIcon(QIcon())
+                button.setText("?")
+    # ---------------------------------------------
 
 print("PreferencesPage (dans pages/preferences/) defined") 

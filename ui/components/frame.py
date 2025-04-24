@@ -1,12 +1,13 @@
 # ui/components/frame.py
 import os
-from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QWidget
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import Qt # Ajout pour Qt.KeepAspectRatio etc.
-
-# --- Import MODIFIÉ : utiliser icon_loader --- 
-# from utils.paths import get_resource_path
+import logging
+from PyQt5.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QPushButton
+from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
 from utils import icon_loader
+from utils.signals import signals
+
+logger = logging.getLogger(__name__)
 
 class Frame(QFrame):
     def __init__(self, title=None, icon_base_name=None, header_widget: QWidget = None, parent=None):
@@ -22,9 +23,13 @@ class Frame(QFrame):
         self.title_label = None 
         self.separator_line = None
 
+        # --- AJOUT : Stocker infos icône --- 
+        self._icon_base_name = icon_base_name 
+        self.icon_label = None
+        # ----------------------------------
+
         # --- En-tête (si nécessaire) --- 
-        # Utiliser une variable pour vérifier si un en-tête est nécessaire
-        has_header_content = title or icon_base_name or header_widget
+        has_header_content = title or self._icon_base_name or header_widget
         
         if has_header_content:
             title_hbox = QHBoxLayout()
@@ -36,19 +41,18 @@ class Frame(QFrame):
                 # Ajouter le widget personnalisé
                 title_hbox.addWidget(header_widget, 1) 
             else:
-                # --- Utiliser icon_loader pour obtenir le chemin --- 
-                if icon_base_name:
-                    # Obtenir le chemin via l'icon_loader
-                    absolute_icon_path = icon_loader.get_icon_path(icon_base_name) 
+                if self._icon_base_name: # Utiliser variable stockée
+                    absolute_icon_path = icon_loader.get_icon_path(self._icon_base_name) 
                     if os.path.exists(absolute_icon_path):
-                        icon_label = QLabel()
+                        # --- Stocker la référence au QLabel --- 
+                        self.icon_label = QLabel()
+                        # -------------------------------------
                         pixmap = QPixmap(absolute_icon_path)
-                        icon_label.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                        icon_label.setFixedSize(20, 20)
-                        title_hbox.addWidget(icon_label)
+                        self.icon_label.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                        self.icon_label.setFixedSize(20, 20)
+                        title_hbox.addWidget(self.icon_label)
                     else: 
-                        print(f"Avertissement: Icône de Frame '{icon_base_name}' non trouvée à {absolute_icon_path}")
-
+                        logger.warning(f"Icône de Frame '{self._icon_base_name}' non trouvée à {absolute_icon_path}")
                 if title:
                     self.title_label = QLabel(title)
                     self.title_label.setObjectName("CustomFrameTitle") 
@@ -72,8 +76,34 @@ class Frame(QFrame):
         # Ajouter le layout de contenu au layout principal, avec stretch
         self.internal_layout.addLayout(self.content_layout, 1) 
 
+        # --- AJOUT : Connecter le signal de thème --- 
+        signals.theme_changed_signal.connect(self.update_theme_icons)
+        # -------------------------------------------
+
     def get_content_layout(self):
         """Retourne le QVBoxLayout destiné au contenu SOUS l'en-tête."""
         return self.content_layout
 
-print("ui/components/frame.py défini avec intégration icon_loader") # Debug 
+    # --- AJOUT : Slot pour mettre à jour l'icône --- 
+    @Slot(str)
+    def update_theme_icons(self, theme_name):
+        # Mettre à jour l'icône principale du Frame (si elle existe)
+        if self.icon_label and self._icon_base_name:
+            try:
+                absolute_icon_path = icon_loader.get_icon_path(self._icon_base_name)
+                if os.path.exists(absolute_icon_path):
+                    pixmap = QPixmap(absolute_icon_path)
+                    pixmap = pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    self.icon_label.setPixmap(pixmap)
+                else:
+                    # logger.warning(f"Icon '{self._icon_base_name}' not found during theme update. Path: {absolute_icon_path}")
+                    self.icon_label.setPixmap(QPixmap()) # Effacer pixmap si non trouvé
+            except Exception as e:
+                logger.error(f"Error updating Frame icon '{self._icon_base_name}': {e}")
+                self.icon_label.setPixmap(QPixmap())
+        
+        # Mettre à jour l'icône du bouton d'aide (si ajouté plus tard)
+        # ... (code commenté inchangé)
+    # ------------------------------------------------------
+
+print("ui/components/frame.py defined with theme update logic.") 

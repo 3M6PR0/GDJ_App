@@ -4,6 +4,7 @@ from PyQt5.QtGui import QPixmap # Import correct pour QPixmap
 import json # Assurer que json est importé
 import functools # Ajouter functools
 import os # Ajouter os pour le chemin
+from utils.signals import signals
 from utils.stylesheet_loader import load_stylesheet
 from utils import icon_loader # Ajouter import
 
@@ -486,24 +487,14 @@ class PreferencesController(QObject):
             theme_to_apply = 'Clair'
         elif theme_text == "Sombre":
             theme_to_apply = 'Sombre'
-        # else: # Pas besoin de warning ici, on applique juste le défaut
-
-        # --- SUPPRESSION de la mise à jour de self.current_preferences --- 
-        # try:
-        #     self.current_preferences.application.theme = new_theme_value
-        #     print(f"Current preference theme updated in memory to: {new_theme_value}")
-        # except AttributeError:
-        #      print("ERROR: Could not set current_preferences.application.theme")
-        #      return
-        # ----------------------------------------------------------------
-
-        # --- Laisser la vérification du bouton reset (basée sur widget vs saved) ---
-        # Cette partie est maintenant gérée par _check_field_modification connecté
-        # via _connect_modification_signals, donc on peut la commenter ici aussi
-        # pour éviter double appel.
-        # if hasattr(self.view, 'cb_theme'):
-        #     self._check_field_modification(self.view.cb_theme, "application.theme")
-        # --------------------------------------------------------------------------
+        
+        # --- AJOUT : Définir le thème actif pour icon_loader --- 
+        try:
+            icon_loader.set_active_theme(theme_to_apply)
+            # print(f"Icon loader theme set to: {theme_to_apply}") # Log un peu verbeux?
+        except Exception as e_icon:
+            print(f"Error setting icon loader theme: {e_icon}")
+        # -------------------------------------------------------
 
         # --- Recharger et appliquer le style globalement (immédiatement) --- 
         if self.main_controller and hasattr(self.main_controller, 'apply_theme'):
@@ -527,12 +518,18 @@ class PreferencesController(QObject):
                  print(f"Error reapplying stylesheet directly: {e_apply}")
             
             # --- Mettre à jour le thème icône ici aussi dans le fallback ---
-            try:
-                 icon_loader.set_active_theme(theme_to_apply)
-            except Exception as e_icon_fallback:
-                 print(f"Error setting icon theme in fallback: {e_icon_fallback}")
+            # Déjà fait au début de la fonction maintenant
+            # ... (code commenté inchangé) ...
             # --------------------------------------------------------------
 
         # --- Pas de sauvegarde ici --- 
+
+        # --- AJOUT : Émettre le signal pour informer les autres composants --- 
+        try:
+            signals.theme_changed_signal.emit(theme_to_apply)
+            # print(f"Emitted theme_changed_signal with theme: {theme_to_apply}") # Log un peu verbeux?
+        except Exception as e_signal:
+            print(f"Error emitting theme_changed_signal: {e_signal}")
+        # -----------------------------------------------------------------
 
 print("PreferencesController (dans controllers/preferences/) defined") # Debug 

@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QFrame, QSpacerItem, QSizePolicy, QLineEdit, QScrollArea, QListWidgetItem,
     QMenu, QAction, QAbstractItemView, QApplication
 )
-from PyQt5.QtCore import Qt, QSize, QPoint, pyqtSignal, QUrl
+from PyQt5.QtCore import Qt, QSize, QPoint, pyqtSignal, QUrl, pyqtSlot as Slot
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QBrush, QPen, QPainter, QDesktopServices
 
 # Importer le composant Frame
@@ -17,6 +17,9 @@ from ui.components.frame import Frame
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
 from utils import icon_loader
+# --- AJOUT IMPORT --- 
+from utils.signals import signals 
+# -------------------
 
 # --- Classe HoverButton (peut être supprimée si non utilisée) --- 
 class HoverButton(QPushButton):
@@ -70,6 +73,7 @@ class ProjectListItemWidget(QWidget):
         self.name = name
         self.path_str = path_str
         self.icon_initials = icon_initials
+        self._options_icon_base = "round_more_vert.png"
         self.setMouseTracking(True)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 5, 5, 5); layout.setSpacing(8)
@@ -79,15 +83,14 @@ class ProjectListItemWidget(QWidget):
         self.path_label = QLabel(path_str); self.path_label.setObjectName("ProjectListPath")
         text_layout.addWidget(self.name_label); text_layout.addWidget(self.path_label); text_layout.addStretch()
         layout.addLayout(text_layout); layout.addStretch(1)
-        # --- Utiliser icon_loader pour l'icône d'options --- 
-        options_icon_path = icon_loader.get_icon_path("round_more_vert.png")
-        # ---------------------------------------------------
+        options_icon_path = icon_loader.get_icon_path(self._options_icon_base)
         self.options_button = QPushButton("")
         self.options_button.setIcon(QIcon(options_icon_path))
         self.options_button.setIconSize(QSize(16, 16)); self.options_button.setObjectName("ItemOptionsButton")
         self.options_button.setFixedSize(20, 20); self.options_button.setVisible(False)
         self.options_button.setToolTip("Options"); self.options_button.clicked.connect(self._show_context_menu)
         layout.addWidget(self.options_button, 0, Qt.AlignRight | Qt.AlignVCenter)
+        signals.theme_changed_signal.connect(self.update_theme_icons)
     def enterEvent(self, event): self.options_button.setVisible(True); super().enterEvent(event)
     def leaveEvent(self, event): self.options_button.setVisible(False); super().leaveEvent(event)
     def _create_context_menu(self):
@@ -107,6 +110,21 @@ class ProjectListItemWidget(QWidget):
     def _handle_browse(self): dir_path = os.path.dirname(self.path_str); QDesktopServices.openUrl(QUrl.fromLocalFile(dir_path)); self.browse_requested.emit(dir_path)
     def _handle_copy(self): QApplication.clipboard().setText(self.path_str); print(f"Action: Copié {self.path_str}")
     def _handle_remove(self): self.remove_requested.emit(self.path_str)
+    @Slot(str)
+    def update_theme_icons(self, theme_name):
+        try:
+            new_icon_path = icon_loader.get_icon_path(self._options_icon_base)
+            new_icon = QIcon(new_icon_path)
+            if not new_icon.isNull():
+                self.options_button.setIcon(new_icon)
+            else:
+                # Fallback texte
+                self.options_button.setIcon(QIcon())
+                self.options_button.setText("...")
+        except Exception as e:
+            print(f"ERROR: Updating icon for ProjectListItemWidget '{self.name}': {e}")
+            self.options_button.setIcon(QIcon())
+            self.options_button.setText("...")
 
 # --- Classe DocumentsRecentListPage --- 
 class DocumentsRecentListPage(QWidget):
