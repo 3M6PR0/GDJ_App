@@ -300,8 +300,20 @@ class PreferencesController(QObject):
             if self.view.cb_plafond.count() > 0:
                 self.view.cb_plafond.setCurrentIndex(0)
 
+        # Mise à jour du ComboBox Thème
+        try:
+            theme_widget = self.view.cb_theme # Utiliser la référence directe
+            if theme_widget:
+                # MODIFICATION: Utiliser saved_preferences pour la valeur initiale
+                theme_value = self.saved_preferences.application.theme
+                theme_widget.setCurrentText(theme_value)
+                print(f"  - Theme ComboBox set to: '{theme_value}' (from saved preferences)")
+            else:
+                print("  - Warning: Theme ComboBox (self.view.cb_theme) not found.")
+        except Exception as e:
+            print(f"  - Error setting theme ComboBox: {e}")
+
         # Section Application
-        self.view.cb_theme.setCurrentText(self.current_preferences.application.theme)
         self.view.toggle_auto_update.setChecked(self.current_preferences.application.auto_update)
         self.view.toggle_show_notes.setChecked(self.current_preferences.application.show_note)
 
