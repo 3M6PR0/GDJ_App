@@ -14,7 +14,7 @@
         "plafond": "Cap 1"
     },
     "application": {
-        "theme": "Clair",
+        "theme": "Sombre",
         "auto_update": true,
         "show_note": true
     }

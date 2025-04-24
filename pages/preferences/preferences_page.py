@@ -188,7 +188,7 @@ class PreferencesPage(QWidget):
         profile_form_layout.addRow(self._create_form_label("Prénom:"), self._wrap_widget_with_refresh(self.le_prenom, "profile.prenom"))
         
         self.le_tel = QLineEdit(placeholderText="XXX-XXX-XXXX")
-        profile_form_layout.addRow(self._create_form_label("Numéro de téléphone:"), self._wrap_widget_with_refresh(self.le_tel, "profile.telephone"))
+        profile_form_layout.addRow(self._create_form_label("Téléphone:"), self._wrap_widget_with_refresh(self.le_tel, "profile.telephone"))
         
         self.le_courriel = QLineEdit(placeholderText="nom@example.com")
         profile_form_layout.addRow(self._create_form_label("Courriel:"), self._wrap_widget_with_refresh(self.le_courriel, "profile.courriel"))
@@ -206,7 +206,7 @@ class PreferencesPage(QWidget):
         self.signature_display_widget.clicked.connect(self.select_signature_requested.emit)
         
         # L'ajouter via la méthode wrap pour inclure le bouton refresh
-        profile_form_layout.addRow(self._create_form_label("Signature Numerique:"), 
+        profile_form_layout.addRow(self._create_form_label("Signature:"), 
                                    self._wrap_widget_with_refresh(self.signature_display_widget, "profile.signature_path"))
         
         box_content_layout_prof.addLayout(profile_form_layout)
