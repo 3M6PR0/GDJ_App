@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QFrame, QSpacerItem, QSizePolicy, QLineEdit, QScrollArea, QListWidgetItem,
     QMenu, QAction, QAbstractItemView, QApplication
 )
-from PyQt5.QtCore import Qt, QSize, QPoint, pyqtSignal, QUrl, pyqtSlot as Slot
+from PyQt5.QtCore import Qt, QSize, QPoint, pyqtSignal, QUrl, pyqtSlot as Slot, QEvent
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QBrush, QPen, QPainter, QDesktopServices
 
 # Importer le composant Frame
@@ -98,6 +98,36 @@ class ProjectListItemWidget(QWidget):
     def _create_context_menu(self):
         menu = QMenu(self)
         menu.setObjectName("RecentItemContextMenu")
+        # --- AJOUT: Appliquer le style des ITEMS directement --- 
+        # (Repris de la tentative précédente qui fonctionnait pour les items)
+        item_styles = """
+            QMenu#RecentItemContextMenu::item {
+                background-color: transparent; 
+                color: #bbbbbb; /* Texte clair par défaut */
+                padding: 4px 20px 4px 10px; 
+                border-radius: 4px; 
+                margin: 1px; 
+            }
+            QMenu#RecentItemContextMenu::item:selected { /* Hover */
+                background-color: #0054b8; /* Couleur accent */
+                color: #ffffff; /* Texte sur accent */
+            }
+            QMenu#RecentItemContextMenu::item:pressed { /* Click */
+                background-color: #003d82; /* Couleur accent pressé */
+                color: #ffffff; 
+            }
+            QMenu#RecentItemContextMenu::separator {
+                height: 1px;
+                background-color: #5a5d5e; /* Gris clair */
+                margin: 4px 0px; 
+            }
+            QMenu#RecentItemContextMenu::item:disabled {
+                color: #808080; /* Texte désactivé */
+                background-color: transparent;
+            }
+        """
+        menu.setStyleSheet(item_styles)
+        # ---------------------------------------------------
         actions = {"Ouvrir le document": self._handle_open, 
                    "Ouvrir dans le navigateur": self._handle_browse,
                    "Copier le chemin": self._handle_copy,
@@ -213,11 +243,15 @@ class DocumentsRecentListPage(QWidget):
         self.recent_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.recent_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.recent_list_widget.setFocusPolicy(Qt.NoFocus)
-        # --- MODIF TEMPORAIRE: Commenter pour tester --- 
-        # self.recent_list_widget.setSelectionMode(QAbstractItemView.NoSelection) # IMPORTANT
-        # ------------------------------------------------
+        # --- Vérifier que cette ligne est bien commentée --- 
+        # self.recent_list_widget.setSelectionMode(QAbstractItemView.NoSelection)
+        # --------------------------------------------------
         self.recent_list_widget.itemClicked.connect(self._on_recent_item_activated) 
         
+        # --- AJOUT: Installer le filtre d'événements --- 
+        self.recent_list_widget.viewport().installEventFilter(self)
+        # ----------------------------------------------
+
         # Ajouter la liste au layout du Frame
         main_doc_box_layout.addWidget(self.recent_list_widget, 1)
         
@@ -226,6 +260,26 @@ class DocumentsRecentListPage(QWidget):
         
         # Charger les données initiales
         # Retiré: self.populate_list() # Le contrôleur s'en chargera
+
+    # --- AJOUT: Implémentation du filtre d'événements --- 
+    def eventFilter(self, source, event):
+        # Filtrer les clics sur le viewport de la liste
+        if source is self.recent_list_widget.viewport() and event.type() == QEvent.MouseButtonPress:
+            # Vérifier si un item est sous le curseur au moment du clic
+            item_at_click = self.recent_list_widget.itemAt(event.pos())
+            if item_at_click:
+                # Si un item est cliqué, on intercepte l'événement pour 
+                # empêcher la sélection visuelle par défaut (car on gère 
+                # la surbrillance via setCurrentItem uniquement pour le menu)
+                # On laisse cependant itemClicked se déclencher si besoin
+                print(f"DEBUG: Click intercepté sur item: {self.recent_list_widget.itemWidget(item_at_click).name}")
+                # ATTENTION: Cela peut potentiellement bloquer d'autres interactions
+                # return True # Bloque complètement l'événement (peut-être trop)
+                pass # Laisser l'événement continuer mais la sélection visuelle ne devrait pas changer ? A tester
+        
+        # Laisser les autres événements passer
+        return super().eventFilter(source, event)
+    # ---------------------------------------------------
 
     def populate_list(self, projects):
         """Vide et remplit la liste avec les données fournies ou des placeholders."""
