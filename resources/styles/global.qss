@@ -328,7 +328,7 @@ QListWidget#ProjectList::item:hover {
     border-radius: {{RADIUS_DEFAULT}};
 }
 QListWidget#ProjectList::item:selected {
-    background-color: {{COLOR_ACCENT}}; 
+    background-color: {{COLOR_ITEM_HOVER}}; 
     border-radius: {{RADIUS_DEFAULT}};
 }
 

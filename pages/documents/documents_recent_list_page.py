@@ -68,12 +68,14 @@ class ProjectListItemWidget(QWidget):
     open_requested = pyqtSignal(str)
     browse_requested = pyqtSignal(str)
     remove_requested = pyqtSignal(str)
-    def __init__(self, name, path_str, icon_initials="?", parent=None):
+    def __init__(self, name, path_str, icon_initials="?", list_widget_item=None, parent_list_widget=None, parent=None):
         super().__init__(parent)
         self.name = name
         self.path_str = path_str
         self.icon_initials = icon_initials
         self._options_icon_base = "round_more_vert.png"
+        self.list_widget_item = list_widget_item
+        self.parent_list_widget = parent_list_widget
         self.setMouseTracking(True)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 5, 5, 5); layout.setSpacing(8)
@@ -96,36 +98,6 @@ class ProjectListItemWidget(QWidget):
     def _create_context_menu(self):
         menu = QMenu(self)
         menu.setObjectName("RecentItemContextMenu")
-        # --- AJOUT: Appliquer le style des ITEMS directement --- 
-        # Utiliser des couleurs fixes pour tester (à adapter aux thèmes si besoin)
-        item_styles = """
-            QMenu#RecentItemContextMenu::item {
-                background-color: transparent; 
-                color: #bbbbbb; /* Texte clair par défaut */
-                padding: 4px 20px 4px 10px; 
-                border-radius: 4px; /* Coins arrondis pour l'item (utilise RADIUS_DEFAULT?) */
-                margin: 1px; 
-            }
-            QMenu#RecentItemContextMenu::item:selected { 
-                background-color: #0054b8; /* Couleur accent */
-                color: #ffffff; /* Texte sur accent */
-            }
-            QMenu#RecentItemContextMenu::item:pressed { 
-                background-color: #003d82; /* Couleur accent pressé */
-                color: #ffffff; 
-            }
-            QMenu#RecentItemContextMenu::separator {
-                height: 1px;
-                background-color: #5a5d5e; /* Gris clair (à ajuster) */
-                margin: 4px 0px; 
-            }
-            QMenu#RecentItemContextMenu::item:disabled {
-                color: #808080; /* Texte désactivé */
-                background-color: transparent;
-            }
-        """
-        menu.setStyleSheet(item_styles)
-        # ---------------------------------------------------
         actions = {"Ouvrir le document": self._handle_open, 
                    "Ouvrir dans le navigateur": self._handle_browse,
                    "Copier le chemin": self._handle_copy,
@@ -135,8 +107,30 @@ class ProjectListItemWidget(QWidget):
             if text is None: menu.addSeparator()
             else: menu.addAction(QAction(text, self, triggered=handler))
         return menu
-    def _show_context_menu(self): menu = self._create_context_menu(); menu.exec_(self.options_button.mapToGlobal(QPoint(0, self.options_button.height())))
-    def contextMenuEvent(self, event): menu = self._create_context_menu(); menu.exec_(event.globalPos())
+    def _show_context_menu(self): 
+        menu = self._create_context_menu()
+        original_item = None
+        if self.parent_list_widget:
+            original_item = self.parent_list_widget.currentItem()
+            if self.list_widget_item:
+                self.parent_list_widget.setCurrentItem(self.list_widget_item)
+        try:
+            menu.exec_(self.options_button.mapToGlobal(QPoint(0, self.options_button.height())))
+        finally:
+            if self.parent_list_widget:
+                self.parent_list_widget.setCurrentItem(None)
+    def contextMenuEvent(self, event): 
+        menu = self._create_context_menu()
+        original_item = None
+        if self.parent_list_widget:
+            original_item = self.parent_list_widget.currentItem()
+            if self.list_widget_item:
+                self.parent_list_widget.setCurrentItem(self.list_widget_item)
+        try:
+            menu.exec_(event.globalPos())
+        finally:
+            if self.parent_list_widget:
+                self.parent_list_widget.setCurrentItem(None)
     def _handle_open(self): self.open_requested.emit(self.path_str)
     def _handle_browse(self): dir_path = os.path.dirname(self.path_str); QDesktopServices.openUrl(QUrl.fromLocalFile(dir_path)); self.browse_requested.emit(dir_path)
     def _handle_copy(self): QApplication.clipboard().setText(self.path_str); print(f"Action: Copié {self.path_str}")
@@ -149,13 +143,21 @@ class ProjectListItemWidget(QWidget):
             if not new_icon.isNull():
                 self.options_button.setIcon(new_icon)
             else:
-                # Fallback texte
                 self.options_button.setIcon(QIcon())
                 self.options_button.setText("...")
         except Exception as e:
             print(f"ERROR: Updating icon for ProjectListItemWidget '{self.name}': {e}")
             self.options_button.setIcon(QIcon())
             self.options_button.setText("...")
+        
+        try:
+            current_theme_colors = theme.get_theme_vars(theme_name)
+            primary_color = current_theme_colors.get("COLOR_TEXT_PRIMARY", "#bbbbbb")
+            secondary_color = current_theme_colors.get("COLOR_TEXT_SECONDARY", "#bbbbbb")
+            self.name_label.setStyleSheet(f"QLabel#ProjectListName {{ color: {primary_color}; background-color: transparent; }}")
+            self.path_label.setStyleSheet(f"QLabel#ProjectListPath {{ color: {secondary_color}; background-color: transparent; }}")
+        except Exception as e:
+            print(f"ERROR: Updating label colors in ProjectListItemWidget '{self.name}': {e}")
 
 # --- Classe DocumentsRecentListPage --- 
 class DocumentsRecentListPage(QWidget):
@@ -211,7 +213,9 @@ class DocumentsRecentListPage(QWidget):
         self.recent_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.recent_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.recent_list_widget.setFocusPolicy(Qt.NoFocus)
-        self.recent_list_widget.setSelectionMode(QAbstractItemView.NoSelection) 
+        # --- MODIF TEMPORAIRE: Commenter pour tester --- 
+        # self.recent_list_widget.setSelectionMode(QAbstractItemView.NoSelection) # IMPORTANT
+        # ------------------------------------------------
         self.recent_list_widget.itemClicked.connect(self._on_recent_item_activated) 
         
         # Ajouter la liste au layout du Frame
@@ -236,7 +240,9 @@ class DocumentsRecentListPage(QWidget):
                 item_widget = ProjectListItemWidget(
                     project_data["name"],
                     project_data["path"],
-                    project_data.get("icon", "?")
+                    project_data.get("icon", "?"),
+                    list_widget_item=item,
+                    parent_list_widget=self.recent_list_widget
                 )
                 # Connecter les signaux de l'item à ceux de la page
                 item_widget.open_requested.connect(self.open_specific_document_requested)
