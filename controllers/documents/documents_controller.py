@@ -3,7 +3,7 @@
 # Gère l'instanciation et la navigation entre les sous-contrôleurs/pages.
 
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
-from PyQt5.QtWidgets import QListWidgetItem # Pour vérifier le type d'item
+from PyQt5.QtWidgets import QListWidgetItem, QMessageBox # Ajouter QMessageBox
 import json
 import os
 
@@ -37,6 +37,10 @@ except ImportError:
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+
+# --- Importer la fenêtre DocumentWindow --- 
+from windows.document_window import DocumentWindow
+# -----------------------------------------
 
 class DocumentsController(QObject):
     def __init__(self, view: DocumentsPage, main_controller, preferences_controller):
@@ -196,16 +200,63 @@ class DocumentsController(QObject):
         
     @pyqtSlot(str)
     def _handle_create_request(self, selected_type):
-        # L'argument selected_type est maintenant ignoré
-        print(f"DocumentsController: Create request received (type '{selected_type}' ignored).")
-        print("Calling main_controller to show the new document window.")
-        # Appeler la nouvelle méthode du contrôleur principal
+        print(f"DocumentsController: Create request received for type '{selected_type}'.")
+        
+        form_data = {}
+        # --- 1. Récupérer les données --- 
         try:
-            self.main_controller.show_new_document_window()
+            if hasattr(self.type_selection_page, 'get_dynamic_form_data'):
+                form_data = self.type_selection_page.get_dynamic_form_data()
+                print(f"Données récupérées du formulaire: {form_data}")
+            else:
+                print("AVERTISSEMENT: La vue TypeSelectionPage n'a pas de méthode get_dynamic_data().")
+                # Afficher une erreur car les données sont nécessaires
+                QMessageBox.critical(self.view, "Erreur Interne", "Impossible de récupérer les données du formulaire (méthode manquante).")
+                return
+        except Exception as e_form:
+             print(f"ERREUR lors de la récupération des données du formulaire: {e_form}")
+             QMessageBox.warning(self.view, "Erreur Formulaire", f"Impossible de récupérer les données du formulaire.\n{e_form}")
+             return # Arrêter si on ne peut pas lire les données
+
+        # --- 2. Valider les données requises pour Rapport de depense --- 
+        if selected_type == "Rapport de depense":
+            required_fields = ["nom", "prenom", "date", "emplacements", "departements", "superviseurs", "plafond_deplacement"]
+            missing_fields = []
+            for field in required_fields:
+                # Vérifier la présence ET si la valeur n'est pas vide (après str conversion)
+                if field not in form_data or not str(form_data[field]).strip(): 
+                    # Rendre le nom du champ plus lisible pour le message
+                    readable_field = field.replace("_", " ").capitalize()
+                    if field == "departements": readable_field = "Département"
+                    if field == "emplacements": readable_field = "Emplacement"
+                    if field == "superviseurs": readable_field = "Superviseur"
+                    if field == "plafond_deplacement": readable_field = "Plafond déplacement"
+                    missing_fields.append(readable_field)
+            
+            if missing_fields:
+                print(f"ERREUR: Champs manquants ou vides: {missing_fields}")
+                error_message = "Veuillez remplir les champs suivants avant de créer le rapport :\n\n- " + "\n- ".join(missing_fields)
+                QMessageBox.warning(self.view, "Champs Requis", error_message)
+                return # Arrêter le processus si des champs manquent
+        # --- Fin Validation --- 
+
+        # --- 3. Instancier et afficher DocumentWindow (seulement si validation OK) --- 
+        try:
+            print(f"Instanciation de DocumentWindow avec type='{selected_type}' et données validées.")
+            self.doc_window_instance = DocumentWindow(initial_doc_type=selected_type, initial_doc_data=form_data)
+            self.doc_window_instance.showMaximized() 
+            print("DocumentWindow affichée.")
+            
+            if self.main_controller and self.main_controller.welcome_window and self.main_controller.welcome_window.isVisible():
+                print("Fermeture de WelcomeWindow depuis DocumentsController...")
+                self.main_controller.welcome_window.close()
+
         except Exception as e:
-            print(f"ERREUR lors de l'appel à main_controller.show_new_document_window: {e}")
-        # Ne plus revenir à la liste des documents récents ici
-        # self.show_recent_list_page()
+            print(f"ERREUR lors de l'instanciation/affichage de DocumentWindow: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self.view, "Erreur Critique", f"Impossible d'ouvrir la fenêtre de document.\n{e}")
+        # ---------------------------------------------
 
     @pyqtSlot(str)
     def _handle_remove_recent(self, path):

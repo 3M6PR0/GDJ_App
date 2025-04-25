@@ -319,33 +319,41 @@ class MainController:
     def _create_and_add_document_tab(self, doc_type, data):
         """Factorisation de la logique de création d'un nouveau document et ajout d'onglet."""
         new_doc = None
-        if doc_type == "Rapport Dépense":
-            from models.documents.rapport_depense import RapportDepense
-            new_doc = RapportDepense(title=f"{doc_type} - {data.get('nom')}", depenses=[data.get('montant')])
-        elif doc_type == "Écriture Comptable":
-            from models.documents.ecriture_comptable import EcritureComptable
-            new_doc = EcritureComptable(title=f"{doc_type} - {data.get('titre')}", operations=[data.get('operation')])
-        elif doc_type == "Rapport Temps Sup":
-            from models.documents.rapport_temps_sup import RapportTempsSup
-            new_doc = RapportTempsSup(title=f"{doc_type} - {data.get('titre')}", heures=float(data.get('heures', 0)))
-        elif doc_type == "CSA":
-            from models.documents.csa import CSA
-            new_doc = CSA(title=f"{doc_type} - {data.get('titre')}", details=data.get('details'))
-        elif doc_type == "Système Vision":
-            from models.documents.systeme_vision import SystemeVision
-            new_doc = SystemeVision(title=f"{doc_type} - {data.get('titre')}", vision_params=data.get('vision_params'))
-        elif doc_type == "Robot":
-            from models.documents.robot import Robot
-            new_doc = Robot(title=f"{doc_type} - {data.get('titre')}", config=data.get('config'))
-        else: # Ajout d'un cas par défaut ou log
-            print(f"Type de document inconnu ou non géré: {doc_type}")
-            return
+        try:
+            # --- CORRIGER LES COMPARAISONS DE STRING --- 
+            if doc_type == "Rapport de depense": # <- Correspondre au log
+                print("Importing RapportDepense...")
+                # --- CORRECTION IMPORT --- 
+                from models.documents.rapport_depense.rapport_depense import RapportDepense
+                # -------------------------
+                print("Creating RapportDepense instance...")
+                new_doc = RapportDepense(title=f"{doc_type} - {data.get('nom')}", depenses=[data.get('montant')])
+            elif doc_type == "Écriture Comptable":
+                from models.documents.ecriture_comptable import EcritureComptable
+                new_doc = EcritureComptable(title=f"{doc_type} - {data.get('titre')}", operations=[data.get('operation')])
+            elif doc_type == "Rapport Temps Sup":
+                from models.documents.rapport_temps_sup import RapportTempsSup
+                new_doc = RapportTempsSup(title=f"{doc_type} - {data.get('titre')}", heures=float(data.get('heures', 0)))
+            elif doc_type == "CSA":
+                from models.documents.csa import CSA
+                new_doc = CSA(title=f"{doc_type} - {data.get('titre')}", details=data.get('details'))
+            elif doc_type == "Système Vision":
+                from models.documents.systeme_vision import SystemeVision
+                new_doc = SystemeVision(title=f"{doc_type} - {data.get('titre')}", vision_params=data.get('vision_params'))
+            elif doc_type == "Robot":
+                from models.documents.robot import Robot
+                new_doc = Robot(title=f"{doc_type} - {data.get('titre')}", config=data.get('config'))
+            else: # Ajout d'un cas par défaut ou log
+                print(f"Type de document inconnu ou non géré: {doc_type}")
+                return
             
-        if new_doc:
-            doc_page = DocumentPage(title=new_doc.title, document=new_doc)
-            idx = self.main_window.tab_widget.addTab(doc_page, doc_page.title)
-            self.main_window.tab_widget.setCurrentIndex(idx)
-            self.documents[new_doc.title] = doc_page
+            if new_doc:
+                doc_page = DocumentPage(title=new_doc.title, document=new_doc)
+                idx = self.main_window.tab_widget.addTab(doc_page, doc_page.title)
+                self.main_window.tab_widget.setCurrentIndex(idx)
+                self.documents[new_doc.title] = doc_page
+        except Exception as e:
+            print(f"Erreur lors de la création du document: {e}")
 
     def _open_and_add_document_tab(self, title, document_data):
         """Factorisation de la logique d'ouverture d'un document et ajout d'onglet."""

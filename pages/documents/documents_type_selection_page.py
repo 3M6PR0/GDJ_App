@@ -405,44 +405,51 @@ class DocumentsTypeSelectionPage(QWidget):
         opacity_effect.setOpacity(0.0)
         reset_button.setEnabled(False)
 
-    # --- Récupérer les valeurs du formulaire dynamique (Maintenant important!) ---
-    def get_dynamic_form_data(self):
-        data = {}
-        layout = self.dynamic_content_container.layout()
-        if layout:
-            for i in range(layout.rowCount()): # Itérer sur les lignes du QFormLayout
-                label_item = layout.itemAt(i, QFormLayout.LabelRole)
-                widget_item = layout.itemAt(i, QFormLayout.FieldRole)
-                
-                if label_item and widget_item:
-                    label_widget = label_item.widget()
-                    field_widget = widget_item.widget()
-                    
-                    if label_widget and field_widget:
-                        # Récupérer le nom original du champ (moins idéal, basé sur le label)
-                        field_name = label_widget.text().replace(':', '').replace(' ', '_').lower()
-                        # Cas spécial pour département
-                        if "département" in field_name:
-                             field_name = "departements" 
-                        elif "plafond_de_déplacement" in field_name:
-                             field_name = "plafond_deplacement"
-                        elif "nom" == field_name:
-                             field_name = "nom" # garder minuscule
-                        elif "prénom" == field_name:
-                             field_name = "prenom"
-                             
-                        # Obtenir la valeur selon le type de widget
-                        if isinstance(field_widget, QComboBox):
-                            data[field_name] = field_widget.currentText()
-                        elif isinstance(field_widget, QLineEdit):
-                            data[field_name] = field_widget.text()
-                        # Ajouter d'autres types si nécessaire
-        print(f"Données dynamiques récupérées: {data}")
-        return data 
+    # --- NOUVELLE MÉTHODE: Récupérer les données du formulaire --- 
+    def get_dynamic_form_data(self) -> dict:
+        """Récupère les valeurs actuelles des widgets du formulaire dynamique."""
+        form_data = {}
+        for widget in self._current_dynamic_widgets:
+            object_name = widget.objectName()
+            
+            if object_name.startswith("dynamic_lineedit_"):
+                field_name = object_name.replace("dynamic_lineedit_", "")
+                try:
+                    form_data[field_name] = widget.text()
+                except Exception as e:
+                    print(f"Erreur lecture QLineEdit {field_name}: {e}")
+                    form_data[field_name] = None # Ou valeur par défaut
+            elif object_name.startswith("dynamic_combo_"):
+                # Gérer la date séparément si besoin, ou combiner ici
+                if object_name == "dynamic_combo_month":
+                    # Combiner mois et année (si l'année existe)
+                    year_widget = self.findChild(QComboBox, "dynamic_combo_year")
+                    if year_widget:
+                        month_text = widget.currentText()
+                        year_text = year_widget.currentText()
+                        # Convertir le nom du mois en numéro? Pour l'instant, garder texte.
+                        form_data["date"] = f"{month_text}-{year_text}" 
+                    else:
+                         form_data["date"] = widget.currentText() # Juste le mois si erreur
+                elif object_name == "dynamic_combo_year":
+                    pass # Déjà traité avec le mois
+                else:
+                    # Autres combos
+                    field_name = object_name.replace("dynamic_combo_", "")
+                    try:
+                        form_data[field_name] = widget.currentText()
+                    except Exception as e:
+                         print(f"Erreur lecture QComboBox {field_name}: {e}")
+                         form_data[field_name] = None
+            # Ignorer les autres types de widgets (QLabel, QPushButton, etc.)
+            
+        print(f"Données dynamiques récupérées par get_dynamic_form_data: {form_data}")
+        return form_data
+    # ---------------------------------------------------------
 
     @Slot(str)
     def update_theme_icons(self, theme_name):
-        """Met à jour les icônes de la page lorsque le thème change."""
+        """Met à jour les icônes en fonction du thème."""
         print(f"DEBUG: DocumentsTypeSelectionPage updating theme icons for theme: {theme_name}")
         # Mettre à jour l'icône de l'en-tête
         if self.header_icon_label and self._header_icon_base_name:
