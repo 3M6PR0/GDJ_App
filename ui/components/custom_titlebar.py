@@ -1,8 +1,8 @@
 import sys
 import os
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QSpacerItem, QSizePolicy, QMenu, QAction, QWidgetAction, QFrame
 from PyQt5.QtCore import Qt, QPoint, QSize, pyqtSlot as Slot, pyqtSignal
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon, QPixmap, QFont
 
 # --- Import CORRECT pour icon_loader --- 
 from utils import icon_loader
@@ -28,9 +28,13 @@ class CustomTitleBar(QWidget):
     minimize_requested = pyqtSignal()
     maximize_restore_requested = pyqtSignal()
     close_requested = pyqtSignal()
+    # --- AJOUT : Signal pour le nouveau bouton ---
+    custom_action_requested = pyqtSignal()
+    # --- AJOUT: Signal pour demander l'ouverture des paramètres ---
+    settings_requested = pyqtSignal()
     # ---------------------------------------------------------------------
 
-    def __init__(self, parent=None, title="Application", icon_base_name=None):
+    def __init__(self, parent=None, title="Application", icon_base_name=None, show_menu_button_initially=False):
         super().__init__(parent)
         self.setFixedHeight(32) # Hauteur standard de la barre de titre
         self.pressing = False
@@ -47,6 +51,14 @@ class CustomTitleBar(QWidget):
         # --- AJOUT : État maximisé --- 
         self.is_maximized = False 
         # ------------------------------
+        # --- AJOUT: Références aux boutons de menu ---
+        self.btn_file = None
+        self.btn_edit = None
+        self.btn_view = None
+        self.btn_help = None
+        # --- AJOUT: Référence au QMenu Fichier ---
+        self._file_menu = None
+        # ----------------------------------------
 
         # Layout principal horizontal
         layout = QHBoxLayout(self)
@@ -83,6 +95,62 @@ class CustomTitleBar(QWidget):
         # layout.addWidget(self.icon_label) 
         # layout.addSpacing(5)
         # -------------------------------------------
+
+        # --- AJOUT: Nouveau bouton personnalisé (Déplacé ICI) ---
+        btn_size = QSize(45, self.height()) # Garder définition taille
+        self.btn_custom_action = QPushButton("", self)
+        # TODO: Choisir un nom d'icône approprié dans icon_loader
+        custom_icon_base = "round_menu.png" # Placeholder, à changer
+        try:
+            custom_icon_path = icon_loader.get_icon_path(custom_icon_base)
+            self.btn_custom_action.setIcon(QIcon(custom_icon_path))
+        except Exception as e:
+            logger.error(f"Impossible charger icône bouton personnalisé '{custom_icon_base}': {e}")
+            self.btn_custom_action.setText("?") # Texte de secours
+        self.btn_custom_action.setIconSize(QSize(16, 16))
+        self.btn_custom_action.setFixedSize(btn_size)
+        self.btn_custom_action.setObjectName("TitleBarButton") # Même style que les autres
+        self.btn_custom_action.setToolTip("Afficher le menu") # Tooltip mis à jour
+        self.btn_custom_action.clicked.connect(self._show_menu_buttons) # <<< Ajouté
+        self.btn_custom_action.setVisible(show_menu_button_initially) # <<< Visibilité initiale basée sur le paramètre
+        layout.addWidget(self.btn_custom_action)
+        layout.addSpacing(5) # Ajouter un espacement après le bouton
+        # -------------------------------------------------------
+
+        # --- AJOUT: Boutons de menu textuels ---
+        menu_button_style = f"color: {TITLE_BAR_TEXT_COLOR}; background-color: transparent; border: none; padding: 5px; font-size: 9pt;"
+        hover_style = f"background-color: {BUTTON_HOVER_BG};"
+        
+        # --- MODIFICATION: Bouton Fichier devient déclencheur de menu ---
+        self.btn_file = QPushButton("Fichier", self)
+        self.btn_file.setObjectName("TitleBarMenuButton")
+        self.btn_file.setStyleSheet(f"QPushButton#TitleBarMenuButton {{ {menu_button_style} }} QPushButton#TitleBarMenuButton:hover {{ {hover_style} }}")
+        self.btn_file.setVisible(False)
+        self._create_file_menu() # Créer le menu associé
+        self.btn_file.clicked.connect(self._show_file_menu) # Connecter au slot qui affiche le menu
+        layout.addWidget(self.btn_file)
+
+        self.btn_edit = QPushButton("Editer", self)
+        self.btn_edit.setObjectName("TitleBarMenuButton")
+        self.btn_edit.setStyleSheet(f"QPushButton#TitleBarMenuButton {{ {menu_button_style} }} QPushButton#TitleBarMenuButton:hover {{ {hover_style} }}")
+        self.btn_edit.setVisible(False)
+        # TODO: Connecter self.btn_edit.clicked
+        layout.addWidget(self.btn_edit)
+
+        self.btn_view = QPushButton("Vue", self)
+        self.btn_view.setObjectName("TitleBarMenuButton")
+        self.btn_view.setStyleSheet(f"QPushButton#TitleBarMenuButton {{ {menu_button_style} }} QPushButton#TitleBarMenuButton:hover {{ {hover_style} }}")
+        self.btn_view.setVisible(False)
+        # TODO: Connecter self.btn_view.clicked
+        layout.addWidget(self.btn_view)
+
+        self.btn_help = QPushButton("Aide", self)
+        self.btn_help.setObjectName("TitleBarMenuButton")
+        self.btn_help.setStyleSheet(f"QPushButton#TitleBarMenuButton {{ {menu_button_style} }} QPushButton#TitleBarMenuButton:hover {{ {hover_style} }}")
+        self.btn_help.setVisible(False)
+        # TODO: Connecter self.btn_help.clicked
+        layout.addWidget(self.btn_help)
+        # --------------------------------------
 
         # Titre
         self.title_label = QLabel(title, self)
@@ -248,13 +316,185 @@ class CustomTitleBar(QWidget):
             close_icon_path = icon_loader.get_icon_path(self._close_icon_base)
             self.btn_close.setIcon(QIcon(close_icon_path))
 
+            # --- AJOUT: Mettre à jour icône bouton personnalisé ---
+            try:
+                # TODO: Utiliser le même nom d'icône que dans __init__
+                custom_icon_base = "round_menu.png" # Placeholder
+                custom_icon_path = icon_loader.get_icon_path(custom_icon_base)
+                self.btn_custom_action.setIcon(QIcon(custom_icon_path))
+            except Exception as e:
+                 logger.error(f"Erreur maj icône bouton personnalisé (thème: '{theme_name}'): {e}")
+                 self.btn_custom_action.setText("?") # Texte de secours
+            # ----------------------------------------------------
+
         except Exception as e:
             logger.error(f"Erreur maj icônes barre titre (thème: '{theme_name}'): {e}")
             # Fallback texte si erreur
             self.btn_minimize.setText("_")
             self.btn_maximize.setText("M/R")
             self.btn_close.setText("X")
+            self.btn_custom_action.setText("?") # Texte de secours
     # ------------------------------------
+
+    # --- AJOUT: Méthode pour créer le menu Fichier ---
+    def _create_file_menu(self):
+        self._file_menu = QMenu(self)
+        self._file_menu.setObjectName("TitleBarDropdownMenu") # Pour style éventuel
+        self._file_menu.setMinimumWidth(220) # <<< AJOUT: Largeur minimale
+        
+        # Actions standard
+        action_new = self._file_menu.addAction("Nouveau")
+        action_open = self._file_menu.addAction("Ouvrir...")
+        action_recent = self._file_menu.addAction("Recent")
+        # TODO: Connecter action_new.triggered, action_open.triggered, etc.
+        
+        # --- Titre de section intégré au séparateur ---
+        # self._file_menu.addSeparator() # <<< Supprimé
+        # label_doc_actif = QLabel(\"Document Actif\")
+        # label_doc_actif.setStyleSheet(f\"color: #999999; font-size: 8pt; padding-left: 15px; padding-top: 3px; padding-bottom: 3px; background-color: transparent;\")
+        # widget_action_doc_actif = QWidgetAction(self._file_menu)
+        # widget_action_doc_actif.setDefaultWidget(label_doc_actif)
+        # self._file_menu.addAction(widget_action_doc_actif)
+
+        title_widget_doc_actif = self._create_separator_with_title("Document Actif")
+        widget_action_doc_actif = QWidgetAction(self._file_menu)
+        widget_action_doc_actif.setDefaultWidget(title_widget_doc_actif)
+        self._file_menu.addAction(widget_action_doc_actif)
+        # ------------------------------------------------
+        
+        action_save = self._file_menu.addAction("Enregistrer")
+        action_save_as = self._file_menu.addAction("Enregistrer sous...")
+        action_close_doc = self._file_menu.addAction("Fermer")
+        action_print_doc = self._file_menu.addAction("Print") # Renommé pour clarté
+        # TODO: Connecter ces actions
+        
+        # --- Titre "Tous les documents" --- 
+        # Assurer la suppression de l'ancien séparateur si présent
+        # self._file_menu.addSeparator() 
+
+        # --- Remplacement de l'ancien QLabel par le widget Séparateur+Titre ---
+        # label_all_docs = QLabel(\"Tous les documents\")
+        # label_all_docs.setStyleSheet(f\"color: #999999; font-size: 8pt; padding-left: 15px; padding-top: 3px; padding-bottom: 3px; background-color: transparent;\")
+        # widget_action_all_docs = QWidgetAction(self._file_menu)
+        # widget_action_all_docs.setDefaultWidget(label_all_docs)
+        # self._file_menu.addAction(widget_action_all_docs)
+        
+        title_widget_all_docs = self._create_separator_with_title("Tous les documents")
+        widget_action_all_docs = QWidgetAction(self._file_menu)
+        widget_action_all_docs.setDefaultWidget(title_widget_all_docs)
+        self._file_menu.addAction(widget_action_all_docs)
+        # ---------------------------------------------------------------------
+        
+        action_save_all = self._file_menu.addAction("Enregistrer Tout") # Nom plus précis ?
+        action_close_all = self._file_menu.addAction("Fermer Tout") # Nom plus précis ?
+        action_print_all = self._file_menu.addAction("Print Tout") # Nom plus précis ?
+        # TODO: Connecter ces actions
+
+        # self._file_menu.addSeparator() # <<< SUPPRESSION DE CETTE LIGNE
+        # --- Utilisation du widget séparateur + titre ---
+        title_widget_app = self._create_separator_with_title("Application")
+        widget_action_app = QWidgetAction(self._file_menu)
+        widget_action_app.setDefaultWidget(title_widget_app)
+        self._file_menu.addAction(widget_action_app)
+        # -------------------------------------------------
+        
+        action_settings = self._file_menu.addAction("Parametres")
+        action_quit = self._file_menu.addAction("Quitter")
+        # --- Connexion de l'action Paramètres au signal ---
+        action_settings.triggered.connect(self.settings_requested.emit)
+        # -------------------------------------------------
+        # action_quit.triggered.connect(self.close_window) # Exemple de connexion
+        
+        # Appliquer un style global au menu si nécessaire via QSS
+        # self._file_menu.setStyleSheet(\"QMenu { ... } QMenu::item { ... } ... \")
+        # --- AJOUT: Style QSS pour les effets hover/selected ---
+        self._file_menu.setStyleSheet(f"""
+            QMenu#TitleBarDropdownMenu {{
+                background-color: {TITLE_BAR_BACKGROUND}; /* Fond du menu */
+                border: 1px solid {BUTTON_HOVER_BG}; /* Bordure légère */
+                color: {TITLE_BAR_TEXT_COLOR}; /* Couleur texte par défaut */
+            }}
+            QMenu#TitleBarDropdownMenu::item {{
+                padding: 5px 20px; /* Espacement interne */
+                background-color: transparent;
+            }}
+            /* Supprimer le style :disabled spécifique car on utilise QWidgetAction */
+            /* QMenu#TitleBarDropdownMenu::item:disabled {{
+                color: #888888; 
+                background-color: transparent;
+                 font-weight: bold; 
+            }} */
+            QMenu#TitleBarDropdownMenu::item:selected {{
+                background-color: {BUTTON_HOVER_BG}; /* Couleur au survol/sélection */
+                color: white; /* Couleur texte au survol/sélection */
+            }}
+            QMenu#TitleBarDropdownMenu::separator {{
+                height: 1px;
+                background-color: {BUTTON_HOVER_BG};
+                margin-left: 10px;
+                margin-right: 10px;
+            }}
+        """)
+        # -------------------------------------------------------
+    # --------------------------------------------------
+
+    # --- AJOUT: Helper pour créer le widget Séparateur + Titre ---
+    def _create_separator_with_title(self, text):
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(10, 5, 10, 5) # Marges autour
+        layout.setSpacing(8)
+
+        line_style = f"color: {BUTTON_HOVER_BG}; background-color: {BUTTON_HOVER_BG}; min-height: 1px; max-height: 1px; border: none;"
+        
+        left_line = QFrame()
+        left_line.setFrameShape(QFrame.HLine)
+        left_line.setFrameShadow(QFrame.Plain)
+        left_line.setStyleSheet(line_style)
+        left_line.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        label = QLabel(text)
+        label.setStyleSheet(f"color: #999999; font-size: 8pt; background-color: transparent; padding: 0px; margin: 0px;")
+        label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+
+        right_line = QFrame()
+        right_line.setFrameShape(QFrame.HLine)
+        right_line.setFrameShadow(QFrame.Plain)
+        right_line.setStyleSheet(line_style)
+        right_line.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        layout.addWidget(left_line)
+        layout.addWidget(label)
+        layout.addWidget(right_line)
+        
+        widget.setLayout(layout)
+        # S'assurer que le widget n'a pas de fond propre pour hériter du menu
+        widget.setStyleSheet("background-color: transparent;") 
+        return widget
+    # ------------------------------------------------------------
+
+    # --- AJOUT: Méthode pour afficher le menu Fichier ---
+    def _show_file_menu(self):
+        if self._file_menu:
+            # Positionner le menu sous le bouton Fichier
+            menu_pos = self.btn_file.mapToGlobal(QPoint(0, self.btn_file.height()))
+            self._file_menu.exec_(menu_pos)
+    # ----------------------------------------------------
+
+    # --- AJOUT: Méthode pour afficher les boutons de menu ---
+    def _show_menu_buttons(self):
+        """Masque le bouton menu et le titre, affiche les boutons textuels."""
+        self.btn_custom_action.setVisible(False)
+        self.title_label.setVisible(False)
+        
+        self.btn_file.setVisible(True)
+        self.btn_edit.setVisible(True)
+        self.btn_view.setVisible(True)
+        self.btn_help.setVisible(True)
+        
+        # Optionnel: Émettre un signal si nécessaire
+        # self.custom_action_requested.emit() # Ou un nouveau signal menu_shown
+    # -----------------------------------------------------
 
 # --- Section pour tester la barre seule --- 
 if __name__ == '__main__':

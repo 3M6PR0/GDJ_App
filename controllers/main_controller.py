@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFileDialog
-from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSlot
+from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSlot, QCoreApplication
 # --- AJOUT DE L'IMPORT QIcon ---
 from PyQt5.QtGui import QIcon
 from pages.document_page import DocumentPage
@@ -29,6 +29,8 @@ from pages.about.about_page import AboutPage
 from controllers.about.about_controller import AboutController
 # --- AJOUT IMPORT DocumentWindow ---
 from windows.document_window import DocumentWindow
+# --- AJOUT IMPORT SettingsWindow ---
+from windows.settings_window import SettingsWindow
 
 # --- Classe pour la boîte de dialogue des notes de version ---
 class ReleaseNotesDialog(QDialog):
@@ -62,6 +64,8 @@ class MainController:
         self.about_controller_instance = None
         self.navigate_to_notes_after_welcome = False 
         self._startup_update_check_done = False
+        self.new_doc_window = None # Garder une référence si DocumentWindow est unique
+        self.settings_window = None # <<< AJOUT: Référence à SettingsWindow
 
         # --- Corrected Logic AGAIN (Focus on Version Comparison) --- 
         self.version_file = get_resource_path("data/version.txt")
@@ -570,6 +574,52 @@ class MainController:
             self.new_doc_window.activateWindow()
             self.new_doc_window.raise_()
             print("MainController: DocumentWindow affichée.")
+            
+            # --- AJOUT: Connecter le signal des paramètres --- 
+            try:
+                self.new_doc_window.title_bar.settings_requested.connect(self.show_settings_window)
+                print("MainController: Signal settings_requested connecté.")
+            except AttributeError as e_connect:
+                 print(f"ERREUR connexion signal settings_requested: {e_connect}")
+            # ------------------------------------------------
         except Exception as e:
             print(f"ERREUR lors de la création/affichage de DocumentWindow: {e}")
     # --------------------------------------------------------
+
+    # --- AJOUT: Méthode pour afficher la fenêtre des paramètres ---
+    def show_settings_window(self):
+        """Crée (si nécessaire) et affiche la fenêtre des paramètres."""
+        print("MainController: Demande d'affichage de SettingsWindow...")
+        if self.settings_window is None or not self.settings_window.isVisible():
+            try:
+                # Créer une nouvelle instance si elle n'existe pas ou a été fermée
+                # --- Passer self (main_controller) et la version --- 
+                self.settings_window = SettingsWindow(main_controller=self, version_str=self.current_version_str)
+                # ----------------------------------------------------
+                # Optionnel: Centrer la fenêtre ou positionner par rapport à une autre
+                # self.settings_window.show() # Afficher normalement
+                # Ou centrer sur l'écran principal
+                screen_geometry = QCoreApplication.instance().primaryScreen().availableGeometry()
+                window_size = self.settings_window.size()
+                self.settings_window.move(
+                    (screen_geometry.width() - window_size.width()) // 2,
+                    (screen_geometry.height() - window_size.height()) // 2
+                )
+                self.settings_window.show()
+                self.settings_window.activateWindow()
+                self.settings_window.raise_()
+                print("MainController: SettingsWindow créée et affichée.")
+            except Exception as e:
+                print(f"ERREUR lors de la création/affichage de SettingsWindow: {e}")
+                self.settings_window = None # Assurer que la référence est nulle en cas d'erreur
+        else:
+            # Si la fenêtre existe déjà et est visible, la mettre au premier plan
+            print("MainController: SettingsWindow existe déjà, activation...")
+            self.settings_window.activateWindow()
+            self.settings_window.raise_()
+    # -------------------------------------------------------------
+
+# --- SECTION PRINCIPALE (FIN DU FICHIER) --- 
+def main():
+    pass # <<< AJOUT D\'UN BLOC INDENTÉ POUR CORRIGER L\'ERREUR
+    # ... le reste du code original de main() devrait être ici ...
