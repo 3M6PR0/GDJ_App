@@ -29,13 +29,31 @@ class RapportDepensePage(QWidget):
         top_section_layout.setSpacing(15) # Espacement entre les frames Ajout et Totaux
 
         # --- Frame Gauche: Ajouter une Entrée ---
-        # 1. Créer le ComboBox D'ABORD
+        
+        # 1. Créer le contenu de l'en-tête (Label + ComboBox)
+        #    COPIE EXACTE de la structure de DocumentsTypeSelectionPage
+        header_layout = QHBoxLayout()
+        # Omettre l'icône
+        header_label = QLabel("Ajouter un(e) :") # Texte adapté
+        header_label.setObjectName("FormLabel") # Nom d'objet identique
+        # header_label.setFixedHeight(26) # Hauteur fixe (commentée pour l'instant, si besoin)
+        header_layout.addWidget(header_label)
+        
         self.entry_type_combo = QComboBox()
+        self.entry_type_combo.setObjectName("HeaderComboBox") # Nom d'objet identique
+        # self.entry_type_combo.setFixedHeight(26) # Hauteur fixe (commentée pour l'instant, si besoin)
         self.entry_type_combo.addItems(["Déplacement", "Repas", "Dépense"])
         self.entry_type_combo.currentIndexChanged.connect(self._update_entry_form)
+        header_layout.addWidget(self.entry_type_combo, 1) # Ajout avec stretch factor 1
+        
+        # Créer le widget conteneur pour l'en-tête
+        header_container = QWidget()
+        header_container.setObjectName("FrameHeaderContainer") # Nom d'objet identique
+        # header_container.setStyleSheet("background: none;") # Assurer qu'il n'y a PAS de style direct ici
+        header_container.setLayout(header_layout)
 
-        # 2. Créer le Frame en passant le ComboBox comme header_widget
-        self.add_entry_frame = Frame(header_widget=self.entry_type_combo, parent=self) 
+        # 2. Créer le Frame en passant le conteneur comme header_widget
+        self.add_entry_frame = Frame(header_widget=header_container, parent=self) 
         add_entry_content_layout = self.add_entry_frame.get_content_layout()
         add_entry_content_layout.setSpacing(8)
 
