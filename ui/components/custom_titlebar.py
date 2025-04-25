@@ -1,8 +1,8 @@
 import sys
 import os
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QSpacerItem, QSizePolicy, QMenu, QAction, QWidgetAction, QFrame
-from PyQt5.QtCore import Qt, QPoint, QSize, pyqtSlot as Slot, pyqtSignal
-from PyQt5.QtGui import QIcon, QPixmap, QFont
+from PyQt5.QtCore import Qt, QPoint, QSize, pyqtSlot as Slot, pyqtSignal, QEvent, QTimer
+from PyQt5.QtGui import QIcon, QPixmap, QFont, QCursor
 
 # --- Import CORRECT pour icon_loader --- 
 from utils import icon_loader
@@ -127,7 +127,7 @@ class CustomTitleBar(QWidget):
         self.btn_file.setStyleSheet(f"QPushButton#TitleBarMenuButton {{ {menu_button_style} }} QPushButton#TitleBarMenuButton:hover {{ {hover_style} }}")
         self.btn_file.setVisible(False)
         self._create_file_menu() # Créer le menu associé
-        self.btn_file.clicked.connect(self._show_file_menu) # Connecter au slot qui affiche le menu
+        self.btn_file.clicked.connect(self._show_file_menu) # <<< AJOUT: Reconnecter clic
         layout.addWidget(self.btn_file)
 
         self.btn_edit = QPushButton("Editer", self)
@@ -254,12 +254,76 @@ class CustomTitleBar(QWidget):
             parent_window.close()
         self.close_requested.emit() # Émettre signal
 
-    # --- Logique pour déplacer la fenêtre ---
+    # --- AJOUT: Méthode pour revenir à l'état initial ---
+    def show_initial_state(self):
+        """Cache les boutons de menu textuels et affiche le bouton menu + titre."""
+        # Cacher les boutons textuels
+        if self.btn_file: self.btn_file.hide()
+        if self.btn_edit: self.btn_edit.hide()
+        if self.btn_view: self.btn_view.hide()
+        if self.btn_help: self.btn_help.hide()
+        
+        # Cacher les menus déroulants (au cas où)
+        if self._file_menu: self._file_menu.hide()
+        # TODO: Cacher les autres menus (edit, view, help) quand ils seront implémentés
+        
+        # Afficher le bouton menu icône (si la fenêtre l'utilise)
+        # Il faut savoir si on DOIT l'afficher. On peut le déduire de la visibilité
+        # initiale passée ou d'un flag interne.
+        # Pour l'instant, on suppose qu'on doit le réafficher s'il était prévu.
+        # -> On va plutôt se baser sur la visibilité actuelle des boutons texte
+        #    Si on appelle cette fonction, c'est qu'ils étaient visibles.
+        if self.btn_custom_action: # S'assurer qu'il existe
+             self.btn_custom_action.setVisible(True) # Le rendre visible
+             
+        # Afficher le titre
+        if self.title_label: self.title_label.setVisible(True)
+        
+    # ------------------------------------------------------
+
+    # --- AJOUT/Modification: Gestion du clic sur la barre elle-même ---
     def mousePressEvent(self, event):
+        # Si les boutons de menu textuels sont visibles...
+        if self.btn_file and self.btn_file.isVisible():
+            # Vérifier si le clic est sur l'un des boutons/menus actifs
+            clicked_on_active_widget = False
+            active_widgets = [ # Liste des widgets qui maintiennent le menu ouvert
+                self.btn_file, self.btn_edit, self.btn_view, self.btn_help, 
+                self.btn_minimize, self.btn_maximize, self.btn_close,
+                self.btn_custom_action # Le bouton menu icône lui-même
+            ]
+            if self._file_menu and self._file_menu.isVisible():
+                 active_widgets.append(self._file_menu)
+            # TODO: Ajouter les autres menus déroulants à `active_widgets` quand ils existeront
+
+            for widget in active_widgets:
+                if widget and widget.isVisible() and widget.rect().contains(widget.mapFromGlobal(event.globalPos())):
+                    clicked_on_active_widget = True
+                    break
+            
+            # Si le clic n'était sur AUCUN widget actif, revenir à l'état initial
+            if not clicked_on_active_widget:
+                self.show_initial_state()
+                # On ne propage pas forcément l'événement pour éviter le déplacement
+                # return # Ou laisser passer pour le déplacement ? À tester.
+
+        # --- Logique originale pour déplacer la fenêtre --- (Exécutée si menu texte pas visible ou clic sur zone active)
         if event.button() == Qt.LeftButton:
-            self.pressing = True
-            self.start_move_pos = event.globalPos()
-        super().mousePressEvent(event)
+            # On vérifie si le clic n'était pas sur un bouton AVANT de démarrer le déplacement
+            is_on_button = False
+            # Vérifier tous les boutons potentiellement cliquables
+            all_buttons = [self.btn_custom_action, self.btn_file, self.btn_edit, self.btn_view, self.btn_help, self.btn_minimize, self.btn_maximize, self.btn_close]
+            for btn in all_buttons:
+                 if btn and btn.isVisible() and btn.rect().contains(btn.mapFromGlobal(event.globalPos())):
+                      is_on_button = True
+                      break
+            
+            if not is_on_button:
+                self.pressing = True
+                self.start_move_pos = event.globalPos()
+        # ------------------------------------------------
+        super().mousePressEvent(event) # Laisser le parent gérer (important!)
+    # ---------------------------------------------------------------
 
     def mouseMoveEvent(self, event):
         parent_window = self.parent() # Utiliser parent()
@@ -339,8 +403,8 @@ class CustomTitleBar(QWidget):
     # --- AJOUT: Méthode pour créer le menu Fichier ---
     def _create_file_menu(self):
         self._file_menu = QMenu(self)
-        self._file_menu.setObjectName("TitleBarDropdownMenu") # Pour style éventuel
-        self._file_menu.setMinimumWidth(220) # <<< AJOUT: Largeur minimale
+        self._file_menu.setObjectName("TitleBarDropdownMenu")
+        self._file_menu.setMinimumWidth(220)
         
         # Actions standard
         action_new = self._file_menu.addAction("Nouveau")
@@ -365,7 +429,7 @@ class CustomTitleBar(QWidget):
         action_save = self._file_menu.addAction("Enregistrer")
         action_save_as = self._file_menu.addAction("Enregistrer sous...")
         action_close_doc = self._file_menu.addAction("Fermer")
-        action_print_doc = self._file_menu.addAction("Print") # Renommé pour clarté
+        action_print_doc = self._file_menu.addAction("Imprimer") # Renommé ici
         # TODO: Connecter ces actions
         
         # --- Titre "Tous les documents" --- 
@@ -387,7 +451,7 @@ class CustomTitleBar(QWidget):
         
         action_save_all = self._file_menu.addAction("Enregistrer Tout") # Nom plus précis ?
         action_close_all = self._file_menu.addAction("Fermer Tout") # Nom plus précis ?
-        action_print_all = self._file_menu.addAction("Print Tout") # Nom plus précis ?
+        action_print_all = self._file_menu.addAction("Imprimer Tout") # Renommé ici
         # TODO: Connecter ces actions
 
         # self._file_menu.addSeparator() # <<< SUPPRESSION DE CETTE LIGNE
@@ -402,8 +466,9 @@ class CustomTitleBar(QWidget):
         action_quit = self._file_menu.addAction("Quitter")
         # --- Connexion de l'action Paramètres au signal ---
         action_settings.triggered.connect(self.settings_requested.emit)
-        # -------------------------------------------------
-        # action_quit.triggered.connect(self.close_window) # Exemple de connexion
+        # --- AJOUT: Connexion de l'action Quitter --- 
+        action_quit.triggered.connect(self.close_window) 
+        # -----------------------------------------------
         
         # Appliquer un style global au menu si nécessaire via QSS
         # self._file_menu.setStyleSheet(\"QMenu { ... } QMenu::item { ... } ... \")
@@ -473,27 +538,25 @@ class CustomTitleBar(QWidget):
         return widget
     # ------------------------------------------------------------
 
-    # --- AJOUT: Méthode pour afficher le menu Fichier ---
+    # --- _show_file_menu inchangé (utilise popup) --- 
     def _show_file_menu(self):
-        if self._file_menu:
-            # Positionner le menu sous le bouton Fichier
+        if self._file_menu and not self._file_menu.isVisible():
             menu_pos = self.btn_file.mapToGlobal(QPoint(0, self.btn_file.height()))
-            self._file_menu.exec_(menu_pos)
+            self._file_menu.popup(menu_pos)
     # ----------------------------------------------------
 
     # --- AJOUT: Méthode pour afficher les boutons de menu ---
     def _show_menu_buttons(self):
         """Masque le bouton menu et le titre, affiche les boutons textuels."""
-        self.btn_custom_action.setVisible(False)
-        self.title_label.setVisible(False)
+        # Cacher l'état initial
+        if self.btn_custom_action: self.btn_custom_action.setVisible(False)
+        if self.title_label: self.title_label.setVisible(False)
         
-        self.btn_file.setVisible(True)
-        self.btn_edit.setVisible(True)
-        self.btn_view.setVisible(True)
-        self.btn_help.setVisible(True)
-        
-        # Optionnel: Émettre un signal si nécessaire
-        # self.custom_action_requested.emit() # Ou un nouveau signal menu_shown
+        # Afficher les boutons textuels
+        if self.btn_file: self.btn_file.setVisible(True)
+        if self.btn_edit: self.btn_edit.setVisible(True)
+        if self.btn_view: self.btn_view.setVisible(True)
+        if self.btn_help: self.btn_help.setVisible(True)
     # -----------------------------------------------------
 
 # --- Section pour tester la barre seule --- 
