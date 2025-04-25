@@ -1,11 +1,15 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel #, QLineEdit, QFormLayout
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFormLayout, 
+                           QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox, 
+                           QPushButton, QHBoxLayout, QMessageBox)
+from PyQt5.QtCore import Qt, QDate
+from ui.components.frame import Frame # Correction: Chemin d'importation correct
+from models.documents.rapport_depense import RapportDepense, Deplacement, Repas, Depense # Importer les modèles
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
 
 class RapportDepensePage(QWidget):
-    def __init__(self, document, parent=None):
+    def __init__(self, document: RapportDepense, parent=None):
         super().__init__(parent)
         self.setObjectName("RapportDepensePage")
         self.document = document # Garder une référence au modèle de données
@@ -18,26 +22,193 @@ class RapportDepensePage(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
 
-        # --- Contenu simplifié pour test --- 
-        test_label = QLabel(f"Ceci est la page pour: {getattr(self.document, 'title', 'Document inconnu')}")
-        test_label.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(test_label)
-        # ------------------------------------
+        # --- Section En-tête (Infos du Rapport) ---
+        # Pourrait être enrichi plus tard pour afficher nom, date, etc.
+        header_label = QLabel(f"Rapport: {self.document.title}")
+        header_label.setStyleSheet("font-weight: bold; font-size: 16px;")
+        main_layout.addWidget(header_label)
 
-        # --- Ancien formulaire commenté --- 
-        # title_label = QLabel(\"Rapport de Dépense\")
-        # ... (form layout et champs commentés) ...
-        # self.setLayout(main_layout) # Déjà fait à la fin
-        # ----------------------------------
+        # --- Section Ajouter une Entrée ---
+        add_entry_frame = Frame("Ajouter une entrée", self) # Utiliser le Frame custom
+        add_entry_content_layout = add_entry_frame.get_content_layout() 
+        add_entry_content_layout.setSpacing(8) # Réduire l'espacement vertical
 
-        self.setLayout(main_layout)
+        # --- Ligne supérieure : Contrôles principaux ---
+        top_controls_layout = QHBoxLayout()
+        top_controls_layout.setContentsMargins(0,0,0,0) # Pas de marges pour ce layout interne
+        top_controls_layout.setSpacing(6)
+        
+        # ComboBox pour choisir le type d'entrée
+        self.entry_type_combo = QComboBox()
+        self.entry_type_combo.addItems(["Déplacement", "Repas", "Dépense"])
+        self.entry_type_combo.currentIndexChanged.connect(self._update_entry_form)
+        top_controls_layout.addWidget(self.entry_type_combo)
 
-    # --- Méthodes commentées car non utilisées avec le QLabel --- 
-    # def _load_data(self):
-    #     ...
-    # def get_document_data(self):
-    #     ...
-    # -----------------------------------------------------------
+        top_controls_layout.addStretch() # Pousser les boutons vers la droite
+
+        # Boutons "Effacer" et "Ajouter"
+        self.clear_button = QPushButton("Effacer")
+        self.add_button = QPushButton("Ajouter")
+        self.clear_button.clicked.connect(self._clear_entry_form)
+        self.add_button.clicked.connect(self._add_entry)
+        top_controls_layout.addWidget(self.clear_button)
+        top_controls_layout.addWidget(self.add_button)
+        
+        # Ajouter la ligne de contrôles au layout du contenu
+        add_entry_content_layout.addLayout(top_controls_layout)
+
+        # --- Formulaire dynamique (en dessous) ---
+        self.dynamic_form_widget = QWidget()
+        self.dynamic_form_layout = QFormLayout(self.dynamic_form_widget)
+        # Mettre les marges du haut à 0 car l'espacement du layout parent gère déjà l'écart
+        self.dynamic_form_layout.setContentsMargins(0, 0, 0, 0) 
+        # --- Décommenter la ligne ---
+        add_entry_content_layout.addWidget(self.dynamic_form_widget)
+
+        # --- Déplacer l'ajout du Frame ici ---
+        main_layout.addWidget(add_entry_frame)
+        # --- Retirer la hauteur minimale de test ---
+        # add_entry_frame.setMinimumHeight(150) 
+
+        # --- Section Affichage des Entrées (à ajouter plus tard) ---
+        # Placeholder pour une table ou liste
+        entries_label = QLabel("Entrées existantes (à implémenter)")
+        main_layout.addWidget(entries_label)
+
+        main_layout.addStretch() # Pour pousser les éléments vers le haut
+
+        # Initialiser le formulaire pour le premier type
+        self._update_entry_form()
+
+    def _update_entry_form(self):
+        """ Met à jour le formulaire en fonction du type d'entrée sélectionné. """
+        # Supprimer les anciens widgets du layout dynamique
+        while self.dynamic_form_layout.count():
+            item = self.dynamic_form_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        
+        entry_type = self.entry_type_combo.currentText()
+        self.form_fields = {} # Dictionnaire pour stocker les widgets du formulaire
+
+        # Champs communs
+        self.form_fields['date'] = QDateEdit(QDate.currentDate())
+        self.form_fields['date'].setCalendarPopup(True)
+        self.dynamic_form_layout.addRow("Date:", self.form_fields['date'])
+        
+        self.form_fields['description'] = QLineEdit()
+        self.dynamic_form_layout.addRow("Description:", self.form_fields['description'])
+
+        self.form_fields['montant'] = QDoubleSpinBox()
+        self.form_fields['montant'].setRange(0.0, 99999.99)
+        self.form_fields['montant'].setSuffix(" $")
+        self.dynamic_form_layout.addRow("Montant:", self.form_fields['montant'])
+
+        # Champs spécifiques
+        if entry_type == "Déplacement":
+            self.form_fields['kilometrage'] = QDoubleSpinBox()
+            self.form_fields['kilometrage'].setRange(0.0, 9999.9)
+            self.form_fields['kilometrage'].setSuffix(" km")
+            self.dynamic_form_layout.addRow("Kilométrage:", self.form_fields['kilometrage'])
+            
+            self.form_fields['vehicule'] = QLineEdit()
+            self.dynamic_form_layout.addRow("Véhicule:", self.form_fields['vehicule'])
+
+            self.form_fields['depart'] = QLineEdit()
+            self.dynamic_form_layout.addRow("Lieu Départ:", self.form_fields['depart'])
+            
+            self.form_fields['arrivee'] = QLineEdit()
+            self.dynamic_form_layout.addRow("Lieu Arrivée:", self.form_fields['arrivee'])
+
+        elif entry_type == "Repas":
+            self.form_fields['nombre_convives'] = QDoubleSpinBox() # Utiliser QSpinBox si entier est suffisant
+            self.form_fields['nombre_convives'].setRange(1, 100)
+            self.form_fields['nombre_convives'].setDecimals(0) # Pour un entier
+            self.dynamic_form_layout.addRow("Nombre convives:", self.form_fields['nombre_convives'])
+
+            self.form_fields['nom_convives'] = QLineEdit()
+            self.dynamic_form_layout.addRow("Noms convives:", self.form_fields['nom_convives'])
+            
+            self.form_fields['etablissement'] = QLineEdit()
+            self.dynamic_form_layout.addRow("Établissement:", self.form_fields['etablissement'])
+
+        elif entry_type == "Dépense":
+            # Pas de champs spécifiques pour le modèle Depense de base pour l'instant
+            # On pourrait ajouter 'categorie' ou autre plus tard
+            pass
+
+    def _clear_entry_form(self):
+        """ Efface les champs du formulaire actuel. """
+        for widget in self.form_fields.values():
+            if isinstance(widget, QLineEdit):
+                widget.clear()
+            elif isinstance(widget, QDoubleSpinBox):
+                widget.setValue(widget.minimum()) # Remettre à la valeur minimale (souvent 0)
+            elif isinstance(widget, QDateEdit):
+                widget.setDate(QDate.currentDate())
+            # Ajouter d'autres types de widgets si nécessaire
+
+    def _add_entry(self):
+        """ Ajoute l'entrée (Déplacement, Repas, Dépense) au document. """
+        entry_type = self.entry_type_combo.currentText()
+        
+        try:
+            # Récupérer les valeurs communes
+            date_val = self.form_fields['date'].date().toPyDate() # Convertir QDate en date
+            description_val = self.form_fields['description'].text()
+            montant_val = self.form_fields['montant'].value()
+
+            if not description_val:
+                QMessageBox.warning(self, "Champ manquant", "La description est requise.")
+                return
+            if montant_val <= 0:
+                 QMessageBox.warning(self, "Montant invalide", "Le montant doit être positif.")
+                 return
+
+            new_entry = None
+            if entry_type == "Déplacement":
+                 # Récupérer les valeurs spécifiques au déplacement
+                 kilometrage_val = self.form_fields['kilometrage'].value()
+                 vehicule_val = self.form_fields['vehicule'].text()
+                 depart_val = self.form_fields['depart'].text()
+                 arrivee_val = self.form_fields['arrivee'].text()
+                 
+                 new_entry = Deplacement(date=date_val, description=description_val, montant=montant_val,
+                                         kilometrage=kilometrage_val, vehicule=vehicule_val, 
+                                         lieu_depart=depart_val, lieu_arrivee=arrivee_val)
+                 self.document.add_deplacement(new_entry)
+
+            elif entry_type == "Repas":
+                 # Récupérer les valeurs spécifiques au repas
+                 nb_convives_val = int(self.form_fields['nombre_convives'].value()) # Assurer entier
+                 noms_convives_val = self.form_fields['nom_convives'].text()
+                 etablissement_val = self.form_fields['etablissement'].text()
+
+                 new_entry = Repas(date=date_val, description=description_val, montant=montant_val,
+                                   nombre_convives=nb_convives_val, nom_convives=noms_convives_val, 
+                                   nom_etablissement=etablissement_val)
+                 self.document.add_repas(new_entry)
+                 
+            elif entry_type == "Dépense":
+                 new_entry = Depense(date=date_val, description=description_val, montant=montant_val)
+                 self.document.add_depense(new_entry)
+
+            if new_entry:
+                print(f"Entrée ajoutée: {new_entry}") # Pour débogage
+                self._clear_entry_form()
+                # Mettre à jour l'affichage des entrées (à faire)
+                # self._update_entries_display() 
+                QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.")
+
+        except KeyError as e:
+             QMessageBox.critical(self, "Erreur", f"Erreur interne: Champ de formulaire manquant {e}")
+        except Exception as e:
+             QMessageBox.critical(self, "Erreur", f"Impossible d'ajouter l'entrée: {e}")
+
+    # --- Méthode pour mettre à jour l'affichage des entrées (à implémenter) ---
+    # def _update_entries_display(self):
+    #     pass 
 
 # Bloc de test simple
 if __name__ == '__main__':
