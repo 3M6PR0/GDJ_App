@@ -5,8 +5,12 @@ MONTHS = [
 ]
 # --------------------------------
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QTabWidget, QPushButton, QHBoxLayout
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QPushButton, QFrame as QtFrame, QSpacerItem, QSizePolicy,
+                             QStackedWidget, QButtonGroup, QAbstractButton,
+                             QTabWidget)
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
+from PyQt5.QtGui import QIcon, QPixmap, QFont
 from datetime import datetime, date
 
 # --- Importer les templates --- 
@@ -33,23 +37,50 @@ class DocumentsOpenPage(QWidget):
         # --- Créer le premier onglet --- 
         if self.initial_doc_type:
             self._create_tab(self.initial_doc_type, self.initial_doc_data)
+        else:
+            # Mettre à jour le titre même si aucun onglet n'est créé initialement
+            self._update_sidebar_title(self.tab_widget.currentIndex()) 
         # -----------------------------
     # -----------------------------
 
     def _setup_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5) # Ajouter un peu de marge
-        main_layout.setSpacing(5)
+        # Layout principal Horizontal pour Sidebar + Contenu
+        page_layout = QHBoxLayout(self)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
 
-        # --- Barre d'outils pour ajouter des onglets --- 
-        toolbar_layout = QHBoxLayout()
-        # TODO: Ajouter des boutons ici pour créer de nouveaux onglets de différents types
-        # Ex: btn_new_rapport = QPushButton("Nouveau Rapport Dépense")
-        #     btn_new_rapport.clicked.connect(lambda: self._create_tab("Rapport de depense", {}))
-        #     toolbar_layout.addWidget(btn_new_rapport)
-        #     toolbar_layout.addStretch()
-        # --- Fin Barre d'outils ---
-        main_layout.addLayout(toolbar_layout)
+        # --- Barre Latérale Gauche ---
+        sidebar_widget = QtFrame()
+        sidebar_widget.setObjectName("Sidebar") # Pour hériter du style global
+        sidebar_widget.setFixedWidth(200) 
+
+        sidebar_layout = QVBoxLayout(sidebar_widget)
+        sidebar_layout.setContentsMargins(10, 15, 10, 15) 
+        sidebar_layout.setSpacing(10)
+
+        # Label pour le titre du document actif (initialement vide)
+        self.sidebar_title_label = QLabel("Aucun document ouvert") # Texte initial
+        self.sidebar_title_label.setObjectName("SidebarTitleLabel")
+        self.sidebar_title_label.setStyleSheet("font-weight: bold; font-size: 14px;") # Garder le style du texte
+        self.sidebar_title_label.setWordWrap(True)
+        self.sidebar_title_label.setAlignment(Qt.AlignTop)
+        sidebar_layout.addWidget(self.sidebar_title_label)
+
+        sidebar_layout.addStretch() # Pousse le titre vers le haut
+
+        page_layout.addWidget(sidebar_widget) # Ajouter la sidebar
+
+        # --- Séparateur Vertical ---
+        separator = QtFrame()
+        separator.setFrameShape(QtFrame.VLine)
+        separator.setFrameShadow(QtFrame.Sunken)
+        page_layout.addWidget(separator)
+        
+        # --- Zone Contenu Droite (avec le TabWidget) ---
+        content_widget = QWidget() # Widget conteneur pour le TabWidget
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(5, 5, 5, 5) 
+        content_layout.setSpacing(0) # Pas d'espacement avant le TabWidget
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setObjectName("DocumentTabWidget")
@@ -57,10 +88,33 @@ class DocumentsOpenPage(QWidget):
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.setMovable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        # Connecter le changement d'onglet à la mise à jour du titre
+        self.tab_widget.currentChanged.connect(self._update_sidebar_title) 
         
-        main_layout.addWidget(self.tab_widget) # Ajouter le QTabWidget au layout principal
+        content_layout.addWidget(self.tab_widget) # Ajouter QTabWidget au layout de contenu
+        page_layout.addWidget(content_widget, 1) # Ajouter zone de contenu, prend l'espace restant
 
-        self.setLayout(main_layout)
+    @Slot(int)
+    def _update_sidebar_title(self, index):
+        """Met à jour le type de document (en gras) dans la barre latérale basé sur l'onglet courant."""
+        current_widget = self.tab_widget.widget(index)
+        
+        doc_type_display = "Aucun document"
+        
+        if current_widget:
+            # Essayer de récupérer le type de document stocké comme propriété
+            doc_type = current_widget.property("doc_type")
+            if isinstance(doc_type, str) and doc_type:
+                # Formatter pour affichage (ex: juste capitaliser)
+                formatted_type = doc_type.capitalize()
+                doc_type_display = formatted_type
+            else:
+                # Fallback: utiliser le texte de l'onglet si pas de type trouvé
+                tab_text = self.tab_widget.tabText(index)
+                doc_type_display = tab_text if tab_text else "Onglet"
+        
+        # Appliquer le formatage gras via HTML
+        self.sidebar_title_label.setText(f"<b>{doc_type_display}</b>")
 
     # --- Nouvelle méthode pour créer un onglet --- 
     def _create_tab(self, doc_type: str, doc_data: dict):
@@ -139,6 +193,9 @@ class DocumentsOpenPage(QWidget):
                 tab_title = f"Erreur - {doc_type}"
 
             if page_widget:
+                # --- Stocker le type de document sur le widget de page ---
+                page_widget.setProperty("doc_type", doc_type)
+                # ----------------------------------------------------------
                 self.add_document_tab(page_widget, tab_title)
 
         except ImportError as ie:
