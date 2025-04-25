@@ -29,46 +29,46 @@ class RapportDepensePage(QWidget):
         main_layout.addWidget(header_label)
 
         # --- Section Ajouter une Entrée ---
-        add_entry_frame = Frame("Ajouter une entrée", self) # Utiliser le Frame custom
-        add_entry_content_layout = add_entry_frame.get_content_layout() 
-        add_entry_content_layout.setSpacing(8) # Réduire l'espacement vertical
 
-        # --- Ligne supérieure : Contrôles principaux ---
-        top_controls_layout = QHBoxLayout()
-        top_controls_layout.setContentsMargins(0,0,0,0) # Pas de marges pour ce layout interne
-        top_controls_layout.setSpacing(6)
-        
-        # ComboBox pour choisir le type d'entrée
+        # 1. Créer le ComboBox D'ABORD
         self.entry_type_combo = QComboBox()
         self.entry_type_combo.addItems(["Déplacement", "Repas", "Dépense"])
         self.entry_type_combo.currentIndexChanged.connect(self._update_entry_form)
-        top_controls_layout.addWidget(self.entry_type_combo)
 
-        top_controls_layout.addStretch() # Pousser les boutons vers la droite
+        # 2. Créer le Frame en passant le ComboBox comme header_widget
+        add_entry_frame = Frame(header_widget=self.entry_type_combo, parent=self)
+        add_entry_content_layout = add_entry_frame.get_content_layout() 
+        add_entry_content_layout.setSpacing(8) # Réduire l'espacement vertical
+
+        # --- Ligne pour les boutons (sous l'en-tête/ComboBox) ---
+        buttons_layout = QHBoxLayout() # Renommé pour clarté
+        buttons_layout.setContentsMargins(0,0,0,0)
+        buttons_layout.setSpacing(6)
+        
+        # 3. Ne plus ajouter le ComboBox ici
+        # top_controls_layout.addWidget(self.entry_type_combo)
+
+        buttons_layout.addStretch() # Pousser les boutons vers la droite
 
         # Boutons "Effacer" et "Ajouter"
         self.clear_button = QPushButton("Effacer")
         self.add_button = QPushButton("Ajouter")
         self.clear_button.clicked.connect(self._clear_entry_form)
         self.add_button.clicked.connect(self._add_entry)
-        top_controls_layout.addWidget(self.clear_button)
-        top_controls_layout.addWidget(self.add_button)
+        buttons_layout.addWidget(self.clear_button)
+        buttons_layout.addWidget(self.add_button)
         
-        # Ajouter la ligne de contrôles au layout du contenu
-        add_entry_content_layout.addLayout(top_controls_layout)
+        # Ajouter la ligne des boutons au layout du contenu
+        add_entry_content_layout.addLayout(buttons_layout)
 
-        # --- Formulaire dynamique (en dessous) ---
+        # --- Formulaire dynamique (en dessous des boutons) ---
         self.dynamic_form_widget = QWidget()
         self.dynamic_form_layout = QFormLayout(self.dynamic_form_widget)
-        # Mettre les marges du haut à 0 car l'espacement du layout parent gère déjà l'écart
         self.dynamic_form_layout.setContentsMargins(0, 0, 0, 0) 
-        # --- Décommenter la ligne ---
         add_entry_content_layout.addWidget(self.dynamic_form_widget)
 
-        # --- Déplacer l'ajout du Frame ici ---
+        # --- Ajouter le Frame au layout principal ---
         main_layout.addWidget(add_entry_frame)
-        # --- Retirer la hauteur minimale de test ---
-        # add_entry_frame.setMinimumHeight(150) 
 
         # --- Section Affichage des Entrées (à ajouter plus tard) ---
         # Placeholder pour une table ou liste
