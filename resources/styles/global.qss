@@ -32,15 +32,18 @@ QFrame#Sidebar {
     background-color: {{COLOR_PRIMARY_DARK}};
 }
 
-/* Zone de contenu principale */
-QStackedWidget#ContentArea {
-    background-color: {{COLOR_PRIMARY_DARKEST}};
-    border-left: 1px solid {{COLOR_PRIMARY_DARK}};
+/* Zone de contenu principale (Onglets) */
+QTabWidget#MainTabWidget {
+    /* Utiliser la couleur de fond medium comme les Frames */
+    background-color: {{COLOR_PRIMARY_MEDIUM}};
+    /* Pas besoin de bordure ici, géré par les styles d'onglets? */
+    border: none; 
 }
 
 /* Style par défaut pour les widgets DANS la zone de contenu */
-QStackedWidget#ContentArea > QWidget {
-    background-color: {{COLOR_PRIMARY_DARKEST}};
+QTabWidget#MainTabWidget > QWidget {
+    /* Assurer que les widgets enfants ont aussi un fond transparent */
+    background-color: transparent;
 }
 
 /* -- Styles Sidebar (Boutons, etc.) -- */
@@ -361,11 +364,9 @@ QPushButton#ItemOptionsButton {
     border-radius: 10px; /* Utiliser une valeur fixe en pixels */
     padding: 1px; 
 }
-/* Revenir au pseudo-état :hover standard */
 QPushButton#ItemOptionsButton:hover {
     background-color: {{COLOR_ACCENT}}; 
     border-radius: 10px; /* Utiliser une valeur fixe en pixels */
 }
-/* Retiré: Règle :pressed non demandée */
 
 /* ... (autres styles s'il y en a après) ... */ 
