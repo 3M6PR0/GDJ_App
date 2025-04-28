@@ -379,7 +379,7 @@ class RapportDepensePage(QWidget):
             # Définir les stretchs des colonnes du grid pour largeur égale
             refacturer_grid_layout.setColumnStretch(0, 1)
             refacturer_grid_layout.setColumnStretch(1, 1)
-            refacturer_grid_layout.setColumnStretch(2, 1)
+            refacturer_grid_layout.setColumnStretch(2, 2) # Donner un poids de 2 à la 3ème colonne
             
             # --- Définir la visibilité initiale de N° Commande --- 
             self._toggle_num_commande_visibility(self.form_fields['refacturer_oui'].isChecked())
