@@ -318,9 +318,10 @@ class RapportDepensePage(QWidget):
 
             # --- Remplacement CheckBox par RadioButton pour Payeur --- 
             payeur_label = QLabel("Payeur:")
-            payeur_layout = QHBoxLayout()
+            payeur_grid_layout = QGridLayout() # UTILISER UN GRID ICI
             self.payeur_group = QButtonGroup(self) # Créer le groupe
-            payeur_layout.setContentsMargins(0,0,0,0)
+            payeur_grid_layout.setContentsMargins(0,0,0,0)
+            payeur_grid_layout.setSpacing(10) # Espacement comme Refacturer
             self.form_fields['payeur_employe'] = QRadioButton("Employé")
             self.form_fields['payeur_employe'].setObjectName("FormRadioButton")
             self.form_fields['payeur_jacmar'] = QRadioButton("Jacmar")
@@ -328,11 +329,17 @@ class RapportDepensePage(QWidget):
             self.form_fields['payeur_employe'].setChecked(True) # Défaut Employé
             self.payeur_group.addButton(self.form_fields['payeur_employe']) # Ajouter au groupe
             self.payeur_group.addButton(self.form_fields['payeur_jacmar']) # Ajouter au groupe
-            payeur_layout.addWidget(self.form_fields['payeur_employe'])
-            payeur_layout.addWidget(self.form_fields['payeur_jacmar'])
-            payeur_layout.addStretch()
+            # Placer les boutons dans le grid
+            payeur_grid_layout.addWidget(self.form_fields['payeur_employe'], 0, 0) # Ligne 0, Col 0
+            payeur_grid_layout.addWidget(self.form_fields['payeur_jacmar'], 0, 1)  # Ligne 0, Col 1
+
+            # Définir les stretchs des colonnes (1:1:2)
+            payeur_grid_layout.setColumnStretch(0, 1)
+            payeur_grid_layout.setColumnStretch(1, 1)
+            payeur_grid_layout.setColumnStretch(2, 2) # Laisser la colonne 2 vide mais stretchée
+
             self.dynamic_form_layout.addWidget(payeur_label, 4, 0)
-            self.dynamic_form_layout.addLayout(payeur_layout, 4, 1)
+            self.dynamic_form_layout.addLayout(payeur_grid_layout, 4, 1) # Ajouter le GRID
             # ---------------------------------------------------------
             
             # --- Remplacement CheckBox par RadioButton pour Refacturer ---
