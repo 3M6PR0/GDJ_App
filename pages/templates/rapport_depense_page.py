@@ -255,26 +255,45 @@ class RapportDepensePage(QWidget):
         # Date (col 0)
         date_label = QLabel("Date:")
         self.form_fields['date'] = QDateEdit(QDate.currentDate())
+        # --- Appliquer un style pour ressembler à QLineEdit --- 
+        self.form_fields['date'].setStyleSheet("""
+            QDateEdit {
+                border: 1px solid #555; /* Correspondance avec RadioButton unchecked */
+                padding: 2px 5px; /* Ajuster le padding comme un QLineEdit */
+                background-color: #333; /* Fond comme RadioButton unchecked */
+                /* border-radius: 4px; */ /* Optionnel: coins arrondis */
+            }
+            QDateEdit::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 15px;
+                border-left-width: 1px;
+                border-left-color: #555;
+                border-left-style: solid; 
+                /* border-top-right-radius: 3px; */ /* Optionnel */
+                /* border-bottom-right-radius: 3px; */ /* Optionnel */
+            }
+            QDateEdit::down-arrow {
+                /* Vous pouvez utiliser une image ou un caractère unicode ici */
+                /* image: url(path/to/your/arrow.png); */
+                /* Ou laisser le défaut */
+            }
+        """)
+        # ------------------------------------------------------
         self.form_fields['date'].setCalendarPopup(True)
         self.dynamic_form_layout.addWidget(date_label, 0, 0)
         self.dynamic_form_layout.addWidget(self.form_fields['date'], 0, 1)
         max_grid_row_used = max(max_grid_row_used, 0)
         
-        # Description (col 0)
-        desc_label = QLabel("Description:")
-        self.form_fields['description'] = QLineEdit()
-        self.dynamic_form_layout.addWidget(desc_label, 1, 0)
-        self.dynamic_form_layout.addWidget(self.form_fields['description'], 1, 1)
-        max_grid_row_used = max(max_grid_row_used, 1)
-
         # --- Champs spécifiques par type --- 
         if entry_type == "Déplacement":
             # Colonne 1 (suite)
             client_label = QLabel("Client:")
             self.form_fields['client'] = QLineEdit()
-            self.dynamic_form_layout.addWidget(client_label, 2, 0)
-            self.dynamic_form_layout.addWidget(self.form_fields['client'], 2, 1)
-            max_grid_row_used = max(max_grid_row_used, 2)
+            self.dynamic_form_layout.addWidget(client_label, 1, 0) # Décalé à la ligne 1
+            self.dynamic_form_layout.addWidget(self.form_fields['client'], 1, 1) # Décalé à la ligne 1
+            # max_grid_row_used est à 0 (Date), devient 1 ici
+            max_grid_row_used = max(max_grid_row_used, 1) 
 
             # Colonne 2 (Indices 2, 3)
             ville_label = QLabel("Ville:")
@@ -295,6 +314,7 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.addWidget(kilometrage_label, 2, 2)
             self.dynamic_form_layout.addWidget(self.form_fields['kilometrage'], 2, 3)
             # max_grid_row_used est déjà à 2
+            max_grid_row_used = max(max_grid_row_used, 2) # Assurer que max_grid_row_used prend en compte la colonne 2
             
             # Stretch colonnes pour Déplacement
             self.dynamic_form_layout.setColumnStretch(1, 1) # Widget Col 1
@@ -306,16 +326,27 @@ class RapportDepensePage(QWidget):
             # --- Colonne 1 (Indices 0, 1) --- 
             # Date et Description sont déjà là (lignes 0, 1)
             
-            restaurant_label = QLabel("Restaurant:")
-            self.form_fields['restaurant'] = QLineEdit()
-            self.dynamic_form_layout.addWidget(restaurant_label, 2, 0)
-            self.dynamic_form_layout.addWidget(self.form_fields['restaurant'], 2, 1)
+            # --- Restaurant et Client sur la Ligne 1 ---
+            restaurant_label = QLabel("Restaurant:") 
+            self.dynamic_form_layout.addWidget(restaurant_label, 1, 0) # Label en (1, 0)
             
-            client_repas_label = QLabel("Client:")
-            self.form_fields['client_repas'] = QLineEdit() # Clé différente de déplacement
-            self.dynamic_form_layout.addWidget(client_repas_label, 3, 0)
-            self.dynamic_form_layout.addWidget(self.form_fields['client_repas'], 3, 1)
-
+            resto_client_hbox = QHBoxLayout()
+            resto_client_hbox.setContentsMargins(0,0,0,0)
+            resto_client_hbox.setSpacing(5)
+            
+            self.form_fields['restaurant'] = QLineEdit()
+            resto_client_hbox.addWidget(self.form_fields['restaurant'], 1) # Stretch 1
+            
+            resto_client_hbox.addSpacing(10)
+            
+            client_repas_label_inline = QLabel("Client:")
+            self.form_fields['client_repas'] = QLineEdit()
+            resto_client_hbox.addWidget(client_repas_label_inline)
+            resto_client_hbox.addWidget(self.form_fields['client_repas'], 1) # Stretch 1
+            
+            self.dynamic_form_layout.addLayout(resto_client_hbox, 1, 1) # HBox en (1, 1)
+            # ----------------------------------------------
+            
             # --- Remplacement CheckBox par RadioButton pour Payeur --- 
             payeur_label = QLabel("Payeur:")
             payeur_grid_layout = QGridLayout() # UTILISER UN GRID ICI
@@ -338,8 +369,8 @@ class RapportDepensePage(QWidget):
             payeur_grid_layout.setColumnStretch(1, 1)
             payeur_grid_layout.setColumnStretch(2, 2) # Laisser la colonne 2 vide mais stretchée
 
-            self.dynamic_form_layout.addWidget(payeur_label, 4, 0)
-            self.dynamic_form_layout.addLayout(payeur_grid_layout, 4, 1) # Ajouter le GRID
+            self.dynamic_form_layout.addWidget(payeur_label, 2, 0)
+            self.dynamic_form_layout.addLayout(payeur_grid_layout, 2, 1) # Ajouter le GRID
             # ---------------------------------------------------------
             
             # --- Remplacement CheckBox par RadioButton pour Refacturer ---
@@ -392,14 +423,15 @@ class RapportDepensePage(QWidget):
             self._toggle_num_commande_visibility(self.form_fields['refacturer_oui'].isChecked())
             # -----------------------------------------------------
 
-            self.dynamic_form_layout.addWidget(refacturer_label, 5, 0)
-            self.dynamic_form_layout.addLayout(refacturer_grid_layout, 5, 1) # Ajouter le GRID au layout principal
+            self.dynamic_form_layout.addWidget(refacturer_label, 3, 0)
+            self.dynamic_form_layout.addLayout(refacturer_grid_layout, 3, 1) # Ajouter le GRID au layout principal
             # ----------------------------------------------------------
 
-            # La ligne 6 n'est plus utilisée ici, la ligne 5 est la max pour ce groupe
-            max_grid_row_used = max(max_grid_row_used, 5)
+            # La ligne max utilisée pour la colonne de gauche est maintenant 3
+            max_grid_row_used = max(max_grid_row_used, 3)
             
             # --- Colonne 2 (Indices 2, 3) --- 
+            # Fonction utilitaire pour les champs montant simples
             def add_montant_field(label_text, field_key, row):
                 label = QLabel(label_text)
                 widget = QLineEdit("0.00") # Valeur initiale
@@ -411,21 +443,52 @@ class RapportDepensePage(QWidget):
                 widget.setAlignment(Qt.AlignRight)
                 # widget.setButtonSymbols(QDoubleSpinBox.NoButtons) # N'est plus pertinent
                 self.form_fields[field_key] = widget
-                self.dynamic_form_layout.addWidget(label, row, 2)
-                self.dynamic_form_layout.addWidget(widget, row, 3)
+                self.dynamic_form_layout.addWidget(label, row, 2) # Label en col 2
+                self.dynamic_form_layout.addWidget(widget, row, 3) # Widget en col 3
                 return widget # Retourne le widget créé
             
-            add_montant_field("Total avant Tx:", 'total_avant_taxes', 0)
-            add_montant_field("Pourboire:", 'pourboire', 1)
+            # --- Total avant Tx et Pourboire sur la même ligne (Ligne 0, Cols 2 et 3) --- 
+            total_avtx_label = QLabel("Total avant Tx:")
+            self.dynamic_form_layout.addWidget(total_avtx_label, 0, 2) # Label en (0, 2)
+
+            montants_hbox = QHBoxLayout()
+            montants_hbox.setContentsMargins(0,0,0,0)
+            montants_hbox.setSpacing(5)
+
+            # Champ Total avant Tx
+            total_avtx_widget = QLineEdit("0.00")
+            validator_avtx = QDoubleValidator(0.0, 99999.99, 2)
+            validator_avtx.setNotation(QDoubleValidator.StandardNotation)
+            total_avtx_widget.setValidator(validator_avtx)
+            total_avtx_widget.setAlignment(Qt.AlignRight)
+            self.form_fields['total_avant_taxes'] = total_avtx_widget
+            montants_hbox.addWidget(total_avtx_widget, 1) # Stretch 1
+
+            montants_hbox.addSpacing(10) # Espace entre les deux champs
+
+            # Label et Champ Pourboire
+            pourboire_label = QLabel("Pourboire:")
+            pourboire_widget = QLineEdit("0.00")
+            validator_pb = QDoubleValidator(0.0, 99999.99, 2)
+            validator_pb.setNotation(QDoubleValidator.StandardNotation)
+            pourboire_widget.setValidator(validator_pb)
+            pourboire_widget.setAlignment(Qt.AlignRight)
+            self.form_fields['pourboire'] = pourboire_widget
+            montants_hbox.addWidget(pourboire_label) # Pas de stretch pour le label
+            montants_hbox.addWidget(pourboire_widget, 1) # Stretch 1 pour le champ
+
+            # Ajouter le HBox à la grille
+            self.dynamic_form_layout.addLayout(montants_hbox, 0, 3) # HBox en (0, 3)
+            # -------------------------------------------------------------------------
             
             # --- Taxes: Label principal + Labels/Champs groupés horizontalement --- 
-            tax_start_row = 2
+            tax_start_row = 1 # Taxes à la ligne 1
             tax_labels = ["TPS:", "TVQ:", "TVH:"]
             tax_field_keys = ['tps', 'tvq', 'tvh']
             
             # Ajouter le label principal "Taxe:" dans la colonne des labels
             main_tax_label = QLabel("Taxe:")
-            self.dynamic_form_layout.addWidget(main_tax_label, tax_start_row, 2) # Ligne 2, Col 2 (Label)
+            self.dynamic_form_layout.addWidget(main_tax_label, tax_start_row, 2) # Ligne 1, Col 2 (Label)
             
             # Layout horizontal pour les labels et champs de taxe QLineEdit
             taxes_layout = QHBoxLayout()
@@ -454,22 +517,22 @@ class RapportDepensePage(QWidget):
                 
             # Ajouter le layout horizontal des champs à la grille, en l'étendant sur 3 lignes
             # Ajouter le layout horizontal (labels+champs) à la grille sur UNE seule ligne
-            self.dynamic_form_layout.addLayout(taxes_layout, tax_start_row, 3) # Ligne 2, Col 3 
+            self.dynamic_form_layout.addLayout(taxes_layout, tax_start_row, 3) # Ligne 1, Col 3 
             # ---------------------------
             
             # --- Ajuster la ligne pour Total après Tx --- 
             # Le total est maintenant sur la ligne suivant la ligne des taxes
             total_ap_tx_row = tax_start_row + 1 
-            self.total_apres_taxes_field = add_montant_field("Total après Tx:", 'total_apres_taxes', total_ap_tx_row)
-            # Lier la valeur de ce champ au label de la colonne 3
+            self.total_apres_taxes_field = add_montant_field("Total après Tx:", 'total_apres_taxes', total_ap_tx_row) # add_montant_field gère label col 2, widget col 3
+            # Lier la valeur de ce champ au label de la colonne droite (Montant)
             self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
             max_grid_row_used = max(max_grid_row_used, total_ap_tx_row) # Mettre à jour la ligne max utilisée
             
             # Stretch colonnes pour Repas
-            self.dynamic_form_layout.setColumnStretch(1, 1) # Widget Col 1
-            self.dynamic_form_layout.setColumnStretch(3, 1) # Widget Col 2
             self.dynamic_form_layout.setColumnStretch(0, 0) # Label Col 1
             self.dynamic_form_layout.setColumnStretch(2, 0) # Label Col 2
+            self.dynamic_form_layout.setColumnStretch(1, 1) # Widget Col 1
+            self.dynamic_form_layout.setColumnStretch(3, 1) # Widget Col 2
             
         elif entry_type == "Dépense":
              # Pour Dépense, on n'ajoute que le champ Montant (remplacé par le label à droite)
@@ -539,14 +602,7 @@ class RapportDepensePage(QWidget):
         
         try:
             # Récupérer les valeurs communes (Date et Description)
-            date_val = self.form_fields['date'].date().toPyDate() 
-            description_val = self.form_fields.get('description', QLineEdit()).text() # Utiliser get pour être sûr
-
-            # Validation commune
-            # (On ne valide plus le montant ici car il dépend du type)
-            # if not description_val: # Description n'est plus forcément requise pour tous?
-            #     QMessageBox.warning(self, "Champ manquant", "La description est requise.")
-            #     return
+            date_val = self.form_fields['date'].date().toPyDate()
 
             new_entry = None
             if entry_type == "Déplacement":
@@ -560,7 +616,6 @@ class RapportDepensePage(QWidget):
                  self._update_montant_display(montant_deplacement) # Met à jour l'affichage
                  # -----------------------------------------
                  new_entry = Deplacement(date_deplacement=date_val, 
-                                         description=description_val, # Passer la description
                                          client=client_val, ville=ville_val, 
                                          numero_commande=num_commande_val,
                                          kilometrage=kilometrage_val, 
@@ -606,15 +661,15 @@ class RapportDepensePage(QWidget):
                       QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
                       return
                  
-                 new_entry = Repas(date_repas=date_val, description=description_val, 
-                                   restaurant=restaurant_val, client=client_repas_val,
-                                   payeur=payeur_val, refacturer=refacturer_val,
-                                   numero_commande=num_commande_repas_val,
-                                   totale_avant_taxes=total_avant_taxes_val, 
-                                   pourboire=pourboire_val, tps=tps_val, tvq=tvq_val, tvh=tvh_val,
-                                   totale_apres_taxes=total_apres_taxes_val,
-                                   employe=employe_val, jacmar=jacmar_val, 
-                                   facture=None) # Facture non gérée ici
+                 new_entry = Repas(date_repas=date_val, description="", # Passer une description vide
+                                    restaurant=restaurant_val, client=client_repas_val,
+                                    payeur=payeur_val, refacturer=refacturer_val,
+                                    numero_commande=num_commande_repas_val,
+                                    totale_avant_taxes=total_avant_taxes_val, 
+                                    pourboire=pourboire_val, tps=tps_val, tvq=tvq_val, tvh=tvh_val,
+                                    totale_apres_taxes=total_apres_taxes_val,
+                                    employe=employe_val, jacmar=jacmar_val, 
+                                    facture=None) # Facture non gérée ici
                  # self.document.entries.append(new_entry)
                  print(f"Ajout Repas: {new_entry}") # Placeholder
                  
