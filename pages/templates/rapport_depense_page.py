@@ -1,11 +1,15 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFormLayout, 
                            QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox, 
                            QPushButton, QHBoxLayout, QMessageBox,
-                           QGridLayout, QFrame, QCheckBox, QRadioButton, QButtonGroup)
+                           QGridLayout, QFrame, QCheckBox, QRadioButton, QButtonGroup,
+                           QSizePolicy,
+                           QFileDialog)
 from PyQt5.QtCore import Qt, QDate
-from PyQt5.QtGui import QDoubleValidator
+from PyQt5.QtGui import QDoubleValidator, QIcon
 from ui.components.frame import Frame # Correction: Chemin d'importation correct
 from models.documents.rapport_depense import RapportDepense, Deplacement, Repas, Depense # Importer les modèles
+from utils.theme import get_theme_vars, RADIUS_BOX # Importer les variables de thème
+from utils.icon_loader import get_icon_path # Importer la fonction pour obtenir le chemin de l'icône
 from utils.signals import signals
 from widgets.custom_date_edit import CustomDateEdit
 
@@ -225,8 +229,11 @@ class RapportDepensePage(QWidget):
         self.dynamic_form_widget.setStyleSheet("background-color: transparent;")
         self.dynamic_form_layout = QGridLayout(self.dynamic_form_widget)
         self.dynamic_form_layout.setColumnStretch(1, 1) # La colonne des champs s'étend
-        # self.dynamic_form_layout.setColumnMinimumWidth(0, 100) # Remplacé par calcul dynamique
         
+        # Obtenir les variables du thème actuel
+        theme = get_theme_vars() # Utilise le thème par défaut (Sombre)
+        frame_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f") # Utiliser LIGHT et ajuster fallback
+
         # --- Revenir à une largeur minimale fixe (plus généreuse) ---
         self.dynamic_form_layout.setColumnMinimumWidth(0, 120) 
         # -----------------------------------------------------------
@@ -420,6 +427,53 @@ class RapportDepensePage(QWidget):
             # --- Le reste (connexion signal) est inchangé ---
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
             self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
+
+            # --- Emplacement pour Frame Facture --- 
+            self.form_fields['facture_frame'] = QFrame()
+            self.form_fields['facture_frame'].setMinimumHeight(60) # Hauteur minimale pour visibilité
+            self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel) # Donner une forme
+            self.form_fields['facture_frame'].setFrameShadow(QFrame.Sunken)    # Donner une ombre
+            self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {RADIUS_BOX};") # Utiliser couleur et radius du thème
+            # Ajouter un layout au frame et le label à l'intérieur
+            frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
+            frame_content_layout.setContentsMargins(5, 5, 5, 5) # Marge intérieure
+
+            # Layout horizontal pour Label + Bouton Icône
+            label_button_layout = QHBoxLayout()
+            label_button_layout.setContentsMargins(0,0,0,0)
+            label_button_layout.setSpacing(5)
+
+            facture_label_in_frame = QLabel("Facture:")
+            self.form_fields['facture_add_button'] = QPushButton()
+            icon_path = ":/icons/round_add_circle.png" # Assurez-vous que ce chemin est correct
+            self.form_fields['facture_add_button'].setObjectName("FormButton") # Utiliser le nom d'objet de la QSS globale
+
+            # --- Utiliser icon_loader pour obtenir le chemin correct --- 
+            correct_icon_path = get_icon_path("round_add_circle.png")
+            # Utiliser QIcon directement avec le chemin de ressource
+            if correct_icon_path: # Vérifier si un chemin a été trouvé
+                 self.form_fields['facture_add_button'].setIcon(QIcon(correct_icon_path))
+            else:
+                 # Optionnel: Mettre une icône par défaut ou laisser vide si l'icône n'est pas trouvée
+                 self.form_fields['facture_add_button'].setIcon(QIcon()) 
+                 print(f"WARN: Icône 'round_add_circle.png' introuvable via icon_loader.")
+
+            self.form_fields['facture_add_button'].setIconSize(self.form_fields['facture_add_button'].sizeHint()) # Ajuster taille icone
+            self.form_fields['facture_add_button'].setFixedSize(24, 24) # Taille fixe pour bouton icône
+            # self.form_fields['facture_add_button'].setFlat(True) # Rendre le bouton plat
+            
+            label_button_layout.addWidget(facture_label_in_frame)
+            label_button_layout.addStretch(1) # Pousse le bouton vers la gauche (à côté du label)
+            label_button_layout.addWidget(self.form_fields['facture_add_button'])
+            
+            frame_content_layout.addLayout(label_button_layout) # Ajouter le HBox au VBox du frame
+            frame_content_layout.addStretch(1) # Pousse le contenu vers le haut
+
+            # Ajouter le frame au grid principal, en le faisant s'étendre sur 2 colonnes
+            self.dynamic_form_layout.addWidget(self.form_fields['facture_frame'], current_row, 0, 1, 2)
+            current_row += 1
+            # --------------------------------------
+
             # Ajouter un stretch à la fin pour pousser les champs vers le haut
             self.dynamic_form_layout.setRowStretch(current_row, 1)
 
@@ -509,9 +563,6 @@ class RapportDepensePage(QWidget):
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes_dep'] 
             self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
 
-            # Ajouter un stretch à la fin pour pousser les champs vers le haut
-            self.dynamic_form_layout.setRowStretch(current_row, 1)
-
     def _update_montant_display(self, value):
         """ Met à jour le label montant dans la colonne de droite. """
         if hasattr(self, 'montant_display_label') and self.montant_display_label:
@@ -563,6 +614,7 @@ class RapportDepensePage(QWidget):
             # --- AJOUT POUR COMBOBOX --- 
             elif isinstance(widget, QComboBox) and field_key == 'type_depense':
                  widget.setCurrentIndex(0) # Remettre au premier item
+            # --- Nettoyage Facture: Plus de bouton à gérer ici ---
             # ------------------------------
 
         # Réinitialiser le label montant dédié (droite)
@@ -642,7 +694,7 @@ class RapportDepensePage(QWidget):
                                     pourboire=pourboire_val, tps=tps_val, tvq=tvq_val, tvh=tvh_val,
                                     totale_apres_taxes=total_apres_taxes_val,
                                     employe=employe_val, jacmar=jacmar_val, 
-                                    facture=None) # Facture non gérée ici
+                                    facture=None) # Mettre None ou adapter le modèle
                  # self.document.entries.append(new_entry)
                  print(f"Ajout Repas: {new_entry}") # Placeholder
                  
