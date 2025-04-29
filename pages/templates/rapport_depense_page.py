@@ -67,110 +67,7 @@ class RapportDepensePage(QWidget):
         content_layout.setContentsMargins(15, 15, 15, 15) 
         content_layout.setSpacing(15)
 
-        # --- Section Supérieure : Ajout ET Totaux --- 
-        top_section_layout = QHBoxLayout()
-        top_section_layout.setSpacing(15) 
-
-        # --- Frame Gauche: Ajouter une Entrée ---
-        # 1. Créer le contenu de l'en-tête (Label + ComboBox)
-        header_layout = QHBoxLayout()
-        header_label = QLabel("Ajouter un(e) :") 
-        header_label.setObjectName("FormLabel") 
-        header_layout.addWidget(header_label)
-        self.entry_type_combo = QComboBox()
-        self.entry_type_combo.setObjectName("HeaderComboBox") 
-        self.entry_type_combo.addItems(["Déplacement", "Repas", "Dépense"])
-        self.entry_type_combo.currentIndexChanged.connect(self._update_entry_form)
-        header_layout.addWidget(self.entry_type_combo, 1)
-        header_container = QWidget()
-        header_container.setObjectName("FrameHeaderContainer")
-        header_container.setLayout(header_layout)
-
-        # 2. Créer le Frame principal d'ajout
-        self.add_entry_frame = Frame(header_widget=header_container, parent=self) 
-        add_entry_content_layout = self.add_entry_frame.get_content_layout()
-        add_entry_content_layout.setSpacing(8)
-        # --- Retrait de l'ancienne structure directe --- 
-        # add_entry_content_layout.addLayout(buttons_layout) <-- Fait plus bas
-        # add_entry_content_layout.addWidget(self.dynamic_form_widget) <-- Fait via _update_entry_form
-
-        # 3. Nouveau Layout principal pour le contenu du Frame d'ajout (Gauche: Form / Droite: Montant+Boutons)
-        form_details_layout = QHBoxLayout()
-        form_details_layout.setContentsMargins(0,0,0,0)
-        form_details_layout.setSpacing(15) # Espacement entre formulaire et colonne droite
-        add_entry_content_layout.addLayout(form_details_layout) # Ajouter ce HBox au layout du Frame
-
-        # 3a. Placeholder Gauche pour le formulaire dynamique (le widget sera créé/ajouté dans _update_entry_form)
-        # Note: On a besoin d'un layout parent pour ce widget
-        self.dynamic_form_container = QWidget() # Widget qui contiendra le formulaire dynamique
-        # Appliquer un fond transparent à ce conteneur aussi pour être sûr
-        self.dynamic_form_container.setStyleSheet("background-color: transparent;")
-        form_details_layout.addWidget(self.dynamic_form_container, 1) # Stretch factor 1 pour prendre plus de place
-        self.dynamic_form_widget = None # Sera le QWidget AVEC le QGridLayout dedans
-        self.dynamic_form_layout = None
-        self.form_fields = {}
-        # --- AJOUT --- 
-        self.total_apres_taxes_field = None # Pour lier à montant_display_label
-
-        # 3b. Colonne Droite (Label Montant + Boutons)
-        right_column_widget = QWidget()
-        # Rendre le fond de la colonne droite transparent
-        right_column_widget.setStyleSheet("background-color: transparent;")
-        right_column_layout = QVBoxLayout(right_column_widget)
-        right_column_layout.setContentsMargins(0,0,0,0)
-        right_column_layout.setSpacing(8)
-        # Donner une largeur fixe à cette colonne
-        right_column_widget.setFixedWidth(150) # Ajustez cette valeur si nécessaire
-
-        # --- Retirer le stretch avant le label Montant ---
-        # right_column_layout.addStretch(1) 
-        
-        # Montant (Label affichage seulement)
-        montant_label = QLabel("Montant:")
-        # Centrer le label horizontalement
-        montant_label.setAlignment(Qt.AlignHCenter)
-        right_column_layout.addWidget(montant_label)
-        
-        # --- Ajouter un stretch ENTRE le label et la valeur du montant ---
-        right_column_layout.addStretch(1)
-        
-        # Remplacer QDoubleSpinBox par QLabel
-        self.montant_display_label = QLabel("0.00 $") 
-        # Centrer la valeur horizontalement et verticalement si possible
-        self.montant_display_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter) 
-        self.montant_display_label.setStyleSheet("font-weight: bold;") # Le distinguer un peu
-        # Optionnel: Donner un nom d'objet 
-        # self.montant_display_label.setObjectName("MontantDisplayLabel")
-        right_column_layout.addWidget(self.montant_display_label) # Ajouter le QLabel
-
-        # --- Conserver le stretch ENTRE le montant et les boutons pour pousser les boutons vers le bas --- 
-        right_column_layout.addStretch(1)
-        
-        # Boutons (créés et ajoutés en bas de la colonne droite)
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setContentsMargins(0,0,0,0)
-        buttons_layout.setSpacing(6)
-        self.clear_button = QPushButton("Effacer")
-        self.add_button = QPushButton("Ajouter")
-        # Appliquer le style via le nom d'objet correct
-        self.clear_button.setObjectName("TopNavButton")
-        self.add_button.setObjectName("TopNavButton")
-        self.clear_button.clicked.connect(self._clear_entry_form)
-        self.add_button.clicked.connect(self._add_entry)
-        buttons_layout.addWidget(self.clear_button)
-        buttons_layout.addWidget(self.add_button)
-        right_column_layout.addLayout(buttons_layout) # Ajouter les boutons au layout vertical droit
-        
-        # --- Retirer le stretch après les boutons --- 
-        # right_column_layout.addStretch(1)
-
-        # Ajuster les stretchs du HBox principal (formulaire vs colonne droite)
-        form_details_layout.addWidget(self.dynamic_form_container, 1) # Formulaire dynamique, prend l'espace restant
-        form_details_layout.addWidget(right_column_widget, 0) # Colonne droite, largeur fixe
-        
-        top_section_layout.addWidget(self.add_entry_frame, 1) # Ajouter le frame d'ajout (stretch = 1)
-
-        # --- Frame Droite: Totaux ---
+        # --- Section Supérieure: Totaux ---
         self.totals_frame = Frame("Totaux", self)
         totals_content_layout = self.totals_frame.get_content_layout()
         
@@ -198,23 +95,103 @@ class RapportDepensePage(QWidget):
         totals_form_layout.addRow("Total Général:", self.total_general_label)
         
         totals_content_layout.addStretch() # Pousser les totaux vers le haut
+        # Pas de largeur fixe ici
 
-        # Ajuster la largeur du frame des totaux (optionnel)
-        self.totals_frame.setFixedWidth(250) # Ou utiliser setMinimumWidth
+        content_layout.addWidget(self.totals_frame) # Ajouter le frame des totaux en haut
 
-        top_section_layout.addWidget(self.totals_frame) # Ajouter le frame des totaux
+        # --- Section Inférieure: Ajout (Gauche) + Liste (Droite) ---
+        bottom_section_layout = QHBoxLayout()
+        bottom_section_layout.setSpacing(15)
+
+        # --- Frame Gauche (Section Inférieure): Ajouter une Entrée ---
+        # 1. Créer le contenu de l'en-tête (Label + ComboBox)
+        header_layout = QHBoxLayout()
+        header_label = QLabel("Ajouter un(e) :") 
+        header_label.setObjectName("FormLabel") 
+        header_layout.addWidget(header_label)
+        self.entry_type_combo = QComboBox()
+        self.entry_type_combo.setObjectName("HeaderComboBox") 
+        self.entry_type_combo.addItems(["Déplacement", "Repas", "Dépense"])
+        self.entry_type_combo.currentIndexChanged.connect(self._update_entry_form)
+        header_layout.addWidget(self.entry_type_combo, 1)
+        self.header_container = QWidget()
+        self.header_container.setObjectName("FrameHeaderContainer")
+        self.header_container.setLayout(header_layout)
+
+        # 2. Créer le Frame principal d'ajout
+        self.add_entry_frame = Frame(header_widget=self.header_container, parent=self) 
+        add_entry_content_layout = self.add_entry_frame.get_content_layout()
+        add_entry_content_layout.setSpacing(8)
+        # --- Retrait de l'ancienne structure directe --- 
+        # add_entry_content_layout.addLayout(buttons_layout) <-- Fait plus bas
+        # add_entry_content_layout.addWidget(self.dynamic_form_widget) <-- Fait via _update_entry_form
+
+        # --- Le Conteneur du formulaire dynamique est ajouté DIRECTEMENT au layout principal du frame d'ajout ---
+        self.dynamic_form_container = QWidget() # Widget qui contiendra le formulaire dynamique
+        self.dynamic_form_container.setStyleSheet("background-color: transparent;")
+        add_entry_content_layout.addWidget(self.dynamic_form_container) # Stretch par défaut (0)
+        self.dynamic_form_widget = None # Sera le QWidget AVEC le layout dedans
+        self.dynamic_form_layout = None # Sera le QFormLayout
+        self.form_fields = {}
+        self.total_apres_taxes_field = None # Pour lier à montant_display_label
+
+        # --- RECREATION: Section Montant (en bas du formulaire) ---
+        montant_section_layout = QHBoxLayout()
+        montant_section_layout.setContentsMargins(0, 10, 0, 5) # Ajouter un peu d'espace au-dessus
+        montant_section_layout.addStretch(1) # Centrer
+        montant_label = QLabel("Montant:")
+        montant_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.montant_display_label = QLabel("0.00 $") 
+        self.montant_display_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) 
+        self.montant_display_label.setStyleSheet("font-weight: bold;") 
+        montant_section_layout.addWidget(montant_label)
+        montant_section_layout.addSpacing(10) # Espace entre label et valeur
+        montant_section_layout.addWidget(self.montant_display_label)
+        montant_section_layout.addStretch(1) # Centrer
+        # Ajouter cette section au layout principal du frame d'ajout
+        add_entry_content_layout.addLayout(montant_section_layout) 
+        # ---------------------------------------------------------
+
+        # --- RECREATION: Boutons (tout en bas) ---
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 5, 0, 0) # Ajouter un peu d'espace au-dessus
+        buttons_layout.addStretch(1) # Centrer les boutons
+        self.clear_button = QPushButton("Effacer")
+        self.add_button = QPushButton("Ajouter")
+        self.clear_button.setObjectName("TopNavButton")
+        self.add_button.setObjectName("TopNavButton")
+        self.clear_button.clicked.connect(self._clear_entry_form)
+        self.add_button.clicked.connect(self._add_entry)
+        buttons_layout.addWidget(self.clear_button)
+        buttons_layout.addWidget(self.add_button)
+        buttons_layout.addStretch(1) # Centrer les boutons
+        # Ajouter les boutons au layout principal du frame d'ajout
+        add_entry_content_layout.addLayout(buttons_layout) 
+        # ----------------------------------------
         
-        # Ajouter la section supérieure (Ajout + Totaux) au layout principal
-        content_layout.addLayout(top_section_layout)
+        # --- AJOUT DU FRAME D'AJOUT À LA SECTION INFÉRIEURE (GAUCHE) ---
+        bottom_section_layout.addWidget(self.add_entry_frame, 1) 
 
-        # --- Section Inférieure: Affichage des Entrées --- 
+        # --- Frame Droite (Section Inférieure): Affichage des Entrées --- 
         self.entries_display_frame = Frame("Entrées existantes", self) 
         self.entries_display_layout = self.entries_display_frame.get_content_layout()
         placeholder_label = QLabel("Affichage des entrées à implémenter ici (ex: QTableWidget).")
         self.entries_display_layout.addWidget(placeholder_label)
-        content_layout.addWidget(self.entries_display_frame)
-        # Donner plus de poids vertical au frame des entrées
-        content_layout.setStretchFactor(self.entries_display_frame, 1) 
+
+        # --- AJOUT DU FRAME D'AFFICHAGE À LA SECTION INFÉRIEURE (DROITE) ---
+        bottom_section_layout.addWidget(self.entries_display_frame, 4) 
+
+        # --- AJOUT DE LA SECTION INFÉRIEURE AU LAYOUT PRINCIPAL ---
+        content_layout.addLayout(bottom_section_layout)
+
+        # --- Ajuster les stretchs verticaux du layout principal ---
+        content_layout.setStretchFactor(self.totals_frame, 0) # Totaux prennent leur hauteur naturelle
+        content_layout.setStretchFactor(bottom_section_layout, 1) # La section du bas prend l'espace restant
+
+        # --- SUPPRESSION des anciennes affectations de stretch --- 
+        # content_layout.setStretchFactor(self.add_entry_frame, 0)
+        # content_layout.setStretchFactor(self.entries_display_frame, 1) 
+        # content_layout.setStretchFactor(self.totals_frame, 0)
 
         # Initialiser le formulaire pour le premier type
         self._update_entry_form()
@@ -222,10 +199,11 @@ class RapportDepensePage(QWidget):
     def _create_vertical_separator(self):
         """ Crée un QFrame configuré comme séparateur vertical. """
         separator = QFrame()
+        separator.setObjectName("VerticalFormSeparator") # Donner un nom d'objet
         separator.setFrameShape(QFrame.VLine)
         separator.setFrameShadow(QFrame.Sunken)
-        # --- Donner un style visible (légèrement plus clair) --- 
-        separator.setStyleSheet("QFrame { border: 1px solid #777; }") # Gris un peu plus clair
+        # --- Style sera géré via QSS via objectName --- 
+        # separator.setStyleSheet(...) # Supprimé
         return separator
 
     def _update_entry_form(self):
@@ -246,98 +224,97 @@ class RapportDepensePage(QWidget):
         self.dynamic_form_widget = QWidget(parent_container)
         self.dynamic_form_widget.setStyleSheet("background-color: transparent;")
         self.dynamic_form_layout = QGridLayout(self.dynamic_form_widget)
-        # --- Réduire l'espacement horizontal --- 
-        self.dynamic_form_layout.setHorizontalSpacing(8) 
-        self.dynamic_form_layout.setVerticalSpacing(8)
+        self.dynamic_form_layout.setColumnStretch(1, 1) # La colonne des champs s'étend
+        # self.dynamic_form_layout.setColumnMinimumWidth(0, 100) # Remplacé par calcul dynamique
+        
+        # --- Revenir à une largeur minimale fixe (plus généreuse) ---
+        self.dynamic_form_layout.setColumnMinimumWidth(0, 120) 
+        # -----------------------------------------------------------
+
+        self.dynamic_form_layout.setSpacing(8) 
         self.dynamic_form_layout.setContentsMargins(0, 0, 0, 0)
+
+        # --- RESTAURER la logique d'ajout du widget au conteneur --- 
+        # Assurer que le conteneur a un layout
         if parent_container.layout() is None:
+            # Utiliser un QVBoxLayout simple pour le conteneur
             container_layout = QVBoxLayout(parent_container)
             container_layout.setContentsMargins(0,0,0,0)
-            parent_container.setLayout(container_layout)
+            # Le layout est maintenant défini sur parent_container
+
+        # Retirer l'ancien widget du layout s'il existe
         old_layout = parent_container.layout()
         if old_layout.count() > 0:
-             old_widget = old_layout.takeAt(0).widget()
-             if old_widget and old_widget != self.dynamic_form_widget:
-                 old_widget.deleteLater()
-        parent_container.layout().addWidget(self.dynamic_form_widget)
-        entry_type = self.entry_type_combo.currentText()
-        self.form_fields = {}
-        max_grid_row_used = -1 # Pour suivre la dernière ligne utilisée
+            old_widget = old_layout.takeAt(0).widget()
+            if old_widget and old_widget != self.dynamic_form_widget:
+                old_widget.deleteLater()
 
-        # --- Champs communs (toujours présents) ---
-        # Date (col 0)
-        date_label = QLabel("Date:")
+        # Ajouter le nouveau widget au layout du conteneur
+        parent_container.layout().addWidget(self.dynamic_form_widget)
+        # -------------------------------------------------------------
+
+        current_row = 0 # Suivre la ligne actuelle du grid
+
+        # --- Champs communs (toujours présents) - Déplacé ici ---
         self.form_fields['date'] = CustomDateEdit(QDate.currentDate())
-        self.dynamic_form_layout.addWidget(date_label, 0, 0)
-        self.dynamic_form_layout.addWidget(self.form_fields['date'], 0, 1)
-        max_grid_row_used = max(max_grid_row_used, 0)
+        date_label = QLabel("Date:")
+        self.dynamic_form_layout.addWidget(date_label, current_row, 0, Qt.AlignLeft)
+        self.dynamic_form_layout.addWidget(self.form_fields['date'], current_row, 1)
+        current_row += 1
 
         # --- Champs spécifiques par type ---
+        entry_type = self.entry_type_combo.currentText()
+        self.form_fields = {}
+
         if entry_type == "Déplacement":
-            # Revenir à la disposition originale
-            client_label = QLabel("Client:")
             self.form_fields['client'] = QLineEdit()
-            self.dynamic_form_layout.addWidget(client_label, 1, 0)
-            self.dynamic_form_layout.addWidget(self.form_fields['client'], 1, 1)
-            max_grid_row_used = max(max_grid_row_used, 1)
-
-            ville_label = QLabel("Ville:")
+            client_label = QLabel("Client:")
+            self.dynamic_form_layout.addWidget(client_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['client'], current_row, 1)
+            current_row += 1
+            
             self.form_fields['ville'] = QLineEdit()
-            self.dynamic_form_layout.addWidget(ville_label, 0, 3) # Colonne originale 2
-            self.dynamic_form_layout.addWidget(self.form_fields['ville'], 0, 4) # Colonne originale 3
+            ville_label = QLabel("Ville:")
+            self.dynamic_form_layout.addWidget(ville_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['ville'], current_row, 1)
+            current_row += 1
 
-            num_commande_label = QLabel("N° Commande:")
             self.form_fields['numero_commande'] = QLineEdit()
-            self.dynamic_form_layout.addWidget(num_commande_label, 1, 3) # Colonne originale 2
-            self.dynamic_form_layout.addWidget(self.form_fields['numero_commande'], 1, 4) # Colonne originale 3
+            num_cmd_label = QLabel("N° Commande:")
+            self.dynamic_form_layout.addWidget(num_cmd_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['numero_commande'], current_row, 1)
+            current_row += 1
 
-            kilometrage_label = QLabel("Kilométrage:")
             self.form_fields['kilometrage'] = QDoubleSpinBox()
             self.form_fields['kilometrage'].setRange(0.0, 9999.9)
             self.form_fields['kilometrage'].setSuffix(" km")
             self.form_fields['kilometrage'].setAlignment(Qt.AlignRight)
-            self.dynamic_form_layout.addWidget(kilometrage_label, 2, 3) # Colonne originale 2
-            self.dynamic_form_layout.addWidget(self.form_fields['kilometrage'], 2, 4) # Colonne originale 3
-            max_grid_row_used = max(max_grid_row_used, 2)
-
-            # --- Ajouter SEPARATEUR en colonne 2 --- 
-            separator_depl = self._create_vertical_separator()
-            self.dynamic_form_layout.addWidget(separator_depl, 0, 2, max_grid_row_used + 1, 1)
-
-            # --- Stretch colonnes (Maintenant 5 cols: 0,1=Gauche, 2=Sep, 3,4=Droite) ---
-            self.dynamic_form_layout.setColumnStretch(0, 0) # Label Col Gauche
-            self.dynamic_form_layout.setColumnStretch(1, 1) # Widget Col Gauche
-            self.dynamic_form_layout.setColumnStretch(2, 0) # Separateur (pas de stretch)
-            self.dynamic_form_layout.setColumnStretch(3, 0) # Label Col Droite
-            self.dynamic_form_layout.setColumnStretch(4, 1) # Widget Col Droite
-
+            km_label = QLabel("Kilométrage:")
+            self.dynamic_form_layout.addWidget(km_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['kilometrage'], current_row, 1)
+            current_row += 1
+            # Ajouter un stretch à la fin pour pousser les champs vers le haut
+            self.dynamic_form_layout.setRowStretch(current_row, 1)
+            
         elif entry_type == "Repas":
-            # --- Colonne 1 (Indices 0, 1) ---
-            # ... (Date, Restaurant/Client, Payeur, Refacturer restent inchangés) ...
-            restaurant_label = QLabel("Restaurant:")
-            self.dynamic_form_layout.addWidget(restaurant_label, 1, 0) # Label en (1, 0)
-
-            resto_client_hbox = QHBoxLayout()
-            resto_client_hbox.setContentsMargins(0,0,0,0)
-            resto_client_hbox.setSpacing(5)
-
             self.form_fields['restaurant'] = QLineEdit()
-            resto_client_hbox.addWidget(self.form_fields['restaurant'], 1) # Stretch 1
-
-            resto_client_hbox.addSpacing(10)
-
-            client_repas_label_inline = QLabel("Client:")
+            resto_label = QLabel("Restaurant:")
+            self.dynamic_form_layout.addWidget(resto_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['restaurant'], current_row, 1)
+            current_row += 1
+            
             self.form_fields['client_repas'] = QLineEdit()
-            resto_client_hbox.addWidget(client_repas_label_inline)
-            resto_client_hbox.addWidget(self.form_fields['client_repas'], 1) # Stretch 1
-
-            self.dynamic_form_layout.addLayout(resto_client_hbox, 1, 1) # HBox en (1, 1)
-
-            payeur_label = QLabel("Payeur:")
-            payeur_grid_layout = QGridLayout()
-            self.payeur_group = QButtonGroup(self)
-            payeur_grid_layout.setContentsMargins(0,0,0,0)
-            payeur_grid_layout.setSpacing(10)
+            client_repas_label = QLabel("Client:")
+            self.dynamic_form_layout.addWidget(client_repas_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['client_repas'], current_row, 1)
+            current_row += 1
+            
+            # --- Payeur (avec QGridLayout interne inchangé, ajouté à la colonne 1) --- 
+            payeur_container = QWidget()
+            payeur_grid = QGridLayout(payeur_container)
+            payeur_grid.setContentsMargins(0,0,0,0)
+            payeur_grid.setSpacing(10) # Espacement entre les boutons
+            self.payeur_group = QButtonGroup(self.dynamic_form_widget) # Parent = le widget du formulaire
             self.form_fields['payeur_employe'] = QRadioButton("Employé")
             self.form_fields['payeur_employe'].setObjectName("FormRadioButton")
             self.form_fields['payeur_jacmar'] = QRadioButton("Jacmar")
@@ -345,19 +322,23 @@ class RapportDepensePage(QWidget):
             self.form_fields['payeur_employe'].setChecked(True)
             self.payeur_group.addButton(self.form_fields['payeur_employe'])
             self.payeur_group.addButton(self.form_fields['payeur_jacmar'])
-            payeur_grid_layout.addWidget(self.form_fields['payeur_employe'], 0, 0)
-            payeur_grid_layout.addWidget(self.form_fields['payeur_jacmar'], 0, 1)
-            payeur_grid_layout.setColumnStretch(0, 1)
-            payeur_grid_layout.setColumnStretch(1, 1)
-            payeur_grid_layout.setColumnStretch(2, 2)
-            self.dynamic_form_layout.addWidget(payeur_label, 2, 0)
-            self.dynamic_form_layout.addLayout(payeur_grid_layout, 2, 1)
+            payeur_grid.addWidget(self.form_fields['payeur_employe'], 0, 0)
+            payeur_grid.addWidget(self.form_fields['payeur_jacmar'], 0, 1)
+            payeur_grid.setColumnStretch(0, 1)
+            payeur_grid.setColumnStretch(1, 1)
+            # Ajouter le label et le conteneur au grid principal
+            payeur_label = QLabel("Payeur:")
+            self.dynamic_form_layout.addWidget(payeur_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(payeur_container, current_row, 1)
+            current_row += 1
+            # ----------------------------------------------------------------------
 
-            refacturer_label = QLabel("Refacturer:")
-            refacturer_grid_layout = QGridLayout()
-            refacturer_grid_layout.setContentsMargins(0, 0, 0, 0)
-            refacturer_grid_layout.setSpacing(10)
-            self.refacturer_group = QButtonGroup(self)
+            # --- Refacturer (avec QGridLayout interne inchangé, ajouté à la colonne 1) ---
+            refacturer_container = QWidget()
+            refacturer_grid = QGridLayout(refacturer_container)
+            refacturer_grid.setContentsMargins(0,0,0,0)
+            refacturer_grid.setSpacing(10)
+            self.refacturer_group = QButtonGroup(self.dynamic_form_widget) # Parent = le widget du formulaire
             self.form_fields['refacturer_non'] = QRadioButton("Non")
             self.form_fields['refacturer_non'].setObjectName("FormRadioButton")
             self.form_fields['refacturer_oui'] = QRadioButton("Oui")
@@ -365,136 +346,104 @@ class RapportDepensePage(QWidget):
             self.refacturer_group.addButton(self.form_fields['refacturer_non'])
             self.refacturer_group.addButton(self.form_fields['refacturer_oui'])
             self.form_fields['refacturer_non'].setChecked(True)
-            self.form_fields['refacturer_oui'].toggled.connect(self._toggle_num_commande_visibility)
-            refacturer_grid_layout.addWidget(self.form_fields['refacturer_non'], 0, 0)
-            refacturer_grid_layout.addWidget(self.form_fields['refacturer_oui'], 0, 1)
-            self.num_commande_container = QWidget()
-            num_commande_cell_layout = QHBoxLayout()
-            num_commande_cell_layout.setContentsMargins(0, 0, 0, 0)
-            num_commande_cell_layout.setSpacing(2)
-            self.num_commande_repas_label = QLabel("N° Commande:")
+            self.form_fields['refacturer_oui'].toggled.connect(self._toggle_num_commande_row_visibility) 
+            refacturer_grid.addWidget(self.form_fields['refacturer_non'], 0, 0)
+            refacturer_grid.addWidget(self.form_fields['refacturer_oui'], 0, 1)
+            refacturer_grid.setColumnStretch(0, 1)
+            refacturer_grid.setColumnStretch(1, 1)
+            # Ajouter le label et le conteneur au grid principal
+            refacturer_label = QLabel("Refacturer:")
+            self.dynamic_form_layout.addWidget(refacturer_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(refacturer_container, current_row, 1)
+            current_row += 1
+            # --------------------------------------------------------------------------
+
+            # --- N° Commande (label colonne 0, champ colonne 1) --- 
             self.num_commande_repas_field = QLineEdit()
             self.form_fields['numero_commande_repas'] = self.num_commande_repas_field
-            num_commande_cell_layout.addWidget(self.num_commande_repas_label)
-            num_commande_cell_layout.addWidget(self.num_commande_repas_field)
-            num_commande_cell_layout.addStretch(1)
-            self.num_commande_container.setLayout(num_commande_cell_layout)
-            refacturer_grid_layout.addWidget(self.num_commande_container, 0, 2)
-            refacturer_grid_layout.setColumnStretch(0, 1)
-            refacturer_grid_layout.setColumnStretch(1, 1)
-            refacturer_grid_layout.setColumnStretch(2, 2)
-            self._toggle_num_commande_visibility(self.form_fields['refacturer_oui'].isChecked())
-            self.dynamic_form_layout.addWidget(refacturer_label, 3, 0)
-            self.dynamic_form_layout.addLayout(refacturer_grid_layout, 3, 1)
-            # La ligne max utilisée pour la colonne de gauche est maintenant 3
-            max_grid_row_used = max(max_grid_row_used, 3)
-
-            # --- Séparateur 1 (entre col 1 et 3) ---
-            separator1_repas = self._create_vertical_separator()
-            # La hauteur sera déterminée plus bas
-
-            # --- Colonne 3 & 4: Total avant Tx ET Pourboire en HBox (Ligne 0), Taxes en HBox (Ligne 1), Total après Tx (Ligne 2) ---
-            total_avtx_label = QLabel("Total avant Tx:")
-            self.dynamic_form_layout.addWidget(total_avtx_label, 0, 3)  # Ligne 0, Col 3
-
-            # --- RECREER LE HBOX POUR TOTAL AV TX + POURBOIRE --- 
-            montants_hbox = QHBoxLayout() 
-            montants_hbox.setContentsMargins(0,0,0,0)
-            montants_hbox.setSpacing(5)
-
-            # Champ Total avant Tx
+            self.num_commande_repas_label = QLabel("N° Commande:") # Le label existe déjà comme variable membre
+            # Ajouter le label et le champ au grid principal
+            self.dynamic_form_layout.addWidget(self.num_commande_repas_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.num_commande_repas_field, current_row, 1)
+            # La ligne suivante est enregistrée pour _toggle_num_commande_row_visibility
+            self.num_commande_row_index = current_row 
+            current_row += 1
+            # Appeler la méthode de visibilité pour la ligne
+            self._toggle_num_commande_row_visibility(self.form_fields['refacturer_oui'].isChecked()) 
+            # ------------------------------------------------------
+            
+            # --- Montants (label colonne 0, champ colonne 1) ---
             total_avtx_widget = QLineEdit("0.00")
             validator_avtx = QDoubleValidator(0.0, 99999.99, 2); validator_avtx.setNotation(QDoubleValidator.StandardNotation)
             total_avtx_widget.setValidator(validator_avtx)
             total_avtx_widget.setAlignment(Qt.AlignRight)
             self.form_fields['total_avant_taxes'] = total_avtx_widget
-            montants_hbox.addWidget(total_avtx_widget, 1) # Stretch 1
-
-            montants_hbox.addSpacing(10) # Espace entre les deux
-
-            # Label et Champ Pourboire
-            pourboire_label = QLabel("Pourboire:")
+            total_avtx_label = QLabel("Total avant Tx:")
+            self.dynamic_form_layout.addWidget(total_avtx_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes'], current_row, 1)
+            current_row += 1
+            
             pourboire_widget = QLineEdit("0.00")
             validator_pb = QDoubleValidator(0.0, 99999.99, 2); validator_pb.setNotation(QDoubleValidator.StandardNotation)
             pourboire_widget.setValidator(validator_pb)
             pourboire_widget.setAlignment(Qt.AlignRight)
             self.form_fields['pourboire'] = pourboire_widget
-            montants_hbox.addWidget(pourboire_label) # Pas de stretch label
-            montants_hbox.addWidget(pourboire_widget, 1) # Stretch 1 champ
+            pourboire_label = QLabel("Pourboire:")
+            self.dynamic_form_layout.addWidget(pourboire_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['pourboire'], current_row, 1)
+            current_row += 1
 
-            # Ajouter ce HBox à la grille
-            self.dynamic_form_layout.addLayout(montants_hbox, 0, 4) # HBox en Ligne 0, Col 4
-            # -----------------------------------------------------
-
-            # --- Taxes en HBox (Ligne 1) ---
-            tax_label = QLabel("Taxe:")
-            self.dynamic_form_layout.addWidget(tax_label, 1, 3) # Label "Taxe:" Ligne 1, Col 3
-
-            taxes_layout = QHBoxLayout() # HBox pour les taxes
-            taxes_layout.setContentsMargins(0,0,0,0)
-            taxes_layout.setSpacing(5)
-            tax_labels_short = ["TPS", "TVQ", "TVH"]
+            # --- Taxes (label colonne 0, champ colonne 1) ---
             tax_field_keys = ['tps', 'tvq', 'tvh']
+            tax_labels = ["TPS:", "TVQ:", "TVH:"]
             for i, key in enumerate(tax_field_keys):
-                small_label = QLabel(tax_labels_short[i])
-                taxes_layout.addWidget(small_label)
                 widget = QLineEdit("0.00")
                 validator = QDoubleValidator(0.0, 99999.99, 2); validator.setNotation(QDoubleValidator.StandardNotation)
                 widget.setValidator(validator)
                 widget.setAlignment(Qt.AlignRight)
                 self.form_fields[key] = widget
-                taxes_layout.addWidget(widget, 1)
-                if i < len(tax_field_keys) - 1:
-                    taxes_layout.addSpacing(10)
-            self.dynamic_form_layout.addLayout(taxes_layout, 1, 4) # HBox taxes en Ligne 1, Col 4
-            # ---------------------------------
+                label_widget = QLabel(tax_labels[i])
+                self.dynamic_form_layout.addWidget(label_widget, current_row, 0, Qt.AlignLeft)
+                self.dynamic_form_layout.addWidget(self.form_fields[key], current_row, 1)
+                current_row += 1
+            # --------------------------------------------------
 
-            # Total après taxe (Ligne 2) 
-            total_ap_tx_row = 2
-            total_aptx_label = QLabel("Total après Tx:")
+            # Total après taxe
             self.form_fields['total_apres_taxes'] = QLineEdit("0.00")
             validator_aptx = QDoubleValidator(0.0, 99999.99, 2); validator_aptx.setNotation(QDoubleValidator.StandardNotation)
             self.form_fields['total_apres_taxes'].setValidator(validator_aptx)
             self.form_fields['total_apres_taxes'].setAlignment(Qt.AlignRight)
-            self.dynamic_form_layout.addWidget(total_aptx_label, total_ap_tx_row, 3) # Ligne 2, Col 3
-            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes'], total_ap_tx_row, 4) # Ligne 2, Col 4
+            total_aptx_label = QLabel("Total après Tx:")
+            self.dynamic_form_layout.addWidget(total_aptx_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes'], current_row, 1)
+            current_row += 1
+            # --- Le reste (connexion signal) est inchangé ---
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
             self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
-
-            # Mettre à jour la ligne max utilisée pour les séparateurs
-            # La ligne max est toujours 3 (déterminée par Refacturer)
-            max_grid_row_used = 3 
-
-            # --- Séparateur 2 (entre col 4 et la fin = col 5 ici) ---
-            # Note: Il n'y a plus de colonnes 6 et 7 actives directement dans la grille
-            separator2_repas = self._create_vertical_separator()
-
-            # --- Ajouter les séparateurs --- 
-            self.dynamic_form_layout.addWidget(separator1_repas, 0, 2, max_grid_row_used + 1, 1) # Sep 1 en Col 2
-            self.dynamic_form_layout.addWidget(separator2_repas, 0, 5, max_grid_row_used + 1, 1) # Sep 2 en Col 5
-
-            # Stretch colonnes pour Repas (Structure à 6 colonnes actives: 0 à 5)
-            self.dynamic_form_layout.setColumnStretch(0, 0) # Label Col 1
-            self.dynamic_form_layout.setColumnStretch(1, 1) # Widget Col 1
-            self.dynamic_form_layout.setColumnStretch(2, 0) # Separator 1
-            self.dynamic_form_layout.setColumnStretch(3, 0) # Label Col 2
-            self.dynamic_form_layout.setColumnStretch(4, 1) # Widget/HBox Col 2
-            self.dynamic_form_layout.setColumnStretch(5, 0) # Separator 2
-            
+            # Ajouter un stretch à la fin pour pousser les champs vers le haut
+            self.dynamic_form_layout.setRowStretch(current_row, 1)
 
         elif entry_type == "Dépense":
-             # Ajuster pour 6 colonnes
-             self.dynamic_form_layout.setColumnStretch(0, 0)
-             self.dynamic_form_layout.setColumnStretch(1, 1)
-             self.dynamic_form_layout.setColumnStretch(2, 0)
-             self.dynamic_form_layout.setColumnStretch(3, 0)
-             self.dynamic_form_layout.setColumnStretch(4, 0)
-             self.dynamic_form_layout.setColumnStretch(5, 0)
-             pass
-
-        # Ajuster le stretch de la ligne APRÈS la dernière ligne utilisée
-        final_row_stretch_index = max(max_grid_row_used + 1, 1)
-        self.dynamic_form_layout.setRowStretch(final_row_stretch_index, 1)
+            # --- AJOUT des champs pour Dépense simple (label colonne 0, champ colonne 1) --- 
+            self.form_fields['description'] = QLineEdit()
+            desc_label = QLabel("Description:")
+            self.dynamic_form_layout.addWidget(desc_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['description'], current_row, 1)
+            current_row += 1
+            
+            self.form_fields['montant'] = QLineEdit("0.00")
+            validator_montant = QDoubleValidator(0.0, 99999.99, 2); validator_montant.setNotation(QDoubleValidator.StandardNotation)
+            self.form_fields['montant'].setValidator(validator_montant)
+            self.form_fields['montant'].setAlignment(Qt.AlignRight)
+            montant_label = QLabel("Montant:")
+            self.dynamic_form_layout.addWidget(montant_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['montant'], current_row, 1)
+            current_row += 1
+            # --- Le reste (connexion signal) est inchangé ---
+            self.form_fields['montant'].textChanged.connect(self._update_montant_display)
+            self.total_apres_taxes_field = self.form_fields['montant'] 
+            # Ajouter un stretch à la fin pour pousser les champs vers le haut
+            self.dynamic_form_layout.setRowStretch(current_row, 1)
 
     def _update_montant_display(self, value):
         """ Met à jour le label montant dans la colonne de droite. """
@@ -657,18 +606,29 @@ class RapportDepensePage(QWidget):
     # def _update_entries_display(self):
     #     pass 
 
-    # --- AJOUT: Méthode pour gérer la visibilité de N° Commande ---
-    def _toggle_num_commande_visibility(self, checked):
-        """ Affiche ou cache le label et le champ N° Commande selon l'état du bouton 'Oui'. """
-        print(f"_toggle_num_commande_visibility appelé avec checked={checked}") # DEBUG
-        # Agir sur le conteneur
-        if hasattr(self, 'num_commande_container') and self.num_commande_container:
-            self.num_commande_container.setVisible(checked)
-            print(f"  num_commande_container.setVisible({checked}) effectué. visible={self.num_commande_container.isVisible()}") # DEBUG
-            # Retrait de adjustSize()
+    # --- ADAPTATION pour QGridLayout --- 
+    def _toggle_num_commande_row_visibility(self, checked):
+        """ Affiche ou cache la ligne (label + champ) N° Commande dans le QGridLayout. """
+        print(f"_toggle_num_commande_row_visibility appelé avec checked={checked}") # DEBUG
+        if hasattr(self, 'num_commande_repas_field') and self.num_commande_repas_field and \
+           hasattr(self, 'num_commande_repas_label') and self.num_commande_repas_label and \
+           hasattr(self, 'num_commande_row_index') and self.dynamic_form_layout: # Vérifier layout et index
+            try:
+                # Cacher/Montrer le label (colonne 0)
+                self.num_commande_repas_label.setVisible(checked)
+                # Cacher/Montrer le champ (colonne 1)
+                self.num_commande_repas_field.setVisible(checked)
+
+                # --- Ajuster la visibilité de la LIGNE ENTIÈRE dans le grid (Optionnel mais propre) ---
+                # Note: Ceci cache toute la ligne, ce qui est l'effet désiré.
+                # Il n'y a pas de setRowVisible direct, on cache les widgets. 
+                # Si besoin de réorganiser, il faudrait retirer/réajouter les widgets.
+                
+                print(f"  Label et Field N° Commande setVisible({checked}) effectué pour la ligne {self.num_commande_row_index}.") # DEBUG
+            except Exception as e:
+                 print(f"  Erreur lors de la modification de visibilité de la ligne N° Commande ({self.num_commande_row_index}): {e}") # DEBUG
         else:
-            print("  Erreur: self.num_commande_container non trouvé ou None.") # DEBUG
-    # -------------------------------------------------------------
+            print("  Erreur: Widgets N° Commande, index de ligne, ou layout non trouvés.") # DEBUG
 
 # Bloc de test simple
 if __name__ == '__main__':

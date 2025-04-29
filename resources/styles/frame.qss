@@ -63,4 +63,15 @@ Frame#CustomFrame QPushButton#TopNavButton:pressed {
 }
 
 /* Styles additionnels pour des variantes si vous utilisez setProperty */
-/* Exemple: Frame#CustomFrame[compact="true"] { ... } */ 
+/* Exemple: Frame#CustomFrame[compact="true"] { ... } */
+
+/* Style pour le séparateur vertical DANS le formulaire d'ajout */
+/* (Utilisé dans rapport_depense_page.py par exemple) */
+QFrame#VerticalFormSeparator {
+    border: none;
+    border-left: 1px solid {{COLOR_PRIMARY_LIGHT}}; /* Cohérent avec CustomFrameSeparator */
+    margin-top: 2px;    /* Ajuster marges verticales si besoin */
+    margin-bottom: 2px;
+    margin-left: 4px;   /* Garder marges horizontales pour espacement */
+    margin-right: 4px;
+} 
