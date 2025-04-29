@@ -424,24 +424,91 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.setRowStretch(current_row, 1)
 
         elif entry_type == "Dépense":
-            # --- AJOUT des champs pour Dépense simple (label colonne 0, champ colonne 1) --- 
+            # --- Champs pour Dépense --- 
+            # Type (ComboBox)
+            self.form_fields['type_depense'] = QComboBox()
+            self.form_fields['type_depense'].addItems(["Bureau", "Matériel", "Logiciel", "Voyage", "Représentation", "Autre"])
+            type_label = QLabel("Type:")
+            self.dynamic_form_layout.addWidget(type_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['type_depense'], current_row, 1)
+            current_row += 1
+
+            # Description
             self.form_fields['description'] = QLineEdit()
             desc_label = QLabel("Description:")
             self.dynamic_form_layout.addWidget(desc_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['description'], current_row, 1)
             current_row += 1
             
-            self.form_fields['montant'] = QLineEdit("0.00")
-            validator_montant = QDoubleValidator(0.0, 99999.99, 2); validator_montant.setNotation(QDoubleValidator.StandardNotation)
-            self.form_fields['montant'].setValidator(validator_montant)
-            self.form_fields['montant'].setAlignment(Qt.AlignRight)
-            montant_label = QLabel("Montant:")
-            self.dynamic_form_layout.addWidget(montant_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['montant'], current_row, 1)
+            # Fournisseur
+            self.form_fields['fournisseur'] = QLineEdit()
+            fourn_label = QLabel("Fournisseur:")
+            self.dynamic_form_layout.addWidget(fourn_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['fournisseur'], current_row, 1)
             current_row += 1
-            # --- Le reste (connexion signal) est inchangé ---
-            self.form_fields['montant'].textChanged.connect(self._update_montant_display)
-            self.total_apres_taxes_field = self.form_fields['montant'] 
+
+            # Payeur (Similaire à Repas)
+            payeur_container = QWidget()
+            payeur_grid = QGridLayout(payeur_container)
+            payeur_grid.setContentsMargins(0,0,0,0)
+            payeur_grid.setSpacing(10)
+            # Utiliser un nouveau ButtonGroup si self.payeur_group est déjà utilisé par Repas
+            self.depense_payeur_group = QButtonGroup(self.dynamic_form_widget) 
+            self.form_fields['payeur_employe_dep'] = QRadioButton("Employé")
+            self.form_fields['payeur_employe_dep'].setObjectName("FormRadioButton")
+            self.form_fields['payeur_jacmar_dep'] = QRadioButton("Jacmar")
+            self.form_fields['payeur_jacmar_dep'].setObjectName("FormRadioButton")
+            self.form_fields['payeur_employe_dep'].setChecked(True)
+            self.depense_payeur_group.addButton(self.form_fields['payeur_employe_dep'])
+            self.depense_payeur_group.addButton(self.form_fields['payeur_jacmar_dep'])
+            payeur_grid.addWidget(self.form_fields['payeur_employe_dep'], 0, 0)
+            payeur_grid.addWidget(self.form_fields['payeur_jacmar_dep'], 0, 1)
+            payeur_grid.setColumnStretch(0, 1)
+            payeur_grid.setColumnStretch(1, 1)
+            payeur_label = QLabel("Payeur:")
+            self.dynamic_form_layout.addWidget(payeur_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(payeur_container, current_row, 1)
+            current_row += 1
+
+            # Total avant Tx
+            total_avtx_widget = QLineEdit("0.00")
+            validator_avtx = QDoubleValidator(0.0, 99999.99, 2); validator_avtx.setNotation(QDoubleValidator.StandardNotation)
+            total_avtx_widget.setValidator(validator_avtx)
+            total_avtx_widget.setAlignment(Qt.AlignRight)
+            self.form_fields['total_avant_taxes_dep'] = total_avtx_widget
+            total_avtx_label = QLabel("Total avant Tx:")
+            self.dynamic_form_layout.addWidget(total_avtx_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes_dep'], current_row, 1)
+            current_row += 1
+
+            # Taxes (Similaire à Repas, avec _dep suffix)
+            tax_field_keys = ['tps_dep', 'tvq_dep', 'tvh_dep']
+            tax_labels = ["TPS:", "TVQ:", "TVH:"]
+            for i, key in enumerate(tax_field_keys):
+                widget = QLineEdit("0.00")
+                validator = QDoubleValidator(0.0, 99999.99, 2); validator.setNotation(QDoubleValidator.StandardNotation)
+                widget.setValidator(validator)
+                widget.setAlignment(Qt.AlignRight)
+                self.form_fields[key] = widget
+                label_widget = QLabel(tax_labels[i])
+                self.dynamic_form_layout.addWidget(label_widget, current_row, 0, Qt.AlignLeft)
+                self.dynamic_form_layout.addWidget(self.form_fields[key], current_row, 1)
+                current_row += 1
+
+            # Total après taxe
+            self.form_fields['total_apres_taxes_dep'] = QLineEdit("0.00")
+            validator_aptx = QDoubleValidator(0.0, 99999.99, 2); validator_aptx.setNotation(QDoubleValidator.StandardNotation)
+            self.form_fields['total_apres_taxes_dep'].setValidator(validator_aptx)
+            self.form_fields['total_apres_taxes_dep'].setAlignment(Qt.AlignRight)
+            total_aptx_label = QLabel("Total après Tx:")
+            self.dynamic_form_layout.addWidget(total_aptx_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes_dep'], current_row, 1)
+            current_row += 1
+
+            # Lier Total après Tx au display montant
+            self.total_apres_taxes_field = self.form_fields['total_apres_taxes_dep'] 
+            self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
+
             # Ajouter un stretch à la fin pour pousser les champs vers le haut
             self.dynamic_form_layout.setRowStretch(current_row, 1)
 
@@ -481,14 +548,21 @@ class RapportDepensePage(QWidget):
                 widget.setChecked(False)
             # --- AJOUT POUR RADIOBUTTON --- 
             # Vérifier les clés spécifiques pour remettre les défauts
-            elif field_key == 'payeur_employe':
+            elif field_key == 'payeur_employe': # Pour Repas
                 widget.setChecked(True)
-            elif field_key == 'payeur_jacmar':
+            elif field_key == 'payeur_jacmar': # Pour Repas
                 widget.setChecked(False)
             elif field_key == 'refacturer_non':
                 widget.setChecked(True)
             elif field_key == 'refacturer_oui':
                 widget.setChecked(False)
+            elif field_key == 'payeur_employe_dep': # Pour Dépense
+                 widget.setChecked(True)
+            elif field_key == 'payeur_jacmar_dep': # Pour Dépense
+                 widget.setChecked(False)
+            # --- AJOUT POUR COMBOBOX --- 
+            elif isinstance(widget, QComboBox) and field_key == 'type_depense':
+                 widget.setCurrentIndex(0) # Remettre au premier item
             # ------------------------------
 
         # Réinitialiser le label montant dédié (droite)
@@ -573,15 +647,53 @@ class RapportDepensePage(QWidget):
                  print(f"Ajout Repas: {new_entry}") # Placeholder
                  
             elif entry_type == "Dépense":
-                 # --- Dépense simple : On lit le montant depuis le display label? --- 
-                 # C'est problématique, il faudrait un champ dédié si on veut une dépense simple
-                 # Pour l'instant, on ne peut pas l'ajouter car il n'y a pas de champ montant
-                 QMessageBox.warning(self, "Type non géré", "L\'ajout de 'Dépense simple' nécessite un champ Montant.")
-                 return
+                 # --- Lire les valeurs du formulaire Dépense --- 
+                 type_val = self.form_fields['type_depense'].currentText()
+                 description_val = self.form_fields['description'].text()
+                 fournisseur_val = self.form_fields['fournisseur'].text()
+                 payeur_val = self.form_fields['payeur_employe_dep'].isChecked() # True si Employé
+                 
+                 # Utiliser le helper pour les montants
+                 def get_float_from_field(key):
+                     try:
+                         return float(self.form_fields[key].text().replace(',', '.'))
+                     except (KeyError, ValueError):
+                         return 0.0
+
+                 total_avant_taxes_val = get_float_from_field('total_avant_taxes_dep')
+                 tps_val = get_float_from_field('tps_dep')
+                 tvq_val = get_float_from_field('tvq_dep')
+                 tvh_val = get_float_from_field('tvh_dep')
+                 total_apres_taxes_val = get_float_from_field('total_apres_taxes_dep')
+                 
+                 # Validation (exemple simple)
+                 if not description_val:
+                     QMessageBox.warning(self, "Champ manquant", "La description est requise.")
+                     return
+                 if total_apres_taxes_val <= 0:
+                     QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
+                     return
+
+                 # --- Créer l'objet Depense (Adapter selon le modèle réel) --- 
+                 # Supposons que le constructeur de Depense ressemble à ça:
+                 new_entry = Depense(date_depense=date_val, 
+                                     type_depense=type_val, 
+                                     description=description_val, 
+                                     fournisseur=fournisseur_val, 
+                                     payeur=payeur_val, # True pour Employé 
+                                     totale_avant_taxes=total_avant_taxes_val,
+                                     tps=tps_val, 
+                                     tvq=tvq_val, 
+                                     tvh=tvh_val,
+                                     totale_apres_taxes=total_apres_taxes_val)
+                 # -----------------------------------------------------------
+                 
+                 # QMessageBox.warning(self, "Type non géré", "L'ajout de 'Dépense simple' nécessite un champ Montant.")
+                 # return
                  # montant_val = float(self.montant_display_label.text().replace(' $','')) # Risqué
                  # new_entry = Depense(date=date_val, description=description_val, montant=montant_val)
                  # self.document.entries.append(new_entry)
-                 # print(f"Ajout Dépense: {new_entry}") # Placeholder
+                 print(f"Ajout Dépense: {new_entry}") # Placeholder
 
             if new_entry: # Si une entrée a été créée
                 print(f"Entrée ajoutée: {new_entry}") # Répétitif
