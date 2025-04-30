@@ -370,3 +370,39 @@ QPushButton#ItemOptionsButton:hover {
 }
 
 /* ... (autres styles s'il y en a après) ... */ 
+
+/* --- Styles pour CardWidget --- */
+#CardWidget {
+    background-color: {{COLOR_PRIMARY_LIGHT}};
+    border-radius: {{RADIUS_BOX}};
+    border: none;
+}
+
+/* Assurer que les widgets enfants directs (summary_widget, details_widget) sont transparents */
+#CardWidget > QWidget {
+    background-color: transparent;
+    border: none;
+}
+
+/* Style pour le bouton d'expansion dans la carte */
+#CardWidget QPushButton#CardExpandButton {
+    background-color: transparent;
+    border: none;
+    /* Le padding et la taille sont définis en Python */
+}
+
+#CardWidget QPushButton#CardExpandButton:hover {
+    background-color: {{COLOR_ITEM_HOVER}}; /* Utiliser la couleur standard de survol */
+    border-radius: 4px; /* Petit radius pour le survol */
+}
+
+/* Style pour les QLabel à l'intérieur de CardWidget (pour assurer la transparence) */
+#CardWidget QLabel {
+    background-color: transparent;
+    border: none;
+}
+
+/* Style spécifique pour le label d'info dans le résumé (déjà stylé inline, mais pour référence) */
+/* #CardWidget > QWidget > QHBoxLayout > QLabel { font-weight: bold; } */
+
+/* --- FIN Styles pour CardWidget --- */ 

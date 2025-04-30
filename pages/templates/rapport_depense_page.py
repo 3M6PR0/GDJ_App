@@ -192,6 +192,11 @@ class RapportDepensePage(QWidget):
         # Widget conteneur pour la ScrollArea
         scroll_content_widget = QWidget()
         scroll_content_widget.setObjectName("EntriesScrollContent")
+        # --- Donner explicitement un fond au conteneur --- 
+        theme = get_theme_vars() # Récupérer le thème
+        scroll_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#333333") # Couleur des frames
+        scroll_content_widget.setStyleSheet(f"QWidget#EntriesScrollContent {{ background-color: {scroll_bg_color}; }}")
+        # -----------------------------------------------
 
         # Layout pour la liste des vignettes
         self.entries_list_layout = QVBoxLayout(scroll_content_widget)
@@ -459,7 +464,7 @@ class RapportDepensePage(QWidget):
             self.form_fields['facture_frame'].setMinimumHeight(60) # Hauteur minimale pour visibilité
             self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel) # Donner une forme
             self.form_fields['facture_frame'].setFrameShadow(QFrame.Sunken)    # Donner une ombre
-            self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {RADIUS_BOX};") # Utiliser couleur et radius du thème
+            self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {RADIUS_BOX}; border: none;") 
             # Ajouter un layout au frame et le label à l'intérieur
             frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
             frame_content_layout.setContentsMargins(5, 5, 5, 5) # Marge intérieure
