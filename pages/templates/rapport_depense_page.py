@@ -11,85 +11,8 @@ from utils.theme import get_theme_vars, RADIUS_BOX # Importer les variables de t
 from utils.icon_loader import get_icon_path # Importer la fonction pour obtenir le chemin de l'icône
 from utils.signals import signals
 from widgets.custom_date_edit import CustomDateEdit
+from ui.components.card import CardWidget # Importer le widget card renommé
 import traceback # Importer traceback pour débogage
-
-# --- Widget Vignette --- 
-class EntryVignetteWidget(QWidget):
-    def __init__(self, entry_data, entry_type, parent=None):
-        super().__init__(parent)
-        self.entry_data = entry_data
-        self.entry_type = entry_type
-        self._setup_ui()
-
-    def _setup_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0,0,0,0)
-        main_layout.setSpacing(5)
-
-        # --- Header --- 
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(5, 5, 5, 5)
-
-        # Infos Clés (à adapter par type)
-        date_str = "Date Inconnue"
-        amount_str = "Montant Inconnu"
-        # --- Standardiser l'accès à la date et au montant --- 
-        date_val = getattr(self.entry_data, 'date', None) # Suppose une propriété 'date'
-        if date_val:
-            date_str = date_val.strftime("%Y-%m-%d")
-            
-        # Pour le montant, besoin d'une propriété standardisée aussi (ex: 'total')
-        amount_val = getattr(self.entry_data, 'total', None) 
-        if amount_val is not None:
-            amount_str = f"{amount_val:.2f} $"
-        # -------------------------------------------------------
-
-        header_info = f"{date_str} - {self.entry_type} - {amount_str}"
-        info_label = QLabel(header_info)
-        info_label.setStyleSheet("font-weight: bold;")
-
-        self.toggle_button = QPushButton()
-        self.toggle_button.setIcon(QIcon(get_icon_path("arrow_right.png"))) # Icône initiale (replié)
-        self.toggle_button.setFixedSize(20, 20)
-        self.toggle_button.setFlat(True)
-        self.toggle_button.setObjectName("VignetteToggleButton")
-        self.toggle_button.setCheckable(True) # Le bouton garde son état
-        self.toggle_button.toggled.connect(self._toggle_details)
-
-        header_layout.addWidget(info_label, 1) # Prend l'espace
-        header_layout.addWidget(self.toggle_button)
-        header_widget.setObjectName("VignetteHeader")
-        # Optionnel: Ajouter un style au header via QSS
-        # header_widget.setStyleSheet("background-color: #444;") 
-
-        # --- Détails (initialement cachés) --- 
-        self.details_widget = QWidget()
-        details_layout = QFormLayout(self.details_widget)
-        details_layout.setContentsMargins(10, 5, 5, 5)
-        details_layout.setSpacing(5)
-
-        # Peupler les détails en fonction du type
-        # TODO: Remplir ce layout avec les champs spécifiques de self.entry_data
-        # Exemple simple:
-        for attr, value in vars(self.entry_data).items():
-            # Exclure les champs déjà dans le header ou non pertinents
-            if attr not in ['date', 'total', '_sa_instance_state']: # Adapter les exclusions
-                 details_layout.addRow(f"{attr.replace('_', ' ').capitalize()}:", QLabel(str(value)))
-
-        self.details_widget.setVisible(False) # Caché par défaut
-
-        # Ajouter Header et Détails au layout principal
-        main_layout.addWidget(header_widget)
-        main_layout.addWidget(self.details_widget)
-
-    @Slot(bool)
-    def _toggle_details(self, checked):
-        self.details_widget.setVisible(checked)
-        # Changer l'icône du bouton
-        icon_name = "arrow_drop_down.png" if checked else "arrow_right.png"
-        self.toggle_button.setIcon(QIcon(get_icon_path(icon_name)))
-# --- Fin Widget Vignette ---
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
@@ -748,9 +671,8 @@ class RapportDepensePage(QWidget):
                                          numero_commande=num_commande_val,
                                          kilometrage=kilometrage_val, 
                                          montant=montant_deplacement)
-                 # self.document n'a plus add_deplacement, etc. Il faut une méthode générique?
-                 # Supposons qu'il y a une liste entries: self.document.entries.append(new_entry)
-                 print(f"Ajout Déplacement: {new_entry}") # Placeholder
+                 self.document.ajouter_deplacement(new_entry)
+                 print(f"Déplacement ajouté: {new_entry}")
 
             elif entry_type == "Repas":
                  # Récupérer les valeurs spécifiques depuis self.form_fields
@@ -868,7 +790,7 @@ class RapportDepensePage(QWidget):
             if new_entry: # Si une entrée a été créée
                 print(f"Entrée ajoutée: {new_entry}") # Répétitif
                 self._clear_entry_form() 
-                # self._update_entries_display() # TODO: Mettre à jour la liste/tableau
+                self._populate_entries_list() # Mettre à jour la liste des cartes
                 self._update_totals_display() # TODO: Mettre à jour les totaux
                 QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.")
 
@@ -923,7 +845,7 @@ class RapportDepensePage(QWidget):
                 child.widget().deleteLater()
 
         # Récupérer et trier toutes les entrées par date
-        all_entries = self.document.repas + self.document.deplacements + self.document.depenses
+        all_entries = self.document.repas + self.document.deplacements + self.document.depenses_diverses
         # Utiliser la propriété 'date' maintenant disponible
         all_entries.sort(key=lambda entry: entry.date)
 
@@ -937,8 +859,8 @@ class RapportDepensePage(QWidget):
             elif isinstance(entry, Depense):
                 entry_type = "Dépense"
                 
-            vignette = EntryVignetteWidget(entry_data=entry, entry_type=entry_type)
-            self.entries_list_layout.addWidget(vignette)
+            card = CardWidget(entry_data=entry, entry_type=entry_type)
+            self.entries_list_layout.addWidget(card)
 
         # Optionnel: Ajouter un stretch à la fin si on veut que les vignettes ne s'étirent pas verticalement
         # self.entries_list_layout.addStretch(1)
