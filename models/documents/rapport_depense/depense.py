@@ -68,4 +68,9 @@ class Depense:
                 f"total={self.totale_apres_taxes:.2f}, montant_employe={self.employe:.2f}, "
                 f"montant_jacmar={self.jacmar:.2f}{facture_repr})")
 
+    @property
+    def total(self) -> float:
+        """Retourne le montant total après taxes."""
+        return self.totale_apres_taxes
+
     # Ajouter d'autres méthodes si nécessaire 

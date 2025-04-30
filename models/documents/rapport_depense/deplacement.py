@@ -30,4 +30,9 @@ class Deplacement:
                 f"ville='{self.ville}', numero_commande='{self.numero_commande}', "
                 f"kilometrage={self.kilometrage}, montant={self.montant:.2f})")
 
+    @property
+    def total(self) -> float:
+        """Retourne le montant total du déplacement."""
+        return self.montant
+
     # Ajouter d'autres méthodes si nécessaire (ex: validation spécifique) 

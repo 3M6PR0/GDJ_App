@@ -8,7 +8,7 @@ MONTHS = [
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QFrame as QtFrame, QSpacerItem, QSizePolicy,
                              QStackedWidget, QButtonGroup, QAbstractButton,
-                             QTabWidget)
+                             QTabWidget, QFormLayout)
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
 from PyQt5.QtGui import QIcon, QPixmap, QFont
 from datetime import datetime, date
@@ -29,6 +29,12 @@ class DocumentsOpenPage(QWidget):
         super().__init__(parent)
         self.setObjectName("DocumentsOpenPage")
         
+        # --- Initialiser les labels de la sidebar --- 
+        self.sidebar_title_label = None
+        self.sidebar_info_layout = None # Layout pour les détails
+        self.sidebar_labels = {} # Dictionnaire pour stocker les labels de valeur
+        # ------------------------------------------
+        
         # Stocker les données initiales (pourraient être utilisées plus tard)
         self.initial_doc_type = initial_doc_type
         self.initial_doc_data = initial_doc_data if initial_doc_data is not None else {}
@@ -39,7 +45,7 @@ class DocumentsOpenPage(QWidget):
             self._create_tab(self.initial_doc_type, self.initial_doc_data)
         else:
             # Mettre à jour le titre même si aucun onglet n'est créé initialement
-            self._update_sidebar_title(self.tab_widget.currentIndex()) 
+            self._update_sidebar(self.tab_widget.currentIndex()) 
         # -----------------------------
     # -----------------------------
 
@@ -59,14 +65,49 @@ class DocumentsOpenPage(QWidget):
         sidebar_layout.setSpacing(10)
 
         # Label pour le titre du document actif (initialement vide)
-        self.sidebar_title_label = QLabel("Aucun document ouvert") # Texte initial
+        self.sidebar_title_label = QLabel("Aucun document ouvert")
         self.sidebar_title_label.setObjectName("SidebarTitleLabel")
         self.sidebar_title_label.setStyleSheet("font-weight: bold; font-size: 14px;") # Garder le style du texte
         self.sidebar_title_label.setWordWrap(True)
-        self.sidebar_title_label.setAlignment(Qt.AlignTop)
-        sidebar_layout.addWidget(self.sidebar_title_label)
+        self.sidebar_title_label.setAlignment(Qt.AlignCenter) # Centrer le titre
+        sidebar_layout.addWidget(self.sidebar_title_label) # Titre en premier
 
-        sidebar_layout.addStretch() # Pousse le titre vers le haut
+        # --- Ajouter un stretch avant le premier item --- 
+        sidebar_layout.addStretch(1)
+        # ------------------------------------------------
+
+        # Créer les labels pour chaque champ (initialement vides)
+        info_fields = {
+            "nom_employe": "Nom:",
+            "prenom_employe": "Prénom:",
+            "date_rapport": "Date Rapport:",
+            "emplacement": "Emplacement:",
+            "departement": "Département:",
+            "superviseur": "Superviseur:",
+            "plafond_deplacement": "Plafond Dép.:"
+        }
+
+        # --- Ajouter les informations spécifiques verticalement --- 
+        for key, item_text in info_fields.items():
+            item_label = QLabel(item_text)
+            item_label.setObjectName("SidebarInfoItemLabel") # Style pour l'item
+            # --- Distinguer l'item: Mettre en gras --- 
+            item_label.setStyleSheet("font-weight: bold;")
+            # -----------------------------------------
+
+            value_label = QLabel("-") # Placeholder initial pour la valeur
+            value_label.setObjectName("SidebarInfoValue")
+            value_label.setWordWrap(True)
+            self.sidebar_labels[key] = value_label # Stocker la référence au label de valeur
+
+            sidebar_layout.addWidget(item_label)    # Ajouter "Nom:"
+            sidebar_layout.addWidget(value_label)  # Ajouter "-" (sera mis à jour)
+            # --- Ajouter un stretch entre les paires --- 
+            sidebar_layout.addStretch(1)
+            # -------------------------------------------
+
+        sidebar_layout.addStretch() # Pousse le tout vers le haut
+        # ---------------------------------------------------------
 
         page_layout.addWidget(sidebar_widget) # Ajouter la sidebar
 
@@ -89,32 +130,65 @@ class DocumentsOpenPage(QWidget):
         self.tab_widget.setMovable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         # Connecter le changement d'onglet à la mise à jour du titre
-        self.tab_widget.currentChanged.connect(self._update_sidebar_title) 
+        self.tab_widget.currentChanged.connect(self._update_sidebar) 
         
         content_layout.addWidget(self.tab_widget) # Ajouter QTabWidget au layout de contenu
         page_layout.addWidget(content_widget, 1) # Ajouter zone de contenu, prend l'espace restant
 
     @Slot(int)
-    def _update_sidebar_title(self, index):
-        """Met à jour le type de document (en gras) dans la barre latérale basé sur l'onglet courant."""
+    def _update_sidebar(self, index):
+        """Met à jour la barre latérale avec les informations du document de l'onglet courant."""
         current_widget = self.tab_widget.widget(index)
         
         doc_type_display = "Aucun document"
+        is_rapport_depense = False
+        active_document = None
         
         if current_widget:
-            # Essayer de récupérer le type de document stocké comme propriété
-            doc_type = current_widget.property("doc_type")
-            if isinstance(doc_type, str) and doc_type:
-                # Formatter pour affichage (ex: juste capitaliser)
-                formatted_type = doc_type.capitalize()
-                doc_type_display = formatted_type
+            # Essayer de récupérer l'objet document lui-même
+            if hasattr(current_widget, 'document'):
+                active_document = current_widget.document
+                if isinstance(active_document, RapportDepense):
+                    is_rapport_depense = True
+                    # --- Correction Titre: Utiliser le type explicitement ---
+                    doc_type_display = "Rapport de dépense" 
+                    # ------------------------------------------------------
+                elif active_document is not None:
+                    # Utiliser le nom de la classe pour les autres types
+                    doc_type_display = type(active_document).__name__.replace('_', ' ').capitalize() 
             else:
-                # Fallback: utiliser le texte de l'onglet si pas de type trouvé
-                tab_text = self.tab_widget.tabText(index)
-                doc_type_display = tab_text if tab_text else "Onglet"
+                 # Fallback sur le texte de l'onglet si pas d'objet document
+                 tab_text = self.tab_widget.tabText(index)
+                 # Essayer d'extraire un type plus propre du texte de l'onglet si possible
+                 if tab_text and " - " in tab_text:
+                     doc_type_display = tab_text.split(" - ")[0]
+                 elif tab_text:
+                     doc_type_display = tab_text
+                 else:
+                      doc_type_display = "Onglet" # Dernier recours
         
-        # Appliquer le formatage gras via HTML
-        self.sidebar_title_label.setText(f"<b>{doc_type_display}</b>")
+        # Mettre à jour le label titre (peut-être sans le gras si ça pose problème)
+        # self.sidebar_title_label.setText(f"<b>{doc_type_display}</b>") 
+        self.sidebar_title_label.setText(doc_type_display) # Version simple
+
+        # --- Mettre à jour les labels d'information spécifiques --- 
+        if is_rapport_depense and active_document:
+            # Formater la date
+            date_text = active_document.date_rapport.strftime('%B %Y')
+            
+            # Mettre à jour chaque label
+            self.sidebar_labels.get("nom_employe").setText(active_document.nom_employe or "-")
+            self.sidebar_labels.get("prenom_employe").setText(active_document.prenom_employe or "-")
+            self.sidebar_labels.get("date_rapport").setText(date_text or "-")
+            self.sidebar_labels.get("emplacement").setText(active_document.emplacement or "-")
+            self.sidebar_labels.get("departement").setText(active_document.departement or "-")
+            self.sidebar_labels.get("superviseur").setText(active_document.superviseur or "-")
+            self.sidebar_labels.get("plafond_deplacement").setText(str(active_document.plafond_deplacement) or "-") # Assurer str
+
+        else:
+            # Vider les labels si ce n'est pas un RapportDepense
+            for label in self.sidebar_labels.values():
+                label.setText("-")
 
     # --- Nouvelle méthode pour créer un onglet --- 
     def _create_tab(self, doc_type: str, doc_data: dict):

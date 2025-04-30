@@ -86,4 +86,9 @@ class Repas:
                 f"montant_employe={self.employe:.2f}, montant_jacmar={self.jacmar:.2f}{facture_repr})")
         # ---------------------------------------
 
+    @property
+    def total(self) -> float:
+        """Retourne le montant total après taxes."""
+        return self.totale_apres_taxes
+
     # Ajouter d'autres méthodes si nécessaire (ex: calcul total, validation) 

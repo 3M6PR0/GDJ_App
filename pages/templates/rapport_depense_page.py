@@ -2,8 +2,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFormLayout,
                            QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox, 
                            QPushButton, QHBoxLayout, QMessageBox,
                            QGridLayout, QFrame, QCheckBox, QRadioButton, QButtonGroup,
-                           QSizePolicy,
-                           QFileDialog)
+                           QSizePolicy, QFileDialog, QScrollArea)
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QDoubleValidator, QIcon
 from ui.components.frame import Frame # Correction: Chemin d'importation correct
@@ -13,6 +12,84 @@ from utils.icon_loader import get_icon_path # Importer la fonction pour obtenir 
 from utils.signals import signals
 from widgets.custom_date_edit import CustomDateEdit
 import traceback # Importer traceback pour débogage
+
+# --- Widget Vignette --- 
+class EntryVignetteWidget(QWidget):
+    def __init__(self, entry_data, entry_type, parent=None):
+        super().__init__(parent)
+        self.entry_data = entry_data
+        self.entry_type = entry_type
+        self._setup_ui()
+
+    def _setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0,0,0,0)
+        main_layout.setSpacing(5)
+
+        # --- Header --- 
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Infos Clés (à adapter par type)
+        date_str = "Date Inconnue"
+        amount_str = "Montant Inconnu"
+        # --- Standardiser l'accès à la date et au montant --- 
+        date_val = getattr(self.entry_data, 'date', None) # Suppose une propriété 'date'
+        if date_val:
+            date_str = date_val.strftime("%Y-%m-%d")
+            
+        # Pour le montant, besoin d'une propriété standardisée aussi (ex: 'total')
+        amount_val = getattr(self.entry_data, 'total', None) 
+        if amount_val is not None:
+            amount_str = f"{amount_val:.2f} $"
+        # -------------------------------------------------------
+
+        header_info = f"{date_str} - {self.entry_type} - {amount_str}"
+        info_label = QLabel(header_info)
+        info_label.setStyleSheet("font-weight: bold;")
+
+        self.toggle_button = QPushButton()
+        self.toggle_button.setIcon(QIcon(get_icon_path("arrow_right.png"))) # Icône initiale (replié)
+        self.toggle_button.setFixedSize(20, 20)
+        self.toggle_button.setFlat(True)
+        self.toggle_button.setObjectName("VignetteToggleButton")
+        self.toggle_button.setCheckable(True) # Le bouton garde son état
+        self.toggle_button.toggled.connect(self._toggle_details)
+
+        header_layout.addWidget(info_label, 1) # Prend l'espace
+        header_layout.addWidget(self.toggle_button)
+        header_widget.setObjectName("VignetteHeader")
+        # Optionnel: Ajouter un style au header via QSS
+        # header_widget.setStyleSheet("background-color: #444;") 
+
+        # --- Détails (initialement cachés) --- 
+        self.details_widget = QWidget()
+        details_layout = QFormLayout(self.details_widget)
+        details_layout.setContentsMargins(10, 5, 5, 5)
+        details_layout.setSpacing(5)
+
+        # Peupler les détails en fonction du type
+        # TODO: Remplir ce layout avec les champs spécifiques de self.entry_data
+        # Exemple simple:
+        for attr, value in vars(self.entry_data).items():
+            # Exclure les champs déjà dans le header ou non pertinents
+            if attr not in ['date', 'total', '_sa_instance_state']: # Adapter les exclusions
+                 details_layout.addRow(f"{attr.replace('_', ' ').capitalize()}:", QLabel(str(value)))
+
+        self.details_widget.setVisible(False) # Caché par défaut
+
+        # Ajouter Header et Détails au layout principal
+        main_layout.addWidget(header_widget)
+        main_layout.addWidget(self.details_widget)
+
+    @Slot(bool)
+    def _toggle_details(self, checked):
+        self.details_widget.setVisible(checked)
+        # Changer l'icône du bouton
+        icon_name = "arrow_drop_down.png" if checked else "arrow_right.png"
+        self.toggle_button.setIcon(QIcon(get_icon_path(icon_name)))
+# --- Fin Widget Vignette ---
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
@@ -179,9 +256,31 @@ class RapportDepensePage(QWidget):
 
         # --- Frame Droite (Section Inférieure): Affichage des Entrées --- 
         self.entries_display_frame = Frame("Entrées existantes", self) 
-        self.entries_display_layout = self.entries_display_frame.get_content_layout()
-        placeholder_label = QLabel("Affichage des entrées à implémenter ici (ex: QTableWidget).")
-        self.entries_display_layout.addWidget(placeholder_label)
+        entries_display_frame_content_layout = self.entries_display_frame.get_content_layout()
+        entries_display_frame_content_layout.setContentsMargins(0, 0, 0, 0) # Pas de marges internes au frame
+        entries_display_frame_content_layout.setSpacing(0)
+
+        # Créer la ScrollArea
+        self.entries_scroll_area = QScrollArea()
+        self.entries_scroll_area.setWidgetResizable(True)
+        self.entries_scroll_area.setObjectName("EntriesScrollArea") # Pour QSS si besoin
+        self.entries_scroll_area.setFrameShape(QFrame.NoFrame) # Pas de bordure pour la scroll area elle-même
+
+        # Widget conteneur pour la ScrollArea
+        scroll_content_widget = QWidget()
+        scroll_content_widget.setObjectName("EntriesScrollContent")
+
+        # Layout pour la liste des vignettes
+        self.entries_list_layout = QVBoxLayout(scroll_content_widget)
+        self.entries_list_layout.setContentsMargins(5, 5, 5, 5) # Marges autour de la liste
+        self.entries_list_layout.setSpacing(10) # Espacement entre les vignettes
+        self.entries_list_layout.setAlignment(Qt.AlignTop) # Aligner les vignettes en haut
+
+        # Mettre le widget conteneur dans la ScrollArea
+        self.entries_scroll_area.setWidget(scroll_content_widget)
+
+        # Ajouter la ScrollArea au layout du frame
+        entries_display_frame_content_layout.addWidget(self.entries_scroll_area)
 
         # --- AJOUT DU FRAME D'AFFICHAGE À LA SECTION INFÉRIEURE (DROITE) ---
         bottom_section_layout.addWidget(self.entries_display_frame, 4) 
@@ -200,6 +299,10 @@ class RapportDepensePage(QWidget):
 
         # Initialiser le formulaire pour le premier type
         self._update_entry_form()
+
+        # --- Initialiser la liste des entrées --- 
+        self._populate_entries_list()
+        # ---------------------------------------
 
     def _create_vertical_separator(self):
         """ Crée un QFrame configuré comme séparateur vertical. """
@@ -810,6 +913,41 @@ class RapportDepensePage(QWidget):
                  print(f"  Erreur lors de la modification de visibilité de la ligne N° Commande ({self.num_commande_row_index}): {e}") # DEBUG
         else:
             print("  Erreur: Widgets N° Commande, index de ligne, ou layout non trouvés.") # DEBUG
+
+    def _populate_entries_list(self):
+        """ Vide et repeuple la liste des vignettes d'entrées."""
+        # Vider le layout existant
+        while self.entries_list_layout.count():
+            child = self.entries_list_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        # Récupérer et trier toutes les entrées par date
+        all_entries = self.document.repas + self.document.deplacements + self.document.depenses
+        # Utiliser la propriété 'date' maintenant disponible
+        all_entries.sort(key=lambda entry: entry.date)
+
+        # Créer et ajouter les vignettes
+        for entry in all_entries:
+            entry_type = "Inconnu"
+            if isinstance(entry, Repas):
+                entry_type = "Repas"
+            elif isinstance(entry, Deplacement):
+                entry_type = "Déplacement"
+            elif isinstance(entry, Depense):
+                entry_type = "Dépense"
+                
+            vignette = EntryVignetteWidget(entry_data=entry, entry_type=entry_type)
+            self.entries_list_layout.addWidget(vignette)
+
+        # Optionnel: Ajouter un stretch à la fin si on veut que les vignettes ne s'étirent pas verticalement
+        # self.entries_list_layout.addStretch(1)
+            
+    # --- Nouvelle méthode pour créer un onglet --- 
+    def _create_tab(self, doc_type: str, doc_data: dict):
+        """Crée la page template et l'ajoute comme onglet."""
+        # ... existing code ...
+        # ... new code ...
 
 # Bloc de test simple
 if __name__ == '__main__':
