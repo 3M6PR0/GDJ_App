@@ -842,19 +842,37 @@ class RapportDepensePage(QWidget):
             print("  Erreur: Widgets N° Commande, index de ligne, ou layout non trouvés.") # DEBUG
 
     def _populate_entries_list(self):
-        """ Vide et repeuple la liste des vignettes d'entrées."""
-        # Vider le layout existant
+        """ Vide et repeuple la liste des vignettes d'entrées, en préservant l'état déplié. """
+        
+        expanded_entry_ids = set() # Utiliser un set pour stocker les objets entry_data dépliés
+        
+        # 1. Mémoriser les entrées actuellement dépliées
+        for i in range(self.entries_list_layout.count()):
+            child = self.entries_list_layout.itemAt(i)
+            if child and child.widget():
+                card = child.widget()
+                # Vérifier si la carte est une instance de CardWidget et est dépliée
+                if isinstance(card, CardWidget) and card.expand_button.isChecked(): 
+                    # Utiliser l'objet entry_data comme identifiant (s'il est hashable)
+                    # Si entry_data n'est pas hashable, il faudra un ID unique.
+                    try:
+                         expanded_entry_ids.add(card.entry_data)
+                    except TypeError:
+                         # Fallback: utiliser id() si l'objet n'est pas hashable (moins robuste si les objets sont recréés)
+                         print(f"WARN: entry_data de type {type(card.entry_data)} n'est pas hashable, utilisation de id() comme fallback.")
+                         expanded_entry_ids.add(id(card.entry_data))
+
+        # 2. Vider le layout existant
         while self.entries_list_layout.count():
             child = self.entries_list_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
 
-        # Récupérer et trier toutes les entrées par date
+        # 3. Récupérer et trier toutes les entrées par date
         all_entries = self.document.repas + self.document.deplacements + self.document.depenses_diverses
-        # Utiliser la propriété 'date' maintenant disponible
-        all_entries.sort(key=lambda entry: entry.date)
+        all_entries.sort(key=lambda entry: getattr(entry, 'date', getattr(entry, 'date_repas', getattr(entry, 'date_deplacement', getattr(entry, 'date_depense', None))))) # Clé de tri robuste
 
-        # Créer et ajouter les vignettes
+        # 4. Créer et ajouter les nouvelles vignettes
         for entry in all_entries:
             entry_type = "Inconnu"
             if isinstance(entry, Repas):
@@ -865,7 +883,30 @@ class RapportDepensePage(QWidget):
                 entry_type = "Dépense"
                 
             card = CardWidget(entry_data=entry, entry_type=entry_type)
+            
+            # 5. Restaurer l'état déplié si nécessaire
+            entry_id_to_check = entry # Utiliser l'objet directement par défaut
+            is_expanded = False
+            try:
+                if entry in expanded_entry_ids:
+                    is_expanded = True
+            except TypeError:
+                 # Si l'objet n'était pas hashable, on a stocké id()
+                 if id(entry) in expanded_entry_ids:
+                     is_expanded = True
+
+            if is_expanded:
+                # Déclencher le dépliage. setChecked(True) appellera _toggle_details.
+                card.expand_button.setChecked(True) 
+
             self.entries_list_layout.addWidget(card)
+
+        # 6. Optionnel: Forcer une mise à jour de la géométrie pour éviter les artefacts
+        # Décommenter si le problème d'affichage persiste
+        # if self.entries_scroll_area.widget():
+        #      self.entries_scroll_area.widget().updateGeometry()
+        # self.entries_scroll_area.updateGeometry()
+        # QApplication.processEvents() # Utiliser avec précaution
 
         # Optionnel: Ajouter un stretch à la fin si on veut que les vignettes ne s'étirent pas verticalement
         # self.entries_list_layout.addStretch(1)
