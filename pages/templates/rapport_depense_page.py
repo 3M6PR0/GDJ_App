@@ -12,6 +12,7 @@ from utils.theme import get_theme_vars, RADIUS_BOX # Importer les variables de t
 from utils.icon_loader import get_icon_path # Importer la fonction pour obtenir le chemin de l'icône
 from utils.signals import signals
 from widgets.custom_date_edit import CustomDateEdit
+import traceback # Importer traceback pour débogage
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
@@ -271,7 +272,6 @@ class RapportDepensePage(QWidget):
 
         # --- Champs spécifiques par type ---
         entry_type = self.entry_type_combo.currentText()
-        self.form_fields = {}
 
         if entry_type == "Déplacement":
             self.form_fields['client'] = QLineEdit()
@@ -686,17 +686,28 @@ class RapportDepensePage(QWidget):
                       QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
                       return
                  
-                 new_entry = Repas(date_repas=date_val, description="", # Passer une description vide
-                                    restaurant=restaurant_val, client=client_repas_val,
-                                    payeur=payeur_val, refacturer=refacturer_val,
-                                    numero_commande=num_commande_repas_val,
-                                    totale_avant_taxes=total_avant_taxes_val, 
-                                    pourboire=pourboire_val, tps=tps_val, tvq=tvq_val, tvh=tvh_val,
-                                    totale_apres_taxes=total_apres_taxes_val,
-                                    employe=employe_val, jacmar=jacmar_val, 
-                                    facture=None) # Mettre None ou adapter le modèle
+                 # --- Créer l'objet Repas --- 
+                 new_entry = Repas(
+                     date_repas=date_val, 
+                     description="Repas", # Description générique ou à ajouter au form?
+                     restaurant=restaurant_val, 
+                     client=client_repas_val,
+                     payeur=payeur_val, # Passer le booléen directement (True=Employé)
+                     refacturer=refacturer_val, # True si Oui
+                     numero_commande=num_commande_repas_val if refacturer_val else "", # Num cmd si refacturer
+                     totale_avant_taxes=total_avant_taxes_val, 
+                     pourboire=pourboire_val, 
+                     tps=tps_val, 
+                     tvq=tvq_val, 
+                     tvh=tvh_val,
+                     totale_apres_taxes=total_apres_taxes_val,
+                     employe=employe_val, # À vérifier si nécessaire
+                     jacmar=jacmar_val,   # À vérifier si nécessaire
+                     facture=None # Gestion des factures à implémenter
+                 )
                  # self.document.entries.append(new_entry)
-                 print(f"Ajout Repas: {new_entry}") # Placeholder
+                 self.document.ajouter_repas(new_entry) # Utiliser la méthode dédiée
+                 print(f"Ajout Repas: {new_entry}") # Garder pour info
                  
             elif entry_type == "Dépense":
                  # --- Lire les valeurs du formulaire Dépense --- 
@@ -728,16 +739,19 @@ class RapportDepensePage(QWidget):
 
                  # --- Créer l'objet Depense (Adapter selon le modèle réel) --- 
                  # Supposons que le constructeur de Depense ressemble à ça:
-                 new_entry = Depense(date_depense=date_val, 
-                                     type_depense=type_val, 
-                                     description=description_val, 
-                                     fournisseur=fournisseur_val, 
-                                     payeur=payeur_val, # True pour Employé 
-                                     totale_avant_taxes=total_avant_taxes_val,
-                                     tps=tps_val, 
-                                     tvq=tvq_val, 
-                                     tvh=tvh_val,
-                                     totale_apres_taxes=total_apres_taxes_val)
+                 new_entry = Depense(
+                     date_depense=date_val, 
+                     type_depense=type_val, 
+                     description=description_val, 
+                     fournisseur=fournisseur_val, 
+                     payeur=payeur_val, # Passer le booléen directement (True=Employé)
+                     totale_avant_taxes=total_avant_taxes_val,
+                     tps=tps_val, 
+                     tvq=tvq_val, 
+                     tvh=tvh_val,
+                     totale_apres_taxes=total_apres_taxes_val,
+                     facture=None # Ajouter si nécessaire
+                 )
                  # -----------------------------------------------------------
                  
                  # QMessageBox.warning(self, "Type non géré", "L'ajout de 'Dépense simple' nécessite un champ Montant.")
@@ -745,7 +759,8 @@ class RapportDepensePage(QWidget):
                  # montant_val = float(self.montant_display_label.text().replace(' $','')) # Risqué
                  # new_entry = Depense(date=date_val, description=description_val, montant=montant_val)
                  # self.document.entries.append(new_entry)
-                 print(f"Ajout Dépense: {new_entry}") # Placeholder
+                 self.document.ajouter_depense(new_entry) # Utiliser la méthode dédiée
+                 print(f"Ajout Dépense: {new_entry}") # Garder pour info
 
             if new_entry: # Si une entrée a été créée
                 print(f"Entrée ajoutée: {new_entry}") # Répétitif
@@ -758,8 +773,10 @@ class RapportDepensePage(QWidget):
              # Gérer le cas où un champ attendu n'existe pas dans self.form_fields
              QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire: {e}. Le formulaire pour '{entry_type}' est peut-être incomplet.")
         except Exception as e:
+             # --- Message d'erreur générique --- 
              QMessageBox.critical(self, "Erreur", f"Impossible d'ajouter l'entrée: {e}")
-             traceback.print_exc() # Pour débogage
+             traceback.print_exc() # Afficher la trace complète dans la console pour débogage
+             # ----------------------------------
 
     # --- Méthode pour mettre à jour l'affichage des totaux (à implémenter) ---
     def _update_totals_display(self):
