@@ -99,6 +99,18 @@ class CardWidget(QFrame):
         details_layout.setContentsMargins(10, 5, 10, 10) # Marges pour les détails
         details_layout.setSpacing(5)
 
+        # --- AJOUT: Séparateur horizontal pour les détails ---
+        details_separator = QFrame()
+        details_separator.setFrameShape(QFrame.HLine)
+        details_separator.setFrameShadow(QFrame.Sunken) # Sunken peut aider à la visibilité
+        details_separator.setMinimumHeight(1) # Donner une hauteur minimale
+        # --- Style explicite pour la visibilité ---
+        separator_color = get_theme_vars().get("COLOR_TEXT_SECONDARY", "#888888") # Utiliser une couleur du thème ou un gris
+        details_separator.setStyleSheet(f"border: none; border-top: 1px solid {separator_color}; background-color: transparent;")
+        # ---------------------------------------
+        details_layout.addRow(details_separator) # Ajouter comme première ligne du FormLayout
+        # -----------------------------------------------------
+
         # Peupler les détails avec toutes les informations pertinentes
         # Exclure les attributs non pertinents ou déjà dans le résumé (ou internes)
         excluded_attrs = ['date', 'total', 'montant', 'totale_apres_taxes', '_sa_instance_state', 
