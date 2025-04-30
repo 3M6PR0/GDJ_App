@@ -17,6 +17,7 @@ class CardWidget(QFrame):
         # --- Obtenir les variables de thème POUR le style inline --- 
         theme = get_theme_vars()
         card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f")
+        hover_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#5a5d5f") # Couleur pour le survol
         # --------------------------------------------------------
 
         self._setup_ui()
@@ -74,6 +75,12 @@ class CardWidget(QFrame):
         info_label = QLabel(summary_info)
         info_label.setStyleSheet("font-weight: bold; background-color: transparent; border: none;") # Forcer transparence
 
+        # --- Obtenir les variables de thème POUR le style inline du bouton --- 
+        theme = get_theme_vars()
+        # card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f") # Déjà présent pour la carte
+        hover_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#5a5d5f") # Couleur pour le survol
+        # -------------------------------------------------------------------
+
         # Bouton pour déplier/replier
         self.expand_button = QPushButton()
         # --- Utiliser l'icône initiale correcte (état replié) ---
@@ -84,9 +91,34 @@ class CardWidget(QFrame):
         # -----------------------------------------------------
         self.expand_button.setFixedSize(24, 24)
         self.expand_button.setCheckable(True) 
-        self.expand_button.setObjectName("CardExpandButton") # Important pour QSS
-        # Style de base pour que QSS global puisse le styler plus facilement
-        self.expand_button.setStyleSheet("background-color: transparent; border: none;") 
+        # self.expand_button.setObjectName("TopNavButton") # Utiliser le même nom que les autres boutons <-- Revert
+        self.expand_button.setObjectName("CardExpandButton") # Revenir au nom spécifique
+        # --- Appliquer le style avec :hover directement ---
+        self.expand_button.setStyleSheet(f"""
+            QPushButton#CardExpandButton {{
+                background-color: transparent;
+                border: none;
+            }}
+            QPushButton#CardExpandButton:hover {{
+                background-color: {hover_bg_color};
+                border-radius: 3px; /* Effet visuel subtil */
+            }}
+            QPushButton#CardExpandButton:checked {{
+                background-color: transparent; /* Ou hover_bg_color si on veut le garder en surbrillance */
+                border: none; /* Empêcher la bordure d'apparaître au clic */
+                outline: none; /* Empêcher le rectangle de focus d'apparaître */
+            }}
+            QPushButton#CardExpandButton:checked:hover {{ /* AJOUT: Gérer le survol quand coché */
+                background-color: {hover_bg_color}; /* Appliquer la couleur de survol */
+                border: none;                       /* Conserver sans bordure */
+                outline: none;                      /* Conserver sans outline */
+            }}
+            QPushButton#CardExpandButton:focus {{
+                border: none;
+                outline: none;
+            }}
+        """)
+        # ---------------------------------------------------
         self.expand_button.toggled.connect(self._toggle_details)
 
         summary_layout.addWidget(info_label)        # Info à gauche
