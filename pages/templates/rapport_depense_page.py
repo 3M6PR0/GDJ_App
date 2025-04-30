@@ -200,7 +200,7 @@ class RapportDepensePage(QWidget):
 
         # Layout pour la liste des vignettes
         self.entries_list_layout = QVBoxLayout(scroll_content_widget)
-        self.entries_list_layout.setContentsMargins(5, 5, 5, 5) # Marges autour de la liste
+        self.entries_list_layout.setContentsMargins(5, 10, 5, 5) # Augmenter la marge supérieure de 5px
         self.entries_list_layout.setSpacing(10) # Espacement entre les vignettes
         self.entries_list_layout.setAlignment(Qt.AlignTop) # Aligner les vignettes en haut
 

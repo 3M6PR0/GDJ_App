@@ -31,6 +31,7 @@ class CardWidget(QFrame):
                 background-color: {card_bg_color};
                 border-radius: {RADIUS_BOX};
                 border: none;
+                margin: 0 5px; /* AJOUT: Marge gauche/droite uniquement */
             }}
             /* Styles pour les enfants (bouton, labels) sont gérés inline dans _setup_ui 
                ou par des règles plus globales si nécessaire, 
@@ -102,12 +103,14 @@ class CardWidget(QFrame):
         # --- AJOUT: Séparateur horizontal pour les détails ---
         details_separator = QFrame()
         details_separator.setFrameShape(QFrame.HLine)
-        details_separator.setFrameShadow(QFrame.Sunken) # Sunken peut aider à la visibilité
+        # --- Remettre le style explicite pour la visibilité ---
+        details_separator.setFrameShadow(QFrame.Sunken) # Optionnel, peut aider
         details_separator.setMinimumHeight(1) # Donner une hauteur minimale
-        # --- Style explicite pour la visibilité ---
         separator_color = get_theme_vars().get("COLOR_TEXT_SECONDARY", "#888888") # Utiliser une couleur du thème ou un gris
         details_separator.setStyleSheet(f"border: none; border-top: 1px solid {separator_color}; background-color: transparent;")
-        # ---------------------------------------
+        # --- Supprimer setObjectName si présent ---
+        # details_separator.setObjectName("CustomFrameSeparator") # <- DELETE if exists from previous step
+        # ---------------------------------------------------
         details_layout.addRow(details_separator) # Ajouter comme première ligne du FormLayout
         # -----------------------------------------------------
 
