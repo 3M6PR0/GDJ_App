@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFormLayout,
                            QPushButton, QHBoxLayout, QMessageBox,
                            QGridLayout, QFrame, QCheckBox, QRadioButton, QButtonGroup,
                            QSizePolicy, QFileDialog, QScrollArea)
-from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtCore import Qt, QDate, QSize
 from PyQt5.QtGui import QDoubleValidator, QIcon
 from ui.components.frame import Frame # Correction: Chemin d'importation correct
 from models.documents.rapport_depense import RapportDepense, Deplacement, Repas, Depense # Importer les modèles

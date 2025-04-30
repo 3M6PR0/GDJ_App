@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QFrame, QFormLayout)
-from PyQt5.QtCore import Qt, pyqtSlot as Slot
+from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize
 from PyQt5.QtGui import QIcon
 from utils.icon_loader import get_icon_path # Assumer que utils est accessible depuis widgets
 from utils.theme import get_theme_vars, RADIUS_BOX 
@@ -76,10 +76,12 @@ class CardWidget(QFrame):
 
         # Bouton pour déplier/replier
         self.expand_button = QPushButton()
-        # Assurer que les icônes sont cherchées correctement
-        icon_path_right = get_icon_path("arrow_right.png")
-        if icon_path_right:
-             self.expand_button.setIcon(QIcon(icon_path_right))
+        # --- Utiliser l'icône initiale correcte (état replié) ---
+        # icon_path_right = get_icon_path("arrow_right.png")
+        icon_path_initial = get_icon_path("round_arrow_drop_down.png") # Icône pour état replié initial
+        if icon_path_initial:
+             self.expand_button.setIcon(QIcon(icon_path_initial))
+        # -----------------------------------------------------
         self.expand_button.setFixedSize(24, 24)
         self.expand_button.setCheckable(True) 
         self.expand_button.setObjectName("CardExpandButton") # Important pour QSS
@@ -141,8 +143,11 @@ class CardWidget(QFrame):
     @Slot(bool)
     def _toggle_details(self, checked):
         self.details_widget.setVisible(checked)
+        # --- Correction de l'inversion des icônes ---
         # Changer l'icône du bouton
-        icon_name = "arrow_drop_down.png" if checked else "arrow_right.png"
+        # icon_name = "round_arrow_drop_down.png" if checked else "round_arrow_drop_up.png"
+        icon_name = "round_arrow_drop_up.png" if checked else "round_arrow_drop_down.png" # Inversé: UP pour déplié (checked), DOWN pour replié
+        # -------------------------------------------
         icon_path = get_icon_path(icon_name)
         if icon_path:
             self.expand_button.setIcon(QIcon(icon_path))
