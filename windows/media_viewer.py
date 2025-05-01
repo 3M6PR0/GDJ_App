@@ -195,6 +195,8 @@ class MediaViewer(QWidget):
         self.scroll_area.viewport().installEventFilter(self)
         # --- Définir le curseur initial pour le viewport --- 
         self.scroll_area.viewport().setCursor(Qt.OpenHandCursor)
+        # --- Connecter le signal de scroll pour MAJ page --- 
+        self.scroll_area.verticalScrollBar().valueChanged.connect(self._handle_scroll_change)
         # -----------------------------------------------------
         self.scroll_content_widget = QWidget()
         self.scroll_content_layout = QVBoxLayout(self.scroll_content_widget)
@@ -306,16 +308,12 @@ class MediaViewer(QWidget):
                 self.image_display_label = QLabel()
                 self.image_display_label.setAlignment(Qt.AlignCenter)
                 self.image_display_label.setScaledContents(True)
-                # Appliquer le zoom initial à l'image (100%)
-                self._apply_image_zoom(1.0) 
                 # Ajouter le QLabel au layout
                 self.scroll_content_layout.addWidget(self.image_display_label)
                 self.scroll_content_layout.addStretch()
-                # Mettre à jour l'info (fait dans _apply_image_zoom)
                 
-                # --- Appliquer Fit to Page après chargement image --- 
-                self._fit_to_page()
-                # ---------------------------------------------------
+                # --- Appliquer Fit to Page directement (différé) --- 
+                QTimer.singleShot(0, self._fit_to_page)
             # -----------------------------------
 
         elif self.is_pdf:
@@ -324,11 +322,8 @@ class MediaViewer(QWidget):
             # --- Rendu unique haute résolution --- 
             self._render_all_pdf_pages_high_res()
             if self.page_labels: # Si le rendu a réussi
-                 # Appliquer le zoom initial (100%)
-                 self._apply_pdf_zoom(1.0) 
-                 # --- Appliquer Fit to Page après chargement PDF --- 
-                 self._fit_to_page()
-                 # -------------------------------------------------
+                 # --- Appliquer Fit to Page directement (différé) --- 
+                 QTimer.singleShot(0, self._fit_to_page)
             # ----------------------------------
         else:
              # ... (gestion type non supporté, désactiver zoom)
@@ -416,7 +411,7 @@ class MediaViewer(QWidget):
     # ------------------------------------------------------
     
     # --- Méthode de zoom PDF modifiée (mise à l'échelle Qt) --- 
-    def _apply_pdf_zoom(self, new_zoom):
+    def _apply_pdf_zoom(self, new_zoom, anchor_scroll=True):
         if not self.page_labels or not self.original_pdf_pixmaps: return
         
         # --- Sauvegarde ancre VERTICALE --- 
@@ -512,7 +507,7 @@ class MediaViewer(QWidget):
         # --------------------------------------------------------------------------
     
     # --- Modifiée pour accepter new_zoom --- 
-    def _apply_image_zoom(self, new_zoom):
+    def _apply_image_zoom(self, new_zoom, anchor_scroll=True):
         if not self.image_display_label or not self.original_image_pixmap:
              return
              
@@ -1015,9 +1010,14 @@ class MediaViewer(QWidget):
             # Appliquer
             if abs(new_zoom - self.current_zoom) > 0.001:
                 if self.is_pdf:
-                    self._apply_pdf_zoom(new_zoom)
+                    self._apply_pdf_zoom(new_zoom, anchor_scroll=False)
+                    # --- Forcer la page à 1 après fit PDF --- 
+                    self.page_input.blockSignals(True) # Éviter déclenchement prématuré
+                    self.page_input.setText("1")
+                    self.page_input.blockSignals(False)
+                    # ---------------------------------------
                 elif self.is_image:
-                    self._apply_image_zoom(new_zoom)
+                    self._apply_image_zoom(new_zoom, anchor_scroll=False)
 
         except Exception as e:
             print(f"Erreur dans _fit_to_page: {e}")
