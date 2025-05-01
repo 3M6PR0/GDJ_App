@@ -35,7 +35,7 @@ from PyQt5.QtCore import Qt, QUrl, QTimer, QBuffer, QByteArray, QIODevice, QSize
 from utils.icon_loader import get_icon_path
 # -----------------
 
-class MediaViewer(QDialog):
+class MediaViewer(QWidget):
     """
     Fenêtre modale pour afficher des fichiers image ou PDF.
     Utilise PyMuPDF pour rendre les pages PDF en haute résolution une fois.
@@ -50,7 +50,6 @@ class MediaViewer(QDialog):
         if not file_list or not (0 <= initial_index < len(file_list)):
              raise ValueError("Liste de fichiers vide ou index initial invalide.")
         
-        self.setModal(True)
         self.resize(900, 700)
 
         self.file_list = file_list
@@ -174,13 +173,13 @@ class MediaViewer(QDialog):
         main_layout.addWidget(self.scroll_area, 1)
         # -----------------------------------
 
-        # --- Bouton Fermer (inchangé) --- 
+        # --- Bouton Fermer --- 
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         close_button = QPushButton("Fermer")
         close_button.setObjectName("TopNavButton")
         close_button.setMinimumWidth(100)
-        close_button.clicked.connect(self.accept)
+        close_button.clicked.connect(self.close)
         button_layout.addWidget(close_button)
         main_layout.addLayout(button_layout)
 
@@ -265,8 +264,9 @@ class MediaViewer(QDialog):
                 # --- Créer le QLabel pour l'affichage --- 
                 self.image_display_label = QLabel()
                 self.image_display_label.setAlignment(Qt.AlignCenter)
+                self.image_display_label.setScaledContents(True)
                 # Appliquer le zoom initial à l'image
-                self._apply_image_zoom()
+                self._apply_image_zoom(1.0)
                 # Ajouter le QLabel au layout
                 self.scroll_content_layout.addWidget(self.image_display_label)
                 self.scroll_content_layout.addStretch()
@@ -456,48 +456,101 @@ class MediaViewer(QDialog):
         QTimer.singleShot(10, adjust_scrollbars) # Utiliser un seul timer
         # --------------------------------------------------------------------------
     
-    def _apply_image_zoom(self):
+    # --- Modifiée pour accepter new_zoom --- 
+    def _apply_image_zoom(self, new_zoom):
         if not self.image_display_label or not self.original_image_pixmap:
              return
              
-        # --- Sauvegarde ancre HORIZONTALE --- 
-        viewport = self.scroll_area.viewport()
-        scrollbar_h = self.scroll_area.horizontalScrollBar()
-        current_scroll_x = scrollbar_h.value()
-        viewport_width = viewport.width()
-        viewport_center_x = current_scroll_x + viewport_width / 2
-        old_content_width = self.image_display_label.width()
-        anchor_x_ratio = 0.5
-        if old_content_width > 0:
-             anchor_x_ratio = viewport_center_x / old_content_width
-        # --- (Pas d'ancre verticale nécessaire pour image unique) --- 
-             
-        original_size = self.original_image_pixmap.size()
-        new_width = int(original_size.width() * self.current_zoom)
-        new_height = int(original_size.height() * self.current_zoom)
-        if new_width <= 0 or new_height <= 0: return
-        
-        # --- Redimensionner le QLabel --- 
-        self.image_display_label.setFixedSize(new_width, new_height)
-        self.image_display_label.setPixmap(self.original_image_pixmap) 
-        # ------------------------------
-        
-        # Mettre à jour UI
-        self._update_zoom_input() 
-        self._update_zoom_buttons_state() # <-- Mettre à jour état boutons
-        self.total_pages_label.setText(f"Zoom: {int(self.current_zoom * 100)}%") 
-        
-        # --- Calcul et application scroll HORIZONTAL --- 
-        new_content_width = new_width # La largeur du contenu est celle du label
-        target_center_x = anchor_x_ratio * new_content_width
-        target_scroll_x = target_center_x - viewport_width / 2
+        # --- Début du bloc Try/Except principal --- 
+        try:
+            # --- Mettre à jour self.current_zoom --- 
+            self.current_zoom = new_zoom
+            # -------------------------------------
+            
+            # --- Sauvegarde ancre HORIZONTALE --- 
+            viewport = self.scroll_area.viewport()
+            scrollbar_h = self.scroll_area.horizontalScrollBar()
+            current_scroll_x = scrollbar_h.value()
+            viewport_width = viewport.width()
+            viewport_center_x = current_scroll_x + viewport_width / 2
+            old_content_width = self.image_display_label.width()
+            anchor_x_ratio = 0.5
+            if old_content_width > 0:
+                 anchor_x_ratio = viewport_center_x / old_content_width
+                 
+            # --- Sauvegarde ancre VERTICALE --- 
+            scrollbar_v = self.scroll_area.verticalScrollBar()
+            current_scroll_y = scrollbar_v.value()
+            viewport_height = viewport.height()
+            viewport_center_y = current_scroll_y + viewport_height / 2
+            old_content_height = self.image_display_label.height()
+            anchor_y_ratio = 0.5
+            if old_content_height > 0:
+                anchor_y_ratio = viewport_center_y / old_content_height
+            # -----------------------------------
+                 
+            original_size = self.original_image_pixmap.size()
+            new_width = int(original_size.width() * self.current_zoom)
+            new_height = int(original_size.height() * self.current_zoom)
+            if new_width <= 0 or new_height <= 0: return
+            
+            # --- Redimensionner le QLabel --- 
+            self.image_display_label.setFixedSize(new_width, new_height)
+            self.image_display_label.setPixmap(self.original_image_pixmap) 
+            # ------------------------------
+            
+            # --- Mettre à jour la taille du widget conteneur --- 
+            self.scroll_content_widget.setMinimumWidth(new_width)
+            # -------------------------------------------------
 
-        def adjust_scrollbar_h():
-            max_scroll_h = scrollbar_h.maximum()
-            final_scroll_x = max(0, min(int(target_scroll_x), max_scroll_h))
-            scrollbar_h.setValue(final_scroll_x)
-        
-        QTimer.singleShot(10, adjust_scrollbar_h)
+            # Mettre à jour UI
+            self._update_zoom_input() 
+            self._update_zoom_buttons_state() 
+            self.total_pages_label.setText(f"Zoom: {int(self.current_zoom * 100)}%") 
+            
+            # --- Calcul scroll HORIZONTAL --- 
+            new_content_width = new_width 
+            target_center_x = anchor_x_ratio * new_content_width
+            target_scroll_x = target_center_x - viewport_width / 2
+            
+            # --- Calcul scroll VERTICAL --- 
+            new_content_height = new_height
+            target_center_y = anchor_y_ratio * new_content_height
+            target_scroll_y = target_center_y - viewport_height / 2
+            # -----------------------------------------
+
+            # --- Encapsuler l'appel au Timer --- 
+            try:
+                def adjust_scrollbars():
+                    # --- Encapsuler le contenu de adjust_scrollbars --- 
+                    try:
+                        # Ajustement Horizontal
+                        max_scroll_h = scrollbar_h.maximum()
+                        final_scroll_x = max(0, min(int(target_scroll_x), max_scroll_h))
+                        scrollbar_h.setValue(final_scroll_x)
+                        # Ajustement Vertical
+                        max_scroll_v = scrollbar_v.maximum()
+                        final_scroll_y = max(0, min(int(target_scroll_y), max_scroll_v))
+                        scrollbar_v.setValue(final_scroll_y)
+                    except Exception as e_inner:
+                        print(f"ERREUR dans adjust_scrollbars (image): {e_inner}")
+                        import traceback
+                        traceback.print_exc()
+                    # ---------------------------------------------------
+                
+                QTimer.singleShot(10, adjust_scrollbars)
+            except Exception as e_timer:
+                print(f"ERREUR lors de la configuration du timer adjust_scrollbars (image): {e_timer}")
+                import traceback
+                traceback.print_exc()
+            # -------------------------------------
+                
+        except Exception as e_main:
+            print(f"ERREUR principale dans _apply_image_zoom: {e_main}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Erreur Interne Zoom Image", f"Une erreur interne est survenue dans _apply_image_zoom:\n{e_main}")
+        # --- Fin du bloc Try/Except principal --- 
         # ------------------------------------------
 
     # --- REINTRODUCTION Slots Zoom Buttons --- 
@@ -508,11 +561,12 @@ class MediaViewer(QDialog):
             new_zoom = max_zoom
             
         if abs(new_zoom - self.current_zoom) > 0.001:
-            self.current_zoom = new_zoom # Mettre à jour la variable d'état
+            # --- Mettre à jour self.current_zoom avant l'appel --- 
+            # self.current_zoom = new_zoom # Fait maintenant dans _apply_..._zoom
             if self.is_pdf:
-                self._apply_pdf_zoom(self.current_zoom)
+                self._apply_pdf_zoom(new_zoom)
             elif self.is_image:
-                self._apply_image_zoom()
+                self._apply_image_zoom(new_zoom) # Passer new_zoom
         
     def _zoom_out(self):
         min_zoom = 0.1 # Limite min
@@ -521,11 +575,12 @@ class MediaViewer(QDialog):
             new_zoom = min_zoom
             
         if abs(new_zoom - self.current_zoom) > 0.001:
-            self.current_zoom = new_zoom # Mettre à jour la variable d'état
+            # --- Mettre à jour self.current_zoom avant l'appel --- 
+            # self.current_zoom = new_zoom # Fait maintenant dans _apply_..._zoom
             if self.is_pdf:
-                self._apply_pdf_zoom(self.current_zoom)
+                self._apply_pdf_zoom(new_zoom)
             elif self.is_image:
-                self._apply_image_zoom()
+                self._apply_image_zoom(new_zoom) # Passer new_zoom
     # ----------------------------------
     
     # --- NOUVEAU Helper pour MAJ état boutons zoom --- 
@@ -546,11 +601,18 @@ class MediaViewer(QDialog):
         self.zoom_input.blockSignals(False)
     # -----------------------------------------------------
     
-    # --- Slot pour gérer le zoom entré (inchangé) --- 
+    # --- Slot pour gérer le zoom entré --- 
     def _go_to_entered_zoom(self):
          "Applique le zoom entré dans le QLineEdit." 
          try:
              zoom_text = self.zoom_input.text().replace('%', '').strip()
+             
+             # --- Effacer le focus AVANT de traiter --- 
+             self.zoom_input.clearFocus()
+             # -----------------------------------------
+             
+             print(f"_go_to_entered_zoom: Valeur lue = {zoom_text}") # Log de test
+
              zoom_percent = int(zoom_text)
              new_zoom = zoom_percent / 100.0
              
@@ -560,20 +622,34 @@ class MediaViewer(QDialog):
              new_zoom = max(min_zoom, min(new_zoom, max_zoom))
              # -----------------------
              
+             # --- Réactiver la logique d'application --- 
              # Appliquer si différent du zoom actuel pour éviter recalcul inutile
              if abs(new_zoom - self.current_zoom) > 0.001:
-                 self.current_zoom = new_zoom # Mettre à jour la variable d'état
+                 # Ne pas mettre à jour self.current_zoom ici, sera fait dans la fonction appelée
                  if self.is_pdf:
-                     self._apply_pdf_zoom(self.current_zoom)
+                     self._apply_pdf_zoom(new_zoom) # Appel direct pour PDF
                  elif self.is_image:
-                     self._apply_image_zoom()
+                     # --- Utiliser QTimer.singleShot pour l'image --- 
+                     QTimer.singleShot(0, lambda nz=new_zoom: self._apply_image_zoom(nz))
+                     # Note: Le try/except autour de _apply_image_zoom est maintenant DANS la fonction elle-même
+                     # ------------------------------------------------
              else:
                  # Même zoom, juste s'assurer que l'input est bien formaté
                  self._update_zoom_input()
+             # print(f"_go_to_entered_zoom: Logique d'application du zoom désactivée pour test.") # Supprimer log de test
+             # -------------------------------------------
                  
          except ValueError:
              # Entrée invalide, remettre la valeur actuelle
+             # print("_go_to_entered_zoom: Erreur de valeur.") # Supprimer log de test
              QMessageBox.warning(self, "Zoom invalide", "Veuillez entrer un nombre entier pour le pourcentage de zoom.")
+             self._update_zoom_input() # Remettre l'ancienne valeur
+         except Exception as e:
+             # Restaurer le contenu du bloc except
+             print(f"ERREUR inattendue dans _go_to_entered_zoom: {e}")
+             import traceback
+             traceback.print_exc()
+             QMessageBox.critical(self, "Erreur Interne", f"Une erreur inattendue est survenue:\n{e}")
              self._update_zoom_input()
     # -------------------------------------------
 
@@ -603,26 +679,15 @@ class MediaViewer(QDialog):
                 QMessageBox.critical(self, "Erreur", f"Impossible de copier:\n{e}")
     # ----------------------------------------------------------
 
-    # --- Gestion de la fermeture (inchangée) --- 
+    # --- Gestion de la fermeture (accept/reject deviennent close) --- 
     def closeEvent(self, event):
+        # La logique de fermeture du doc PDF reste valide
         if self.pdf_doc:
              try: self.pdf_doc.close()
              except: pass
              self.pdf_doc = None
         super().closeEvent(event)
         
-    def accept(self):
-        if self.pdf_doc:
-            self.pdf_doc.close()
-            self.pdf_doc = None
-        super().accept()
-        
-    def reject(self):
-        if self.pdf_doc:
-            self.pdf_doc.close()
-            self.pdf_doc = None
-        super().reject()
-
     # --- NOUVEAU Slot pour gérer le signal valueChanged du scroll --- 
     def _handle_scroll_change(self):
         """Redémarre le timer à chaque changement de scroll."""
@@ -709,6 +774,9 @@ if __name__ == '__main__':
 
     # --- Passer la liste et l'index --- 
     viewer = MediaViewer(valid_files, initial_idx)
-    # ----------------------------------
-    viewer.exec_()
+    # --- Afficher la fenêtre non modale --- 
+    viewer.show()
+    # --- Garder l'application en cours d'exécution --- 
+    sys.exit(app.exec_())
+    # --------------------------------------------
 
