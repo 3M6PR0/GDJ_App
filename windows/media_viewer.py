@@ -29,7 +29,9 @@ except ImportError:
 # --- QPixmap est à nouveau nécessaire --- 
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QIntValidator
 # ---------------------------------------
-from PyQt5.QtCore import Qt, QUrl, QTimer, QBuffer, QByteArray, QIODevice, QSize, QPoint, QRect # Ajout QRect
+# --- Ajout QEvent et curseurs --- 
+from PyQt5.QtCore import Qt, QUrl, QTimer, QBuffer, QByteArray, QIODevice, QSize, QPoint, QRect, QEvent 
+# --------------------------------
 
 # --- Icon Loader --- 
 from utils.icon_loader import get_icon_path
@@ -65,6 +67,11 @@ class MediaViewer(QWidget):
         self.image_display_label = None 
         self.original_image_pixmap = None 
         
+        # --- Attributs pour le Drag-to-Scroll --- 
+        self.is_dragging = False
+        self.last_drag_pos = QPoint()
+        # ----------------------------------------
+
         # --- Timer pour mise à jour page au scroll --- 
         self._scroll_update_timer = QTimer(self)
         self._scroll_update_timer.setSingleShot(True)
@@ -161,9 +168,11 @@ class MediaViewer(QWidget):
         self.scroll_area.setWidgetResizable(True) # Important!
         self.scroll_area.setObjectName("MediaViewerScrollArea")
         self.scroll_area.setFrameShape(QFrame.NoFrame)
-        # --- Connecter le signal de scroll --- 
-        self.scroll_area.verticalScrollBar().valueChanged.connect(self._handle_scroll_change)
-        # --------------------------------------
+        # --- Installer le filtre d'événements sur le viewport --- 
+        self.scroll_area.viewport().installEventFilter(self)
+        # --- Définir le curseur initial pour le viewport --- 
+        self.scroll_area.viewport().setCursor(Qt.OpenHandCursor)
+        # -----------------------------------------------------
         self.scroll_content_widget = QWidget()
         self.scroll_content_layout = QVBoxLayout(self.scroll_content_widget)
         self.scroll_content_layout.setContentsMargins(0,0,0,0)
@@ -738,6 +747,44 @@ class MediaViewer(QWidget):
          self.page_input.setText(str(current_page_idx + 1))
          self.page_input.blockSignals(False)
     # ----------------------------------------------------------
+
+    # --- Implémentation du filtre d'événements --- 
+    def eventFilter(self, source, event):
+        # Vérifier si l'événement provient du viewport de notre QScrollArea
+        if source == self.scroll_area.viewport():
+            if event.type() == QEvent.MouseButtonPress:
+                if event.button() == Qt.LeftButton:
+                    self.is_dragging = True
+                    self.last_drag_pos = event.globalPos()
+                    self.scroll_area.viewport().setCursor(Qt.ClosedHandCursor)
+                    return True # Événement géré
+            elif event.type() == QEvent.MouseMove:
+                if self.is_dragging:
+                    delta = event.globalPos() - self.last_drag_pos
+                    # Ajuster les barres de défilement
+                    h_bar = self.scroll_area.horizontalScrollBar()
+                    v_bar = self.scroll_area.verticalScrollBar()
+                    h_bar.setValue(h_bar.value() - delta.x())
+                    v_bar.setValue(v_bar.value() - delta.y())
+                    # Mettre à jour la dernière position
+                    self.last_drag_pos = event.globalPos()
+                    return True # Événement géré
+            elif event.type() == QEvent.MouseButtonRelease:
+                if event.button() == Qt.LeftButton and self.is_dragging:
+                    self.is_dragging = False
+                    self.scroll_area.viewport().setCursor(Qt.OpenHandCursor)
+                    return True # Événement géré
+            # Optionnel: Gérer Enter/Leave pour changer le curseur si nécessaire
+            # elif event.type() == QEvent.Enter: 
+            #    if not self.is_dragging: self.scroll_area.viewport().setCursor(Qt.OpenHandCursor)
+            #    return True
+            # elif event.type() == QEvent.Leave:
+            #    self.scroll_area.viewport().setCursor(Qt.ArrowCursor)
+            #    return True
+                
+        # Passer l'événement au gestionnaire par défaut pour les autres cas
+        return super().eventFilter(source, event)
+    # ----------------------------------------------
 
 # Exemple d'utilisation (pour test seulement)
 if __name__ == '__main__':
