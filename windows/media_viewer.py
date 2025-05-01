@@ -14,7 +14,7 @@ if project_root not in sys.path:
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPushButton, QScrollArea, 
     QMessageBox, QApplication, QWidget, QHBoxLayout, QFrame, QSizePolicy,
-    QFileDialog
+    QFileDialog, QLineEdit
 )
 # ------------------------------------
 # --- PyMuPDF Import ---
@@ -27,58 +27,23 @@ except ImportError:
 # ---------------------
 
 # --- QPixmap est à nouveau nécessaire --- 
-from PyQt5.QtGui import QPixmap, QImage, QIcon
+from PyQt5.QtGui import QPixmap, QImage, QIcon, QIntValidator
 # ---------------------------------------
-from PyQt5.QtCore import Qt, QUrl, QTimer, QBuffer, QByteArray, QIODevice, QSize, QPoint # Ajout QSize et QPoint
+from PyQt5.QtCore import Qt, QUrl, QTimer, QBuffer, QByteArray, QIODevice, QSize, QPoint, QRect # Ajout QRect
 
 # --- Icon Loader --- 
 from utils.icon_loader import get_icon_path
 # -----------------
 
-# --- Placeholder Widget --- 
-class PagePlaceholder(QWidget):
-    """ Widget vide avec une taille fixe et stockant le numéro de page. """
-    def __init__(self, page_num, width, height, parent=None):
-        super().__init__(parent)
-        self.page_num = page_num
-        self.setFixedSize(width, height)
-        # Optionnel: ajouter un style pour voir le placeholder
-        # self.setStyleSheet("background-color: #444; border: 1px solid #555;")
-        self.pixmap_label = None # Label pour afficher le pixmap rendu
-        self.setLayout(QVBoxLayout()) # Pour pouvoir ajouter le label plus tard
-        self.layout().setContentsMargins(0,0,0,0)
-        
-    def display_pixmap(self, pixmap):
-        if not self.pixmap_label:
-            self.pixmap_label = QLabel()
-            self.pixmap_label.setAlignment(Qt.AlignCenter)
-            # --- S'assurer que le label prend la taille du placeholder --- 
-            # self.pixmap_label.setMinimumSize(self.width(), self.height()) # Plus besoin ici
-            # Utiliser setScaledContents pour que le pixmap s'adapte au label
-            self.pixmap_label.setScaledContents(True) 
-            self.layout().addWidget(self.pixmap_label)
-            
-        # --- Redimensionner le QLabel à la taille actuelle du placeholder --- 
-        # Ceci est crucial lors du zoom/dézoom
-        self.pixmap_label.setFixedSize(self.size())
-        # -----------------------------------------------------------------
-        
-        self.pixmap_label.setPixmap(pixmap)
-        self.pixmap_label.setVisible(True)
-        
-    def clear_pixmap(self):
-        if self.pixmap_label:
-             # Cache le label au lieu de le supprimer pour réutilisation
-            self.pixmap_label.clear() 
-            self.pixmap_label.setVisible(False) 
-# ------------------------
-
 class MediaViewer(QDialog):
     """
-    Fenêtre modale pour afficher des fichiers image ou PDF (rendus comme images).
-    Utilise PyMuPDF pour les PDF avec rendu à la demande (Lazy Rendering).
-    Inclut une barre d'outils personnalisée.
+    Fenêtre modale pour afficher des fichiers image ou PDF.
+    Utilise PyMuPDF pour rendre les pages PDF en haute résolution une fois.
+    Le zoom est géré par mise à l'échelle Qt des QLabels.
+    Inclut une barre d'outils personnalisée avec navigation de page interactive.
     """
+    PDF_RENDER_ZOOM = 1.5 # Facteur de zoom pour le rendu initial des PDF (150%)
+
     def __init__(self, file_list: list, initial_index: int, parent=None):
         super().__init__(parent)
         if not file_list or not (0 <= initial_index < len(file_list)):
@@ -90,18 +55,15 @@ class MediaViewer(QDialog):
         self.file_list = file_list
         self.current_file_index = initial_index
         self.pdf_doc = None
+        self.total_pages = 0 
         self.current_zoom = 1.0
-        self.zoom_step = 0.1 
+        self.zoom_step = 0.1
         
-        # --- Attributs pour Lazy Loading --- 
-        self.page_placeholders = [] # Liste des widgets PagePlaceholder
-        self.rendered_pixmaps = {} # Cache: {page_num: QPixmap}
-        self.visible_pages = set() # Set des numéros de page actuellement visibles
-        self._render_timer = QTimer() # Timer pour différer le rendu au scroll
-        self._render_timer.setSingleShot(True)
-        self._render_timer.setInterval(150) # Délai en ms avant de rendre après scroll
-        self._render_timer.timeout.connect(self._update_visible_pages)
-        # ----------------------------------
+        # --- Nouveaux attributs pour cette approche --- 
+        self.page_labels = [] # Liste des QLabel contenant les pages PDF rendues
+        self.original_pdf_pixmaps = [] # Liste des QPixmap originaux haute résolution
+        self.image_display_label = None 
+        self.original_image_pixmap = None 
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -137,11 +99,27 @@ class MediaViewer(QDialog):
         self.zoom_in_button.setObjectName("ToolBarButton")
         self.zoom_in_button.clicked.connect(self._zoom_in)
         toolbar_layout.addWidget(self.zoom_in_button)
-        self.page_info_label = QLabel("")
-        self.page_info_label.setAlignment(Qt.AlignCenter)
-        self.page_info_label.setMinimumWidth(150) # Un peu plus large pour le texte zoom/page
-        toolbar_layout.addWidget(self.page_info_label)
-        toolbar_layout.addStretch()
+        
+        # --- Remplacement du Label Page par Input + Label Total --- 
+        self.page_input = QLineEdit("1") # Input pour numéro de page
+        self.page_input.setFixedWidth(50) # Largeur fixe
+        self.page_input.setAlignment(Qt.AlignRight)
+        self.page_input.setToolTip("Entrez le numéro de page et appuyez sur Entrée")
+        self.page_input.setObjectName("PageInput") # Pour style QSS
+        # Ajouter un validateur sera fait dans _load_media quand on connait total_pages
+        self.page_input.returnPressed.connect(self._go_to_entered_page)
+        toolbar_layout.addWidget(self.page_input)
+
+        self.total_pages_label = QLabel("/ -") # Label pour le total
+        self.total_pages_label.setObjectName("TotalPagesLabel")
+        toolbar_layout.addWidget(self.total_pages_label)
+        
+        # Cacher ces widgets par défaut
+        self.page_input.setVisible(False)
+        self.total_pages_label.setVisible(False)
+        # ----------------------------------------------------------
+        
+        toolbar_layout.addStretch() # Pousse le reste (download) vers la droite
         self.download_button = QPushButton()
         self.download_button.setIcon(QIcon(get_icon_path("round_download.png")))
         self.download_button.setToolTip("Télécharger le fichier actuel")
@@ -156,8 +134,6 @@ class MediaViewer(QDialog):
         self.scroll_area.setWidgetResizable(True) # Important!
         self.scroll_area.setObjectName("MediaViewerScrollArea")
         self.scroll_area.setFrameShape(QFrame.NoFrame)
-        # Connecter le signal de scroll
-        self.scroll_area.verticalScrollBar().valueChanged.connect(self._on_scroll_changed)
         # Widget conteneur pour le contenu
         self.scroll_content_widget = QWidget()
         self.scroll_content_layout = QVBoxLayout(self.scroll_content_widget)
@@ -182,7 +158,6 @@ class MediaViewer(QDialog):
 
     def _clear_previous_content(self):
         """ Vide le contenu actuel et réinitialise les états liés au PDF. """
-        # Fermer doc PDF précédent
         if self.pdf_doc:
             try: self.pdf_doc.close()
             except: pass
@@ -194,10 +169,11 @@ class MediaViewer(QDialog):
             if child.widget():
                 child.widget().deleteLater()
                 
-        # Réinitialiser listes/cache
-        self.page_placeholders = []
-        self.rendered_pixmaps = {}
-        self.visible_pages = set()
+        # --- Réinitialiser les listes PDF --- 
+        self.page_labels = []
+        self.original_pdf_pixmaps = []
+        self.image_display_label = None
+        self.original_image_pixmap = None
 
     def _load_media(self):
         self.file_path = self.file_list[self.current_file_index]
@@ -212,245 +188,241 @@ class MediaViewer(QDialog):
         if not os.path.exists(self.file_path):
             QMessageBox.critical(self, "Erreur Fichier", f"""Le fichier n'a pas été trouvé:
 {self.file_path}""")
-            self.page_info_label.setText("Erreur Fichier")
+            self.page_input.setText("-") 
+            self.total_pages_label.setText("/ -")
             self.zoom_in_button.setEnabled(False)
             self.zoom_out_button.setEnabled(False)
             self.download_button.setEnabled(False)
+            self.prev_file_button.setEnabled(self.current_file_index > 0)
+            self.next_file_button.setEnabled(self.current_file_index < len(self.file_list) - 1)
             return
 
-        # Mise à jour état barre d'outils
-        self.zoom_in_button.setEnabled(self.is_pdf)
-        self.zoom_out_button.setEnabled(self.is_pdf and self.current_zoom > self.zoom_step + 0.01)
+        # --- Mise à jour état initial barre d'outils (Zoom activé pour Image ou PDF) --- 
+        can_zoom = self.is_image or self.is_pdf
+        self.zoom_in_button.setEnabled(can_zoom)
+        self.zoom_out_button.setEnabled(can_zoom and self.current_zoom > self.zoom_step + 0.01)
         self.download_button.setEnabled(True)
         self.prev_file_button.setEnabled(self.current_file_index > 0)
         self.next_file_button.setEnabled(self.current_file_index < len(self.file_list) - 1)
-        self.page_info_label.setText("")
-        self.page_info_label.setVisible(self.is_pdf)
+        self.page_input.setVisible(False)
+        self.total_pages_label.setVisible(False)
+        # ------------------------------------------------------------------------------
 
         if self.is_image:
-            pixmap = QPixmap(self.file_path)
-            if pixmap.isNull():
+            # --- Charger l'image originale --- 
+            self.original_image_pixmap = QPixmap(self.file_path)
+            if self.original_image_pixmap.isNull():
                 error_label = QLabel("Impossible de charger l'image...")
                 self.scroll_content_layout.addWidget(error_label)
+                self.zoom_in_button.setEnabled(False) # Désactiver zoom si erreur
+                self.zoom_out_button.setEnabled(False)
             else:
-                image_label = QLabel()
-                image_label.setPixmap(pixmap)
-                image_label.setAlignment(Qt.AlignCenter)
-                self.scroll_content_layout.addWidget(image_label)
-                # Ajouter un stretch pour que l'image unique soit centrée verticalement aussi
+                # --- Créer le QLabel pour l'affichage --- 
+                self.image_display_label = QLabel()
+                self.image_display_label.setAlignment(Qt.AlignCenter)
+                # Appliquer le zoom initial à l'image
+                self._apply_image_zoom()
+                # Ajouter le QLabel au layout
+                self.scroll_content_layout.addWidget(self.image_display_label)
                 self.scroll_content_layout.addStretch()
+                # Mettre à jour l'info (fait dans _apply_image_zoom)
+            # -----------------------------------
 
         elif self.is_pdf:
-            if not PYMUPDF_AVAILABLE:
-                error_label = QLabel("PyMuPDF requis...")
-                self.scroll_content_layout.addWidget(error_label)
-                return
-            
-            try:
-                self.pdf_doc = fitz.open(self.file_path)
-                self.total_pages = len(self.pdf_doc)
-                if self.total_pages == 0:
-                    error_label = QLabel("PDF Vide...")
-                    self.scroll_content_layout.addWidget(error_label)
-                    return
-
-                # --- Création des placeholders --- 
-                zoom_matrix = fitz.Matrix(self.current_zoom, self.current_zoom)
-                total_height = 0
-                for page_num in range(self.total_pages):
-                    page = self.pdf_doc.load_page(page_num)
-                    rect = page.rect
-                    # Calculer taille avec zoom
-                    scaled_width = int(rect.width * zoom_matrix.a)
-                    scaled_height = int(rect.height * zoom_matrix.d)
-                    total_height += scaled_height + self.scroll_content_layout.spacing()
-                    
-                    placeholder = PagePlaceholder(page_num, scaled_width, scaled_height)
-                    self.page_placeholders.append(placeholder)
-                    self.scroll_content_layout.addWidget(placeholder)
-                # ---------------------------------
-                
-                # Ajuster la largeur minimale du widget conteneur si nécessaire
-                max_width = max(ph.width() for ph in self.page_placeholders) if self.page_placeholders else 400
-                self.scroll_content_widget.setMinimumWidth(max_width + 20) # Ajouter marge
-                
-                # Mettre à jour info page
-                self.page_info_label.setText(f"Zoom: {int(self.current_zoom*100)}% ({self.total_pages} pages)")
-
-                # -- Rendre les pages initialement visibles -- 
-                # Utiliser QTimer pour s'assurer que le layout est à jour
-                QTimer.singleShot(0, self._update_visible_pages) 
-                # ------------------------------------------
-
-            except Exception as e:
-                QMessageBox.critical(self, "Erreur PDF", f"Impossible d'ouvrir/lire PDF:\n{e}")
-                if self.pdf_doc: self.pdf_doc.close(); self.pdf_doc = None
-                return
-
+            self.page_input.setVisible(True)
+            self.total_pages_label.setVisible(True)
+            # --- Rendu unique haute résolution --- 
+            self._render_all_pdf_pages_high_res()
+            # Appliquer le zoom initial (qui redimensionne les labels)
+            if self.page_labels: # Si le rendu a réussi
+                 self._apply_pdf_zoom(1.0)
+            # ----------------------------------
         else:
-            error_label = QLabel(f"Type non supporté...")
-            self.scroll_content_layout.addWidget(error_label)
-            
-    # --- Slots et méthodes pour Lazy Loading et Zoom --- 
-    def _on_scroll_changed(self, value):
-        """ Déclenche la mise à jour des pages visibles après un court délai. """
-        # Redémarre le timer à chaque changement de valeur
-        self._render_timer.start() 
-        
-    def _update_visible_pages(self):
-        """ Identifie et rend les pages PDF actuellement visibles. """
-        if not self.pdf_doc or not self.page_placeholders:
-            return
-
-        viewport_rect = self.scroll_area.viewport().rect()
-        current_visible_pages = set()
-        processed_placeholders = set()
-
-        for i, placeholder in enumerate(self.page_placeholders):
-            # Vérifier si le widget placeholder est visible dans le viewport
-            placeholder_pos = placeholder.mapTo(self.scroll_area.viewport(), QPoint(0, 0))
-            placeholder_rect = placeholder.rect().translated(placeholder_pos)
-
-            if viewport_rect.intersects(placeholder_rect):
-                page_num = placeholder.page_num
-                current_visible_pages.add(page_num)
-                processed_placeholders.add(i)
-                
-                # Rendre si pas déjà dans le cache ou si le cache est invalide (zoom a changé)
-                if page_num not in self.rendered_pixmaps:
-                    try:
-                        self._render_and_display_page(page_num, placeholder)
-                    except Exception as e:
-                         print(f"Erreur rendu page {page_num}: {e}") # Log l'erreur
-                         # Afficher un message d'erreur sur le placeholder?
-            else:
-                 # Optionnel: Décharger les pages non visibles du cache
-                 page_num = placeholder.page_num
-                 if page_num in self.rendered_pixmaps:
-                     # print(f"Déchargement page {page_num}") # Debug
-                     placeholder.clear_pixmap()
-                     del self.rendered_pixmaps[page_num]
-                     
-        # Mettre à jour l'ensemble des pages visibles
-        self.visible_pages = current_visible_pages
-        # print(f"Pages visibles: {self.visible_pages}") # Debug
-        
-    def _render_and_display_page(self, page_num, placeholder):
-        """ Rend une page PDF spécifique et l'affiche dans son placeholder. """
-        if not self.pdf_doc or page_num < 0 or page_num >= self.total_pages:
-             return
+             # ... (gestion type non supporté, désactiver zoom)
+             error_label = QLabel(f"Type non supporté...")
+             self.scroll_content_layout.addWidget(error_label)
+             self.zoom_in_button.setEnabled(False)
+             self.zoom_out_button.setEnabled(False)
+             self.page_input.setVisible(False)
+             self.total_pages_label.setVisible(False)
              
-        # print(f"Rendu page {page_num} au zoom {self.current_zoom}") # Debug
-        page = self.pdf_doc.load_page(page_num)
-        zoom_matrix = fitz.Matrix(self.current_zoom, self.current_zoom)
-        pix = page.get_pixmap(matrix=zoom_matrix, alpha=False)
-        
-        qimage = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGB888)
-        qpixmap = QPixmap.fromImage(qimage)
-        
-        # Stocker dans le cache
-        self.rendered_pixmaps[page_num] = qpixmap 
-        
-        # Afficher dans le placeholder
-        placeholder.display_pixmap(qpixmap)
+    # --- NOUVELLE fonction pour le rendu initial PDF --- 
+    def _render_all_pdf_pages_high_res(self):
+        if not PYMUPDF_AVAILABLE:
+             # ... (gestion module manquant)
+             return
+        try:
+            self.pdf_doc = fitz.open(self.file_path)
+            self.total_pages = len(self.pdf_doc)
+            if self.total_pages == 0:
+                 # ... (gestion PDF vide)
+                 return
+            
+            # Configurer nav page
+            self.page_input.setText("1")
+            self.page_validator = QIntValidator(1, self.total_pages, self.page_input)
+            self.page_input.setValidator(self.page_validator)
+            self.total_pages_label.setText(f" / {self.total_pages}")
+            
+            # Matrice pour rendu haute résolution
+            render_matrix = fitz.Matrix(self.PDF_RENDER_ZOOM, self.PDF_RENDER_ZOOM)
+            max_width = 0
+            
+            # Vider les listes avant de remplir
+            self.page_labels = []
+            self.original_pdf_pixmaps = []
+            
+            for page_num in range(self.total_pages):
+                page = self.pdf_doc.load_page(page_num)
+                pix = page.get_pixmap(matrix=render_matrix, alpha=False)
+                
+                qimage = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGB888)
+                qpixmap_high_res = QPixmap.fromImage(qimage)
+                self.original_pdf_pixmaps.append(qpixmap_high_res)
+                
+                if qpixmap_high_res.width() > max_width:
+                     max_width = qpixmap_high_res.width()
+                
+                # Créer le QLabel
+                page_label = QLabel()
+                page_label.setAlignment(Qt.AlignCenter)
+                page_label.setScaledContents(True) # IMPORTANT pour le zoom Qt
+                # Pas besoin de setPixmap ici, _apply_pdf_zoom le fera avec la bonne taille initiale
+                self.page_labels.append(page_label)
+                self.scroll_content_layout.addWidget(page_label)
+                
+            self.scroll_content_widget.setMinimumWidth(int(max_width / self.PDF_RENDER_ZOOM) + 20) # Basé sur taille 100%
 
-    def _zoom_in(self):
-        new_zoom = self.current_zoom + self.zoom_step
-        # Limiter le zoom max si nécessaire
-        # if new_zoom > 3.0: return 
-        self._apply_zoom(new_zoom)
+        except Exception as e:
+            # ... (gestion erreur ouverture)
+            QMessageBox.critical(self, "Erreur PDF", f"Impossible de rendre le PDF initial:\n{e}")
+            if self.pdf_doc: self.pdf_doc.close(); self.pdf_doc = None
+            self.total_pages = 0
+            self.page_labels = []
+            self.original_pdf_pixmaps = []
+            # Mettre à jour UI pour erreur
+            self.page_input.setVisible(False)
+            self.total_pages_label.setVisible(False)
+            self.zoom_in_button.setEnabled(False)
+            self.zoom_out_button.setEnabled(False)
+            return
+        finally:
+            # Fermer le document après rendu initial car on a les pixmaps
+            if self.pdf_doc:
+                 try: self.pdf_doc.close(); self.pdf_doc = None
+                 except: pass
+    # ------------------------------------------------------
+    
+    # --- Méthode de zoom PDF modifiée (mise à l'échelle Qt) --- 
+    def _apply_pdf_zoom(self, new_zoom):
+        if not self.page_labels or not self.original_pdf_pixmaps: return
         
-    def _zoom_out(self):
-        new_zoom = self.current_zoom - self.zoom_step
-        # Limiter le zoom min
-        if new_zoom < 0.1: return 
-        self._apply_zoom(new_zoom)
-
-    def _apply_zoom(self, new_zoom):
-        """ Applique un nouveau niveau de zoom en conservant le point central visible. """
-        if not self.pdf_doc or not self.page_placeholders: return
-        
-        # --- 1. Sauvegarder l'état actuel avant zoom --- 
+        # --- Sauvegarde ancre (presque inchangé) --- 
         old_zoom = self.current_zoom
         viewport = self.scroll_area.viewport()
         scrollbar = self.scroll_area.verticalScrollBar()
-        visible_rect = viewport.rect()
         current_scroll_y = scrollbar.value()
-        viewport_center_y = current_scroll_y + visible_rect.height() / 2
-        
-        anchor_page_num = -1
-        relative_offset_in_page = 0.5 # Défaut au milieu si aucune page trouvée
-        
+        viewport_center_y = current_scroll_y + viewport.height() / 2
+        anchor_page_index = -1
+        relative_offset_in_page = 0.5
         cumulative_height = 0
-        for placeholder in self.page_placeholders:
-            placeholder_height = placeholder.height()
-            placeholder_top_y = cumulative_height
-            placeholder_bottom_y = placeholder_top_y + placeholder_height
-            
-            if placeholder_top_y <= viewport_center_y < placeholder_bottom_y:
-                anchor_page_num = placeholder.page_num
-                if placeholder_height > 0:
-                     relative_offset_in_page = (viewport_center_y - placeholder_top_y) / placeholder_height
-                break # Page d'ancrage trouvée
-            cumulative_height += placeholder_height + self.scroll_content_layout.spacing()
-        # ----------------------------------------------
-
+        for i, label in enumerate(self.page_labels):
+            label_height = label.height() # Taille actuelle du label
+            label_top_y = cumulative_height
+            label_bottom_y = label_top_y + label_height
+            if label_top_y <= viewport_center_y < label_bottom_y:
+                anchor_page_index = i
+                if label_height > 0:
+                     relative_offset_in_page = (viewport_center_y - label_top_y) / label_height
+                break
+            cumulative_height += label_height + self.scroll_content_layout.spacing()
+        # -------------------------------------------
+        
         self.current_zoom = new_zoom
-        print(f"Application Zoom: {self.current_zoom}") # Debug
         
-        self.rendered_pixmaps = {}
-        for placeholder in self.page_placeholders:
-             placeholder.clear_pixmap()
-        
-        # --- 2. Recalculer tailles et trouver nouvelle position ancre --- 
-        zoom_matrix = fitz.Matrix(self.current_zoom, self.current_zoom)
+        # --- Redimensionner tous les QLabels --- 
         new_anchor_page_top_y = 0
         new_anchor_page_height = 0
         cumulative_height = 0
         max_width = 0
         
-        for i, placeholder in enumerate(self.page_placeholders):
-            page = self.pdf_doc.load_page(placeholder.page_num)
-            rect = page.rect
-            scaled_width = int(rect.width * zoom_matrix.a)
-            scaled_height = int(rect.height * zoom_matrix.d)
+        for i, label in enumerate(self.page_labels):
+            original_pixmap = self.original_pdf_pixmaps[i]
+            original_size = original_pixmap.size()
+            # Calculer la nouvelle taille basée sur le zoom ET la résolution de rendu initiale
+            new_width = int(original_size.width() * (self.current_zoom / self.PDF_RENDER_ZOOM))
+            new_height = int(original_size.height() * (self.current_zoom / self.PDF_RENDER_ZOOM))
             
-            placeholder.setFixedSize(scaled_width, scaled_height) # Redimensionner
+            # Empêcher taille nulle
+            new_width = max(1, new_width)
+            new_height = max(1, new_height)
             
-            # Garder trace de la position de l'ancienne page d'ancrage
-            if placeholder.page_num == anchor_page_num:
+            # Appliquer la nouvelle taille ET le pixmap original au QLabel
+            label.setFixedSize(new_width, new_height)
+            label.setPixmap(original_pixmap)
+            # setScaledContents(True) est déjà défini lors de la création du label
+            
+            if i == anchor_page_index:
                  new_anchor_page_top_y = cumulative_height
-                 new_anchor_page_height = scaled_height
+                 new_anchor_page_height = new_height
                  
-            cumulative_height += scaled_height + self.scroll_content_layout.spacing()
-            if scaled_width > max_width: max_width = scaled_width
-        # -------------------------------------------------------------
+            cumulative_height += new_height + self.scroll_content_layout.spacing()
+            if new_width > max_width: max_width = new_width
+        # ---------------------------------------
             
         self.scroll_content_widget.setMinimumWidth(max_width + 20)
-        self.page_info_label.setText(f"Zoom: {int(self.current_zoom*100)}% ({self.total_pages} pages)")
+        self.total_pages_label.setText(f" / {self.total_pages}") # Mettre à jour label total
+        self.page_input.setText(str(anchor_page_index + 1) if anchor_page_index != -1 else "-") # Mettre à jour input page
         self.zoom_out_button.setEnabled(self.current_zoom > self.zoom_step + 0.01)
 
-        # --- 3. Calculer la nouvelle valeur de scroll --- 
+        # --- Calcul et application scroll (inchangé mais basé sur tailles label) --- 
         new_center_target_y = new_anchor_page_top_y + relative_offset_in_page * new_anchor_page_height
-        # Recalculer viewport height car la scrollbar peut apparaître/disparaître
-        new_viewport_height = viewport.height() 
+        new_viewport_height = viewport.height()
         target_scroll_y = new_center_target_y - new_viewport_height / 2
-        # -------------------------------------------------
-
-        # Re-rendre les pages visibles (différé)
-        QTimer.singleShot(0, self._update_visible_pages)
         
-        # --- 4. Appliquer la nouvelle valeur de scroll (différé aussi) --- 
-        # Utiliser un timer pour s'assurer que la range de la scrollbar est mise à jour
         def adjust_scroll():
             max_scroll = scrollbar.maximum()
             final_scroll_y = max(0, min(int(target_scroll_y), max_scroll))
             scrollbar.setValue(final_scroll_y)
-            # print(f"Scroll ajusté à {final_scroll_y} (max: {max_scroll})") # Debug
         QTimer.singleShot(10, adjust_scroll) # Petit délai
-        # --------------------------------------------------------------
-    # -----------------------------------------------------
+        # --------------------------------------------------------------------------
+    
+    def _apply_image_zoom(self):
+        if not self.image_display_label or not self.original_image_pixmap:
+             return
+        original_size = self.original_image_pixmap.size()
+        new_width = int(original_size.width() * self.current_zoom)
+        new_height = int(original_size.height() * self.current_zoom)
+        if new_width <= 0 or new_height <= 0: return
+        
+        # Utiliser setFixedSize sur le QLabel suffit car setScaledContents=True
+        self.image_display_label.setFixedSize(new_width, new_height)
+        self.image_display_label.setPixmap(self.original_image_pixmap) # Assurer que le pixmap original est là
+        
+        self.total_pages_label.setText(f"Zoom: {int(self.current_zoom * 100)}%")
+        self.zoom_out_button.setEnabled(self.current_zoom > self.zoom_step + 0.01)
 
+    # --- Slots Zoom modifiés --- 
+    def _zoom_in(self):
+        new_zoom = self.current_zoom + self.zoom_step
+        # Limite max optionnelle
+        # if new_zoom > 5.0: return 
+        self.current_zoom = new_zoom # Mettre à jour le zoom
+        if self.is_pdf:
+             self._apply_pdf_zoom(self.current_zoom) # Passer le nouveau zoom
+        elif self.is_image:
+             self._apply_image_zoom()
+        
+    def _zoom_out(self):
+        new_zoom = self.current_zoom - self.zoom_step
+        if new_zoom < 0.1: return # Limite min
+        self.current_zoom = new_zoom # Mettre à jour le zoom
+        if self.is_pdf:
+             self._apply_pdf_zoom(self.current_zoom) # Passer le nouveau zoom
+        elif self.is_image:
+             self._apply_image_zoom()
+    # -----------------------------
+    
     # --- Méthodes de navigation fichier et download (inchangées) --- 
     def _go_to_previous_file(self):
         if self.current_file_index > 0:
@@ -496,7 +468,50 @@ class MediaViewer(QDialog):
             self.pdf_doc.close()
             self.pdf_doc = None
         super().reject()
-# ----------------------------------------------------------
+
+    # --- Slot Go To Page modifié --- 
+    def _go_to_entered_page(self):
+        if not self.page_labels: # Vérifier la nouvelle liste
+            return
+        try:
+            target_page_num = int(self.page_input.text()) - 1
+            if 0 <= target_page_num < len(self.page_labels): # Utiliser len(page_labels)
+                target_y = 0
+                for i, label in enumerate(self.page_labels): # Itérer sur les labels
+                    if i == target_page_num:
+                        break
+                    target_y += label.height() + self.scroll_content_layout.spacing()
+                scrollbar = self.scroll_area.verticalScrollBar()
+                scrollbar.setValue(target_y)
+            else:
+                 # Remettre la page actuelle (basé sur scroll)
+                 self._update_current_page_input() # Nouvelle petite fonction helper
+        except ValueError:
+             self._update_current_page_input()
+             
+    # --- Helper pour mettre à jour l'input page basé sur scroll --- 
+    def _update_current_page_input(self):
+         if not self.page_labels: return
+         # Trouver la page dont le haut est le plus proche du haut de la vue
+         scroll_y = self.scroll_area.verticalScrollBar().value()
+         current_page_idx = 0
+         cumulative_height = 0
+         min_diff = float('inf')
+         
+         for i, label in enumerate(self.page_labels):
+              label_top_y = cumulative_height
+              diff = abs(scroll_y - label_top_y)
+              if diff < min_diff:
+                   min_diff = diff
+                   current_page_idx = i
+              if label_top_y > scroll_y + 5: # Optimisation: arrêter si on dépasse trop
+                   break
+              cumulative_height += label.height() + self.scroll_content_layout.spacing()
+              
+         self.page_input.blockSignals(True)
+         self.page_input.setText(str(current_page_idx + 1))
+         self.page_input.blockSignals(False)
+    # ----------------------------------------------------------
 
 # Exemple d'utilisation (pour test seulement)
 if __name__ == '__main__':
