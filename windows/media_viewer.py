@@ -14,7 +14,7 @@ if project_root not in sys.path:
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPushButton, QScrollArea, 
     QMessageBox, QApplication, QWidget, QHBoxLayout, QFrame, QSizePolicy,
-    QFileDialog, QLineEdit
+    QFileDialog, QLineEdit, QGridLayout
 )
 # ------------------------------------
 # --- PyMuPDF Import ---
@@ -36,6 +36,10 @@ from PyQt5.QtCore import Qt, QUrl, QTimer, QBuffer, QByteArray, QIODevice, QSize
 # --- Icon Loader --- 
 from utils.icon_loader import get_icon_path
 # -----------------
+
+# --- AJOUT: Theme Loader --- 
+from utils.theme import get_theme_vars
+# --------------------------
 
 # --- NOUVEAUX Imports --- 
 from typing import List, Union
@@ -119,113 +123,150 @@ class MediaViewer(QWidget):
         main_layout.setSpacing(5)
 
         # --- Barre d'outils --- 
-        toolbar_layout = QHBoxLayout()
-        toolbar_layout.setContentsMargins(5, 0, 5, 0)
+        theme_colors = get_theme_vars() # Récupérer les couleurs du thème
+        toolbar_bg_color = theme_colors.get("COLOR_PRIMARY_MEDIUM", "#3a3d40") # Choisir la couleur et fallback
+        toolbar_container = QWidget() # Créer un widget conteneur
+        toolbar_container.setObjectName("ToolbarContainer") # Donner un nom pour le style
+        # Remettre la couleur de fond sur le conteneur principal
+        toolbar_container.setStyleSheet(f"QWidget#ToolbarContainer {{ background-color: {toolbar_bg_color}; border-radius: 4px; }}") 
+        # --- UTILISER QGridLayout --- 
+        toolbar_layout = QGridLayout(toolbar_container) # <--- CHANGEMENT ICI
+        toolbar_layout.setContentsMargins(5, 3, 5, 3) # Ajuster marges internes du conteneur
         toolbar_layout.setSpacing(8)
-        # Boutons Fichier Précédent/Suivant
+        
+        # --- Widget Gauche (Ciblé pour transparence) --- 
+        left_widget = QWidget()
+        left_widget.setObjectName("LeftToolbarSection") # <-- AJOUT ObjectName
+        # Pas de style direct ici
+        left_layout = QHBoxLayout(left_widget)
+        left_layout.setContentsMargins(0,0,0,0)
+        left_layout.setSpacing(8)
+        
         self.prev_file_button = QPushButton()
-        self.prev_file_button.setIcon(QIcon(get_icon_path("round_arrow_back.png")))
+        self.prev_file_button.setIcon(QIcon(get_icon_path("round_chevron_left.png")))
         self.prev_file_button.setToolTip("Fichier précédent")
-        self.prev_file_button.setObjectName("ToolBarButton")
+        self.prev_file_button.setObjectName("TopNavButton")
+        self.prev_file_button.setProperty("class", "TopNavButton")
         self.prev_file_button.clicked.connect(self._go_to_previous_file)
-        toolbar_layout.addWidget(self.prev_file_button)
+        left_layout.addWidget(self.prev_file_button)
+        
         self.next_file_button = QPushButton()
-        self.next_file_button.setIcon(QIcon(get_icon_path("round_arrow_forward.png")))
+        self.next_file_button.setIcon(QIcon(get_icon_path("round_chevron_right.png")))
         self.next_file_button.setToolTip("Fichier suivant")
-        self.next_file_button.setObjectName("ToolBarButton")
+        self.next_file_button.setObjectName("TopNavButton")
+        self.next_file_button.setProperty("class", "TopNavButton")
         self.next_file_button.clicked.connect(self._go_to_next_file)
-        toolbar_layout.addWidget(self.next_file_button)
+        left_layout.addWidget(self.next_file_button)
         
-        # --- AJOUT: Label de Navigation --- 
         self.navigation_label = QLabel("Fichier - / -")
-        self.navigation_label.setObjectName("NavigationLabel") # Pour style éventuel
-        toolbar_layout.addWidget(self.navigation_label)
-        # ---------------------------------
+        self.navigation_label.setObjectName("NavigationLabel")
+        left_layout.addWidget(self.navigation_label)
+        # ----------------------------------------------------------
+
+        # --- Widget Central (Sans style direct) --- 
+        central_controls_widget = QWidget() # Renommé central_widget pour cohérence
+        # Pas de style direct ici
+        # central_controls_widget.setStyleSheet(f"background-color: {toolbar_bg_color}; border-radius: 4px;") # <-- RETIRÉ
+        central_controls_layout = QHBoxLayout(central_controls_widget)
+        central_controls_layout.setContentsMargins(5, 3, 5, 3) # Garder marge interne
+        central_controls_layout.setSpacing(8)
         
-        toolbar_layout.addSpacing(20)
-        
-        # --- Réintégration des Boutons Zoom + Input + Label % --- 
+        # -- Sous-groupe: Zoom --
         self.zoom_out_button = QPushButton()
         self.zoom_out_button.setIcon(QIcon(get_icon_path("round_zoom_out.png")))
         self.zoom_out_button.setToolTip("Zoom arrière")
-        self.zoom_out_button.setObjectName("ToolBarButton")
+        self.zoom_out_button.setObjectName("TopNavButton")
         self.zoom_out_button.clicked.connect(self._zoom_out)
-        toolbar_layout.addWidget(self.zoom_out_button)
+        central_controls_layout.addWidget(self.zoom_out_button)
         
-        self.zoom_input = QLineEdit("100") # Valeur initiale
+        self.zoom_input = QLineEdit("100") 
         self.zoom_input.setFixedWidth(50)
         self.zoom_input.setAlignment(Qt.AlignRight)
         self.zoom_input.setToolTip("Entrez le pourcentage de zoom (ex: 150) et appuyez sur Entrée")
         self.zoom_input.setObjectName("ZoomInput")
         self.zoom_input.returnPressed.connect(self._go_to_entered_zoom)
-        toolbar_layout.addWidget(self.zoom_input)
+        central_controls_layout.addWidget(self.zoom_input)
         
         self.zoom_percent_label = QLabel("%")
         self.zoom_percent_label.setObjectName("ZoomPercentLabel")
-        toolbar_layout.addWidget(self.zoom_percent_label)
+        central_controls_layout.addWidget(self.zoom_percent_label)
         
         self.zoom_in_button = QPushButton()
         self.zoom_in_button.setIcon(QIcon(get_icon_path("round_zoom_in.png")))
         self.zoom_in_button.setToolTip("Zoom avant")
-        self.zoom_in_button.setObjectName("ToolBarButton")
+        self.zoom_in_button.setObjectName("TopNavButton")
         self.zoom_in_button.clicked.connect(self._zoom_in)
-        toolbar_layout.addWidget(self.zoom_in_button)
-        
-        # --- Bouton Ajuster Largeur --- 
+        central_controls_layout.addWidget(self.zoom_in_button)
+
+        central_controls_layout.addSpacing(10) # Petit séparateur
+
+        # -- Sous-groupe: Ajustement --
         self.fit_width_button = QPushButton()
-        self.fit_width_button.setIcon(QIcon(get_icon_path("swap_horiz.png"))) # Utiliser une icône appropriée
+        self.fit_width_button.setIcon(QIcon(get_icon_path("round_fit_page_width.png")))
         self.fit_width_button.setToolTip("Ajuster à la largeur")
-        self.fit_width_button.setObjectName("ToolBarButton")
+        self.fit_width_button.setObjectName("TopNavButton")
         self.fit_width_button.clicked.connect(self._fit_to_width)
-        toolbar_layout.addWidget(self.fit_width_button)
-        self.fit_width_button.setVisible(False) # Cacher par défaut
-        # -----------------------------
+        central_controls_layout.addWidget(self.fit_width_button)
         
-        # --- Bouton Ajuster Hauteur --- 
         self.fit_height_button = QPushButton()
-        self.fit_height_button.setIcon(QIcon(get_icon_path("swap_vert.png"))) # Utiliser une icône appropriée
+        self.fit_height_button.setIcon(QIcon(get_icon_path("round_fit_page_height.png")))
         self.fit_height_button.setToolTip("Ajuster à la hauteur (basé sur la première page pour PDF)")
-        self.fit_height_button.setObjectName("ToolBarButton")
+        self.fit_height_button.setObjectName("TopNavButton")
         self.fit_height_button.clicked.connect(self._fit_to_height)
-        toolbar_layout.addWidget(self.fit_height_button)
-        self.fit_height_button.setVisible(False) # Cacher par défaut
-        # ------------------------------
+        central_controls_layout.addWidget(self.fit_height_button)
 
-        # --- Bouton Ajuster Page (Best Fit) --- 
         self.fit_page_button = QPushButton()
-        self.fit_page_button.setIcon(QIcon(get_icon_path("zoom_out_map.png"))) # Icône appropriée
+        self.fit_page_button.setIcon(QIcon(get_icon_path("round_fit_screen.png")))
         self.fit_page_button.setToolTip("Ajuster à la page (meilleur ajustement)")
-        self.fit_page_button.setObjectName("ToolBarButton")
+        self.fit_page_button.setObjectName("TopNavButton")
         self.fit_page_button.clicked.connect(self._fit_to_page)
-        toolbar_layout.addWidget(self.fit_page_button)
-        self.fit_page_button.setVisible(False) # Cacher par défaut
-        # -------------------------------------
+        central_controls_layout.addWidget(self.fit_page_button)
 
-        # --- Input Page + Label Total (inchangé) --- 
+        central_controls_layout.addSpacing(20) # Séparateur
+
+        # -- Sous-groupe: Navigation Page (PDF) --
         self.page_input = QLineEdit("1")
         self.page_input.setFixedWidth(50)
         self.page_input.setAlignment(Qt.AlignRight)
         self.page_input.setToolTip("Entrez le numéro de page et appuyez sur Entrée")
         self.page_input.setObjectName("PageInput")
-        # Ajouter un validateur sera fait dans _load_media quand on connait total_pages
         self.page_input.returnPressed.connect(self._go_to_entered_page)
-        toolbar_layout.addWidget(self.page_input)
+        central_controls_layout.addWidget(self.page_input)
+        
         self.total_pages_label = QLabel("/ -")
         self.total_pages_label.setObjectName("TotalPagesLabel")
-        toolbar_layout.addWidget(self.total_pages_label)
-        self.page_input.setVisible(False)
-        self.total_pages_label.setVisible(False)
-        # ----------------------------------------------------------
-        
-        toolbar_layout.addStretch()
-        # Bouton Download (inchangé)
+        central_controls_layout.addWidget(self.total_pages_label)
+        # ----------------------------------------
+
+        # --- Widget Droit (Ciblé pour transparence) --- 
+        right_widget = QWidget()
+        right_widget.setObjectName("RightToolbarSection") # <-- AJOUT ObjectName
+        # Pas de style direct ici
+        right_layout = QHBoxLayout(right_widget)
+        right_layout.setContentsMargins(0,0,0,0)
+        right_layout.setSpacing(8)
+
         self.download_button = QPushButton()
-        self.download_button.setIcon(QIcon(get_icon_path("round_download.png")))
-        self.download_button.setToolTip("Télécharger le fichier actuel")
-        self.download_button.setObjectName("ToolBarButton")
+        self.download_button.setIcon(QIcon(get_icon_path("round_file_download.png")))
+        self.download_button.setToolTip("Télécharger le fichier")
+        self.download_button.setObjectName("TopNavButton")
+        self.download_button.setProperty("class", "TopNavButton")
         self.download_button.clicked.connect(self._download_file)
-        toolbar_layout.addWidget(self.download_button)
-        main_layout.addLayout(toolbar_layout)
+        right_layout.addWidget(self.download_button)
+        # ---------------------------------------------
+
+        # --- Assemblage final de la barre d'outils --- 
+        toolbar_layout.addWidget(left_widget, 0, 0, Qt.AlignLeft)             # Groupe gauche -> Colonne 0, Aligné à GAUCHE
+        toolbar_layout.addWidget(central_controls_widget, 0, 1, Qt.AlignCenter) # Groupe central -> Colonne 1, Aligné au centre
+        toolbar_layout.addWidget(right_widget, 0, 2, Qt.AlignRight) # Groupe droite -> Colonne 2, Aligné à droite
+
+        # Définir l'étirement des colonnes pour centrer la colonne 1
+        toolbar_layout.setColumnStretch(0, 1) # Colonne gauche prend l'espace
+        toolbar_layout.setColumnStretch(1, 0) # Colonne centrale ne s'étire pas (prend sa taille naturelle)
+        toolbar_layout.setColumnStretch(2, 1) # Colonne droite prend l'espace
+        # ---------------------------------------------
+        
+        main_layout.addWidget(toolbar_container) 
         # ------------------------------------        
 
         # --- Visionneuse (QScrollArea) --- 
@@ -258,6 +299,13 @@ class MediaViewer(QWidget):
         close_button.clicked.connect(self.close)
         button_layout.addWidget(close_button)
         main_layout.addLayout(button_layout)
+
+        # --- AJOUT: Style ciblé pour transparence des sections gauche/droite --- 
+        self.setStyleSheet("""
+            QWidget#LeftToolbarSection { background-color: transparent; }
+            QWidget#RightToolbarSection { background-color: transparent; }
+        """)
+        # ---------------------------------------------------------------------
 
         self._load_media() 
         self._update_navigation_state() 
@@ -314,7 +362,7 @@ class MediaViewer(QWidget):
         self.zoom_out_button.setVisible(can_zoom)
         self.zoom_input.setVisible(can_zoom)
         self.zoom_percent_label.setVisible(can_zoom)
-        self.zoom_in_button.setVisible(can_zoom)
+        self.zoom_in_button.setEnabled(can_zoom)
         self.fit_width_button.setVisible(can_zoom) 
         self.fit_height_button.setVisible(can_zoom) 
         self.fit_page_button.setVisible(can_zoom) # <-- Gérer visibilité
