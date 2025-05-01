@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 from .facture import Facture
 
 class Repas:
@@ -21,7 +21,7 @@ class Repas:
                  totale_apres_taxes: float,
                  employe: float, # Montant payé par l'employé?
                  jacmar: float, # Montant payé par Jacmar?
-                 facture: Optional[Facture] = None
+                 facture: Optional[Facture] = None # <-- RESTAURATION
                  ):
 
         if not isinstance(date_repas, date):
@@ -54,7 +54,7 @@ class Repas:
         # --- Valider le type de facture (si fournie) --- 
         if facture is not None and not isinstance(facture, Facture):
             raise TypeError("facture doit être une instance de Facture ou None.")
-        # ---------------------------------------------
+        # --------------------------------------------------
 
         self.date: date = date_repas
         self.description: str = description
@@ -73,7 +73,7 @@ class Repas:
         self.jacmar: float = float(jacmar)
         # --- Assigner l'attribut facture --- 
         self.facture: Optional[Facture] = facture
-        # ----------------------------------
+        # -----------------------------------
         
     def __repr__(self):
         # --- Adapter repr pour inclure facture --- 

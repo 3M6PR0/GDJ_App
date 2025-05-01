@@ -2,17 +2,28 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFormLayout,
                            QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox, 
                            QPushButton, QHBoxLayout, QMessageBox,
                            QGridLayout, QFrame, QCheckBox, QRadioButton, QButtonGroup,
-                           QSizePolicy, QFileDialog, QScrollArea)
-from PyQt5.QtCore import Qt, QDate, QSize
-from PyQt5.QtGui import QDoubleValidator, QIcon
+                           QSizePolicy, QFileDialog, QScrollArea, QSpacerItem)
+from PyQt5.QtCore import Qt, QDate, QSize, pyqtSignal, QTimer
+from PyQt5.QtGui import QDoubleValidator, QIcon, QColor, QPalette, QFont, QPixmap, QIntValidator, QImage
 from ui.components.frame import Frame # Correction: Chemin d'importation correct
-from models.documents.rapport_depense import RapportDepense, Deplacement, Repas, Depense # Importer les modèles
+from models.documents.rapport_depense import RapportDepense, Deplacement, Repas, Depense, Facture # Importer les modèles
 from utils.theme import get_theme_vars, RADIUS_BOX # Importer les variables de thème
 from utils.icon_loader import get_icon_path # Importer la fonction pour obtenir le chemin de l'icône
 from utils.signals import signals
 from widgets.custom_date_edit import CustomDateEdit
 from ui.components.card import CardWidget # Importer le widget card renommé
+from widgets.thumbnail_widget import ThumbnailWidget
 import traceback # Importer traceback pour débogage
+# --- AJOUT: Tentative d'import de fitz et définition de PYMUPDF_AVAILABLE --- 
+try:
+    import fitz # PyMuPDF
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    fitz = None # Définir fitz à None si l'import échoue
+    PYMUPDF_AVAILABLE = False
+    print("Avertissement: PyMuPDF (fitz) n'est pas installé. Les miniatures PDF ne seront pas disponibles.")
+# --------------------------------------------------------------------------
+import os # Pour manipuler les chemins
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
@@ -27,6 +38,11 @@ class RapportDepensePage(QWidget):
         self.num_commande_container = None
         self.payeur_group = None # Pour groupe Payeur
         self.refacturer_group = None # Pour groupe Refacturer
+        
+        # --- Stockage des miniatures --- 
+        self.current_facture_thumbnails = {} # { file_path: ThumbnailWidget }
+        # self.current_facture_paths = [] # <-- SUPPRESSION
+        # -------------------------------
         
         # --- Styles spécifiques pour les RadioButton --- 
         self.setStyleSheet("""
@@ -481,51 +497,64 @@ class RapportDepensePage(QWidget):
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
             self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
 
-            # --- Emplacement pour Frame Facture --- 
+            # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
             self.form_fields['facture_frame'] = QFrame()
-            self.form_fields['facture_frame'].setMinimumHeight(60) # Hauteur minimale pour visibilité
-            self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel) # Donner une forme
-            self.form_fields['facture_frame'].setFrameShadow(QFrame.Sunken)    # Donner une ombre
-            self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {RADIUS_BOX}; border: none;") 
-            # Ajouter un layout au frame et le label à l'intérieur
+            self.form_fields['facture_frame'].setMinimumHeight(ThumbnailWidget.THUMBNAIL_SIZE + 60) # Hauteur min pour voir label + bouton + miniature
+            self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel)
+            self.form_fields['facture_frame'].setFrameShadow(QFrame.Sunken)
+            # Retirer le style inline, laisser QSS gérer ou définir un style cohérent ici si besoin.
+            # self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {RADIUS_BOX}; border: none;") 
+            
+            # Layout interne du frame
             frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
-            frame_content_layout.setContentsMargins(5, 5, 5, 5) # Marge intérieure
-
+            frame_content_layout.setContentsMargins(5, 5, 5, 5)
+            frame_content_layout.setSpacing(8)
+            
             # Layout horizontal pour Label + Bouton Icône
             label_button_layout = QHBoxLayout()
             label_button_layout.setContentsMargins(0,0,0,0)
             label_button_layout.setSpacing(5)
 
-            facture_label_in_frame = QLabel("Facture:")
-            self.form_fields['facture_add_button'] = QPushButton()
-            icon_path = ":/icons/round_add_circle.png" # Assurez-vous que ce chemin est correct
-            self.form_fields['facture_add_button'].setObjectName("FormButton") # Utiliser le nom d'objet de la QSS globale
-
-            # --- Utiliser icon_loader pour obtenir le chemin correct --- 
-            correct_icon_path = get_icon_path("round_add_circle.png")
-            # Utiliser QIcon directement avec le chemin de ressource
-            if correct_icon_path: # Vérifier si un chemin a été trouvé
-                 self.form_fields['facture_add_button'].setIcon(QIcon(correct_icon_path))
-            else:
-                 # Optionnel: Mettre une icône par défaut ou laisser vide si l'icône n'est pas trouvée
-                 self.form_fields['facture_add_button'].setIcon(QIcon()) 
-                 print(f"WARN: Icône 'round_add_circle.png' introuvable via icon_loader.")
-
-            self.form_fields['facture_add_button'].setIconSize(self.form_fields['facture_add_button'].sizeHint()) # Ajuster taille icone
-            self.form_fields['facture_add_button'].setFixedSize(24, 24) # Taille fixe pour bouton icône
-            # self.form_fields['facture_add_button'].setFlat(True) # Rendre le bouton plat
-            
+            facture_label_in_frame = QLabel("Facture(s):")
             label_button_layout.addWidget(facture_label_in_frame)
-            label_button_layout.addStretch(1) # Pousse le bouton vers la gauche (à côté du label)
-            label_button_layout.addWidget(self.form_fields['facture_add_button'])
+            label_button_layout.addStretch(1) # Pousse le bouton vers la droite
             
-            frame_content_layout.addLayout(label_button_layout) # Ajouter le HBox au VBox du frame
-            frame_content_layout.addStretch(1) # Pousse le contenu vers le haut
+            # NOUVEAU Bouton Plus (remplace l'ancien)
+            self.add_facture_button = QPushButton("+")
+            self.add_facture_button.setFixedSize(30, 30)
+            self.add_facture_button.setToolTip("Ajouter une facture (Image ou PDF)")
+            self.add_facture_button.setObjectName("AddButtonFacture") 
+            self.add_facture_button.clicked.connect(self._select_factures)
+            label_button_layout.addWidget(self.add_facture_button) # Ajouter le nouveau bouton
+            
+            # Ajouter le HBox (Label + Bouton) au VBox du frame
+            frame_content_layout.addLayout(label_button_layout)
 
-            # Ajouter le frame au grid principal, en le faisant s'étendre sur 2 colonnes
+            # ScrollArea pour les miniatures (ajoutée SOUS le label+bouton)
+            self.facture_scroll_area = QScrollArea()
+            self.facture_scroll_area.setWidgetResizable(True)
+            # Retirer la bordure de la scroll area pour qu'elle s'intègre mieux au frame
+            self.facture_scroll_area.setFrameShape(QFrame.NoFrame) 
+            self.facture_scroll_area.setFixedHeight(ThumbnailWidget.THUMBNAIL_SIZE + 20) # Juste assez pour miniature + scrollbar
+            self.facture_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn) 
+            self.facture_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff) 
+
+            # Widget conteneur interne pour la scroll area
+            self.facture_container_widget = QWidget()
+            self.facture_thumbnails_layout = QHBoxLayout(self.facture_container_widget)
+            self.facture_thumbnails_layout.setContentsMargins(5, 0, 5, 0)
+            self.facture_thumbnails_layout.setSpacing(10) 
+            self.facture_thumbnails_layout.setAlignment(Qt.AlignLeft) 
+            self.facture_scroll_area.setWidget(self.facture_container_widget)
+            
+            # Ajouter la ScrollArea au layout du frame
+            frame_content_layout.addWidget(self.facture_scroll_area) 
+            # frame_content_layout.addStretch(1) # Pousse le contenu vers le haut si besoin
+
+            # Ajouter le frame ENTIER au grid principal, sur 2 colonnes
             self.dynamic_form_layout.addWidget(self.form_fields['facture_frame'], current_row, 0, 1, 2)
             current_row += 1
-            # --------------------------------------
+            # ----------------------------------------------------------------
 
             # Ajouter un stretch à la fin pour pousser les champs vers le haut
             self.dynamic_form_layout.setRowStretch(current_row, 1)
@@ -616,6 +645,17 @@ class RapportDepensePage(QWidget):
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes_dep'] 
             self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
 
+        # --- Réinitialiser la liste des miniatures --- 
+        self.current_facture_thumbnails = {}
+        # self.current_facture_paths = [] # <-- SUPPRESSION
+        # -------------------------------------------
+
+        # Ajouter un espace vertical avant le montant total
+        self.dynamic_form_layout.addItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Expanding), current_row, 0, 1, 2)
+        current_row += 1
+        
+        # ... (reste _update_entry_form: montant, politique taille) ...
+        
     def _update_montant_display(self, value):
         """ Met à jour le label montant dans la colonne de droite. """
         if hasattr(self, 'montant_display_label') and self.montant_display_label:
@@ -674,6 +714,12 @@ class RapportDepensePage(QWidget):
         if hasattr(self, 'montant_display_label') and self.montant_display_label:
              self.montant_display_label.setText("0.00 $")
 
+        # Effacer les miniatures
+        for path in list(self.current_facture_thumbnails.keys()): 
+             self._remove_facture_thumbnail(path, update_model=False)
+        self.current_facture_thumbnails = {}
+        # self.current_facture_paths = [] # <-- SUPPRESSION
+
     def _add_entry(self):
         """ Ajoute l'entrée en lisant les champs du formulaire. """
         entry_type = self.entry_type_combo.currentText()
@@ -730,6 +776,26 @@ class RapportDepensePage(QWidget):
                  employe_val = get_float_from_field('employe') # TODO: Ajouter champ si nécessaire
                  jacmar_val = get_float_from_field('jacmar') # TODO: Ajouter champ si nécessaire
 
+                 # --- AJOUT: Création de l'objet Facture --- 
+                 facture_obj = None
+                 if self.current_facture_thumbnails: # Si des miniatures existent
+                     all_paths = list(self.current_facture_thumbnails.keys())
+                     if all_paths:
+                         # Utiliser le dossier du premier fichier comme référence
+                         # ATTENTION: Ceci suppose que tous les fichiers sont dans le même dossier
+                         first_path = all_paths[0]
+                         folder_path = os.path.dirname(first_path)
+                         # Extraire juste les noms de fichiers
+                         filenames = [os.path.basename(p) for p in all_paths]
+                         try:
+                              facture_obj = Facture(folder_path=folder_path, filenames=filenames)
+                              print(f"[TEMP] Objet Facture créé: {facture_obj}")
+                         except (TypeError, ValueError) as fact_err:
+                              QMessageBox.warning(self, "Erreur Facture", f"Impossible de créer l'objet Facture:\n{fact_err}")
+                              # Continuer sans facture en cas d'erreur
+                              facture_obj = None 
+                 # -------------------------------------------
+                 
                  # Validation spécifique Repas
                  if not restaurant_val:
                      QMessageBox.warning(self, "Champ manquant", "Le nom du restaurant est requis.")
@@ -755,7 +821,7 @@ class RapportDepensePage(QWidget):
                                     totale_apres_taxes=total_apres_taxes_val,
                      employe=employe_val, # À vérifier si nécessaire
                      jacmar=jacmar_val,   # À vérifier si nécessaire
-                     facture=None # Gestion des factures à implémenter
+                     facture=facture_obj # <--- MODIFICATION: Passer l'objet Facture (ou None)
                  )
                  # self.document.entries.append(new_entry)
                  self.document.ajouter_repas(new_entry) # Utiliser la méthode dédiée
@@ -938,6 +1004,107 @@ class RapportDepensePage(QWidget):
         """Crée la page template et l'ajoute comme onglet."""
         # ... existing code ...
         # ... new code ...
+
+    # --- NOUVEAUX Slots pour gérer les factures --- 
+    def _select_factures(self):
+        image_extensions = "*.png *.jpg *.jpeg *.bmp *.gif"
+        pdf_extension = "*.pdf"
+        all_files_filter = f"Fichiers supportés ({image_extensions} {pdf_extension});;Images ({image_extensions});;PDF ({pdf_extension});;Tous les fichiers (*)"
+        
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Sélectionner Facture(s)",
+            "", 
+            all_files_filter
+        )
+
+        if file_paths:
+            for file_path in file_paths:
+                if file_path not in self.current_facture_thumbnails:
+                     self._create_and_add_thumbnail(file_path)
+                     print(f"[TEMP] Facture ajoutée UI: {file_path}")
+
+    def _create_and_add_thumbnail(self, file_path):
+        pixmap = None
+        # --- PyMuPDF check (mis en global pour éviter répétition) ---
+        global PYMUPDF_AVAILABLE, fitz 
+        # ---------------------------------------------------------
+        try:
+            # --- Génération Pixmap (Image) ---
+            if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                pixmap = QPixmap(file_path)
+                if pixmap.isNull():
+                     print(f"Erreur: Impossible de charger l'image {file_path}")
+                     return
+            # --- Génération Pixmap (PDF) ---
+            elif file_path.lower().endswith('.pdf'):
+                 if not PYMUPDF_AVAILABLE:
+                     QMessageBox.warning(self, "Module manquant", 
+                                           "PyMuPDF est requis pour les miniatures PDF. Veuillez l'installer (pip install pymupdf).")
+                     return
+                 try:
+                     doc = fitz.open(file_path)
+                     if len(doc) > 0:
+                         page = doc.load_page(0) 
+                         # Rendu à résolution plus élevée
+                         zoom = 2.0 
+                         mat = fitz.Matrix(zoom, zoom)
+                         fitz_pix = page.get_pixmap(matrix=mat, alpha=False)
+                         qimage = QImage(fitz_pix.samples, fitz_pix.width, fitz_pix.height, fitz_pix.stride, QImage.Format_RGB888)
+                         pixmap = QPixmap.fromImage(qimage)
+                     else:
+                          print(f"Erreur: PDF vide {file_path}")
+                          # Créer un pixmap placeholder gris?
+                          pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
+                          pixmap.fill(Qt.darkGray)
+                     doc.close()
+                 except Exception as pdf_error:
+                      print(f"Erreur PyMuPDF pour {file_path}: {pdf_error}")
+                      QMessageBox.warning(self, "Erreur PDF", f"Impossible de générer la miniature pour {file_path}.\n{pdf_error}")
+                      # Créer un pixmap placeholder rouge?
+                      pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
+                      pixmap.fill(Qt.red)
+            # --- Format non supporté --- 
+            else:
+                 print(f"Format non supporté: {file_path}")
+                 # Créer un pixmap placeholder?
+                 pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
+                 pixmap.fill(Qt.lightGray)
+
+            # --- Création et ajout du widget --- 
+            if pixmap:
+                thumbnail_widget = ThumbnailWidget(file_path, pixmap)
+                thumbnail_widget.delete_requested.connect(self._remove_facture_thumbnail)
+                self.facture_thumbnails_layout.addWidget(thumbnail_widget)
+                self.current_facture_thumbnails[file_path] = thumbnail_widget
+                # self.current_facture_paths.append(file_path) # <-- SUPPRESSION
+                # Assurer visibilité
+                QTimer.singleShot(0, lambda w=thumbnail_widget: self.facture_scroll_area.ensureWidgetVisible(w, 50, 0))
+        
+        except Exception as e:
+            print(f"Erreur inattendue création miniature pour {file_path}: {e}")
+            traceback.print_exc()
+
+    def _remove_facture_thumbnail(self, file_path, update_model=True):
+        if file_path in self.current_facture_thumbnails:
+            widget = self.current_facture_thumbnails[file_path]
+            # Déconnecter signal peut être une bonne pratique
+            try: widget.delete_requested.disconnect(self._remove_facture_thumbnail) 
+            except TypeError: pass # Ignore si déjà déconnecté
+            self.facture_thumbnails_layout.removeWidget(widget)
+            widget.deleteLater()
+            del self.current_facture_thumbnails[file_path]
+            # --- SUPPRESSION: Retrait de current_facture_paths --- 
+            # if file_path in self.current_facture_paths:
+            #     self.current_facture_paths.remove(file_path)
+            # else:
+            #      print(f"WARN: Chemin {file_path} non trouvé dans current_facture_paths lors de la suppression.")
+            # ------------------------------------------------------
+            # if update_model: # Le flag update_model devient moins pertinent ici
+            #      pass 
+        else:
+             print(f"Avertissement: Tentative suppression miniature non trouvée: {file_path}")
+    # ------------------------------------------------
 
 # Bloc de test simple
 if __name__ == '__main__':
