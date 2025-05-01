@@ -138,6 +138,26 @@ class MediaViewer(QWidget):
         toolbar_layout.addWidget(self.fit_width_button)
         self.fit_width_button.setVisible(False) # Cacher par défaut
         # -----------------------------
+        
+        # --- Bouton Ajuster Hauteur --- 
+        self.fit_height_button = QPushButton()
+        self.fit_height_button.setIcon(QIcon(get_icon_path("swap_vert.png"))) # Utiliser une icône appropriée
+        self.fit_height_button.setToolTip("Ajuster à la hauteur (basé sur la première page pour PDF)")
+        self.fit_height_button.setObjectName("ToolBarButton")
+        self.fit_height_button.clicked.connect(self._fit_to_height)
+        toolbar_layout.addWidget(self.fit_height_button)
+        self.fit_height_button.setVisible(False) # Cacher par défaut
+        # ------------------------------
+
+        # --- Bouton Ajuster Page (Best Fit) --- 
+        self.fit_page_button = QPushButton()
+        self.fit_page_button.setIcon(QIcon(get_icon_path("zoom_out_map.png"))) # Icône appropriée
+        self.fit_page_button.setToolTip("Ajuster à la page (meilleur ajustement)")
+        self.fit_page_button.setObjectName("ToolBarButton")
+        self.fit_page_button.clicked.connect(self._fit_to_page)
+        toolbar_layout.addWidget(self.fit_page_button)
+        self.fit_page_button.setVisible(False) # Cacher par défaut
+        # -------------------------------------
 
         # --- Input Page + Label Total (inchangé) --- 
         self.page_input = QLineEdit("1")
@@ -236,6 +256,8 @@ class MediaViewer(QWidget):
             self.zoom_percent_label.setVisible(False)
             self.zoom_in_button.setVisible(False)
             self.fit_width_button.setVisible(False)
+            self.fit_height_button.setVisible(False)
+            self.fit_page_button.setVisible(False)
             self.download_button.setEnabled(False)
             self.prev_file_button.setEnabled(self.current_file_index > 0)
             self.next_file_button.setEnabled(self.current_file_index < len(self.file_list) - 1)
@@ -243,12 +265,14 @@ class MediaViewer(QWidget):
 
         # --- Mise à jour état initial barre d'outils --- 
         can_zoom = self.is_image or self.is_pdf
-        # Gérer la visibilité de l'ensemble des contrôles de zoom
+        # Gérer la visibilité de l'ensemble des contrôles de zoom et fit
         self.zoom_out_button.setVisible(can_zoom)
         self.zoom_input.setVisible(can_zoom)
         self.zoom_percent_label.setVisible(can_zoom)
         self.zoom_in_button.setVisible(can_zoom)
-        self.fit_width_button.setVisible(can_zoom)
+        self.fit_width_button.setVisible(can_zoom) 
+        self.fit_height_button.setVisible(can_zoom) 
+        self.fit_page_button.setVisible(can_zoom) # <-- Gérer visibilité
         
         if can_zoom:
              self._update_zoom_input() # Mettre à jour l'input
@@ -275,17 +299,23 @@ class MediaViewer(QWidget):
                 self.zoom_percent_label.setVisible(False)
                 self.zoom_in_button.setVisible(False)
                 self.fit_width_button.setVisible(False)
+                self.fit_height_button.setVisible(False)
+                self.fit_page_button.setVisible(False)
             else:
                 # --- Créer le QLabel pour l'affichage --- 
                 self.image_display_label = QLabel()
                 self.image_display_label.setAlignment(Qt.AlignCenter)
                 self.image_display_label.setScaledContents(True)
-                # Appliquer le zoom initial à l'image
-                self._apply_image_zoom(1.0)
+                # Appliquer le zoom initial à l'image (100%)
+                self._apply_image_zoom(1.0) 
                 # Ajouter le QLabel au layout
                 self.scroll_content_layout.addWidget(self.image_display_label)
                 self.scroll_content_layout.addStretch()
                 # Mettre à jour l'info (fait dans _apply_image_zoom)
+                
+                # --- Appliquer Fit to Page après chargement image --- 
+                self._fit_to_page()
+                # ---------------------------------------------------
             # -----------------------------------
 
         elif self.is_pdf:
@@ -294,7 +324,11 @@ class MediaViewer(QWidget):
             # --- Rendu unique haute résolution --- 
             self._render_all_pdf_pages_high_res()
             if self.page_labels: # Si le rendu a réussi
-                 self._apply_pdf_zoom(1.0) # Applique zoom initial et màj input/boutons
+                 # Appliquer le zoom initial (100%)
+                 self._apply_pdf_zoom(1.0) 
+                 # --- Appliquer Fit to Page après chargement PDF --- 
+                 self._fit_to_page()
+                 # -------------------------------------------------
             # ----------------------------------
         else:
              # ... (gestion type non supporté, désactiver zoom)
@@ -305,6 +339,8 @@ class MediaViewer(QWidget):
              self.zoom_percent_label.setVisible(False)
              self.zoom_in_button.setVisible(False)
              self.fit_width_button.setVisible(False)
+             self.fit_height_button.setVisible(False)
+             self.fit_page_button.setVisible(False)
              
     # --- NOUVELLE fonction pour le rendu initial PDF --- 
     def _render_all_pdf_pages_high_res(self):
@@ -368,6 +404,8 @@ class MediaViewer(QWidget):
             self.zoom_percent_label.setVisible(False)
             self.zoom_in_button.setVisible(False)
             self.fit_width_button.setVisible(False)
+            self.fit_height_button.setVisible(False)
+            self.fit_page_button.setVisible(False)
             self.download_button.setEnabled(False)
             return
         finally:
@@ -850,6 +888,140 @@ class MediaViewer(QWidget):
              print(f"Erreur dans _fit_to_width: {e}")
              # Ne pas planter, juste ne pas appliquer le zoom
     # ------------------------------------------
+
+    # --- NOUVEAU Slot pour ajuster à la hauteur --- 
+    def _fit_to_height(self):
+        if not (self.is_image or self.is_pdf):
+            return
+
+        viewport_height = self.scroll_area.viewport().height()
+        scrollbar_h = self.scroll_area.horizontalScrollBar()
+        
+        # Marge pour la barre de défilement horizontale
+        margin = 0
+        if scrollbar_h.isVisible():
+            margin = scrollbar_h.height() + self.scroll_area.frameWidth() * 2
+            
+        available_height = max(1, viewport_height - margin)
+        
+        new_zoom = self.current_zoom
+        
+        try:
+            if self.is_image and self.original_image_pixmap:
+                original_height = self.original_image_pixmap.height()
+                if original_height > 0:
+                    new_zoom = available_height / original_height
+            
+            elif self.is_pdf and self.original_pdf_pixmaps:
+                # Basé sur la première page
+                if len(self.original_pdf_pixmaps) > 0:
+                    first_page_pixmap = self.original_pdf_pixmaps[0]
+                    original_page_height = first_page_pixmap.height() / self.PDF_RENDER_ZOOM
+                    if original_page_height > 0:
+                        new_zoom = available_height / original_page_height
+            
+            # Appliquer limites
+            min_zoom_limit = 0.1
+            max_zoom_limit = 5.0
+            new_zoom = max(min_zoom_limit, min(new_zoom, max_zoom_limit))
+            
+            # Appliquer
+            if abs(new_zoom - self.current_zoom) > 0.001:
+                if self.is_pdf:
+                    self._apply_pdf_zoom(new_zoom)
+                elif self.is_image:
+                    self._apply_image_zoom(new_zoom)
+                    
+        except Exception as e:
+            print(f"Erreur dans _fit_to_height: {e}")
+    # --------------------------------------------
+
+    # --- NOUVEAU Slot pour ajuster à la page (Best Fit) --- 
+    def _fit_to_page(self):
+        if not (self.is_image or self.is_pdf):
+            return
+
+        viewport = self.scroll_area.viewport()
+        viewport_width = viewport.width()
+        viewport_height = viewport.height()
+        scrollbar_v = self.scroll_area.verticalScrollBar()
+        scrollbar_h = self.scroll_area.horizontalScrollBar()
+        
+        # Calcul des marges potentielles (même si les barres ne sont pas encore visibles)
+        v_margin = scrollbar_v.sizeHint().width() + self.scroll_area.frameWidth() * 2
+        h_margin = scrollbar_h.sizeHint().height() + self.scroll_area.frameWidth() * 2
+        
+        # Estimer la largeur/hauteur disponible SANS barres initialement
+        available_width = max(1, viewport_width)
+        available_height = max(1, viewport_height)
+        
+        zoom_w = self.current_zoom
+        zoom_h = self.current_zoom
+        
+        try:
+            # --- Calcul zoom pour largeur --- 
+            content_width = 0
+            if self.is_image and self.original_image_pixmap:
+                content_width = self.original_image_pixmap.width()
+            elif self.is_pdf and self.original_pdf_pixmaps:
+                max_w = 0
+                for pixmap in self.original_pdf_pixmaps:
+                    w = pixmap.width() / self.PDF_RENDER_ZOOM
+                    if w > max_w: max_w = w
+                content_width = max_w
+            
+            if content_width > 0:
+                # Calcul initial sans marge
+                zoom_w_no_margin = available_width / content_width
+                # Si ce zoom nécessite une barre V, recalculer avec marge
+                estimated_height_at_zoom = (self.original_image_pixmap.height() * zoom_w_no_margin if self.is_image 
+                                            else (self.original_pdf_pixmaps[0].height() / self.PDF_RENDER_ZOOM) * zoom_w_no_margin if self.is_pdf else 0)
+                if estimated_height_at_zoom > available_height:
+                     zoom_w = (available_width - v_margin) / content_width
+                else:
+                     zoom_w = zoom_w_no_margin
+                zoom_w = max(0.01, zoom_w) # Empêcher zoom quasi nul
+            # ------------------------------
+
+            # --- Calcul zoom pour hauteur --- 
+            content_height = 0
+            if self.is_image and self.original_image_pixmap:
+                content_height = self.original_image_pixmap.height()
+            elif self.is_pdf and self.original_pdf_pixmaps:
+                if len(self.original_pdf_pixmaps) > 0:
+                    content_height = self.original_pdf_pixmaps[0].height() / self.PDF_RENDER_ZOOM
+
+            if content_height > 0:
+                # Calcul initial sans marge
+                zoom_h_no_margin = available_height / content_height
+                # Si ce zoom nécessite une barre H, recalculer avec marge
+                estimated_width_at_zoom = (self.original_image_pixmap.width() * zoom_h_no_margin if self.is_image 
+                                           else content_width * zoom_h_no_margin if self.is_pdf else 0)
+                if estimated_width_at_zoom > available_width:
+                     zoom_h = (available_height - h_margin) / content_height
+                else:
+                    zoom_h = zoom_h_no_margin
+                zoom_h = max(0.01, zoom_h)
+            # -----------------------------
+            
+            # Choisir le plus petit zoom
+            new_zoom = min(zoom_w, zoom_h)
+            
+            # Appliquer limites
+            min_zoom_limit = 0.1
+            max_zoom_limit = 5.0
+            new_zoom = max(min_zoom_limit, min(new_zoom, max_zoom_limit))
+            
+            # Appliquer
+            if abs(new_zoom - self.current_zoom) > 0.001:
+                if self.is_pdf:
+                    self._apply_pdf_zoom(new_zoom)
+                elif self.is_image:
+                    self._apply_image_zoom(new_zoom)
+
+        except Exception as e:
+            print(f"Erreur dans _fit_to_page: {e}")
+    # ---------------------------------------------------
 
 # Exemple d'utilisation (pour test seulement)
 if __name__ == '__main__':
