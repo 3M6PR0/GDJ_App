@@ -116,7 +116,29 @@ class RapportDepensePage(QWidget):
         header_layout.addWidget(header_label)
         self.entry_type_combo = QComboBox()
         self.entry_type_combo.setObjectName("HeaderComboBox") 
-        self.entry_type_combo.addItems(["Déplacement", "Repas", "Dépense"])
+        # --- MODIFICATION: Utiliser addItem avec icônes ---
+        # self.entry_type_combo.addItems(["Déplacement", "Repas", "Dépense"]) # Ancienne méthode
+        entry_types = {
+            "Déplacement": "round_directions_car.png",
+            "Repas": "round_restaurant.png",
+            "Dépense": "round_payments.png"
+        }
+        fallback_icon_name = "round_receipt_long.png" # Icône si une autre n'est pas trouvée
+        
+        for text, icon_name in entry_types.items():
+            icon_path = get_icon_path(icon_name)
+            icon = QIcon()
+            if icon_path:
+                icon = QIcon(icon_path)
+            else:
+                print(f"WARNING: Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.")
+                fallback_path = get_icon_path(fallback_icon_name)
+                if fallback_path:
+                    icon = QIcon(fallback_path)
+                else:
+                     print(f"ERROR: Fallback icon '{fallback_icon_name}' also not found.")
+            self.entry_type_combo.addItem(icon, text)
+        # --- Fin Modification ---
         self.entry_type_combo.currentIndexChanged.connect(self._update_entry_form)
         header_layout.addWidget(self.entry_type_combo, 1)
         self.header_container = QWidget()
@@ -244,7 +266,7 @@ class RapportDepensePage(QWidget):
 
     def _update_entry_form(self):
         """ Met à jour le formulaire dynamique (partie gauche) selon le type d'entrée. """
-        # --- Réinitialiser la référence ---
+        # --- Réinitialiser la référence --- 
         self.total_apres_taxes_field = None
         self.num_commande_repas_label = None
         self.num_commande_repas_field = None
@@ -255,11 +277,11 @@ class RapportDepensePage(QWidget):
         if self.dynamic_form_widget is not None:
             self.dynamic_form_widget.deleteLater()
             self.dynamic_form_widget = None
-            self.dynamic_form_layout = None
-            self.form_fields = {}
+            self.dynamic_form_layout = None 
+            self.form_fields = {} 
         self.dynamic_form_widget = QWidget(parent_container)
-        self.dynamic_form_widget.setStyleSheet("background-color: transparent;")
-        self.dynamic_form_layout = QGridLayout(self.dynamic_form_widget)
+        self.dynamic_form_widget.setStyleSheet("background-color: transparent;") 
+        self.dynamic_form_layout = QGridLayout(self.dynamic_form_widget) 
         self.dynamic_form_layout.setColumnStretch(1, 1) # La colonne des champs s'étend
         
         # Obtenir les variables du thème actuel
@@ -271,7 +293,7 @@ class RapportDepensePage(QWidget):
         # -----------------------------------------------------------
 
         self.dynamic_form_layout.setSpacing(8) 
-        self.dynamic_form_layout.setContentsMargins(0, 0, 0, 0)
+        self.dynamic_form_layout.setContentsMargins(0, 0, 0, 0) 
 
         # --- RESTAURER la logique d'ajout du widget au conteneur --- 
         # Assurer que le conteneur a un layout
@@ -284,9 +306,9 @@ class RapportDepensePage(QWidget):
         # Retirer l'ancien widget du layout s'il existe
         old_layout = parent_container.layout()
         if old_layout.count() > 0:
-            old_widget = old_layout.takeAt(0).widget()
-            if old_widget and old_widget != self.dynamic_form_widget:
-                old_widget.deleteLater()
+             old_widget = old_layout.takeAt(0).widget()
+             if old_widget and old_widget != self.dynamic_form_widget: 
+                 old_widget.deleteLater()
 
         # Ajouter le nouveau widget au layout du conteneur
         parent_container.layout().addWidget(self.dynamic_form_widget)
@@ -300,8 +322,8 @@ class RapportDepensePage(QWidget):
         self.dynamic_form_layout.addWidget(date_label, current_row, 0, Qt.AlignLeft)
         self.dynamic_form_layout.addWidget(self.form_fields['date'], current_row, 1)
         current_row += 1
-
-        # --- Champs spécifiques par type ---
+        
+        # --- Champs spécifiques par type --- 
         entry_type = self.entry_type_combo.currentText()
 
         if entry_type == "Déplacement":
@@ -333,7 +355,7 @@ class RapportDepensePage(QWidget):
             current_row += 1
             # Ajouter un stretch à la fin pour pousser les champs vers le haut
             self.dynamic_form_layout.setRowStretch(current_row, 1)
-            
+
         elif entry_type == "Repas":
             self.form_fields['restaurant'] = QLineEdit()
             resto_label = QLabel("Restaurant:")
@@ -507,7 +529,7 @@ class RapportDepensePage(QWidget):
 
             # Ajouter un stretch à la fin pour pousser les champs vers le haut
             self.dynamic_form_layout.setRowStretch(current_row, 1)
-
+            
         elif entry_type == "Dépense":
             # --- Champs pour Dépense --- 
             # Type (ComboBox)
@@ -725,12 +747,12 @@ class RapportDepensePage(QWidget):
                      payeur=payeur_val, # Passer le booléen directement (True=Employé)
                      refacturer=refacturer_val, # True si Oui
                      numero_commande=num_commande_repas_val if refacturer_val else "", # Num cmd si refacturer
-                     totale_avant_taxes=total_avant_taxes_val, 
+                                    totale_avant_taxes=total_avant_taxes_val, 
                      pourboire=pourboire_val, 
                      tps=tps_val, 
                      tvq=tvq_val, 
                      tvh=tvh_val,
-                     totale_apres_taxes=total_apres_taxes_val,
+                                    totale_apres_taxes=total_apres_taxes_val,
                      employe=employe_val, # À vérifier si nécessaire
                      jacmar=jacmar_val,   # À vérifier si nécessaire
                      facture=None # Gestion des factures à implémenter
@@ -765,7 +787,7 @@ class RapportDepensePage(QWidget):
                      return
                  if total_apres_taxes_val <= 0:
                      QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                     return
+                 return
 
                  # --- Créer l'objet Depense (Adapter selon le modèle réel) --- 
                  # Supposons que le constructeur de Depense ressemble à ça:
