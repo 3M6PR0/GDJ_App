@@ -43,6 +43,7 @@ class MediaViewer(QDialog):
     Inclut une barre d'outils personnalisée avec navigation de page interactive.
     """
     PDF_RENDER_ZOOM = 1.5 # Facteur de zoom pour le rendu initial des PDF (150%)
+    SCROLL_UPDATE_DELAY = 150 # ms délai pour mise à jour page après scroll
 
     def __init__(self, file_list: list, initial_index: int, parent=None):
         super().__init__(parent)
@@ -64,6 +65,13 @@ class MediaViewer(QDialog):
         self.original_pdf_pixmaps = [] # Liste des QPixmap originaux haute résolution
         self.image_display_label = None 
         self.original_image_pixmap = None 
+        
+        # --- Timer pour mise à jour page au scroll --- 
+        self._scroll_update_timer = QTimer(self)
+        self._scroll_update_timer.setSingleShot(True)
+        self._scroll_update_timer.setInterval(self.SCROLL_UPDATE_DELAY)
+        self._scroll_update_timer.timeout.connect(self._update_current_page_input)
+        # --------------------------------------------
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
@@ -134,7 +142,9 @@ class MediaViewer(QDialog):
         self.scroll_area.setWidgetResizable(True) # Important!
         self.scroll_area.setObjectName("MediaViewerScrollArea")
         self.scroll_area.setFrameShape(QFrame.NoFrame)
-        # Widget conteneur pour le contenu
+        # --- Connecter le signal de scroll --- 
+        self.scroll_area.verticalScrollBar().valueChanged.connect(self._handle_scroll_change)
+        # --------------------------------------
         self.scroll_content_widget = QWidget()
         self.scroll_content_layout = QVBoxLayout(self.scroll_content_widget)
         self.scroll_content_layout.setContentsMargins(0,0,0,0)
@@ -468,6 +478,13 @@ class MediaViewer(QDialog):
             self.pdf_doc.close()
             self.pdf_doc = None
         super().reject()
+
+    # --- NOUVEAU Slot pour gérer le signal valueChanged du scroll --- 
+    def _handle_scroll_change(self):
+        """Redémarre le timer à chaque changement de scroll."""
+        if self.is_pdf: # Mettre à jour seulement si PDF
+            self._scroll_update_timer.start()
+    # --------------------------------------------------------------
 
     # --- Slot Go To Page modifié --- 
     def _go_to_entered_page(self):
