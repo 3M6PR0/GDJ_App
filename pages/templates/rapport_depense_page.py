@@ -499,7 +499,6 @@ class RapportDepensePage(QWidget):
 
             # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
             self.form_fields['facture_frame'] = QFrame()
-            self.form_fields['facture_frame'].setMinimumHeight(ThumbnailWidget.THUMBNAIL_SIZE + 60) # Hauteur min pour voir label + bouton + miniature
             self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel)
             self.form_fields['facture_frame'].setFrameShadow(QFrame.Sunken)
             # Retirer le style inline, laisser QSS gérer ou définir un style cohérent ici si besoin.
@@ -533,10 +532,11 @@ class RapportDepensePage(QWidget):
             # ScrollArea pour les miniatures (ajoutée SOUS le label+bouton)
             self.facture_scroll_area = QScrollArea()
             self.facture_scroll_area.setWidgetResizable(True)
-            # Retirer la bordure de la scroll area pour qu'elle s'intègre mieux au frame
-            self.facture_scroll_area.setFrameShape(QFrame.NoFrame) 
-            self.facture_scroll_area.setFixedHeight(ThumbnailWidget.THUMBNAIL_SIZE + 20) # Juste assez pour miniature + scrollbar
-            self.facture_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn) 
+            self.facture_scroll_area.setFrameShape(QFrame.NoFrame)
+            # --- RESTAURATION: Hauteur MINIMALE pour miniature + scrollbar --- 
+            self.facture_scroll_area.setMinimumHeight(ThumbnailWidget.THUMBNAIL_SIZE + 45)
+            # ----------------------------------------------------------------
+            self.facture_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             self.facture_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff) 
 
             # Widget conteneur interne pour la scroll area

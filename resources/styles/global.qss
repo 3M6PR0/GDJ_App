@@ -174,14 +174,12 @@ QComboBox QAbstractItemView {
 /* ScrollBar (Style modifié pour fond correspondant au parent Frame) */
 QScrollBar:vertical {
     border: none;
-    /* Mettre le fond de la même couleur que Frame#CustomFrame */
-    background: {{COLOR_PRIMARY_MEDIUM}}; 
+    background: {{COLOR_PRIMARY_MEDIUM}};
     width: 10px;
-    margin: 0px; 
+    margin: 0px;
 }
 QScrollBar::handle:vertical {
-    /* Style de la poignée inchangé */
-    background: #5c5f61; 
+    background: #5c5f61;
     min-height: 30px;
     border-radius: 5px;
     border: none;
@@ -194,13 +192,39 @@ QScrollBar::handle:vertical:pressed {
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
-    /* Fond correspondant au parent Frame */
     background: {{COLOR_PRIMARY_MEDIUM}};
 }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    /* Fond correspondant au parent Frame */
     background: {{COLOR_PRIMARY_MEDIUM}};
 }
+
+/* --- AJOUT: Styles pour ScrollBar Horizontale --- */
+QScrollBar:horizontal {
+    border: none;
+    background: {{COLOR_PRIMARY_MEDIUM}};
+    height: 10px; /* Changer width en height */
+    margin: 0px;
+}
+QScrollBar::handle:horizontal {
+    background: #5c5f61;
+    min-width: 30px; /* Changer min-height en min-width */
+    border-radius: 5px;
+    border: none;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #6c6f71;
+}
+QScrollBar::handle:horizontal:pressed {
+    background: #7c7f81;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px; /* Changer height en width */
+    background: {{COLOR_PRIMARY_MEDIUM}};
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: {{COLOR_PRIMARY_MEDIUM}};
+}
+/* ---------------------------------------------- */
 
 /* Style pour le séparateur sous la barre de titre */
 QFrame#TitleSeparatorLine {
