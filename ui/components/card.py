@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QFrame, QFormLayout)
+                             QPushButton, QFrame, QFormLayout, QGridLayout)
 from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize
 from PyQt5.QtGui import QIcon
+from datetime import date
 from utils.icon_loader import get_icon_path # Assumer que utils est accessible depuis widgets
 from utils.theme import get_theme_vars, RADIUS_BOX 
 
@@ -130,39 +131,161 @@ class CardWidget(QFrame):
 
         # 2. Widget de détails (initialement caché)
         self.details_widget = QWidget()
-        details_layout = QFormLayout(self.details_widget)
-        details_layout.setContentsMargins(10, 5, 10, 10) # Marges pour les détails
-        details_layout.setSpacing(5)
+        # --- MODIFICATION: Choisir le layout en fonction du type ---
+        if self.entry_type == "Repas":
+            # --- NOUVEAU: Utiliser QGridLayout pour les Repas ---
+            details_layout = QGridLayout(self.details_widget)
+            details_layout.setContentsMargins(10, 5, 10, 10)
+            details_layout.setVerticalSpacing(5) # Espacement vertical
+            details_layout.setHorizontalSpacing(15) # Espacement horizontal
+            # Définir les largeurs relatives des colonnes (Labels plus petits, Valeurs plus grandes, Factures moyennes)
+            details_layout.setColumnStretch(0, 1) # Col 1 (Label 1-6)
+            details_layout.setColumnStretch(1, 2) # Col 2 (Value 1-6)
+            details_layout.setColumnStretch(2, 1) # Col 3 (Label 7-12)
+            details_layout.setColumnStretch(3, 2) # Col 4 (Value 7-12)
+            details_layout.setColumnStretch(4, 2) # Col 5 (Factures)
 
-        # --- AJOUT: Séparateur horizontal pour les détails ---
-        details_separator = QFrame()
-        details_separator.setFrameShape(QFrame.HLine)
-        # --- Remettre le style explicite pour la visibilité ---
-        details_separator.setFrameShadow(QFrame.Sunken) # Optionnel, peut aider
-        details_separator.setMinimumHeight(1) # Donner une hauteur minimale
-        separator_color = get_theme_vars().get("COLOR_TEXT_SECONDARY", "#888888") # Utiliser une couleur du thème ou un gris
-        details_separator.setStyleSheet(f"border: none; border-top: 1px solid {separator_color}; background-color: transparent;")
-        # --- Supprimer setObjectName si présent ---
-        # details_separator.setObjectName("CustomFrameSeparator") # <- DELETE if exists from previous step
-        # ---------------------------------------------------
-        details_layout.addRow(details_separator) # Ajouter comme première ligne du FormLayout
-        # -----------------------------------------------------
+            # --- AJOUT: Séparateur horizontal ---
+            details_separator = QFrame()
+            details_separator.setFrameShape(QFrame.HLine)
+            details_separator.setFrameShadow(QFrame.Sunken)
+            details_separator.setMinimumHeight(1)
+            separator_color = get_theme_vars().get("COLOR_TEXT_SECONDARY", "#888888")
+            details_separator.setStyleSheet(f"border: none; border-top: 1px solid {separator_color}; background-color: transparent;")
+            # Ajouter le séparateur sur toute la largeur en haut (ligne 0, col 0, span 1 ligne, 5 colonnes)
+            details_layout.addWidget(details_separator, 0, 0, 1, 5)
+            # --- Fin Séparateur ---
 
-        # Peupler les détails avec toutes les informations pertinentes
-        # Exclure les attributs non pertinents ou déjà dans le résumé (ou internes)
-        excluded_attrs = ['date', 'total', 'montant', 'totale_apres_taxes', '_sa_instance_state', 
-                          'date_repas', 'date_deplacement', 'date_depense']
-        try:
-             attributes = vars(self.entry_data)
-        except TypeError:
-             attributes = {k: getattr(self.entry_data, k) for k in dir(self.entry_data) if not k.startswith('__') and not callable(getattr(self.entry_data, k))}
+            # --- CORRECTION: Utiliser des listes d'attributs spécifiques pour Repas ---
+            attrs_col1 = [
+                ('date', 'Date'),
+                ('restaurant', 'Restaurant'),
+                ('client', 'Client'),
+                ('payeur', 'Payeur'), # Label simplifié
+                ('refacturer', 'Refacturer'), # Label simplifié
+                ('numero_commande', 'Numéro Commande')
+            ]
+            attrs_col3 = [
+                ('totale_avant_taxes', 'Total avant taxes'),
+                ('pourboire', 'Pourboire'),
+                ('tps', 'TPS'),
+                ('tvq', 'TVQ'),
+                ('tvh', 'TVH'),
+                ('totale_apres_taxes', 'Total après taxes')
+            ]
+            facture_attr = 'facture' # Attribut pour la facture unique
 
-        for attr, value in attributes.items():
-            if attr not in excluded_attrs:
-                label_text = attr.replace('_', ' ').capitalize()
-                value_label = QLabel(str(value))
-                value_label.setStyleSheet("background-color: transparent; border: none;") # Forcer transparence
-                details_layout.addRow(f"{label_text}:", value_label)
+            # Remplir Colonnes 1 & 2 (Label + Valeur)
+            for i, (attr_name, display_name) in enumerate(attrs_col1):
+                value = getattr(self.entry_data, attr_name, "N/A")
+                value_str = str(value) # Affichage par défaut
+                # --- Rétablir logique spécifique pour booléens Payeur/Refacturer --- 
+                if attr_name == 'payeur':
+                    value_str = "Employé" if value else "Jacmar"
+                elif attr_name == 'refacturer':
+                    value_str = "Oui" if value else "Non"
+                # -----------------------------------------------------------------
+                elif isinstance(value, (int, float)):
+                    # Essayer de formater comme montant si c'est un float
+                    try: value_str = f"{float(value):.2f}" 
+                    except: pass # Garder str(value) si format échoue
+                elif isinstance(value, date): # Formater la date
+                    try: value_str = value.strftime("%Y-%m-%d")
+                    except: pass
+                
+                label_widget = QLabel(f"{display_name}:")
+                value_widget = QLabel(value_str)
+                label_widget.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
+                value_widget.setStyleSheet("background-color: transparent; border: none;")
+                value_widget.setWordWrap(True)
+                details_layout.addWidget(label_widget, i + 1, 0) # +1 pour ligne 0 (séparateur)
+                details_layout.addWidget(value_widget, i + 1, 1)
+
+            # Remplir Colonnes 3 & 4 (Label + Valeur)
+            for i, (attr_name, display_name) in enumerate(attrs_col3):
+                value = getattr(self.entry_data, attr_name, "N/A")
+                value_str = str(value) # Affichage par défaut
+                # --- Retirer logique booléenne ici (non applicable pour col3) ---
+                # if isinstance(value, bool):
+                #     value_str = "Oui" if value else "Non"
+                # -------------------------------------------------------------
+                if isinstance(value, (int, float)):
+                    try: value_str = f"{float(value):.2f}" 
+                    except: pass 
+                elif isinstance(value, date):
+                    try: value_str = value.strftime("%Y-%m-%d")
+                    except: pass
+                    
+                label_widget = QLabel(f"{display_name}:")
+                value_widget = QLabel(value_str)
+                label_widget.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
+                value_widget.setStyleSheet("background-color: transparent; border: none;")
+                value_widget.setWordWrap(True)
+                details_layout.addWidget(label_widget, i + 1, 2) # +1 pour ligne 0 (séparateur)
+                details_layout.addWidget(value_widget, i + 1, 3)
+
+            # Remplir Colonne 5 (Facture)
+            factures_widget = QWidget() # Renommé pour clarté, même si une seule facture
+            factures_layout = QVBoxLayout(factures_widget)
+            factures_layout.setContentsMargins(0, 0, 0, 0)
+            factures_layout.setSpacing(4)
+
+            factures_title = QLabel("Facture:") # Titre au singulier
+            factures_title.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
+            factures_layout.addWidget(factures_title)
+
+            facture_obj = getattr(self.entry_data, facture_attr, None)
+
+            if facture_obj is not None:
+                # Afficher une représentation de l'objet Facture
+                # Vous pourriez vouloir accéder à des attributs spécifiques de facture_obj ici
+                # ex: facture_label = QLabel(facture_obj.chemin_fichier)
+                facture_label = QLabel(str(facture_obj)) 
+                facture_label.setStyleSheet("background-color: transparent; border: none;")
+                facture_label.setWordWrap(True)
+                factures_layout.addWidget(facture_label)
+            else:
+                no_facture_label = QLabel("Aucune")
+                no_facture_label.setStyleSheet("background-color: transparent; border: none; font-style: italic;")
+                factures_layout.addWidget(no_facture_label)
+
+            factures_layout.addStretch() # Pousse les factures vers le haut
+            # Ajouter le widget de la facture à la grille, ligne 1, col 4, span N lignes
+            row_span = max(len(attrs_col1), len(attrs_col3)) + 1
+            details_layout.addWidget(factures_widget, 1, 4, row_span, 1)
+
+        else:
+            # --- Layout par défaut (QFormLayout) pour les autres types ---
+            details_layout = QFormLayout(self.details_widget)
+            details_layout.setContentsMargins(10, 5, 10, 10) # Marges pour les détails
+            details_layout.setSpacing(5)
+
+            # --- AJOUT: Séparateur horizontal ---
+            details_separator = QFrame()
+            details_separator.setFrameShape(QFrame.HLine)
+            details_separator.setFrameShadow(QFrame.Sunken)
+            details_separator.setMinimumHeight(1)
+            separator_color = get_theme_vars().get("COLOR_TEXT_SECONDARY", "#888888")
+            details_separator.setStyleSheet(f"border: none; border-top: 1px solid {separator_color}; background-color: transparent;")
+            details_layout.addRow(details_separator)
+            # --- Fin Séparateur ---
+
+            # Exclure les attributs non pertinents ou déjà dans le résumé (ou internes)
+            excluded_attrs = ['date', 'total', 'montant', 'totale_apres_taxes', '_sa_instance_state',
+                              'date_repas', 'date_deplacement', 'date_depense']
+            try:
+                 attributes = vars(self.entry_data)
+            except TypeError:
+                 attributes = {k: getattr(self.entry_data, k, None) for k in dir(self.entry_data) if not k.startswith('__') and not callable(getattr(self.entry_data, k))}
+
+            for attr, value in attributes.items():
+                if attr not in excluded_attrs:
+                    label_text = attr.replace('_', ' ').capitalize()
+                    value_label = QLabel(str(value))
+                    value_label.setStyleSheet("background-color: transparent; border: none;") # Forcer transparence
+                    value_label.setWordWrap(True)
+                    details_layout.addRow(f"{label_text}:", value_label)
+            # --- Fin layout par défaut ---
 
         self.details_widget.setVisible(False) # Caché par défaut
         # Assurer que le widget de détails est transparent
