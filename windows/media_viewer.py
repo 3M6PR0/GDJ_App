@@ -77,11 +77,11 @@ class MediaViewer(QDialog):
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
 
-        # --- Barre d'outils (inchangée) --- 
+        # --- Barre d'outils --- 
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setContentsMargins(5, 0, 5, 0)
         toolbar_layout.setSpacing(8)
-        # ... (création boutons: prev_file, next_file, zoom_out, zoom_in, download)
+        # Boutons Fichier Précédent/Suivant
         self.prev_file_button = QPushButton()
         self.prev_file_button.setIcon(QIcon(get_icon_path("round_arrow_back.png")))
         self.prev_file_button.setToolTip("Fichier précédent")
@@ -95,12 +95,27 @@ class MediaViewer(QDialog):
         self.next_file_button.clicked.connect(self._go_to_next_file)
         toolbar_layout.addWidget(self.next_file_button)
         toolbar_layout.addSpacing(20)
+        
+        # --- Réintégration des Boutons Zoom + Input + Label % --- 
         self.zoom_out_button = QPushButton()
         self.zoom_out_button.setIcon(QIcon(get_icon_path("round_zoom_out.png")))
         self.zoom_out_button.setToolTip("Zoom arrière")
         self.zoom_out_button.setObjectName("ToolBarButton")
         self.zoom_out_button.clicked.connect(self._zoom_out)
         toolbar_layout.addWidget(self.zoom_out_button)
+        
+        self.zoom_input = QLineEdit("100") # Valeur initiale
+        self.zoom_input.setFixedWidth(50)
+        self.zoom_input.setAlignment(Qt.AlignRight)
+        self.zoom_input.setToolTip("Entrez le pourcentage de zoom (ex: 150) et appuyez sur Entrée")
+        self.zoom_input.setObjectName("ZoomInput")
+        self.zoom_input.returnPressed.connect(self._go_to_entered_zoom)
+        toolbar_layout.addWidget(self.zoom_input)
+        
+        self.zoom_percent_label = QLabel("%")
+        self.zoom_percent_label.setObjectName("ZoomPercentLabel")
+        toolbar_layout.addWidget(self.zoom_percent_label)
+        
         self.zoom_in_button = QPushButton()
         self.zoom_in_button.setIcon(QIcon(get_icon_path("round_zoom_in.png")))
         self.zoom_in_button.setToolTip("Zoom avant")
@@ -108,26 +123,31 @@ class MediaViewer(QDialog):
         self.zoom_in_button.clicked.connect(self._zoom_in)
         toolbar_layout.addWidget(self.zoom_in_button)
         
-        # --- Remplacement du Label Page par Input + Label Total --- 
-        self.page_input = QLineEdit("1") # Input pour numéro de page
-        self.page_input.setFixedWidth(50) # Largeur fixe
+        # Cacher par défaut l'ensemble des contrôles de zoom
+        self.zoom_out_button.setVisible(False)
+        self.zoom_input.setVisible(False)
+        self.zoom_percent_label.setVisible(False)
+        self.zoom_in_button.setVisible(False)
+        # -----------------------------------------------------
+
+        # --- Input Page + Label Total (inchangé) --- 
+        self.page_input = QLineEdit("1")
+        self.page_input.setFixedWidth(50)
         self.page_input.setAlignment(Qt.AlignRight)
         self.page_input.setToolTip("Entrez le numéro de page et appuyez sur Entrée")
-        self.page_input.setObjectName("PageInput") # Pour style QSS
+        self.page_input.setObjectName("PageInput")
         # Ajouter un validateur sera fait dans _load_media quand on connait total_pages
         self.page_input.returnPressed.connect(self._go_to_entered_page)
         toolbar_layout.addWidget(self.page_input)
-
-        self.total_pages_label = QLabel("/ -") # Label pour le total
+        self.total_pages_label = QLabel("/ -")
         self.total_pages_label.setObjectName("TotalPagesLabel")
         toolbar_layout.addWidget(self.total_pages_label)
-        
-        # Cacher ces widgets par défaut
         self.page_input.setVisible(False)
         self.total_pages_label.setVisible(False)
         # ----------------------------------------------------------
         
-        toolbar_layout.addStretch() # Pousse le reste (download) vers la droite
+        toolbar_layout.addStretch()
+        # Bouton Download (inchangé)
         self.download_button = QPushButton()
         self.download_button.setIcon(QIcon(get_icon_path("round_download.png")))
         self.download_button.setToolTip("Télécharger le fichier actuel")
@@ -135,7 +155,7 @@ class MediaViewer(QDialog):
         self.download_button.clicked.connect(self._download_file)
         toolbar_layout.addWidget(self.download_button)
         main_layout.addLayout(toolbar_layout)
-        # ------------------------------------
+        # ------------------------------------        
 
         # --- Visionneuse (QScrollArea) --- 
         self.scroll_area = QScrollArea()
@@ -200,23 +220,36 @@ class MediaViewer(QDialog):
 {self.file_path}""")
             self.page_input.setText("-") 
             self.total_pages_label.setText("/ -")
-            self.zoom_in_button.setEnabled(False)
-            self.zoom_out_button.setEnabled(False)
+            self.zoom_out_button.setVisible(False)
+            self.zoom_input.setVisible(False)
+            self.zoom_percent_label.setVisible(False)
+            self.zoom_in_button.setVisible(False)
             self.download_button.setEnabled(False)
             self.prev_file_button.setEnabled(self.current_file_index > 0)
             self.next_file_button.setEnabled(self.current_file_index < len(self.file_list) - 1)
             return
 
-        # --- Mise à jour état initial barre d'outils (Zoom activé pour Image ou PDF) --- 
+        # --- Mise à jour état initial barre d'outils --- 
         can_zoom = self.is_image or self.is_pdf
-        self.zoom_in_button.setEnabled(can_zoom)
-        self.zoom_out_button.setEnabled(can_zoom and self.current_zoom > self.zoom_step + 0.01)
+        # Gérer la visibilité de l'ensemble des contrôles de zoom
+        self.zoom_out_button.setVisible(can_zoom)
+        self.zoom_input.setVisible(can_zoom)
+        self.zoom_percent_label.setVisible(can_zoom)
+        self.zoom_in_button.setVisible(can_zoom)
+        
+        if can_zoom:
+             self._update_zoom_input() # Mettre à jour l'input
+             # Activer/Désactiver les boutons en fonction des limites
+             self._update_zoom_buttons_state()
+             
         self.download_button.setEnabled(True)
         self.prev_file_button.setEnabled(self.current_file_index > 0)
         self.next_file_button.setEnabled(self.current_file_index < len(self.file_list) - 1)
-        self.page_input.setVisible(False)
-        self.total_pages_label.setVisible(False)
-        # ------------------------------------------------------------------------------
+        
+        # Visibilité inputs Page
+        self.page_input.setVisible(self.is_pdf)
+        self.total_pages_label.setVisible(self.is_pdf)
+        # --------------------------------------------------
 
         if self.is_image:
             # --- Charger l'image originale --- 
@@ -224,8 +257,10 @@ class MediaViewer(QDialog):
             if self.original_image_pixmap.isNull():
                 error_label = QLabel("Impossible de charger l'image...")
                 self.scroll_content_layout.addWidget(error_label)
-                self.zoom_in_button.setEnabled(False) # Désactiver zoom si erreur
-                self.zoom_out_button.setEnabled(False)
+                self.zoom_out_button.setVisible(False)
+                self.zoom_input.setVisible(False)
+                self.zoom_percent_label.setVisible(False)
+                self.zoom_in_button.setVisible(False)
             else:
                 # --- Créer le QLabel pour l'affichage --- 
                 self.image_display_label = QLabel()
@@ -243,18 +278,17 @@ class MediaViewer(QDialog):
             self.total_pages_label.setVisible(True)
             # --- Rendu unique haute résolution --- 
             self._render_all_pdf_pages_high_res()
-            # Appliquer le zoom initial (qui redimensionne les labels)
             if self.page_labels: # Si le rendu a réussi
-                 self._apply_pdf_zoom(1.0)
+                 self._apply_pdf_zoom(1.0) # Applique zoom initial et màj input/boutons
             # ----------------------------------
         else:
              # ... (gestion type non supporté, désactiver zoom)
              error_label = QLabel(f"Type non supporté...")
              self.scroll_content_layout.addWidget(error_label)
-             self.zoom_in_button.setEnabled(False)
-             self.zoom_out_button.setEnabled(False)
-             self.page_input.setVisible(False)
-             self.total_pages_label.setVisible(False)
+             self.zoom_out_button.setVisible(False)
+             self.zoom_input.setVisible(False)
+             self.zoom_percent_label.setVisible(False)
+             self.zoom_in_button.setVisible(False)
              
     # --- NOUVELLE fonction pour le rendu initial PDF --- 
     def _render_all_pdf_pages_high_res(self):
@@ -313,8 +347,11 @@ class MediaViewer(QDialog):
             # Mettre à jour UI pour erreur
             self.page_input.setVisible(False)
             self.total_pages_label.setVisible(False)
-            self.zoom_in_button.setEnabled(False)
-            self.zoom_out_button.setEnabled(False)
+            self.zoom_out_button.setVisible(False)
+            self.zoom_input.setVisible(False)
+            self.zoom_percent_label.setVisible(False)
+            self.zoom_in_button.setVisible(False)
+            self.download_button.setEnabled(False)
             return
         finally:
             # Fermer le document après rendu initial car on a les pixmaps
@@ -327,17 +364,17 @@ class MediaViewer(QDialog):
     def _apply_pdf_zoom(self, new_zoom):
         if not self.page_labels or not self.original_pdf_pixmaps: return
         
-        # --- Sauvegarde ancre (presque inchangé) --- 
+        # --- Sauvegarde ancre VERTICALE --- 
         old_zoom = self.current_zoom
         viewport = self.scroll_area.viewport()
-        scrollbar = self.scroll_area.verticalScrollBar()
-        current_scroll_y = scrollbar.value()
+        scrollbar_v = self.scroll_area.verticalScrollBar()
+        current_scroll_y = scrollbar_v.value()
         viewport_center_y = current_scroll_y + viewport.height() / 2
         anchor_page_index = -1
         relative_offset_in_page = 0.5
         cumulative_height = 0
         for i, label in enumerate(self.page_labels):
-            label_height = label.height() # Taille actuelle du label
+            label_height = label.height()
             label_top_y = cumulative_height
             label_bottom_y = label_top_y + label_height
             if label_top_y <= viewport_center_y < label_bottom_y:
@@ -346,9 +383,22 @@ class MediaViewer(QDialog):
                      relative_offset_in_page = (viewport_center_y - label_top_y) / label_height
                 break
             cumulative_height += label_height + self.scroll_content_layout.spacing()
-        # -------------------------------------------
+        # -----------------------------------
+        
+        # --- Sauvegarde ancre HORIZONTALE --- 
+        scrollbar_h = self.scroll_area.horizontalScrollBar()
+        current_scroll_x = scrollbar_h.value()
+        viewport_width = viewport.width()
+        viewport_center_x = current_scroll_x + viewport_width / 2
+        old_content_width = self.scroll_content_widget.width()
+        anchor_x_ratio = 0.5 # Défaut au centre si largeur nulle
+        if old_content_width > 0:
+             anchor_x_ratio = viewport_center_x / old_content_width
+        # ------------------------------------
         
         self.current_zoom = new_zoom
+        self._update_zoom_input() 
+        self._update_zoom_buttons_state() # <-- Mettre à jour état boutons
         
         # --- Redimensionner tous les QLabels --- 
         new_anchor_page_top_y = 0
@@ -359,18 +409,12 @@ class MediaViewer(QDialog):
         for i, label in enumerate(self.page_labels):
             original_pixmap = self.original_pdf_pixmaps[i]
             original_size = original_pixmap.size()
-            # Calculer la nouvelle taille basée sur le zoom ET la résolution de rendu initiale
             new_width = int(original_size.width() * (self.current_zoom / self.PDF_RENDER_ZOOM))
             new_height = int(original_size.height() * (self.current_zoom / self.PDF_RENDER_ZOOM))
-            
-            # Empêcher taille nulle
             new_width = max(1, new_width)
             new_height = max(1, new_height)
-            
-            # Appliquer la nouvelle taille ET le pixmap original au QLabel
             label.setFixedSize(new_width, new_height)
             label.setPixmap(original_pixmap)
-            # setScaledContents(True) est déjà défini lors de la création du label
             
             if i == anchor_page_index:
                  new_anchor_page_top_y = cumulative_height
@@ -380,59 +424,159 @@ class MediaViewer(QDialog):
             if new_width > max_width: max_width = new_width
         # ---------------------------------------
             
-        self.scroll_content_widget.setMinimumWidth(max_width + 20)
-        self.total_pages_label.setText(f" / {self.total_pages}") # Mettre à jour label total
-        self.page_input.setText(str(anchor_page_index + 1) if anchor_page_index != -1 else "-") # Mettre à jour input page
-        self.zoom_out_button.setEnabled(self.current_zoom > self.zoom_step + 0.01)
+        # Mettre à jour la largeur minimale du contenu AVANT d'ajuster le scroll horizontal
+        new_content_width = max_width + 20 
+        self.scroll_content_widget.setMinimumWidth(new_content_width)
+        
+        # Mettre à jour les labels/boutons UI
+        self.total_pages_label.setText(f" / {self.total_pages}") 
+        self.page_input.setText(str(anchor_page_index + 1) if anchor_page_index != -1 else "-") 
 
-        # --- Calcul et application scroll (inchangé mais basé sur tailles label) --- 
+        # --- Calcul et application scroll VERTICAL --- 
         new_center_target_y = new_anchor_page_top_y + relative_offset_in_page * new_anchor_page_height
         new_viewport_height = viewport.height()
         target_scroll_y = new_center_target_y - new_viewport_height / 2
         
-        def adjust_scroll():
-            max_scroll = scrollbar.maximum()
-            final_scroll_y = max(0, min(int(target_scroll_y), max_scroll))
-            scrollbar.setValue(final_scroll_y)
-        QTimer.singleShot(10, adjust_scroll) # Petit délai
+        # --- Calcul et application scroll HORIZONTAL --- 
+        target_center_x = anchor_x_ratio * new_content_width
+        # new_viewport_width = viewport.width() # Récupérer à nouveau au cas où la fenêtre a été redim
+        target_scroll_x = target_center_x - viewport_width / 2
+        # -------------------------------------------
+
+        def adjust_scrollbars():
+            # Ajustement Vertical
+            max_scroll_v = scrollbar_v.maximum()
+            final_scroll_y = max(0, min(int(target_scroll_y), max_scroll_v))
+            scrollbar_v.setValue(final_scroll_y)
+            # Ajustement Horizontal
+            max_scroll_h = scrollbar_h.maximum()
+            final_scroll_x = max(0, min(int(target_scroll_x), max_scroll_h))
+            scrollbar_h.setValue(final_scroll_x)
+            
+        QTimer.singleShot(10, adjust_scrollbars) # Utiliser un seul timer
         # --------------------------------------------------------------------------
     
     def _apply_image_zoom(self):
         if not self.image_display_label or not self.original_image_pixmap:
              return
+             
+        # --- Sauvegarde ancre HORIZONTALE --- 
+        viewport = self.scroll_area.viewport()
+        scrollbar_h = self.scroll_area.horizontalScrollBar()
+        current_scroll_x = scrollbar_h.value()
+        viewport_width = viewport.width()
+        viewport_center_x = current_scroll_x + viewport_width / 2
+        old_content_width = self.image_display_label.width()
+        anchor_x_ratio = 0.5
+        if old_content_width > 0:
+             anchor_x_ratio = viewport_center_x / old_content_width
+        # --- (Pas d'ancre verticale nécessaire pour image unique) --- 
+             
         original_size = self.original_image_pixmap.size()
         new_width = int(original_size.width() * self.current_zoom)
         new_height = int(original_size.height() * self.current_zoom)
         if new_width <= 0 or new_height <= 0: return
         
-        # Utiliser setFixedSize sur le QLabel suffit car setScaledContents=True
+        # --- Redimensionner le QLabel --- 
         self.image_display_label.setFixedSize(new_width, new_height)
-        self.image_display_label.setPixmap(self.original_image_pixmap) # Assurer que le pixmap original est là
+        self.image_display_label.setPixmap(self.original_image_pixmap) 
+        # ------------------------------
         
-        self.total_pages_label.setText(f"Zoom: {int(self.current_zoom * 100)}%")
-        self.zoom_out_button.setEnabled(self.current_zoom > self.zoom_step + 0.01)
+        # Mettre à jour UI
+        self._update_zoom_input() 
+        self._update_zoom_buttons_state() # <-- Mettre à jour état boutons
+        self.total_pages_label.setText(f"Zoom: {int(self.current_zoom * 100)}%") 
+        
+        # --- Calcul et application scroll HORIZONTAL --- 
+        new_content_width = new_width # La largeur du contenu est celle du label
+        target_center_x = anchor_x_ratio * new_content_width
+        target_scroll_x = target_center_x - viewport_width / 2
 
-    # --- Slots Zoom modifiés --- 
+        def adjust_scrollbar_h():
+            max_scroll_h = scrollbar_h.maximum()
+            final_scroll_x = max(0, min(int(target_scroll_x), max_scroll_h))
+            scrollbar_h.setValue(final_scroll_x)
+        
+        QTimer.singleShot(10, adjust_scrollbar_h)
+        # ------------------------------------------
+
+    # --- REINTRODUCTION Slots Zoom Buttons --- 
     def _zoom_in(self):
+        max_zoom = 5.0 # Limite max
         new_zoom = self.current_zoom + self.zoom_step
-        # Limite max optionnelle
-        # if new_zoom > 5.0: return 
-        self.current_zoom = new_zoom # Mettre à jour le zoom
-        if self.is_pdf:
-             self._apply_pdf_zoom(self.current_zoom) # Passer le nouveau zoom
-        elif self.is_image:
-             self._apply_image_zoom()
+        if new_zoom > max_zoom: 
+            new_zoom = max_zoom
+            
+        if abs(new_zoom - self.current_zoom) > 0.001:
+            self.current_zoom = new_zoom # Mettre à jour la variable d'état
+            if self.is_pdf:
+                self._apply_pdf_zoom(self.current_zoom)
+            elif self.is_image:
+                self._apply_image_zoom()
         
     def _zoom_out(self):
+        min_zoom = 0.1 # Limite min
         new_zoom = self.current_zoom - self.zoom_step
-        if new_zoom < 0.1: return # Limite min
-        self.current_zoom = new_zoom # Mettre à jour le zoom
-        if self.is_pdf:
-             self._apply_pdf_zoom(self.current_zoom) # Passer le nouveau zoom
-        elif self.is_image:
-             self._apply_image_zoom()
-    # -----------------------------
+        if new_zoom < min_zoom:
+            new_zoom = min_zoom
+            
+        if abs(new_zoom - self.current_zoom) > 0.001:
+            self.current_zoom = new_zoom # Mettre à jour la variable d'état
+            if self.is_pdf:
+                self._apply_pdf_zoom(self.current_zoom)
+            elif self.is_image:
+                self._apply_image_zoom()
+    # ----------------------------------
     
+    # --- NOUVEAU Helper pour MAJ état boutons zoom --- 
+    def _update_zoom_buttons_state(self):
+        "Active/Désactive les boutons zoom selon les limites." 
+        min_zoom = 0.1
+        max_zoom = 5.0
+        self.zoom_out_button.setEnabled(self.current_zoom > min_zoom + 0.001)
+        self.zoom_in_button.setEnabled(self.current_zoom < max_zoom - 0.001)
+    # ------------------------------------------------
+    
+    # --- Helper pour mettre à jour l'input zoom (inchangé) --- 
+    def _update_zoom_input(self):
+        "Met à jour le QLineEdit de zoom avec la valeur actuelle." 
+        # Bloquer les signaux pour éviter déclenchement _go_to_entered_zoom
+        self.zoom_input.blockSignals(True)
+        self.zoom_input.setText(str(int(self.current_zoom * 100)))
+        self.zoom_input.blockSignals(False)
+    # -----------------------------------------------------
+    
+    # --- Slot pour gérer le zoom entré (inchangé) --- 
+    def _go_to_entered_zoom(self):
+         "Applique le zoom entré dans le QLineEdit." 
+         try:
+             zoom_text = self.zoom_input.text().replace('%', '').strip()
+             zoom_percent = int(zoom_text)
+             new_zoom = zoom_percent / 100.0
+             
+             # --- Validation simple --- 
+             min_zoom = 0.1 # 10%
+             max_zoom = 5.0 # 500%
+             new_zoom = max(min_zoom, min(new_zoom, max_zoom))
+             # -----------------------
+             
+             # Appliquer si différent du zoom actuel pour éviter recalcul inutile
+             if abs(new_zoom - self.current_zoom) > 0.001:
+                 self.current_zoom = new_zoom # Mettre à jour la variable d'état
+                 if self.is_pdf:
+                     self._apply_pdf_zoom(self.current_zoom)
+                 elif self.is_image:
+                     self._apply_image_zoom()
+             else:
+                 # Même zoom, juste s'assurer que l'input est bien formaté
+                 self._update_zoom_input()
+                 
+         except ValueError:
+             # Entrée invalide, remettre la valeur actuelle
+             QMessageBox.warning(self, "Zoom invalide", "Veuillez entrer un nombre entier pour le pourcentage de zoom.")
+             self._update_zoom_input()
+    # -------------------------------------------
+
     # --- Méthodes de navigation fichier et download (inchangées) --- 
     def _go_to_previous_file(self):
         if self.current_file_index > 0:
