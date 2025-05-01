@@ -53,6 +53,34 @@ class CardWidget(QFrame):
         summary_layout.setContentsMargins(5, 5, 5, 5) # Marge interne pour le résumé
         summary_layout.setSpacing(10) # Espacement dans le résumé
 
+        # --- AJOUT: Icône de type d'entrée ---
+        icon_label = QLabel()
+        icon_label.setFixedSize(20, 20) # Taille de l'icône (ajustable)
+        entry_type_icon_name = ""
+        if self.entry_type == "Déplacement":
+            entry_type_icon_name = "round_directions_car.png"
+        elif self.entry_type == "Repas":
+            entry_type_icon_name = "round_restaurant.png"
+        elif self.entry_type == "Dépense": # Assumer que le type est "Dépense" pour le 3ème cas
+            entry_type_icon_name = "round_payments.png"
+        else:
+            entry_type_icon_name = "round_receipt_long.png" # Icône par défaut/fallback
+
+        if entry_type_icon_name:
+            icon_path = get_icon_path(entry_type_icon_name)
+            if icon_path:
+                pixmap = QIcon(icon_path).pixmap(QSize(18, 18)) # Créer QPixmap depuis QIcon pour scaling facile
+                icon_label.setPixmap(pixmap)
+                icon_label.setStyleSheet("background-color: transparent; border: none;")
+                summary_layout.addWidget(icon_label) # Ajouter l'icône au début
+                # summary_layout.addSpacing(5) # Ajouter un petit espace après l'icône (Optionnel)
+            else:
+                print(f"WARNING: CardWidget - Icône de type '{entry_type_icon_name}' non trouvée.")
+                # Optionnel: Ajouter un placeholder texte si icône non trouvée
+                # icon_label.setText("?") 
+                # summary_layout.addWidget(icon_label) # Ajouter même si vide/placeholder?
+        # --- Fin Ajout Icône ---
+
         # Infos Clés pour le résumé
         date_str = "Date Inconnue"
         amount_str = "Montant Inconnu"
