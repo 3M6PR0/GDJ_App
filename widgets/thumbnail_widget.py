@@ -3,7 +3,7 @@ import os
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSizePolicy, QApplication
 )
-from PyQt5.QtGui import QPixmap, QIcon, QPainter, QBitmap, QColor, QPainterPath
+from PyQt5.QtGui import QPixmap, QIcon, QPainter, QBitmap, QColor, QPainterPath, QMouseEvent
 from PyQt5.QtCore import Qt, pyqtSignal, QSize, QRectF
 
 # --- Try importing icon loader, fallback to text if unavailable ---
@@ -17,6 +17,7 @@ except ImportError:
 
 # --- NOUVELLE CLASSE INTERNE --- 
 class RoundedImageWidget(QWidget):
+    clicked = pyqtSignal()
     def __init__(self, pixmap: QPixmap, size: QSize, border_radius: int = 8, parent=None):
         super().__init__(parent)
         self._pixmap = pixmap
@@ -40,6 +41,12 @@ class RoundedImageWidget(QWidget):
         # Dessiner le pixmap dans le rectangle du widget
         # Le pixmap a déjà été mis à l'échelle avec KeepAspectRatioByExpanding
         painter.drawPixmap(self.rect(), self._pixmap)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        # Laisser le parent gérer d'autres événements souris si besoin
+        # super().mousePressEvent(event) # Décommenter si nécessaire
 # ----------------------------- 
 
 class ThumbnailWidget(QWidget):
@@ -48,6 +55,7 @@ class ThumbnailWidget(QWidget):
     Émet un signal `delete_requested(file_path)` lors du clic sur le bouton 'X'.
     """
     delete_requested = pyqtSignal(str) # Signal émis avec le chemin du fichier
+    clicked = pyqtSignal(str)
 
     THUMBNAIL_SIZE = 100 # Taille cible (largeur/hauteur) pour la miniature
 
@@ -75,6 +83,7 @@ class ThumbnailWidget(QWidget):
         self.image_container = RoundedImageWidget(scaled_pixmap, 
                                                 QSize(self.THUMBNAIL_SIZE, self.THUMBNAIL_SIZE), 
                                                 self._border_radius)
+        self.image_container.clicked.connect(self._emit_thumbnail_clicked)
         # --------------------------------------------------
 
         # Bouton de suppression (enfant du nouveau conteneur arrondi)
@@ -150,6 +159,9 @@ class ThumbnailWidget(QWidget):
 
     def _emit_delete_signal(self):
         self.delete_requested.emit(self.file_path)
+
+    def _emit_thumbnail_clicked(self):
+        self.clicked.emit(self.file_path)
 
 # --- Bloc de test ---
 if __name__ == '__main__':

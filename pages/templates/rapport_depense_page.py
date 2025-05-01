@@ -24,6 +24,9 @@ except ImportError:
     print("Avertissement: PyMuPDF (fitz) n'est pas installé. Les miniatures PDF ne seront pas disponibles.")
 # --------------------------------------------------------------------------
 import os # Pour manipuler les chemins
+# --- AJOUT: Import MediaViewer --- 
+from windows.media_viewer import MediaViewer
+# ---------------------------------
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
@@ -41,8 +44,9 @@ class RapportDepensePage(QWidget):
         
         # --- Stockage des miniatures --- 
         self.current_facture_thumbnails = {} # { file_path: ThumbnailWidget }
-        # self.current_facture_paths = [] # <-- SUPPRESSION
-        # -------------------------------
+        # --- AJOUT: Liste pour garder références viewers (si non modaux) --- 
+        # self.open_viewers = [] # Décommenter si on passe en non-modal
+        # ---------------------------------------------------------------
         
         # --- Styles spécifiques pour les RadioButton --- 
         self.setStyleSheet("""
@@ -1075,6 +1079,9 @@ class RapportDepensePage(QWidget):
             if pixmap:
                 thumbnail_widget = ThumbnailWidget(file_path, pixmap)
                 thumbnail_widget.delete_requested.connect(self._remove_facture_thumbnail)
+                # --- AJOUT: Connecter le signal clic --- 
+                thumbnail_widget.clicked.connect(self._open_media_viewer)
+                # ----------------------------------------
                 self.facture_thumbnails_layout.addWidget(thumbnail_widget)
                 self.current_facture_thumbnails[file_path] = thumbnail_widget
                 # self.current_facture_paths.append(file_path) # <-- SUPPRESSION
@@ -1105,6 +1112,47 @@ class RapportDepensePage(QWidget):
         else:
              print(f"Avertissement: Tentative suppression miniature non trouvée: {file_path}")
     # ------------------------------------------------
+
+    # --- AJOUT: Slot pour ouvrir MediaViewer --- 
+    def _open_media_viewer(self, clicked_file_path):
+        """Ouvre le MediaViewer pour la liste de factures actuelle, en sélectionnant le fichier cliqué."""
+        all_paths = list(self.current_facture_thumbnails.keys())
+        if not all_paths:
+            print("WARN: _open_media_viewer appelé mais pas de miniatures présentes.")
+            return
+            
+        try:
+            clicked_index = all_paths.index(clicked_file_path)
+        except ValueError:
+            print(f"ERROR: Chemin cliqué '{clicked_file_path}' non trouvé dans la liste des miniatures.")
+            # Utiliser le premier fichier comme fallback?
+            if all_paths:
+                 clicked_index = 0
+            else:
+                 return # Ne rien faire si la liste est vide (double check)
+
+        try:
+            # Passer self comme parent peut aider à la gestion de la fenêtre
+            viewer = MediaViewer(media_source=all_paths, 
+                               initial_index=clicked_index, 
+                               parent=self.window()) # parent = fenêtre principale?
+            # --- MODIFICATION: Affichage modal pour QWidget --- 
+            # Ouvrir en modal
+            # viewer.exec_() # Erreur car c'est un QWidget
+            viewer.setWindowFlags(viewer.windowFlags() | Qt.Dialog) # Optionnel: pour style/comportement
+            viewer.setWindowModality(Qt.ApplicationModal) # Rendre modal
+            viewer.show()
+            # -------------------------------------------------
+            # Si on voulait non-modal:
+            # viewer.show()
+            # self.open_viewers.append(viewer) # Garder une référence
+            # # Ajouter un mécanisme pour nettoyer self.open_viewers quand une fenêtre est fermée
+        except (FileNotFoundError, ValueError, TypeError) as e:
+            QMessageBox.critical(self, "Erreur Media Viewer", f"Impossible d'ouvrir le visualiseur:\n{e}")
+        except Exception as e_global:
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue:\n{e_global}")
+            traceback.print_exc()
+    # -----------------------------------------
 
 # Bloc de test simple
 if __name__ == '__main__':

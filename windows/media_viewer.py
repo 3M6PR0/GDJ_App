@@ -37,6 +37,11 @@ from PyQt5.QtCore import Qt, QUrl, QTimer, QBuffer, QByteArray, QIODevice, QSize
 from utils.icon_loader import get_icon_path
 # -----------------
 
+# --- NOUVEAUX Imports --- 
+from typing import List, Union
+from models.documents.rapport_depense.facture import Facture
+# -------------------------
+
 class MediaViewer(QWidget):
     """
     Fenêtre modale pour afficher des fichiers image ou PDF.
@@ -47,15 +52,45 @@ class MediaViewer(QWidget):
     PDF_RENDER_ZOOM = 1.5 # Facteur de zoom pour le rendu initial des PDF (150%)
     SCROLL_UPDATE_DELAY = 150 # ms délai pour mise à jour page après scroll
 
-    def __init__(self, file_list: list, initial_index: int, parent=None):
+    def __init__(self, media_source: Union[str, Facture, List[str]], 
+                 initial_index: int = 0, parent=None):
         super().__init__(parent)
-        if not file_list or not (0 <= initial_index < len(file_list)):
-             raise ValueError("Liste de fichiers vide ou index initial invalide.")
         
         self.resize(900, 700)
 
-        self.file_list = file_list
-        self.current_file_index = initial_index
+        # --- TRAITEMENT media_source pour initialiser file_list et current_file_index --- 
+        self.file_list = []
+        self.current_file_index = 0
+        if isinstance(media_source, str):
+            if os.path.exists(media_source):
+                self.file_list = [media_source]
+                self.current_file_index = 0
+            else:
+                raise FileNotFoundError(f"Le fichier spécifié n'existe pas: {media_source}")
+        elif isinstance(media_source, Facture):
+            self.file_list = media_source.get_full_paths()
+            # Vérifier que l'index initial est valide pour la liste obtenue
+            if 0 <= initial_index < len(self.file_list):
+                self.current_file_index = initial_index
+            elif self.file_list: # Si liste non vide mais index invalide, prendre 0
+                print(f"WARN: Index initial {initial_index} invalide pour l'objet Facture, utilisation de l'index 0.")
+                self.current_file_index = 0
+            # Si la liste est vide, file_list reste [] et current_index 0
+        elif isinstance(media_source, list):
+            self.file_list = media_source
+            if 0 <= initial_index < len(self.file_list):
+                self.current_file_index = initial_index
+            elif self.file_list:
+                print(f"WARN: Index initial {initial_index} invalide pour la liste fournie, utilisation de l'index 0.")
+                self.current_file_index = 0
+        else:
+            raise TypeError("media_source doit être un str (chemin), un objet Facture, ou une List[str].")
+
+        # Validation finale: S'assurer qu'on a au moins un fichier
+        if not self.file_list:
+            raise ValueError("Aucun fichier valide trouvé dans la source fournie.")
+        # -------------------------------------------------------------------------
+        
         self.pdf_doc = None
         self.total_pages = 0 
         self.current_zoom = 1.0
@@ -100,6 +135,13 @@ class MediaViewer(QWidget):
         self.next_file_button.setObjectName("ToolBarButton")
         self.next_file_button.clicked.connect(self._go_to_next_file)
         toolbar_layout.addWidget(self.next_file_button)
+        
+        # --- AJOUT: Label de Navigation --- 
+        self.navigation_label = QLabel("Fichier - / -")
+        self.navigation_label.setObjectName("NavigationLabel") # Pour style éventuel
+        toolbar_layout.addWidget(self.navigation_label)
+        # ---------------------------------
+        
         toolbar_layout.addSpacing(20)
         
         # --- Réintégration des Boutons Zoom + Input + Label % --- 
@@ -218,6 +260,7 @@ class MediaViewer(QWidget):
         main_layout.addLayout(button_layout)
 
         self._load_media() 
+        self._update_navigation_state() 
 
     def _clear_previous_content(self):
         """ Vide le contenu actuel et réinitialise les états liés au PDF. """
@@ -337,6 +380,10 @@ class MediaViewer(QWidget):
              self.fit_height_button.setVisible(False)
              self.fit_page_button.setVisible(False)
              
+        # --- AJOUT: Mise à jour état navigation après chargement --- 
+        self._update_navigation_state()
+        # ---------------------------------------------------------
+
     # --- NOUVELLE fonction pour le rendu initial PDF --- 
     def _render_all_pdf_pages_high_res(self):
         if not PYMUPDF_AVAILABLE:
@@ -705,14 +752,22 @@ class MediaViewer(QWidget):
 
     # --- Méthodes de navigation fichier et download (inchangées) --- 
     def _go_to_previous_file(self):
+        """Charge et affiche le fichier précédent dans la liste."""
         if self.current_file_index > 0:
             self.current_file_index -= 1
             self._load_media()
-    
+            # Pas besoin d'appeler _update_navigation_state ici si _load_media le fait
+            # Sinon, décommenter la ligne suivante :
+            # self._update_navigation_state()
+
     def _go_to_next_file(self):
+        """Charge et affiche le fichier suivant dans la liste."""
         if self.current_file_index < len(self.file_list) - 1:
             self.current_file_index += 1
             self._load_media()
+            # Pas besoin d'appeler _update_navigation_state ici si _load_media le fait
+            # Sinon, décommenter la ligne suivante :
+            # self._update_navigation_state()
             
     def _download_file(self):
         current_path = self.file_list[self.current_file_index]
@@ -1022,6 +1077,23 @@ class MediaViewer(QWidget):
         except Exception as e:
             print(f"Erreur dans _fit_to_page: {e}")
     # ---------------------------------------------------
+
+    # --- NOUVEAU Helper pour mettre à jour l'état de navigation --- 
+    def _update_navigation_state(self):
+        """Met à jour le label de navigation et l'état des boutons Préc/Suivant."""
+        total_files = len(self.file_list)
+        if total_files > 0:
+            self.navigation_label.setText(f"Fichier {self.current_file_index + 1} / {total_files}")
+            # Activer/Désactiver bouton Précédent
+            self.prev_file_button.setEnabled(self.current_file_index > 0)
+            # Activer/Désactiver bouton Suivant
+            self.next_file_button.setEnabled(self.current_file_index < total_files - 1)
+        else:
+            # Cas où la liste serait vide (ne devrait pas arriver avec la validation __init__)
+            self.navigation_label.setText("Fichier - / -")
+            self.prev_file_button.setEnabled(False)
+            self.next_file_button.setEnabled(False)
+    # ---------------------------------------------------------------------
 
 # Exemple d'utilisation (pour test seulement)
 if __name__ == '__main__':
