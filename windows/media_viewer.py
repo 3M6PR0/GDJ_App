@@ -129,12 +129,15 @@ class MediaViewer(QWidget):
         self.zoom_in_button.clicked.connect(self._zoom_in)
         toolbar_layout.addWidget(self.zoom_in_button)
         
-        # Cacher par défaut l'ensemble des contrôles de zoom
-        self.zoom_out_button.setVisible(False)
-        self.zoom_input.setVisible(False)
-        self.zoom_percent_label.setVisible(False)
-        self.zoom_in_button.setVisible(False)
-        # -----------------------------------------------------
+        # --- Bouton Ajuster Largeur --- 
+        self.fit_width_button = QPushButton()
+        self.fit_width_button.setIcon(QIcon(get_icon_path("swap_horiz.png"))) # Utiliser une icône appropriée
+        self.fit_width_button.setToolTip("Ajuster à la largeur")
+        self.fit_width_button.setObjectName("ToolBarButton")
+        self.fit_width_button.clicked.connect(self._fit_to_width)
+        toolbar_layout.addWidget(self.fit_width_button)
+        self.fit_width_button.setVisible(False) # Cacher par défaut
+        # -----------------------------
 
         # --- Input Page + Label Total (inchangé) --- 
         self.page_input = QLineEdit("1")
@@ -232,6 +235,7 @@ class MediaViewer(QWidget):
             self.zoom_input.setVisible(False)
             self.zoom_percent_label.setVisible(False)
             self.zoom_in_button.setVisible(False)
+            self.fit_width_button.setVisible(False)
             self.download_button.setEnabled(False)
             self.prev_file_button.setEnabled(self.current_file_index > 0)
             self.next_file_button.setEnabled(self.current_file_index < len(self.file_list) - 1)
@@ -244,6 +248,7 @@ class MediaViewer(QWidget):
         self.zoom_input.setVisible(can_zoom)
         self.zoom_percent_label.setVisible(can_zoom)
         self.zoom_in_button.setVisible(can_zoom)
+        self.fit_width_button.setVisible(can_zoom)
         
         if can_zoom:
              self._update_zoom_input() # Mettre à jour l'input
@@ -269,6 +274,7 @@ class MediaViewer(QWidget):
                 self.zoom_input.setVisible(False)
                 self.zoom_percent_label.setVisible(False)
                 self.zoom_in_button.setVisible(False)
+                self.fit_width_button.setVisible(False)
             else:
                 # --- Créer le QLabel pour l'affichage --- 
                 self.image_display_label = QLabel()
@@ -298,6 +304,7 @@ class MediaViewer(QWidget):
              self.zoom_input.setVisible(False)
              self.zoom_percent_label.setVisible(False)
              self.zoom_in_button.setVisible(False)
+             self.fit_width_button.setVisible(False)
              
     # --- NOUVELLE fonction pour le rendu initial PDF --- 
     def _render_all_pdf_pages_high_res(self):
@@ -360,6 +367,7 @@ class MediaViewer(QWidget):
             self.zoom_input.setVisible(False)
             self.zoom_percent_label.setVisible(False)
             self.zoom_in_button.setVisible(False)
+            self.fit_width_button.setVisible(False)
             self.download_button.setEnabled(False)
             return
         finally:
@@ -791,6 +799,57 @@ class MediaViewer(QWidget):
         # Passer l'événement au gestionnaire par défaut pour les autres cas
         return super().eventFilter(source, event)
     # ----------------------------------------------
+
+    # --- NOUVEAU Slot pour ajuster à la largeur --- 
+    def _fit_to_width(self):
+        if not (self.is_image or self.is_pdf):
+             return
+             
+        viewport_width = self.scroll_area.viewport().width()
+        scrollbar_v = self.scroll_area.verticalScrollBar()
+        
+        # Marge pour éviter la barre de défilement verticale si elle apparaît
+        margin = 0
+        if scrollbar_v.isVisible():
+             margin = scrollbar_v.width() + self.scroll_area.frameWidth() * 2 # Prendre en compte la bordure aussi
+             
+        available_width = max(1, viewport_width - margin) # Assurer une largeur > 0
+        
+        new_zoom = self.current_zoom # Défaut si calcul échoue
+        
+        try:
+            if self.is_image and self.original_image_pixmap:
+                original_width = self.original_image_pixmap.width()
+                if original_width > 0:
+                     new_zoom = available_width / original_width
+                
+            elif self.is_pdf and self.original_pdf_pixmaps:
+                max_original_pdf_width = 0
+                for pixmap in self.original_pdf_pixmaps:
+                     # Calculer la largeur originale "théorique" (à zoom 1.0)
+                     original_page_width = pixmap.width() / self.PDF_RENDER_ZOOM
+                     if original_page_width > max_original_pdf_width:
+                          max_original_pdf_width = original_page_width
+                          
+                if max_original_pdf_width > 0:
+                     new_zoom = available_width / max_original_pdf_width
+            
+            # Appliquer les limites de zoom
+            min_zoom_limit = 0.1
+            max_zoom_limit = 5.0
+            new_zoom = max(min_zoom_limit, min(new_zoom, max_zoom_limit))
+            
+            # Appliquer le nouveau zoom
+            if abs(new_zoom - self.current_zoom) > 0.001:
+                 if self.is_pdf:
+                     self._apply_pdf_zoom(new_zoom)
+                 elif self.is_image:
+                     self._apply_image_zoom(new_zoom)
+                     
+        except Exception as e:
+             print(f"Erreur dans _fit_to_width: {e}")
+             # Ne pas planter, juste ne pas appliquer le zoom
+    # ------------------------------------------
 
 # Exemple d'utilisation (pour test seulement)
 if __name__ == '__main__':
