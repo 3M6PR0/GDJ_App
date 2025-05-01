@@ -752,6 +752,7 @@ class MediaViewer(QWidget):
     def eventFilter(self, source, event):
         # Vérifier si l'événement provient du viewport de notre QScrollArea
         if source == self.scroll_area.viewport():
+            # --- Drag-to-Scroll --- 
             if event.type() == QEvent.MouseButtonPress:
                 if event.button() == Qt.LeftButton:
                     self.is_dragging = True
@@ -774,13 +775,18 @@ class MediaViewer(QWidget):
                     self.is_dragging = False
                     self.scroll_area.viewport().setCursor(Qt.OpenHandCursor)
                     return True # Événement géré
-            # Optionnel: Gérer Enter/Leave pour changer le curseur si nécessaire
-            # elif event.type() == QEvent.Enter: 
-            #    if not self.is_dragging: self.scroll_area.viewport().setCursor(Qt.OpenHandCursor)
-            #    return True
-            # elif event.type() == QEvent.Leave:
-            #    self.scroll_area.viewport().setCursor(Qt.ArrowCursor)
-            #    return True
+                
+            # --- Ctrl + Wheel Zoom --- 
+            elif event.type() == QEvent.Wheel:
+                if event.modifiers() & Qt.ControlModifier:
+                    delta = event.angleDelta().y()
+                    if delta > 0:
+                        self._zoom_in()
+                    elif delta < 0:
+                        self._zoom_out()
+                    return True # Événement géré, ne pas scroller
+                # Si Ctrl n'est pas pressé, laisser l'événement pour le scroll normal
+            # -------------------------
                 
         # Passer l'événement au gestionnaire par défaut pour les autres cas
         return super().eventFilter(source, event)
