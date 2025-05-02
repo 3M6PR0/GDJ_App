@@ -285,6 +285,7 @@ class RapportDepensePage(QWidget):
             self.filter_type_combo.addItem(icon, text)
         # --- Fin ajout avec icônes ---
         # self.filter_type_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
+        self.filter_type_combo.currentIndexChanged.connect(self._apply_filters) # <--- Décommenté et connecté à _apply_filters
 
         # Bouton Expand/Collapse
         self.expand_collapse_button = QPushButton()
@@ -1101,6 +1102,21 @@ class RapportDepensePage(QWidget):
         )
         card.thumbnail_clicked.connect(self._open_media_viewer)
 
+        # --- AJOUT: Vérifier le filtre actuel avant d'insérer ---
+        selected_filter = self.filter_type_combo.currentText()
+        should_show = False
+        if selected_filter == "Tout":
+            should_show = True
+        elif selected_filter == "Déplacements" and entry_type_str == "Déplacement":
+            should_show = True
+        elif selected_filter == "Repas" and entry_type_str == "Repas":
+            should_show = True
+        elif selected_filter == "Dépenses" and entry_type_str == "Dépense":
+            should_show = True
+        
+        card.setVisible(should_show)
+        # --------------------------------------------------------
+
         # Insérer la nouvelle carte au début (index 0)
         self.entries_list_layout.insertWidget(0, card)
 
@@ -1352,6 +1368,34 @@ class RapportDepensePage(QWidget):
                 # Définir l'état 'checked' du bouton interne de la carte
                 # Ceci déclenchera la méthode _toggle_details de la carte elle-même
                 widget.expand_button.setChecked(checked)
+
+    def _apply_filters(self):
+        """Applique le filtre de type sélectionné aux CardWidgets affichées."""
+        selected_filter = self.filter_type_combo.currentText()
+
+        print(f"Applying filter: {selected_filter}") # Debug
+
+        for i in range(self.entries_list_layout.count()):
+            item = self.entries_list_layout.itemAt(i)
+            widget = item.widget()
+
+            if isinstance(widget, CardWidget):
+                # Vérifier le type de l'entrée associée à la carte
+                entry_type = widget.entry_type # Lire le type stocké dans la carte
+                
+                should_show = False
+                if selected_filter == "Tout":
+                    should_show = True
+                elif selected_filter == "Déplacements" and entry_type == "Déplacement":
+                    should_show = True
+                elif selected_filter == "Repas" and entry_type == "Repas":
+                    should_show = True
+                elif selected_filter == "Dépenses" and entry_type == "Dépense": # Assumer que le type est "Dépense"
+                    should_show = True
+                # Ajouter d'autres types ici si nécessaire
+
+                widget.setVisible(should_show)
+                # print(f"  Card ({entry_type}): Visible = {should_show}") # Debug détaillé
 
 # Bloc de test simple
 if __name__ == '__main__':
