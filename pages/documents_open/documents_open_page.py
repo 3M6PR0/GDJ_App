@@ -115,6 +115,7 @@ class DocumentsOpenPage(QWidget):
 
         # --- Séparateur Vertical ---
         separator = QtFrame()
+        separator.setObjectName("VerticalPageSeparator")
         separator.setFrameShape(QtFrame.VLine)
         separator.setFrameShadow(QtFrame.Sunken)
         page_layout.addWidget(separator)

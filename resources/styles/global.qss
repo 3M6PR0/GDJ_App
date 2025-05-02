@@ -442,9 +442,8 @@ QTabWidget#DocumentTabWidget {
 QTabWidget#DocumentTabWidget::pane {
     /* Style du panneau contenant la page de l'onglet */
     border: none;
-    border-top: none; /* <-- Forcer aucune bordure haute */
+    top: -1px; /* <-- AJOUT: Essayer décalage négatif */
     /* Optionnel: peut définir un fond si le widget de page est transparent */
-     background-color: {{COLOR_PRIMARY_DARK}}; /* <-- Mise à jour vers DARK */
 }
 
 QTabWidget#DocumentTabWidget QTabBar::tab {
@@ -469,8 +468,9 @@ QTabWidget#DocumentTabWidget QTabBar::tab:first {
 QTabWidget#DocumentTabWidget QTabBar::tab:selected {
     background-color: {{COLOR_PRIMARY_DARKEST}}; /* Fond pour sélectionné (le plus foncé) */
     color: {{COLOR_TEXT_PRIMARY}};
-    border-color: {{COLOR_PRIMARY_DARK}};
+    /* border-color: {{COLOR_PRIMARY_DARK}}; */ /* <-- SUPPRIMER car border:none sur tab */
     border-bottom: none; /* <-- AJOUT: Explicitement sans bordure en bas */
+    padding-bottom: 0px; /* <-- AJOUT: Forcer padding bas à 0 */
     /* Optionnel: rendre la bordure du bas de la même couleur que le pane */
     /* border-bottom-color: {{COLOR_PRIMARY_MEDIUM}}; */
 }
@@ -506,6 +506,7 @@ QTabWidget#DocumentTabWidget QTabBar {
     padding-left: 0px; /* <-- AJOUT */
     margin-left: 0px;  /* <-- AJOUT */
     padding: 0px; /* <-- Forcer tout padding à 0 */
+    top: 0px; /* <-- AJOUT: Forcer position haute */
 } 
 
 /* --- Style pour DocumentsOpenPage --- */
@@ -516,4 +517,12 @@ QWidget#DocumentsOpenPage {
 /* --- Style pour la zone derrière les onglets --- */
 QWidget#DocumentContentArea {
     background-color: {{COLOR_PRIMARY_DARK}};
+} 
+
+/* --- Style pour le Séparateur Vertical entre Sidebar et Contenu --- */
+QFrame#VerticalPageSeparator {
+    border: none; /* Supprimer toute bordure */
+    background-color: {{COLOR_PRIMARY_DARK}}; /* Fond identique à la sidebar/contenu */
+    max-width: 1px; /* Garder une épaisseur minimale si nécessaire */
+    min-width: 1px;
 } 
