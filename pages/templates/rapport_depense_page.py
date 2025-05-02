@@ -132,6 +132,8 @@ class RapportDepensePage(QWidget):
         # --- Frame Gauche (Section Inférieure): Ajouter une Entrée ---
         # 1. Créer le contenu de l'en-tête (Label + ComboBox)
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(5, 2, 5, 2) # Marges harmonisées
+        header_layout.setSpacing(8) # <--- Ajout de l'espacement
         header_label = QLabel("Ajouter un(e) :") 
         header_label.setObjectName("FormLabel") 
         header_layout.addWidget(header_label)
@@ -217,11 +219,104 @@ class RapportDepensePage(QWidget):
         add_entry_content_layout.addLayout(buttons_layout) 
         # ----------------------------------------
         
-        # --- AJOUT DU FRAME D'AJOUT À LA SECTION INFÉRIEURE (GAUCHE) ---
-        bottom_section_layout.addWidget(self.add_entry_frame, 1) 
+        # --- AJOUT DU FRAME D'AJOUT À LA SECTION INFÉRIEURE (GAUCHE) --- 
+        bottom_section_layout.addWidget(self.add_entry_frame, 1) # Retour à l'alignement par défaut
 
         # --- Frame Droite (Section Inférieure): Affichage des Entrées --- 
-        self.entries_display_frame = Frame("Entrées existantes", self) 
+        # --- NOUVEAU: Création de l'en-tête personnalisé ---
+        entries_header_widget = QWidget()
+        entries_header_widget.setObjectName("FrameHeaderContainer")
+        entries_header_layout = QHBoxLayout(entries_header_widget)
+        entries_header_layout.setContentsMargins(5, 2, 5, 2) 
+        entries_header_layout.setSpacing(8)
+
+        # Contrôles de Tri
+        sort_label1 = QLabel("Trier par:")
+        sort_label1.setObjectName("FormLabel")
+        self.sort_primary_combo = QComboBox()
+        self.sort_primary_combo.setObjectName("HeaderComboBox")
+        self.sort_primary_combo.addItems([
+            "Date (Décroissant)", "Date (Croissant)", 
+            "Type (A-Z)", "Type (Z-A)", 
+            "Montant (Décroissant)", "Montant (Croissant)"
+        ])
+        # self.sort_primary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
+
+        sort_label2 = QLabel("Puis par:")
+        sort_label2.setObjectName("FormLabel")
+        self.sort_secondary_combo = QComboBox()
+        self.sort_secondary_combo.setObjectName("HeaderComboBox")
+        self.sort_secondary_combo.addItem("Aucun") # Option par défaut
+        self.sort_secondary_combo.addItems([
+             "Date (Décroissant)", "Date (Croissant)", 
+             "Type (A-Z)", "Type (Z-A)", 
+             "Montant (Décroissant)", "Montant (Croissant)"
+        ])
+        # self.sort_secondary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
+        # TODO: Ajouter logique pour désactiver/lier les options entre les deux combos
+
+        # Contrôle de Filtre
+        filter_label = QLabel("Filtrer:")
+        filter_label.setObjectName("FormLabel") # <--- Ajout nom objet
+        self.filter_type_combo = QComboBox()
+        self.filter_type_combo.setObjectName("HeaderComboBox") # <--- Ajout nom objet
+        # self.filter_type_combo.addItems(["Tout", "Déplacements", "Repas", "Dépenses"]) # Ancienne méthode
+        # --- NOUVEAU: Ajouter items avec icônes ---
+        filter_options = {
+            "Tout": "round_list.png",
+            "Déplacements": "round_directions_car.png",
+            "Repas": "round_restaurant.png",
+            "Dépenses": "round_payments.png"
+        }
+        fallback_icon_name = "round_receipt_long.png" # Même fallback que l'autre combo
+
+        for text, icon_name in filter_options.items():
+            icon_path = get_icon_path(icon_name)
+            icon = QIcon()
+            if icon_path:
+                icon = QIcon(icon_path)
+            else:
+                print(f"WARNING: Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.")
+                fallback_path = get_icon_path(fallback_icon_name)
+                if fallback_path:
+                    icon = QIcon(fallback_path)
+                else:
+                     print(f"ERROR: Fallback icon '{fallback_icon_name}' also not found.")
+            self.filter_type_combo.addItem(icon, text)
+        # --- Fin ajout avec icônes ---
+        # self.filter_type_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
+
+        # Bouton Expand/Collapse
+        self.expand_collapse_button = QPushButton()
+        # --- MODIFICATION: Utiliser l'icône expand par défaut --- 
+        expand_icon_path = get_icon_path("round_expand_all.png") 
+        if expand_icon_path:
+            self.expand_collapse_button.setIcon(QIcon(expand_icon_path))
+        else:
+             self.expand_collapse_button.setText("↔") # Fallback texte différent?
+        # ------------------------------------------------------
+        self.expand_collapse_button.setFixedSize(28, 28)
+        self.expand_collapse_button.setCheckable(True)
+        self.expand_collapse_button.setToolTip("Déplier/Replier tout")
+        self.expand_collapse_button.setObjectName("HeaderToolButton") # Nom déjà correct
+        # --- MODIFICATION: Décommenter la connexion --- 
+        self.expand_collapse_button.toggled.connect(self._toggle_all_cards)
+        # --------------------------------------------
+
+        # Ajouter les éléments au layout de l'en-tête
+        entries_header_layout.addWidget(sort_label1)
+        entries_header_layout.addWidget(self.sort_primary_combo)
+        entries_header_layout.addSpacing(15)
+        entries_header_layout.addWidget(sort_label2)
+        entries_header_layout.addWidget(self.sort_secondary_combo)
+        entries_header_layout.addSpacing(15)
+        entries_header_layout.addWidget(filter_label)
+        entries_header_layout.addWidget(self.filter_type_combo)
+        entries_header_layout.addStretch(1) # Pousse le bouton à droite
+        entries_header_layout.addWidget(self.expand_collapse_button)
+        # --- Fin Création En-tête ---
+
+        self.entries_display_frame = Frame(header_widget=entries_header_widget, parent=self) # Utiliser le widget d'en-tête
         entries_display_frame_content_layout = self.entries_display_frame.get_content_layout()
         entries_display_frame_content_layout.setContentsMargins(0, 0, 0, 0) # Pas de marges internes au frame
         entries_display_frame_content_layout.setSpacing(0)
@@ -254,7 +349,7 @@ class RapportDepensePage(QWidget):
         entries_display_frame_content_layout.addWidget(self.entries_scroll_area)
 
         # --- AJOUT DU FRAME D'AFFICHAGE À LA SECTION INFÉRIEURE (DROITE) ---
-        bottom_section_layout.addWidget(self.entries_display_frame, 4) 
+        bottom_section_layout.addWidget(self.entries_display_frame, 4) # Retour à l'alignement par défaut
 
         # --- AJOUT DE LA SECTION INFÉRIEURE AU LAYOUT PRINCIPAL ---
         content_layout.addLayout(bottom_section_layout)
@@ -1238,6 +1333,25 @@ class RapportDepensePage(QWidget):
             traceback.print_exc()
             QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur interne est survenue avant d'ouvrir le visualiseur: {e}")
     # ------------------------------------------------------
+
+    def _toggle_all_cards(self, checked):
+        """Déplie ou replie toutes les CardWidget dans la liste."""
+        # Changer l'icône du bouton principal
+        icon_name = "round_collapse_all.png" if checked else "round_expand_all.png"
+        icon_path = get_icon_path(icon_name)
+        if icon_path:
+            self.expand_collapse_button.setIcon(QIcon(icon_path))
+        else:
+            # Fallback texte si icône non trouvée
+            self.expand_collapse_button.setText("↕" if checked else "↔") 
+
+        # Parcourir les widgets dans le layout de la liste
+        for i in range(self.entries_list_layout.count()):
+            widget = self.entries_list_layout.itemAt(i).widget()
+            if isinstance(widget, CardWidget):
+                # Définir l'état 'checked' du bouton interne de la carte
+                # Ceci déclenchera la méthode _toggle_details de la carte elle-même
+                widget.expand_button.setChecked(checked)
 
 # Bloc de test simple
 if __name__ == '__main__':
