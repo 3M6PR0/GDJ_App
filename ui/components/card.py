@@ -42,7 +42,6 @@ class CardWidget(QFrame):
         self.entry_data = entry_data
         self.entry_type = entry_type
         self.options_menu = None # Pour création paresseuse du menu
-        self._original_background_style = "" # Pour sauvegarder le style original
 
         # --- Obtenir les variables de thème POUR le style inline --- 
         theme = get_theme_vars()
@@ -421,7 +420,34 @@ class CardWidget(QFrame):
 
     # --- AJOUT: Slot pour afficher le menu d'options --- 
     @Slot()
-    def _show_options_menu(self):
+    def _show_options_menu(self, position=None):
+        """Affiche le menu contextuel à la position donnée ou sous le bouton options."""
+        # --- Logique de mise en évidence pendant l'ouverture du menu --- 
+        original_stylesheet = self.styleSheet() # Sauvegarder le style actuel
+        try:
+            theme = get_theme_vars()
+            accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+            selection_border_style = f"border: 2px solid {accent_color};"
+            base_selector = f"#CardWidget[objectName=\"CardWidget\"]"
+            
+            # Récupérer la couleur de fond normale de la carte depuis le thème
+            card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f")
+            
+            # Construire la règle de style complète pour l'état "menu ouvert"
+            # Fond normal + Bordure accent + autres propriétés de base
+            menu_open_style_rule = f"{base_selector} {{ background-color: {card_bg_color}; {selection_border_style} border-radius: {RADIUS_BOX}; margin: 0 5px; }}"
+            
+            # Appliquer ce style directement. S'il y avait d'autres règles spécifiques
+            # dans original_stylesheet (ex: pour des éléments enfants), elles sont perdues
+            # pendant que le menu est ouvert, mais seront restaurées après.
+            self.setStyleSheet(menu_open_style_rule)
+
+        except Exception as e:
+            print(f"WARN: Erreur application style menu contextuel: {e}")
+            # En cas d'erreur, on ne touche pas au style
+            original_stylesheet = None # Pour éviter la restauration erronée
+        # -------------------------------------------------------------------
+
         if not self.options_menu:
             self.options_menu = QMenu(self)
             self.options_menu.setObjectName("CardOptionsMenu") # Pour QSS
@@ -488,10 +514,34 @@ class CardWidget(QFrame):
                 }}
             """)
 
-        # Afficher le menu sous le bouton
-        button_pos = self.options_button.mapToGlobal(QPoint(0, self.options_button.height()))
-        self.options_menu.exec_(button_pos)
-    # --- Fin Slot Menu Options ---
+        # Afficher le menu à la position spécifiée ou sous le bouton
+        if position is None:
+            # Calculer la position sous le bouton si aucune position n'est fournie
+            pos = self.options_button.mapToGlobal(QPoint(0, self.options_button.height()))
+        else:
+            # Utiliser la position fournie (ex: depuis contextMenuEvent)
+            pos = position
+        
+        # --- Exécuter le menu (bloquant) ---
+        selected_action = self.options_menu.exec_(pos)
+        # -----------------------------------
+
+        # --- Restaurer le style original (sauf si on vient de cliquer sur Modifier) --- 
+        # On récupère l'action "Modifier" pour la comparaison
+        edit_action = None
+        for action in self.options_menu.actions():
+            if action.text() == "Modifier": # Ou une meilleure façon d'identifier l'action
+                edit_action = action
+                break
+        
+        if selected_action != edit_action:
+            try:
+                if original_stylesheet is not None: # Vérifier si on a bien sauvegardé un style
+                    self.setStyleSheet(original_stylesheet)
+            except Exception as e:
+                print(f"WARN: Erreur restauration style après menu contextuel: {e}")
+        # else: On ne restaure pas si "Modifier" a été cliqué, car set_editing_highlight va s'en charger.
+        # ----------------------------------------------------------------------------
 
     # --- Méthode pour générer miniature (copiée depuis rapport_depense_page) ---
     # (Avec ajustement pour être une méthode de classe)
@@ -558,47 +608,39 @@ class CardWidget(QFrame):
             self.options_button.setEnabled(enabled)
 
     def set_editing_highlight(self, is_editing: bool):
-        """Applique ou retire une bordure jaune vif pour indiquer l'édition."""
-        # edit_style_bg = "background-color: #FFF59D;" # Ancien style background
+        """Applique ou retire une bordure jaune vif en définissant le style complet."""
+        base_selector = f"#CardWidget[objectName=\"CardWidget\"]"
         edit_border_style = "border: 2px solid #FFD600;" # Jaune vif
         default_border_style = "border: none;"
-        base_selector = f"#CardWidget[objectName=\"CardWidget\"]"
-
-        # Obtenir le style actuel pour pouvoir le modifier
-        current_stylesheet = self.styleSheet()
         
-        # Construire le nouveau style pour le sélecteur de base
-        # On garde les autres propriétés définies dans __init__ (radius, margin)
-        if is_editing:
-            new_base_style = f"{{ {self._original_background_style} {edit_border_style} border-radius: {RADIUS_BOX}; margin: 0 5px; }}"
-        else:
-            new_base_style = f"{{ {self._original_background_style} {default_border_style} border-radius: {RADIUS_BOX}; margin: 0 5px; }}"
-        
-        # Essayer de remplacer seulement la règle pour #CardWidget
-        # C'est délicat car le style peut contenir d'autres règles (:hover, etc.)
-        # Une approche plus simple mais potentiellement moins robuste est de
-        # reconstruire la partie principale du style.
-        
-        # Trouver le début et la fin de la règle #CardWidget { ... }
-        start_block = current_stylesheet.find(f"{base_selector} {{")
-        if start_block != -1:
-            end_block = current_stylesheet.find("}", start_block)
-            if end_block != -1:
-                # Remplacer l'ancien bloc par le nouveau
-                new_stylesheet = current_stylesheet[:start_block] + f"{base_selector} {new_base_style}" + current_stylesheet[end_block+1:]
-                self.setStyleSheet(new_stylesheet)
+        try:
+            # Récupérer la couleur de fond normale de la carte depuis le thème
+            theme = get_theme_vars()
+            card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f")
+            bg_style = f"background-color: {card_bg_color};"
+            
+            # Définir les styles complets
+            normal_style = f"{base_selector} {{ {bg_style} {default_border_style} border-radius: {RADIUS_BOX}; margin: 0 5px; }}"
+            editing_style = f"{base_selector} {{ {bg_style} {edit_border_style} border-radius: {RADIUS_BOX}; margin: 0 5px; }}"
+            
+            # Appliquer le style approprié
+            if is_editing:
+                self.setStyleSheet(editing_style)
             else:
-                 print("WARN: Fin de bloc non trouvée pour CardWidget style, application directe.")
-                 # Fallback: ajoute le nouveau style (peut écraser d'autres styles)
-                 # Ceci est moins idéal
-                 other_styles = "\n".join([line for line in current_stylesheet.splitlines() if not line.strip().startswith(base_selector)])
-                 final_style = f"{base_selector} {new_base_style}" + ("\n" + other_styles if other_styles else "")
-                 self.setStyleSheet(final_style)
+                self.setStyleSheet(normal_style)
+        except Exception as e:
+            print(f"WARN: Erreur application style édition highlight: {e}")
+            # Fallback: essayer de ne rien faire pour éviter de casser plus
+            pass 
+
+    # --- Gestion Clic Droit --- 
+    def contextMenuEvent(self, event):
+        """Gère l'événement de clic droit pour afficher le menu d'options."""
+        # Vérifier si les options sont activées avant d'afficher le menu
+        if self.options_button and self.options_button.isEnabled():
+            self._show_options_menu(event.globalPos())
         else:
-             print("WARN: Bloc de style CardWidget non trouvé, application directe.")
-             # Fallback: comme ci-dessus
-             other_styles = "\n".join([line for line in current_stylesheet.splitlines() if not line.strip().startswith(base_selector)])
-             final_style = f"{base_selector} {new_base_style}" + ("\n" + other_styles if other_styles else "")
-             self.setStyleSheet(final_style)
+            super().contextMenuEvent(event) # Comportement par défaut si options désactivées
+    # ------------------------
 
 # --- Fin Widget Card --- 
