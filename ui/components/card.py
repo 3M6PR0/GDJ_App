@@ -45,7 +45,7 @@ class CardWidget(QFrame):
 
         # --- Obtenir les variables de thème POUR le style inline --- 
         theme = get_theme_vars()
-        card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f")
+        card_bg_color = theme.get("COLOR_PRIMARY_LIGHTEST", "#5a5d5e") # Nouveau: plus clair
         hover_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#5a5d5f") # Couleur pour le survol
         # --------------------------------------------------------
 
@@ -431,7 +431,7 @@ class CardWidget(QFrame):
             base_selector = f"#CardWidget[objectName=\"CardWidget\"]"
             
             # Récupérer la couleur de fond normale de la carte depuis le thème
-            card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f")
+            card_bg_color = theme.get("COLOR_PRIMARY_LIGHTEST", "#5a5d5e")
             
             # Construire la règle de style complète pour l'état "menu ouvert"
             # Fond normal + Bordure accent + autres propriétés de base
@@ -616,7 +616,7 @@ class CardWidget(QFrame):
         try:
             # Récupérer la couleur de fond normale de la carte depuis le thème
             theme = get_theme_vars()
-            card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f")
+            card_bg_color = theme.get("COLOR_PRIMARY_LIGHTEST", "#5a5d5e")
             bg_style = f"background-color: {card_bg_color};"
             
             # Définir les styles complets

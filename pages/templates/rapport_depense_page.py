@@ -128,7 +128,7 @@ class RapportDepensePage(QWidget):
         totals_content_layout.addStretch() # Pousser les totaux vers le haut
         # Pas de largeur fixe ici
 
-        content_layout.addWidget(self.totals_frame) # Ajouter le frame des totaux en haut
+        # content_layout.addWidget(self.totals_frame) # <-- SUPPRIMER ICI
 
         # --- Section Inférieure: Ajout (Gauche) + Liste (Droite) ---
         bottom_section_layout = QHBoxLayout()
@@ -307,7 +307,8 @@ class RapportDepensePage(QWidget):
         self.expand_collapse_button.setFixedSize(28, 28)
         self.expand_collapse_button.setCheckable(True)
         self.expand_collapse_button.setToolTip("Déplier/Replier tout")
-        self.expand_collapse_button.setObjectName("HeaderToolButton") # Nom déjà correct
+        # self.expand_collapse_button.setObjectName("HeaderToolButton") # Ancien nom
+        self.expand_collapse_button.setObjectName("TopNavButton") # Nouveau nom, comme Effacer/Ajouter
         # --- MODIFICATION: Décommenter la connexion --- 
         self.expand_collapse_button.toggled.connect(self._toggle_all_cards)
         # --------------------------------------------
@@ -360,14 +361,21 @@ class RapportDepensePage(QWidget):
         # --- AJOUT DU FRAME D'AFFICHAGE À LA SECTION INFÉRIEURE (DROITE) ---
         bottom_section_layout.addWidget(self.entries_display_frame, 4) # Retour à l'alignement par défaut
 
-        # --- AJOUT DE LA SECTION INFÉRIEURE AU LAYOUT PRINCIPAL ---
+        # --- AJOUT DE LA SECTION INFÉRIEURE AU LAYOUT PRINCIPAL --- 
         content_layout.addLayout(bottom_section_layout)
 
-        # --- Ajuster les stretchs verticaux du layout principal ---
-        content_layout.setStretchFactor(self.totals_frame, 0) # Totaux prennent leur hauteur naturelle
-        content_layout.setStretchFactor(bottom_section_layout, 1) # La section du bas prend l'espace restant
+        # --- AJOUT: Ajouter le frame des totaux EN BAS --- 
+        content_layout.addWidget(self.totals_frame)
+        # --------------------------------------------------
 
-        # --- Initialiser le formulaire pour le premier type ---
+        # --- Ajuster les stretchs verticaux du layout principal --- 
+        # content_layout.setStretchFactor(self.totals_frame, 0) # Ancien
+        # content_layout.setStretchFactor(bottom_section_layout, 1) # Ancien
+        content_layout.setStretchFactor(bottom_section_layout, 1) # La section du milieu prend l'espace
+        content_layout.setStretchFactor(self.totals_frame, 0) # Les totaux en bas prennent leur hauteur naturelle
+        # ---------------------------------------------------------
+
+        # --- Initialiser le formulaire pour le premier type --- 
         self._update_entry_form()
 
         # --- Initialiser la liste des entrées via la méthode centrale ---
