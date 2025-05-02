@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFormLayout,
                            QSizePolicy, QFileDialog, QScrollArea, QSpacerItem)
 from PyQt5.QtCore import Qt, QDate, QSize, pyqtSignal, QTimer
 from PyQt5.QtGui import QDoubleValidator, QIcon, QColor, QPalette, QFont, QPixmap, QIntValidator, QImage
+from datetime import date # <--- Ajout import
 from ui.components.frame import Frame # Correction: Chemin d'importation correct
 from models.documents.rapport_depense import RapportDepense, Deplacement, Repas, Depense, Facture # Importer les modèles
 from utils.theme import get_theme_vars, RADIUS_BOX # Importer les variables de thème
@@ -242,6 +243,7 @@ class RapportDepensePage(QWidget):
         ])
         # self.sort_primary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
         self.sort_primary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
+        self.sort_primary_combo.currentIndexChanged.connect(self._update_secondary_sort_options) # <-- Connexion ajoutée
 
         sort_label2 = QLabel("Puis par:")
         sort_label2.setObjectName("FormLabel")
@@ -366,6 +368,8 @@ class RapportDepensePage(QWidget):
 
         # --- Initialiser la liste des entrées via la méthode centrale ---
         self._populate_entries_list() # Appelle _apply_sorting_and_filtering
+        # --- Initialiser les options du tri secondaire ---
+        self._update_secondary_sort_options() 
         # ------------------------------------------------------------
 
     def _create_vertical_separator(self):
@@ -377,6 +381,43 @@ class RapportDepensePage(QWidget):
         # --- Style sera géré via QSS via objectName --- 
         # separator.setStyleSheet(...) # Supprimé
         return separator
+
+    # --- AJOUT: Mettre à jour les options de tri secondaire --- 
+    def _update_secondary_sort_options(self):
+        """Met à jour les options du ComboBox de tri secondaire pour exclure le critère primaire."""
+        primary_option_text = self.sort_primary_combo.currentText()
+        current_secondary_text = self.sort_secondary_combo.currentText()
+
+        # Déterminer le critère primaire (Date, Type, Montant)
+        primary_criterion = ""
+        if "Date" in primary_option_text: primary_criterion = "Date"
+        elif "Type" in primary_option_text: primary_criterion = "Type"
+        elif "Montant" in primary_option_text: primary_criterion = "Montant"
+
+        self.sort_secondary_combo.blockSignals(True) # Bloquer signaux pendant modif
+        self.sort_secondary_combo.clear()
+        self.sort_secondary_combo.addItem("Aucun")
+
+        all_options = [
+            "Date (Décroissant)", "Date (Croissant)", 
+            "Type (A-Z)", "Type (Z-A)", 
+            "Montant (Décroissant)", "Montant (Croissant)"
+        ]
+
+        for option in all_options:
+            # Ajouter si le critère est différent du critère primaire
+            if primary_criterion not in option:
+                self.sort_secondary_combo.addItem(option)
+
+        # Essayer de remettre l'ancienne sélection si elle est toujours valide
+        index = self.sort_secondary_combo.findText(current_secondary_text)
+        if index != -1:
+            self.sort_secondary_combo.setCurrentIndex(index)
+        else:
+            self.sort_secondary_combo.setCurrentIndex(0) # Défaut "Aucun"
+            
+        self.sort_secondary_combo.blockSignals(False) # Réactiver signaux
+    # ------------------------------------------------------
 
     def _update_entry_form(self):
         """ Met à jour le formulaire dynamique (partie gauche) selon le type d'entrée. """
@@ -1283,10 +1324,10 @@ class RapportDepensePage(QWidget):
         """Récupère les options, filtre, trie et repeuple la liste des cartes."""
         # 1. Lire les options
         primary_sort_option = self.sort_primary_combo.currentText()
-        # secondary_sort_option = self.sort_secondary_combo.currentText() # Pour plus tard
+        secondary_sort_option = self.sort_secondary_combo.currentText()
         filter_option = self.filter_type_combo.currentText()
 
-        print(f"Applying sort/filter: Primary='{primary_sort_option}', Filter='{filter_option}'")
+        print(f"Applying sort/filter: Primary='{primary_sort_option}', Secondary='{secondary_sort_option}', Filter='{filter_option}'")
 
         # 2. Récupérer toutes les entrées
         try:
@@ -1311,51 +1352,85 @@ class RapportDepensePage(QWidget):
         
         print(f"  {len(filtered_entries)} entries after filtering.")
 
-        # 4. Trier les entrées (logique primaire uniquement pour l'instant)
-        sort_key = None
-        reverse_sort = False
+        # --- 4. Logique de Tri avec functools.cmp_to_key --- 
         
-        # --- Définir la clé de tri --- 
-        if "Date" in primary_sort_option:
-            def get_sort_key(entry):
-                if hasattr(entry, 'date_repas'): return entry.date_repas
-                if hasattr(entry, 'date_deplacement'): return entry.date_deplacement
-                if hasattr(entry, 'date_depense'): return entry.date_depense
-                if hasattr(entry, 'date'): return entry.date
-                return date(1900, 1, 1) # Fallback
-            sort_key = get_sort_key
-            reverse_sort = "Décroissant" in primary_sort_option
-
-        elif "Type" in primary_sort_option:
-            def get_sort_key(entry):
+        def get_comparable_value(entry, criterion):
+            """Retourne la valeur comparable pour un critère donné."""
+            if criterion == 'Date':
+                val = getattr(entry, 'date_repas', getattr(entry, 'date_deplacement', getattr(entry, 'date_depense', getattr(entry, 'date', None))))
+                # Retourner une date très ancienne pour les None pour qu'ils soient groupés
+                return val if val is not None else date(1900, 1, 1) 
+            elif criterion == 'Type':
                 if isinstance(entry, Deplacement): return "Déplacement"
                 if isinstance(entry, Repas): return "Repas"
                 if isinstance(entry, Depense): return "Dépense"
-                return "ZZZ" # Fallback
-            sort_key = get_sort_key
-            reverse_sort = "Z-A" in primary_sort_option
-            
-        elif "Montant" in primary_sort_option:
-            def get_sort_key(entry):
+                return "ZZZ" # Fallback pour tri
+            elif criterion == 'Montant':
                 amount_val = getattr(entry, 'totale_apres_taxes', getattr(entry, 'montant', 0.0))
-                try: 
-                    return float(amount_val)
-                except (ValueError, TypeError): 
-                    return 0.0 # Fallback
-            sort_key = get_sort_key
-            reverse_sort = "Décroissant" in primary_sort_option
-        # -------------------------
+                try: return float(amount_val)
+                except (ValueError, TypeError): return 0.0 # Fallback
+            return None # Critère inconnu ou "Aucun"
 
-        sorted_entries = []
-        if sort_key:
-            try:
-                sorted_entries = sorted(filtered_entries, key=sort_key, reverse=reverse_sort)
-                print(f"  Sorted {len(sorted_entries)} entries.")
-            except Exception as e:
-                print(f"Erreur de tri: {e}")
-                sorted_entries = filtered_entries # Fallback: utiliser liste filtrée non triée
-        else:
-            sorted_entries = filtered_entries # Pas de tri si aucune clé valide
+        def compare_entries(entry1, entry2):
+            """Fonction de comparaison pour cmp_to_key."""
+            
+            # --- Comparaison Primaire --- 
+            primary_criterion = ""
+            primary_reverse = False
+            if "Date" in primary_sort_option: primary_criterion = "Date"; primary_reverse = "Décroissant" in primary_sort_option
+            elif "Type" in primary_sort_option: primary_criterion = "Type"; primary_reverse = "Z-A" in primary_sort_option
+            elif "Montant" in primary_sort_option: primary_criterion = "Montant"; primary_reverse = "Décroissant" in primary_sort_option
+            
+            val1_1 = get_comparable_value(entry1, primary_criterion)
+            val2_1 = get_comparable_value(entry2, primary_criterion)
+
+            # Gérer les None (ne devrait pas arriver avec le fallback date, mais par sécurité)
+            if val1_1 is None and val2_1 is None: cmp1 = 0
+            elif val1_1 is None: cmp1 = -1 if not primary_reverse else 1
+            elif val2_1 is None: cmp1 = 1 if not primary_reverse else -1
+            else:
+                if val1_1 < val2_1: cmp1 = -1
+                elif val1_1 > val2_1: cmp1 = 1
+                else: cmp1 = 0
+            
+            if primary_reverse: cmp1 *= -1
+
+            if cmp1 != 0: return cmp1 # Différent sur le critère primaire
+
+            # --- Comparaison Secondaire (si primaire égal et secondaire défini) --- 
+            secondary_criterion = ""
+            secondary_reverse = False
+            if secondary_sort_option != "Aucun":
+                 if "Date" in secondary_sort_option: secondary_criterion = "Date"; secondary_reverse = "Décroissant" in secondary_sort_option
+                 elif "Type" in secondary_sort_option: secondary_criterion = "Type"; secondary_reverse = "Z-A" in secondary_sort_option
+                 elif "Montant" in secondary_sort_option: secondary_criterion = "Montant"; secondary_reverse = "Décroissant" in secondary_sort_option
+            
+            if not secondary_criterion: return 0 # Pas de tri secondaire
+
+            val1_2 = get_comparable_value(entry1, secondary_criterion)
+            val2_2 = get_comparable_value(entry2, secondary_criterion)
+
+            if val1_2 is None and val2_2 is None: cmp2 = 0
+            elif val1_2 is None: cmp2 = -1 if not secondary_reverse else 1
+            elif val2_2 is None: cmp2 = 1 if not secondary_reverse else -1
+            else:
+                if val1_2 < val2_2: cmp2 = -1
+                elif val1_2 > val2_2: cmp2 = 1
+                else: cmp2 = 0
+
+            if secondary_reverse: cmp2 *= -1
+            
+            return cmp2
+        
+        # Trier en utilisant la fonction de comparaison
+        try:
+            sorted_entries = sorted(filtered_entries, key=functools.cmp_to_key(compare_entries))
+            print(f"  Sorted {len(sorted_entries)} entries using cmp_to_key.")
+        except Exception as e:
+            print(f"Erreur de tri (cmp_to_key): {e}")
+            traceback.print_exc()
+            sorted_entries = filtered_entries # Fallback
+        # --------------------------------------------------
 
         # 5. Vider le layout
         while self.entries_list_layout.count():
