@@ -9,8 +9,10 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QFrame as QtFrame, QSpacerItem, QSizePolicy,
                              QStackedWidget, QButtonGroup, QAbstractButton,
                              QTabWidget, QFormLayout)
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
-from PyQt5.QtGui import QIcon, QPixmap, QFont
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot, QTimer
+from PyQt5.QtGui import QIcon, QPixmap, QFont, QColor, QPalette
+from utils.theme import get_theme_vars
+from utils.icon_loader import get_icon_path
 from datetime import datetime, date
 
 # --- Importer les templates --- 
@@ -119,8 +121,20 @@ class DocumentsOpenPage(QWidget):
         
         # --- Zone Contenu Droite (avec le TabWidget) ---
         content_widget = QWidget() # Widget conteneur pour le TabWidget
+        content_widget.setObjectName("DocumentContentArea")
+        # Essayer de définir le fond via QPalette
+        try:
+            theme = get_theme_vars()
+            bg_color_hex = theme.get("COLOR_PRIMARY_DARK", "#313335")
+            palette = content_widget.palette()
+            palette.setColor(QPalette.Window, QColor(bg_color_hex))
+            content_widget.setPalette(palette)
+            content_widget.setAutoFillBackground(True) # Nécessaire avec setPalette
+        except Exception as e:
+            print(f"WARN: Erreur application palette à DocumentContentArea: {e}")
+        
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(5, 5, 5, 5) 
+        content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0) # Pas d'espacement avant le TabWidget
 
         self.tab_widget = QTabWidget()
@@ -288,8 +302,66 @@ class DocumentsOpenPage(QWidget):
     def add_document_tab(self, page_widget: QWidget, title: str):
         """Ajoute une page template de document comme nouvel onglet."""
         index = self.tab_widget.addTab(page_widget, title)
-        self.tab_widget.setCurrentIndex(index) # Sélectionner le nouvel onglet
-        print(f"DocumentsOpenPage: Onglet ajoutée: '{title}'")
+        self.tab_widget.setCurrentIndex(index)
+        # --- Coloration spécifique pour RapportDepensePage (différée) ---
+        if isinstance(page_widget, RapportDepensePage):
+            # Utiliser QTimer.singleShot pour appliquer la couleur après le cycle d'événements actuel
+            QTimer.singleShot(0, lambda idx=index, tab_title=title: self._apply_tab_color(idx, tab_title))
+        # ------------------------------------------------------------
+
+    def _apply_tab_color(self, index, title):
+        """Applique la couleur de fond et texte à un onglet spécifique."""
+        try:
+            theme = get_theme_vars()
+            accent_color_hex = theme.get("COLOR_ACCENT", "#007ACC")
+            text_color_hex = theme.get("COLOR_TEXT_ON_ACCENT", "#ffffff")
+            
+            # Vérifier si l'index est toujours valide (l'onglet pourrait avoir été fermé)
+            if index < self.tab_widget.count():
+                # Appliquer le style directement au tabBar avec !important
+                style_str = f"""QTabBar::tab:selected {{ 
+                                     background-color: {accent_color_hex} !important; 
+                                     color: {text_color_hex} !important; 
+                                 }}
+                                 QTabBar::tab:!selected {{ 
+                                     /* Peut-être une couleur différente pour non sélectionné? */ 
+                                     /* background-color: {theme.get('COLOR_PRIMARY_MEDIUM', '#3c3f41')} !important; */ 
+                                     /* color: {theme.get('COLOR_TEXT_SECONDARY', '#808080')} !important; */ 
+                                 }}"""
+                # Note: Appliquer au tabBar affectera potentiellement TOUS les onglets
+                # si on ne trouve pas un moyen de cibler via QSS. 
+                # Tentons de ne changer que la couleur de l'onglet courant via l'index
+                # comme avant, mais sur le tabBar lui-même.
+                try:
+                    # Cibler via index ne marche pas dans setStyleSheet
+                    # Essayons de définir des propriétés et utiliser QSS?
+                    # self.tab_widget.widget(index).setProperty("isSpecialTab", True)
+                    # self.tab_widget.tabBar().setStyleSheet("QTabBar::tab[isSpecialTab="true"] { background-color: ... }")
+                    # Ne fonctionne probablement pas.
+                    
+                    # Revenir à la tentative sur l'index avec QColor
+                    self.tab_widget.tabBar().setTabBackgroundColor(index, QColor(accent_color_hex))
+                    self.tab_widget.tabBar().setTabTextColor(index, QColor(accent_color_hex)) # Texte accent sur fond indéfini
+                    print(f"Tentative de setTabBackgroundColor/TextColor sur index {index}")
+
+                    # Garder l'icône
+                    icon_name = "round_receipt_long.png" # Icône pour rapport
+                    icon_path = get_icon_path(icon_name)
+                    if icon_path:
+                        self.tab_widget.setTabIcon(index, QIcon(icon_path))
+                        print(f"Icône {icon_name} appliquée à l'onglet {index} ({title})")
+                    else:
+                        print(f"WARN: Icône {icon_name} non trouvée pour l'onglet.")
+
+                except Exception as e_color:
+                    print(f"WARN: Erreur application couleur/icône onglet Rapport Dépense (Index): {e_color}")
+
+                # Laisser l'icône appliquée même si la couleur échoue
+
+            else:
+                print(f"WARN: Impossible d'appliquer style différé, onglet {index} n'existe plus.")
+        except Exception as e:
+            print(f"WARN: Erreur application couleur différée onglet Rapport Dépense: {e}")
 
     def close_tab(self, index):
         """Slot pour fermer l'onglet demandé."""

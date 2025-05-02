@@ -430,3 +430,90 @@ QPushButton#ItemOptionsButton:hover {
 /* #CardWidget > QWidget > QHBoxLayout > QLabel { font-weight: bold; } */
 
 /* --- FIN Styles pour CardWidget --- */ 
+
+/* --- Styles pour DocumentTabWidget --- */
+
+/* Rendre le QTabWidget lui-même transparent */
+QTabWidget#DocumentTabWidget {
+    background-color: transparent;
+    border: none; /* Assurer qu'il n'a pas de bordure propre */
+}
+
+QTabWidget#DocumentTabWidget::pane {
+    /* Style du panneau contenant la page de l'onglet */
+    border: none;
+    border-top: none; /* <-- Forcer aucune bordure haute */
+    /* Optionnel: peut définir un fond si le widget de page est transparent */
+     background-color: {{COLOR_PRIMARY_DARK}}; /* <-- Mise à jour vers DARK */
+}
+
+QTabWidget#DocumentTabWidget QTabBar::tab {
+    background-color: {{COLOR_PRIMARY_DARK}}; /* Fond pour non sélectionné */
+    color: {{COLOR_TEXT_SECONDARY}};
+    /* border: 1px solid {{COLOR_PRIMARY_DARKEST}}; */ /* <-- SUPPRIMER Bordure */
+    border: none; /* <-- Assurer absence de bordure */
+    /* border-bottom: none; */ /* Devient inutile */
+    border-top-left-radius: {{RADIUS_DEFAULT}};
+    border-top-right-radius: {{RADIUS_DEFAULT}};
+    padding: 6px 15px; /* Ajuster padding */
+    min-width: 120px; /* Largeur minimale */
+    margin-right: 2px; /* Espace entre onglets */
+}
+
+/* Forcer le premier onglet à être collé à gauche */
+QTabWidget#DocumentTabWidget QTabBar::tab:first {
+    margin-left: 0px;
+    padding-left: 0px; /* Redéfinir si le padding général en ajoute */
+}
+
+QTabWidget#DocumentTabWidget QTabBar::tab:selected {
+    background-color: {{COLOR_PRIMARY_DARKEST}}; /* Fond pour sélectionné (le plus foncé) */
+    color: {{COLOR_TEXT_PRIMARY}};
+    border-color: {{COLOR_PRIMARY_DARK}};
+    border-bottom: none; /* <-- AJOUT: Explicitement sans bordure en bas */
+    /* Optionnel: rendre la bordure du bas de la même couleur que le pane */
+    /* border-bottom-color: {{COLOR_PRIMARY_MEDIUM}}; */
+}
+
+QTabWidget#DocumentTabWidget QTabBar::tab:!selected:hover {
+    background-color: {{COLOR_PRIMARY_LIGHT}}; /* Effet de survol */
+    color: {{COLOR_TEXT_PRIMARY}};
+}
+
+/* Bouton de fermeture sur l'onglet */
+QTabWidget#DocumentTabWidget QTabBar::close-button {
+    /* image: url(...); */ /* Mettre une icône si désiré */
+    subcontrol-position: right;
+    subcontrol-origin: padding;
+    border-radius: 2px;
+    background-color: transparent;
+    /* padding: 2px; */
+}
+
+QTabWidget#DocumentTabWidget QTabBar::close-button:hover {
+    background-color: {{COLOR_ITEM_HOVER}};
+}
+
+QTabWidget#DocumentTabWidget QTabBar::close-button:pressed {
+    background-color: {{COLOR_PRIMARY_DARKEST}};
+}
+
+/* Style de la barre d'onglets elle-même si besoin */
+QTabWidget#DocumentTabWidget QTabBar {
+    background-color: {{COLOR_PRIMARY_DARK}}; /* <-- Définir explicitement le fond */
+    border: none;
+    qproperty-drawBase: 0; /* Ne pas dessiner la base sous les onglets */
+    padding-left: 0px; /* <-- AJOUT */
+    margin-left: 0px;  /* <-- AJOUT */
+    padding: 0px; /* <-- Forcer tout padding à 0 */
+} 
+
+/* --- Style pour DocumentsOpenPage --- */
+QWidget#DocumentsOpenPage {
+    background-color: {{COLOR_PRIMARY_DARK}};
+} 
+
+/* --- Style pour la zone derrière les onglets --- */
+QWidget#DocumentContentArea {
+    background-color: {{COLOR_PRIMARY_DARK}};
+} 
