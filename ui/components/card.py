@@ -643,4 +643,15 @@ class CardWidget(QFrame):
             super().contextMenuEvent(event) # Comportement par défaut si options désactivées
     # ------------------------
 
+    # --- Gestion Double Clic --- 
+    def mouseDoubleClickEvent(self, event):
+        """Gère l'événement de double-clic pour déplier/replier la carte."""
+        # Simuler un clic sur le bouton expand/collapse
+        if self.expand_button:
+            self.expand_button.toggle()
+            event.accept() # Indiquer que l'événement a été traité
+        else:
+            super().mouseDoubleClickEvent(event) # Comportement par défaut
+    # ---------------------------
+
 # --- Fin Widget Card --- 
