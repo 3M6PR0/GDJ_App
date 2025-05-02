@@ -127,18 +127,40 @@ class MediaViewer(QWidget):
         toolbar_bg_color = theme_colors.get("COLOR_PRIMARY_MEDIUM", "#3a3d40") # Choisir la couleur et fallback
         toolbar_container = QWidget() # Créer un widget conteneur
         toolbar_container.setObjectName("ToolbarContainer") # Donner un nom pour le style
-        # Remettre la couleur de fond sur le conteneur principal
-        toolbar_container.setStyleSheet(f"QWidget#ToolbarContainer {{ background-color: {toolbar_bg_color}; border-radius: 4px; }}") 
+
+        # --- Définir le style du conteneur ET la transparence des enfants ICI --- 
+        # Définir comme chaîne standard, puis formater
+        toolbar_style_template = "" # Assignation initiale
+        toolbar_style_template = """
+            # Conteneur principal avec fond et coins arrondis
+            QWidget#ToolbarContainer {{ 
+                background-color: {{toolbar_bg_color}};
+                border-radius: 4px; /* Remettre le radius ici */
+            }}
+
+            /* Widgets internes rendus transparents */
+            QWidget#LeftToolbarWidget, 
+            QWidget#CentralToolbarWidget, 
+            QWidget#RightToolbarWidget {{ 
+                background: transparent;
+            }}
+        """
+        toolbar_style = toolbar_style_template.format(toolbar_bg_color=toolbar_bg_color)
+        toolbar_container.setStyleSheet(toolbar_style)
+        # --- Forcer le clipping par l'arrière-plan stylé --- 
+        toolbar_container.setAttribute(Qt.WA_StyledBackground, True)
+        # ---------------------------------------------------------------------
+        
         # --- UTILISER QGridLayout --- 
         toolbar_layout = QGridLayout(toolbar_container) # <--- CHANGEMENT ICI
         toolbar_layout.setContentsMargins(5, 3, 5, 3) # Ajuster marges internes du conteneur
         toolbar_layout.setSpacing(8)
         
-        # --- Widget Gauche (Ciblé pour transparence) --- 
-        left_widget = QWidget()
-        left_widget.setObjectName("LeftToolbarSection") # <-- AJOUT ObjectName
-        # Pas de style direct ici
-        left_layout = QHBoxLayout(left_widget)
+        # --- Layout Gauche --- 
+        # --- Widget Gauche --- 
+        left_widget = QWidget() 
+        left_widget.setObjectName("LeftToolbarWidget")
+        left_layout = QHBoxLayout(left_widget) # Ajouter le layout au widget
         left_layout.setContentsMargins(0,0,0,0)
         left_layout.setSpacing(8)
         
@@ -163,10 +185,9 @@ class MediaViewer(QWidget):
         left_layout.addWidget(self.navigation_label)
         # ----------------------------------------------------------
 
-        # --- Widget Central (Sans style direct) --- 
+        # --- Widget Central (Sans objectName ni style direct) --- 
         central_controls_widget = QWidget() # Renommé central_widget pour cohérence
-        # Pas de style direct ici
-        # central_controls_widget.setStyleSheet(f"background-color: {toolbar_bg_color}; border-radius: 4px;") # <-- RETIRÉ
+        central_controls_widget.setObjectName("CentralToolbarWidget") # Donner un nom pour le style
         central_controls_layout = QHBoxLayout(central_controls_widget)
         central_controls_layout.setContentsMargins(5, 3, 5, 3) # Garder marge interne
         central_controls_layout.setSpacing(8)
@@ -238,11 +259,10 @@ class MediaViewer(QWidget):
         central_controls_layout.addWidget(self.total_pages_label)
         # ----------------------------------------
 
-        # --- Widget Droit (Ciblé pour transparence) --- 
+        # --- Widget Droit --- 
         right_widget = QWidget()
-        right_widget.setObjectName("RightToolbarSection") # <-- AJOUT ObjectName
-        # Pas de style direct ici
-        right_layout = QHBoxLayout(right_widget)
+        right_widget.setObjectName("RightToolbarWidget")
+        right_layout = QHBoxLayout(right_widget) # Ajouter le layout au widget
         right_layout.setContentsMargins(0,0,0,0)
         right_layout.setSpacing(8)
 
@@ -256,9 +276,9 @@ class MediaViewer(QWidget):
         # ---------------------------------------------
 
         # --- Assemblage final de la barre d'outils --- 
-        toolbar_layout.addWidget(left_widget, 0, 0, Qt.AlignLeft)             # Groupe gauche -> Colonne 0, Aligné à GAUCHE
+        toolbar_layout.addWidget(left_widget, 0, 0, Qt.AlignLeft)             # Widget gauche -> Colonne 0, Aligné à GAUCHE
         toolbar_layout.addWidget(central_controls_widget, 0, 1, Qt.AlignCenter) # Groupe central -> Colonne 1, Aligné au centre
-        toolbar_layout.addWidget(right_widget, 0, 2, Qt.AlignRight) # Groupe droite -> Colonne 2, Aligné à droite
+        toolbar_layout.addWidget(right_widget, 0, 2, Qt.AlignRight)           # Widget droite -> Colonne 2, Aligné à droite
 
         # Définir l'étirement des colonnes pour centrer la colonne 1
         toolbar_layout.setColumnStretch(0, 1) # Colonne gauche prend l'espace
@@ -299,13 +319,6 @@ class MediaViewer(QWidget):
         close_button.clicked.connect(self.close)
         button_layout.addWidget(close_button)
         main_layout.addLayout(button_layout)
-
-        # --- AJOUT: Style ciblé pour transparence des sections gauche/droite --- 
-        self.setStyleSheet("""
-            QWidget#LeftToolbarSection { background-color: transparent; }
-            QWidget#RightToolbarSection { background-color: transparent; }
-        """)
-        # ---------------------------------------------------------------------
 
         self._load_media() 
         self._update_navigation_state() 

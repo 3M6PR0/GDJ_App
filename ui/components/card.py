@@ -1,13 +1,34 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QFrame, QFormLayout, QGridLayout)
-from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize
+from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon
 from datetime import date
 from utils.icon_loader import get_icon_path # Assumer que utils est accessible depuis widgets
 from utils.theme import get_theme_vars, RADIUS_BOX 
+import os
+import functools
+from models.documents.rapport_depense.facture import Facture # Assumer l'import
+from PyQt5.QtGui import QPixmap, QImage # Pour _generate_thumbnail_pixmap
+# --- AJOUT: Importer RoundedImageWidget --- 
+from widgets.thumbnail_widget import ThumbnailWidget
+# ------------------------------------------
+
+# --- AJOUT: Tentative d'import de fitz et définition de PYMUPDF_AVAILABLE --- 
+try:
+    import fitz # PyMuPDF
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    fitz = None # Définir fitz à None si l'import échoue
+    PYMUPDF_AVAILABLE = False
+    # Pas de print ici, pourrait être appelé souvent
+# --------------------------------------------------------------------------
 
 # --- Widget Card (Reconstruit, héritant de QFrame) --- 
 class CardWidget(QFrame):
+    # --- AJOUT: Signal pour clic miniature --- 
+    thumbnail_clicked = pyqtSignal(list, int)
+    # -----------------------------------------
+
     def __init__(self, entry_data, entry_type, parent=None):
         super().__init__(parent)
         # Donner un nom d'objet pour le ciblage QSS global ou interne
@@ -227,7 +248,14 @@ class CardWidget(QFrame):
                 value_widget.setStyleSheet("background-color: transparent; border: none;")
                 value_widget.setWordWrap(True)
                 details_layout.addWidget(label_widget, i + 1, 0) # +1 pour ligne 0 (séparateur)
-                details_layout.addWidget(value_widget, i + 1, 1)
+
+                # --- Gérer spécifiquement Numéro Commande (cacher si vide) --- 
+                if attr_name == 'numero_commande' and not value_str:
+                    label_widget.hide()
+                    value_widget.hide()
+                else:
+                    details_layout.addWidget(value_widget, i + 1, 1)
+                # ---------------------------------------------------------
 
             # Remplir Colonnes 3 & 4 (Label + Valeur)
             for i, (attr_name, display_name) in enumerate(attrs_col3):
@@ -249,8 +277,21 @@ class CardWidget(QFrame):
                 label_widget.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
                 value_widget.setStyleSheet("background-color: transparent; border: none;")
                 value_widget.setWordWrap(True)
-                details_layout.addWidget(label_widget, i + 1, 2) # +1 pour ligne 0 (séparateur)
-                details_layout.addWidget(value_widget, i + 1, 3)
+
+                # --- Gérer spécifiquement Taxes (cacher si 0.00) --- 
+                is_tax_field = attr_name in ['tps', 'tvq', 'tvh']
+                try:
+                    # Comparaison plus sûre pour les floats
+                    is_zero_tax = is_tax_field and abs(float(value)) < 0.001 
+                except (ValueError, TypeError):
+                    is_zero_tax = False 
+                    
+                if is_zero_tax:
+                    label_widget.hide()
+                    value_widget.hide()
+                else:
+                    details_layout.addWidget(label_widget, i + 1, 2) # +1 pour ligne 0 (séparateur)
+                    details_layout.addWidget(value_widget, i + 1, 3)
 
             # Remplir Colonne 5 (Facture)
             factures_widget = QWidget() # Renommé pour clarté, même si une seule facture
@@ -281,6 +322,46 @@ class CardWidget(QFrame):
             # Ajouter le widget de la facture à la grille, ligne 1, col 4, span N lignes
             row_span = max(len(attrs_col1), len(attrs_col3)) + 1
             details_layout.addWidget(factures_widget, 1, 4, row_span, 1)
+
+            # --- NOUVEAU: Ajouter la section Facture Colonne 5 --- 
+            facture_label = QLabel("Facture:")
+            facture_label.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
+            details_layout.addWidget(facture_label, 1, 4, Qt.AlignLeft | Qt.AlignTop) # Ligne 1 (sous séparateur), Col 4, Align Top
+
+            # Widget conteneur pour les miniatures
+            facture_thumbs_widget = QWidget()
+            facture_thumbs_layout = QHBoxLayout(facture_thumbs_widget)
+            facture_thumbs_layout.setContentsMargins(0,0,0,0)
+            facture_thumbs_layout.setSpacing(4)
+            facture_thumbs_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop) # Aligner en haut
+
+            facture_obj = getattr(self.entry_data, facture_attr, None)
+            has_factures = False
+            if facture_obj and isinstance(facture_obj, Facture):
+                all_files = facture_obj.get_full_paths()
+                if all_files:
+                    has_factures = True
+                    for idx, file_path in enumerate(all_files):
+                        thumb_pixmap = self._generate_thumbnail_pixmap(file_path) 
+                        if not thumb_pixmap.isNull():
+                            # --- UTILISER ThumbnailWidget SANS Bouton Delete --- 
+                            thumbnail_widget = ThumbnailWidget(file_path, thumb_pixmap, show_delete_button=False)
+                            # Connecter le signal clicked du ThumbnailWidget au slot interne
+                            thumbnail_widget.clicked.connect(functools.partial(self._on_thumbnail_button_clicked, all_files=all_files, index=idx))
+                            facture_thumbs_layout.addWidget(thumbnail_widget)
+                            # -------------------------------------------------
+                    facture_thumbs_layout.addStretch() # Pour pousser à gauche
+                    # Ajouter le widget des miniatures, span plusieurs lignes si nécessaire
+                    details_layout.addWidget(facture_thumbs_widget, 2, 4, len(attrs_col1)-1, 1, Qt.AlignLeft | Qt.AlignTop) # Ligne 2, Col 4, Span X rows, 1 Col
+            
+            # Si pas de factures, cacher le label et ne rien ajouter
+            if not has_factures:
+                facture_label.hide()
+                no_facture_label = QLabel("Aucune")
+                no_facture_label.setStyleSheet("background-color: transparent; border: none; font-style: italic;")
+                # Ajouter à la même position que facture_thumbs_widget mais caché si has_factures est True
+                details_layout.addWidget(no_facture_label, 2, 4, len(attrs_col1)-1, 1, Qt.AlignLeft | Qt.AlignTop)
+            # ------------------------------------------------------
 
         else:
             # --- Layout par défaut (QFormLayout) pour les autres types ---
@@ -334,5 +415,64 @@ class CardWidget(QFrame):
         icon_path = get_icon_path(icon_name)
         if icon_path:
             self.expand_button.setIcon(QIcon(icon_path))
+
+    # --- Méthode pour générer miniature (copiée depuis rapport_depense_page) ---
+    # (Avec ajustement pour être une méthode de classe)
+    def _generate_thumbnail_pixmap(self, file_path, size=QSize(64, 64)):
+        """Génère un QPixmap miniature pour un fichier image ou PDF."""
+        # --- NE PAS PRE-SCALER ICI --- 
+        # La taille par défaut du QPixmap sera la taille originale ou rendue
+        pixmap = QPixmap() 
+        is_image = any(file_path.lower().endswith(ext) for ext in
+                       ['.png', '.jpg', '.jpeg', '.bmp', '.gif'])
+
+        try:
+            if is_image:
+                img = QImage(file_path)
+                if not img.isNull():
+                    # Charger l'image, mais ne pas scaler ici
+                    pixmap = QPixmap.fromImage(img)
+            elif file_path.lower().endswith('.pdf') and PYMUPDF_AVAILABLE:
+                doc = fitz.open(file_path)
+                if len(doc) > 0:
+                    page = doc.load_page(0)
+                    zoom = 2.0
+                    mat = fitz.Matrix(zoom, zoom)
+                    pdf_pix = page.get_pixmap(matrix=mat, alpha=False)
+                    qimage = QImage(pdf_pix.samples, pdf_pix.width, pdf_pix.height, pdf_pix.stride, QImage.Format_RGB888)
+                    # Créer le pixmap depuis PDF rendu, mais ne pas scaler ici
+                    pixmap = QPixmap.fromImage(qimage)
+                doc.close()
+            else:
+                placeholder_path = get_icon_path("round_description.png")
+                if placeholder_path:
+                    # Charger l'icône placeholder, ne pas scaler ici (elle est petite)
+                    # On pourrait la scaler à la taille THUMBNAIL_SIZE si on veut un placeholder plus grand
+                    pixmap = QPixmap(placeholder_path) 
+
+        except Exception as e:
+            print(f"Erreur génération miniature (CardWidget) pour {file_path}: {e}")
+            placeholder_path = get_icon_path("round_description.png")
+            if placeholder_path:
+                 pixmap = QPixmap(placeholder_path)
+
+        if pixmap.isNull():
+            pixmap = QPixmap(size)
+            
+            # Créer un placeholder gris à la taille THUMBNAIL_SIZE désirée
+            placeholder_size = ThumbnailWidget.THUMBNAIL_SIZE if 'ThumbnailWidget' in globals() else 100
+            pixmap = QPixmap(placeholder_size, placeholder_size)
+            pixmap.fill(Qt.darkGray)
+
+        return pixmap
+    # -----------------------------------------------------------------------
+
+    # --- Slot interne pour gérer clic sur bouton miniature --- 
+    @Slot(list, int)
+    def _on_thumbnail_button_clicked(self, all_files, index):
+        """Émet le signal thumbnail_clicked avec les données reçues."""
+        print(f"CardWidget: Thumbnail clicked! Emitting signal with index {index} for list: {all_files}") # Debug
+        self.thumbnail_clicked.emit(all_files, index)
+    # ---------------------------------------------------------
 
 # --- Fin Widget Card --- 

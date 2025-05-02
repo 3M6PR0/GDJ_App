@@ -27,6 +27,7 @@ import os # Pour manipuler les chemins
 # --- AJOUT: Import MediaViewer --- 
 from windows.media_viewer import MediaViewer
 # ---------------------------------
+import functools # <--- AJOUT
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
@@ -934,80 +935,100 @@ class RapportDepensePage(QWidget):
             print("  Erreur: Widgets N° Commande, index de ligne, ou layout non trouvés.") # DEBUG
 
     def _populate_entries_list(self):
-        """ Vide et repeuple la liste des vignettes d'entrées, en préservant l'état déplié. """
-        
-        expanded_entry_ids = set() # Utiliser un set pour stocker les objets entry_data dépliés
-        
-        # 1. Mémoriser les entrées actuellement dépliées
-        for i in range(self.entries_list_layout.count()):
-            child = self.entries_list_layout.itemAt(i)
-            if child and child.widget():
-                card = child.widget()
-                # Vérifier si la carte est une instance de CardWidget et est dépliée
-                if isinstance(card, CardWidget) and card.expand_button.isChecked(): 
-                    # Utiliser l'objet entry_data comme identifiant (s'il est hashable)
-                    # Si entry_data n'est pas hashable, il faudra un ID unique.
-                    try:
-                         expanded_entry_ids.add(card.entry_data)
-                    except TypeError:
-                         # Fallback: utiliser id() si l'objet n'est pas hashable (moins robuste si les objets sont recréés)
-                         print(f"WARN: entry_data de type {type(card.entry_data)} n'est pas hashable, utilisation de id() comme fallback.")
-                         expanded_entry_ids.add(id(card.entry_data))
-
-        # 2. Vider le layout existant
+        # Vider le layout existant
         while self.entries_list_layout.count():
             child = self.entries_list_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
 
-        # 3. Récupérer et trier toutes les entrées par date
-        all_entries = self.document.repas + self.document.deplacements + self.document.depenses_diverses
-        all_entries.sort(key=lambda entry: getattr(entry, 'date', getattr(entry, 'date_repas', getattr(entry, 'date_deplacement', getattr(entry, 'date_depense', None))))) # Clé de tri robuste
+        # Trier les entrées par date (ou autre critère si besoin)
+        try:
+            # Combiner toutes les listes d'entrées
+            all_entries = self.document.deplacements + self.document.repas + self.document.depenses_diverses
 
-        # 4. Créer et ajouter les nouvelles vignettes
-        for entry in all_entries:
-            entry_type = "Inconnu"
+            # Clé de tri robuste (gère les différents noms d'attributs de date)
+            def get_sort_key(entry):
+                if hasattr(entry, 'date_repas'): return entry.date_repas
+                if hasattr(entry, 'date_deplacement'): return entry.date_deplacement
+                if hasattr(entry, 'date_depense'): return entry.date_depense
+                if hasattr(entry, 'date'): return entry.date # Fallback générique
+                return QDate(1900, 1, 1) # Date très ancienne si aucune date trouvée
+
+            # Trier la liste combinée
+            sorted_entries = sorted(all_entries, key=get_sort_key, reverse=True)
+        except Exception as e:
+             print(f"Erreur de tri des entrées: {e}. Affichage non trié.")
+             # Fallback: utiliser la liste combinée non triée
+             sorted_entries = self.document.deplacements + self.document.repas + self.document.depenses_diverses
+
+        for entry in sorted_entries:
+            # Déterminer UNIQUEMENT le type string pour le constructeur de CardWidget
+            entry_type_str = "Inconnu" # Type par défaut
             if isinstance(entry, Repas):
-                entry_type = "Repas"
+                entry_type_str = "Repas"
             elif isinstance(entry, Deplacement):
-                entry_type = "Déplacement"
+                entry_type_str = "Déplacement"
             elif isinstance(entry, Depense):
-                entry_type = "Dépense"
-                
-            card = CardWidget(entry_data=entry, entry_type=entry_type)
-            
-            # 5. Restaurer l'état déplié si nécessaire
-            entry_id_to_check = entry # Utiliser l'objet directement par défaut
-            is_expanded = False
-            try:
-                if entry in expanded_entry_ids:
-                    is_expanded = True
-            except TypeError:
-                 # Si l'objet n'était pas hashable, on a stocké id()
-                 if id(entry) in expanded_entry_ids:
-                     is_expanded = True
+                entry_type_str = "Dépense"
 
-            if is_expanded:
-                # Déclencher le dépliage. setChecked(True) appellera _toggle_details.
-                card.expand_button.setChecked(True) 
+            # CORRECTION: Instancier CardWidget avec les bons arguments
+            card = CardWidget(
+                entry_data=entry,          # Passer l'objet de données complet
+                entry_type=entry_type_str, # Passer juste le type string
+                parent=self
+            )
+            # Connecter le signal du CardWidget (qui gère maintenant ses propres détails)
+            # au slot de cette page qui ouvre le viewer.
+            card.thumbnail_clicked.connect(self._open_media_viewer)
 
             self.entries_list_layout.addWidget(card)
 
-        # 6. Optionnel: Forcer une mise à jour de la géométrie pour éviter les artefacts
-        # Décommenter si le problème d'affichage persiste
-        # if self.entries_scroll_area.widget():
-        #      self.entries_scroll_area.widget().updateGeometry()
-        # self.entries_scroll_area.updateGeometry()
-        # QApplication.processEvents() # Utiliser avec précaution
+        # Ajouter un espace extensible pour pousser les cartes vers le haut
+        self.entries_list_layout.addStretch(1)
 
-        # Optionnel: Ajouter un stretch à la fin si on veut que les vignettes ne s'étirent pas verticalement
-        # self.entries_list_layout.addStretch(1)
-            
-    # --- Nouvelle méthode pour créer un onglet --- 
-    def _create_tab(self, doc_type: str, doc_data: dict):
-        """Crée la page template et l'ajoute comme onglet."""
-        # ... existing code ...
-        # ... new code ...
+    # --- NOUVEAU HELPER: Générer Miniature ---
+    def _generate_thumbnail_pixmap(self, file_path, size=QSize(64, 64)):
+        """Génère un QPixmap miniature pour un fichier image ou PDF."""
+        pixmap = QPixmap()
+        is_image = any(file_path.lower().endswith(ext) for ext in
+                       ['.png', '.jpg', '.jpeg', '.bmp', '.gif']) # Simplifié pour l'exemple
+
+        try:
+            if is_image:
+                img = QImage(file_path)
+                if not img.isNull():
+                    pixmap = QPixmap.fromImage(img).scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            elif file_path.lower().endswith('.pdf') and PYMUPDF_AVAILABLE:
+                doc = fitz.open(file_path)
+                if len(doc) > 0:
+                    page = doc.load_page(0)
+                    # Rendu à une résolution légèrement supérieure pour meilleure qualité de réduction
+                    zoom = 2.0
+                    mat = fitz.Matrix(zoom, zoom)
+                    pdf_pix = page.get_pixmap(matrix=mat, alpha=False)
+                    qimage = QImage(pdf_pix.samples, pdf_pix.width, pdf_pix.height, pdf_pix.stride, QImage.Format_RGB888)
+                    pixmap = QPixmap.fromImage(qimage).scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                doc.close()
+            else:
+                # Fichier non trouvé ou type non supporté, utiliser une icône placeholder
+                placeholder_path = get_icon_path("round_description.png") # Ou une autre icône
+                if placeholder_path:
+                    pixmap = QPixmap(placeholder_path).scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        except Exception as e:
+            print(f"Erreur génération miniature pour {file_path}: {e}")
+            # Utiliser l'icône placeholder en cas d'erreur aussi
+            placeholder_path = get_icon_path("round_description.png")
+            if placeholder_path:
+                 pixmap = QPixmap(placeholder_path).scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # Créer un pixmap vide si tout a échoué
+        if pixmap.isNull():
+            pixmap = QPixmap(size)
+            pixmap.fill(Qt.gray) # Remplir avec une couleur pour indiquer l'échec
+
+        return pixmap
+    # -----------------------------------------
 
     # --- NOUVEAUX Slots pour gérer les factures --- 
     def _select_factures(self):
@@ -1113,46 +1134,63 @@ class RapportDepensePage(QWidget):
              print(f"Avertissement: Tentative suppression miniature non trouvée: {file_path}")
     # ------------------------------------------------
 
-    # --- AJOUT: Slot pour ouvrir MediaViewer --- 
-    def _open_media_viewer(self, clicked_file_path):
-        """Ouvre le MediaViewer pour la liste de factures actuelle, en sélectionnant le fichier cliqué."""
-        all_paths = list(self.current_facture_thumbnails.keys())
-        if not all_paths:
-            print("WARN: _open_media_viewer appelé mais pas de miniatures présentes.")
+    # --- MODIFICATION Signature et Logique _open_media_viewer ---
+    def _open_media_viewer(self, all_files: list, initial_index: int):
+        """Ouvre MediaViewer avec la liste de fichiers et l'index initial."""
+        if not all_files:
+            QMessageBox.warning(self, "Aucun Fichier", "Aucun fichier associé à cette facture.")
             return
-            
-        try:
-            clicked_index = all_paths.index(clicked_file_path)
-        except ValueError:
-            print(f"ERROR: Chemin cliqué '{clicked_file_path}' non trouvé dans la liste des miniatures.")
-            # Utiliser le premier fichier comme fallback?
-            if all_paths:
-                 clicked_index = 0
-            else:
-                 return # Ne rien faire si la liste est vide (double check)
+
+        # Filtrer les fichiers inexistants (sécurité)
+        valid_files = [f for f in all_files if f and os.path.exists(f)] # Ajout check 'f is not None'
+        if not valid_files:
+             QMessageBox.critical(self, "Erreur Fichiers", "Aucun des fichiers de la facture n'a été trouvé.")
+             return
+
+        # Recalculer l'index initial basé sur la liste valide
+        clicked_file_path = all_files[initial_index] # Chemin original cliqué
+        valid_initial_index = 0 # Défaut à 0
+        if clicked_file_path in valid_files:
+             try:
+                 valid_initial_index = valid_files.index(clicked_file_path)
+             except ValueError:
+                 print(f"WARN: Fichier cliqué {clicked_file_path} était dans all_files mais pas trouvé dans valid_files après vérification existance. Bizarre. Ouverture index 0.")
+                 # Garde valid_initial_index à 0
+        else:
+             # Si le fichier cliqué n'existe pas/plus, on prend le premier valide (index 0)
+              if valid_files: # Assure qu'il y a au moins un fichier valide
+                  print(f"WARN: Fichier cliqué {clicked_file_path} non trouvé ou invalide, ouverture du premier fichier valide ({valid_files[0]}).")
+                  # Garde valid_initial_index à 0
+              else:
+                   # Ne devrait pas arriver car vérifié plus haut, mais par sécurité
+                   return
+
 
         try:
-            # Passer self comme parent peut aider à la gestion de la fenêtre
-            viewer = MediaViewer(media_source=all_paths, 
-                               initial_index=clicked_index, 
-                               parent=self.window()) # parent = fenêtre principale?
-            # --- MODIFICATION: Affichage modal pour QWidget --- 
-            # Ouvrir en modal
-            # viewer.exec_() # Erreur car c'est un QWidget
-            viewer.setWindowFlags(viewer.windowFlags() | Qt.Dialog) # Optionnel: pour style/comportement
-            viewer.setWindowModality(Qt.ApplicationModal) # Rendre modal
+            # S'assurer que l'instance précédente est fermée si modale
+            # (Si on passe en non-modal, gérer la liste self.open_viewers)
+
+            # Passer la liste valide et l'index recalculé
+            viewer = MediaViewer(media_source=valid_files, initial_index=valid_initial_index, parent=self.window()) # Parent = fenêtre principale
+            # Rendre la fenêtre modale à l'application
+            viewer.setWindowModality(Qt.ApplicationModal)
             viewer.show()
-            # -------------------------------------------------
-            # Si on voulait non-modal:
+            # Si non-modal:
+            # viewer.setAttribute(Qt.WA_DeleteOnClose) # Optionnel: nettoyer mémoire
+            # self.open_viewers.append(viewer) # Garder référence
             # viewer.show()
-            # self.open_viewers.append(viewer) # Garder une référence
-            # # Ajouter un mécanisme pour nettoyer self.open_viewers quand une fenêtre est fermée
-        except (FileNotFoundError, ValueError, TypeError) as e:
-            QMessageBox.critical(self, "Erreur Media Viewer", f"Impossible d'ouvrir le visualiseur:\n{e}")
-        except Exception as e_global:
-            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue:\n{e_global}")
+
+        except FileNotFoundError as e:
+             QMessageBox.critical(self, "Erreur Fichier", str(e))
+        except ValueError as e:
+             QMessageBox.critical(self, "Erreur Données", str(e))
+        except TypeError as e:
+             QMessageBox.critical(self, "Erreur Type", str(e))
+        except Exception as e:
+            print(f"Erreur inattendue ouverture MediaViewer: {e}")
             traceback.print_exc()
-    # -----------------------------------------
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue: {e}")
+    # --- FIN MODIFICATION ---
 
 # Bloc de test simple
 if __name__ == '__main__':

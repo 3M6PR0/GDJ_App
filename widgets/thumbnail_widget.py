@@ -59,7 +59,7 @@ class ThumbnailWidget(QWidget):
 
     THUMBNAIL_SIZE = 100 # Taille cible (largeur/hauteur) pour la miniature
 
-    def __init__(self, file_path: str, pixmap: QPixmap, parent=None):
+    def __init__(self, file_path: str, pixmap: QPixmap, show_delete_button: bool = True, parent=None):
         super().__init__(parent)
         self.file_path = file_path
         self._border_radius = 8 # Stocker le radius ici aussi
@@ -86,59 +86,64 @@ class ThumbnailWidget(QWidget):
         self.image_container.clicked.connect(self._emit_thumbnail_clicked)
         # --------------------------------------------------
 
-        # Bouton de suppression (enfant du nouveau conteneur arrondi)
-        self.delete_button = QPushButton(self.image_container) # Parent = image_container (le RoundedImageWidget)
-        self.delete_button.setFixedSize(18, 18)
-        self.delete_button.setToolTip("Supprimer cette facture")
-        self.delete_button.setCursor(Qt.PointingHandCursor)
-        self.delete_button.clicked.connect(self._emit_delete_signal)
+        # --- Création conditionnelle du bouton de suppression --- 
+        self.delete_button = None
+        if show_delete_button:
+            self.delete_button = QPushButton(self.image_container) # Parent = image_container (le RoundedImageWidget)
+            self.delete_button.setFixedSize(18, 18)
+            self.delete_button.setToolTip("Supprimer cette facture")
+            self.delete_button.setCursor(Qt.PointingHandCursor)
+            self.delete_button.clicked.connect(self._emit_delete_signal)
 
-        # Style du bouton 'X'
-        delete_icon_path = None
-        if ICON_LOADER_AVAILABLE:
-            delete_icon_path = get_icon_path("round_cancel.png") # Utiliser une icône si possible
+            # Style du bouton 'X'
+            delete_icon_path = None
+            if ICON_LOADER_AVAILABLE:
+                delete_icon_path = get_icon_path("round_cancel.png") # Utiliser une icône si possible
 
-        if delete_icon_path:
-            self.delete_button.setIcon(QIcon(delete_icon_path))
-            self.delete_button.setIconSize(QSize(12, 12)) # Ajuster taille icône
-            self.delete_button.setText("") # Pas de texte si icône
-            # Style pour bouton icône rond rouge
-            self.delete_button.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(200, 50, 50, 0.85);
-                    border-radius: 9px; /* Cercle */
-                    border: none;
-                }
-                QPushButton:hover {
-                    background-color: rgba(230, 50, 50, 1.0);
-                }
-                QPushButton:pressed {
-                    background-color: rgba(180, 40, 40, 1.0);
-                }
-            """)
-        else:
-            # Style pour bouton texte 'X' si icône indisponible
-            self.delete_button.setText("✕")
-            self.delete_button.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(200, 50, 50, 0.8);
-                    color: white;
-                    border: none;
-                    border-radius: 9px;
-                    font-weight: bold;
-                    font-size: 10px;
-                    padding-bottom: 1px; /* Ajustement vertical du texte */
-                }
-                QPushButton:hover {
-                    background-color: rgba(230, 50, 50, 1.0);
-                }
-                QPushButton:pressed {
-                    background-color: rgba(180, 40, 40, 1.0);
-                }
-            """)
+            if delete_icon_path:
+                self.delete_button.setIcon(QIcon(delete_icon_path))
+                self.delete_button.setIconSize(QSize(12, 12)) # Ajuster taille icône
+                self.delete_button.setText("") # Pas de texte si icône
+                # Style pour bouton icône rond rouge
+                self.delete_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(200, 50, 50, 0.85);
+                        border-radius: 9px; /* Cercle */
+                        border: none;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(230, 50, 50, 1.0);
+                    }
+                    QPushButton:pressed {
+                        background-color: rgba(180, 40, 40, 1.0);
+                    }
+                """)
+            else:
+                # Style pour bouton texte 'X' si icône indisponible
+                self.delete_button.setText("✕")
+                self.delete_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(200, 50, 50, 0.8);
+                        color: white;
+                        border: none;
+                        border-radius: 9px;
+                        font-weight: bold;
+                        font-size: 10px;
+                        padding-bottom: 1px; /* Ajustement vertical du texte */
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(230, 50, 50, 1.0);
+                    }
+                    QPushButton:pressed {
+                        background-color: rgba(180, 40, 40, 1.0);
+                    }
+                """)
 
-        # Positionner le bouton dans le coin supérieur droit du conteneur arrondi
-        self.delete_button.move(self.image_container.width() - self.delete_button.width() - 2, 2)
+            # Positionner le bouton dans le coin supérieur droit du conteneur arrondi
+            # S'assurer que image_container a déjà une taille définie avant move()
+            # Note: move peut être appelé plus tard si la taille n'est pas garantie ici
+            self.delete_button.move(self.image_container.width() - self.delete_button.width() - 2, 2)
+        # --------------------------------------------------------
 
         # Ajouter le conteneur d'image arrondi au layout principal
         main_layout.addWidget(self.image_container)
