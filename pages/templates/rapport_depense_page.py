@@ -888,7 +888,10 @@ class RapportDepensePage(QWidget):
             if new_entry: # Si une entrée a été créée
                 print(f"Entrée ajoutée: {new_entry}") # Répétitif
                 self._clear_entry_form() 
-                self._populate_entries_list() # Mettre à jour la liste des cartes
+                # --- MODIFICATION: Ne plus repeupler toute la liste ---
+                # self._populate_entries_list() # Mettre à jour la liste des cartes
+                self._add_card_widget(new_entry) # Ajouter seulement la nouvelle carte
+                # ------------------------------------------------------
                 self._update_totals_display() # TODO: Mettre à jour les totaux
                 QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.")
 
@@ -985,6 +988,26 @@ class RapportDepensePage(QWidget):
 
         # Ajouter un espace extensible pour pousser les cartes vers le haut
         self.entries_list_layout.addStretch(1)
+
+    def _add_card_widget(self, new_entry):
+        """Crée et insère une CardWidget pour une nouvelle entrée au début de la liste."""
+        entry_type_str = "Inconnu" 
+        if isinstance(new_entry, Repas):
+            entry_type_str = "Repas"
+        elif isinstance(new_entry, Deplacement):
+            entry_type_str = "Déplacement"
+        elif isinstance(new_entry, Depense):
+            entry_type_str = "Dépense"
+
+        card = CardWidget(
+            entry_data=new_entry,
+            entry_type=entry_type_str,
+            parent=self
+        )
+        card.thumbnail_clicked.connect(self._open_media_viewer)
+
+        # Insérer la nouvelle carte au début (index 0)
+        self.entries_list_layout.insertWidget(0, card)
 
     # --- NOUVEAU HELPER: Générer Miniature ---
     def _generate_thumbnail_pixmap(self, file_path, size=QSize(64, 64)):
