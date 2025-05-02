@@ -241,6 +241,7 @@ class RapportDepensePage(QWidget):
             "Montant (Décroissant)", "Montant (Croissant)"
         ])
         # self.sort_primary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
+        self.sort_primary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
 
         sort_label2 = QLabel("Puis par:")
         sort_label2.setObjectName("FormLabel")
@@ -253,6 +254,7 @@ class RapportDepensePage(QWidget):
              "Montant (Décroissant)", "Montant (Croissant)"
         ])
         # self.sort_secondary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
+        self.sort_secondary_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
         # TODO: Ajouter logique pour désactiver/lier les options entre les deux combos
 
         # Contrôle de Filtre
@@ -285,7 +287,7 @@ class RapportDepensePage(QWidget):
             self.filter_type_combo.addItem(icon, text)
         # --- Fin ajout avec icônes ---
         # self.filter_type_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
-        self.filter_type_combo.currentIndexChanged.connect(self._apply_filters) # <--- Décommenté et connecté à _apply_filters
+        self.filter_type_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
 
         # Bouton Expand/Collapse
         self.expand_collapse_button = QPushButton()
@@ -359,17 +361,12 @@ class RapportDepensePage(QWidget):
         content_layout.setStretchFactor(self.totals_frame, 0) # Totaux prennent leur hauteur naturelle
         content_layout.setStretchFactor(bottom_section_layout, 1) # La section du bas prend l'espace restant
 
-        # --- SUPPRESSION des anciennes affectations de stretch --- 
-        # content_layout.setStretchFactor(self.add_entry_frame, 0)
-        # content_layout.setStretchFactor(self.entries_display_frame, 1) 
-        # content_layout.setStretchFactor(self.totals_frame, 0)
-
-        # Initialiser le formulaire pour le premier type
+        # --- Initialiser le formulaire pour le premier type ---
         self._update_entry_form()
 
-        # --- Initialiser la liste des entrées --- 
-        self._populate_entries_list()
-        # ---------------------------------------
+        # --- Initialiser la liste des entrées via la méthode centrale ---
+        self._populate_entries_list() # Appelle _apply_sorting_and_filtering
+        # ------------------------------------------------------------
 
     def _create_vertical_separator(self):
         """ Crée un QFrame configuré comme séparateur vertical. """
@@ -982,34 +979,24 @@ class RapportDepensePage(QWidget):
                  print(f"Ajout Dépense: {new_entry}") # Garder pour info
 
             if new_entry: # Si une entrée a été créée
-                print(f"Entrée ajoutée: {new_entry}") # Répétitif
-                self._clear_entry_form() 
-                # --- MODIFICATION: Ne plus repeupler toute la liste ---
-                # self._populate_entries_list() # Mettre à jour la liste des cartes
-                self._add_card_widget(new_entry) # Ajouter seulement la nouvelle carte
+                print(f"Entrée ajoutée au document: {new_entry}")
+                self._clear_entry_form()
+                # --- MODIFICATION: Appeler la méthode de tri/filtrage --- 
+                self._apply_sorting_and_filtering() # Rafraîchir la liste affichée
                 # ------------------------------------------------------
-                self._update_totals_display() # TODO: Mettre à jour les totaux
-                # QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.") # <--- Commenté
+                self._update_totals_display() 
+                # QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.") # Commenté
 
         except KeyError as e:
-             # Gérer le cas où un champ attendu n'existe pas dans self.form_fields
              QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire: {e}. Le formulaire pour '{entry_type}' est peut-être incomplet.")
         except Exception as e:
-             # --- Message d'erreur générique --- 
              QMessageBox.critical(self, "Erreur", f"Impossible d'ajouter l'entrée: {e}")
-             traceback.print_exc() # Afficher la trace complète dans la console pour débogage
-             # ----------------------------------
+             traceback.print_exc() 
 
-    # --- Méthode pour mettre à jour l'affichage des totaux (à implémenter) ---
     def _update_totals_display(self):
          # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
          pass 
 
-    # --- Méthode pour mettre à jour l'affichage des entrées (à implémenter) ---
-    # def _update_entries_display(self):
-    #     pass 
-
-    # --- ADAPTATION pour QGridLayout --- 
     def _toggle_num_commande_row_visibility(self, checked):
         """ Affiche ou cache la ligne (label + champ) N° Commande dans le QGridLayout. """
         print(f"_toggle_num_commande_row_visibility appelé avec checked={checked}") # DEBUG
@@ -1034,91 +1021,11 @@ class RapportDepensePage(QWidget):
             print("  Erreur: Widgets N° Commande, index de ligne, ou layout non trouvés.") # DEBUG
 
     def _populate_entries_list(self):
-        # Vider le layout existant
-        while self.entries_list_layout.count():
-            child = self.entries_list_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        """Appelle la méthode centrale pour initialiser la liste des entrées."""
+        # L'ancien code de peuplement est maintenant dans _apply_sorting_and_filtering
+        self._apply_sorting_and_filtering()
 
-        # Trier les entrées par date (ou autre critère si besoin)
-        try:
-            # Combiner toutes les listes d'entrées
-            all_entries = self.document.deplacements + self.document.repas + self.document.depenses_diverses
-
-            # Clé de tri robuste (gère les différents noms d'attributs de date)
-            def get_sort_key(entry):
-                if hasattr(entry, 'date_repas'): return entry.date_repas
-                if hasattr(entry, 'date_deplacement'): return entry.date_deplacement
-                if hasattr(entry, 'date_depense'): return entry.date_depense
-                if hasattr(entry, 'date'): return entry.date # Fallback générique
-                return QDate(1900, 1, 1) # Date très ancienne si aucune date trouvée
-
-            # Trier la liste combinée
-            sorted_entries = sorted(all_entries, key=get_sort_key, reverse=True)
-        except Exception as e:
-             print(f"Erreur de tri des entrées: {e}. Affichage non trié.")
-             # Fallback: utiliser la liste combinée non triée
-             sorted_entries = self.document.deplacements + self.document.repas + self.document.depenses_diverses
-
-        for entry in sorted_entries:
-            # Déterminer UNIQUEMENT le type string pour le constructeur de CardWidget
-            entry_type_str = "Inconnu" # Type par défaut
-            if isinstance(entry, Repas):
-                entry_type_str = "Repas"
-            elif isinstance(entry, Deplacement):
-                entry_type_str = "Déplacement"
-            elif isinstance(entry, Depense):
-                entry_type_str = "Dépense"
-
-            # CORRECTION: Instancier CardWidget avec les bons arguments
-            card = CardWidget(
-                entry_data=entry,          # Passer l'objet de données complet
-                entry_type=entry_type_str, # Passer juste le type string
-                parent=self
-            )
-            # Connecter le signal du CardWidget (qui gère maintenant ses propres détails)
-            # au slot de cette page qui ouvre le viewer.
-            card.thumbnail_clicked.connect(self._open_media_viewer)
-
-            self.entries_list_layout.addWidget(card)
-
-        # Ajouter un espace extensible pour pousser les cartes vers le haut
-        self.entries_list_layout.addStretch(1)
-
-    def _add_card_widget(self, new_entry):
-        """Crée et insère une CardWidget pour une nouvelle entrée au début de la liste."""
-        entry_type_str = "Inconnu" 
-        if isinstance(new_entry, Repas):
-            entry_type_str = "Repas"
-        elif isinstance(new_entry, Deplacement):
-            entry_type_str = "Déplacement"
-        elif isinstance(new_entry, Depense):
-            entry_type_str = "Dépense"
-
-        card = CardWidget(
-            entry_data=new_entry,
-            entry_type=entry_type_str,
-            parent=self
-        )
-        card.thumbnail_clicked.connect(self._open_media_viewer)
-
-        # --- AJOUT: Vérifier le filtre actuel avant d'insérer ---
-        selected_filter = self.filter_type_combo.currentText()
-        should_show = False
-        if selected_filter == "Tout":
-            should_show = True
-        elif selected_filter == "Déplacements" and entry_type_str == "Déplacement":
-            should_show = True
-        elif selected_filter == "Repas" and entry_type_str == "Repas":
-            should_show = True
-        elif selected_filter == "Dépenses" and entry_type_str == "Dépense":
-            should_show = True
-        
-        card.setVisible(should_show)
-        # --------------------------------------------------------
-
-        # Insérer la nouvelle carte au début (index 0)
-        self.entries_list_layout.insertWidget(0, card)
+    # --- Méthode _add_card_widget SUPPRIMÉE --- 
 
     # --- NOUVEAU HELPER: Générer Miniature ---
     def _generate_thumbnail_pixmap(self, file_path, size=QSize(64, 64)):
@@ -1369,33 +1276,118 @@ class RapportDepensePage(QWidget):
                 # Ceci déclenchera la méthode _toggle_details de la carte elle-même
                 widget.expand_button.setChecked(checked)
 
-    def _apply_filters(self):
-        """Applique le filtre de type sélectionné aux CardWidgets affichées."""
-        selected_filter = self.filter_type_combo.currentText()
+    # --- Méthode _apply_filters SUPPRIMÉE --- 
 
-        print(f"Applying filter: {selected_filter}") # Debug
+    # --- NOUVELLE MÉTHODE CENTRALE --- 
+    def _apply_sorting_and_filtering(self):
+        """Récupère les options, filtre, trie et repeuple la liste des cartes."""
+        # 1. Lire les options
+        primary_sort_option = self.sort_primary_combo.currentText()
+        # secondary_sort_option = self.sort_secondary_combo.currentText() # Pour plus tard
+        filter_option = self.filter_type_combo.currentText()
 
-        for i in range(self.entries_list_layout.count()):
-            item = self.entries_list_layout.itemAt(i)
-            widget = item.widget()
+        print(f"Applying sort/filter: Primary='{primary_sort_option}', Filter='{filter_option}'")
 
-            if isinstance(widget, CardWidget):
-                # Vérifier le type de l'entrée associée à la carte
-                entry_type = widget.entry_type # Lire le type stocké dans la carte
+        # 2. Récupérer toutes les entrées
+        try:
+            all_entries = self.document.deplacements + self.document.repas + self.document.depenses_diverses
+        except Exception as e:
+            print(f"Erreur récupération entrées: {e}")
+            all_entries = []
+
+        # 3. Filtrer les entrées
+        filtered_entries = []
+        if filter_option == "Tout":
+            filtered_entries = all_entries
+        else:
+            for entry in all_entries:
+                entry_type_str = ""
+                if isinstance(entry, Deplacement): entry_type_str = "Déplacements"
+                elif isinstance(entry, Repas): entry_type_str = "Repas"
+                elif isinstance(entry, Depense): entry_type_str = "Dépenses"
                 
-                should_show = False
-                if selected_filter == "Tout":
-                    should_show = True
-                elif selected_filter == "Déplacements" and entry_type == "Déplacement":
-                    should_show = True
-                elif selected_filter == "Repas" and entry_type == "Repas":
-                    should_show = True
-                elif selected_filter == "Dépenses" and entry_type == "Dépense": # Assumer que le type est "Dépense"
-                    should_show = True
-                # Ajouter d'autres types ici si nécessaire
+                if entry_type_str == filter_option:
+                    filtered_entries.append(entry)
+        
+        print(f"  {len(filtered_entries)} entries after filtering.")
 
-                widget.setVisible(should_show)
-                # print(f"  Card ({entry_type}): Visible = {should_show}") # Debug détaillé
+        # 4. Trier les entrées (logique primaire uniquement pour l'instant)
+        sort_key = None
+        reverse_sort = False
+        
+        # --- Définir la clé de tri --- 
+        if "Date" in primary_sort_option:
+            def get_sort_key(entry):
+                if hasattr(entry, 'date_repas'): return entry.date_repas
+                if hasattr(entry, 'date_deplacement'): return entry.date_deplacement
+                if hasattr(entry, 'date_depense'): return entry.date_depense
+                if hasattr(entry, 'date'): return entry.date
+                return date(1900, 1, 1) # Fallback
+            sort_key = get_sort_key
+            reverse_sort = "Décroissant" in primary_sort_option
+
+        elif "Type" in primary_sort_option:
+            def get_sort_key(entry):
+                if isinstance(entry, Deplacement): return "Déplacement"
+                if isinstance(entry, Repas): return "Repas"
+                if isinstance(entry, Depense): return "Dépense"
+                return "ZZZ" # Fallback
+            sort_key = get_sort_key
+            reverse_sort = "Z-A" in primary_sort_option
+            
+        elif "Montant" in primary_sort_option:
+            def get_sort_key(entry):
+                amount_val = getattr(entry, 'totale_apres_taxes', getattr(entry, 'montant', 0.0))
+                try: 
+                    return float(amount_val)
+                except (ValueError, TypeError): 
+                    return 0.0 # Fallback
+            sort_key = get_sort_key
+            reverse_sort = "Décroissant" in primary_sort_option
+        # -------------------------
+
+        sorted_entries = []
+        if sort_key:
+            try:
+                sorted_entries = sorted(filtered_entries, key=sort_key, reverse=reverse_sort)
+                print(f"  Sorted {len(sorted_entries)} entries.")
+            except Exception as e:
+                print(f"Erreur de tri: {e}")
+                sorted_entries = filtered_entries # Fallback: utiliser liste filtrée non triée
+        else:
+            sorted_entries = filtered_entries # Pas de tri si aucune clé valide
+
+        # 5. Vider le layout
+        while self.entries_list_layout.count():
+            child = self.entries_list_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        # 6. Repeupler avec les cartes triées/filtrées
+        if not sorted_entries:
+            # Optionnel: Afficher un message si la liste est vide après filtrage/tri
+            empty_label = QLabel("Aucune entrée ne correspond aux critères.")
+            empty_label.setAlignment(Qt.AlignCenter)
+            empty_label.setStyleSheet("font-style: italic; color: gray;")
+            self.entries_list_layout.addWidget(empty_label)
+        else:
+            for entry in sorted_entries:
+                entry_type_str = "Inconnu"
+                if isinstance(entry, Repas): entry_type_str = "Repas"
+                elif isinstance(entry, Deplacement): entry_type_str = "Déplacement"
+                elif isinstance(entry, Depense): entry_type_str = "Dépense"
+                
+                card = CardWidget(
+                    entry_data=entry,
+                    entry_type=entry_type_str,
+                    parent=self
+                )
+                card.thumbnail_clicked.connect(self._open_media_viewer)
+                self.entries_list_layout.addWidget(card)
+
+        # Ajouter le stretch final
+        self.entries_list_layout.addStretch(1)
+        print("  List repopulated.")
 
 # Bloc de test simple
 if __name__ == '__main__':
