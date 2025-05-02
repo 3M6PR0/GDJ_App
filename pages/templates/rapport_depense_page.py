@@ -1101,7 +1101,7 @@ class RapportDepensePage(QWidget):
                 thumbnail_widget = ThumbnailWidget(file_path, pixmap)
                 thumbnail_widget.delete_requested.connect(self._remove_facture_thumbnail)
                 # --- AJOUT: Connecter le signal clic --- 
-                thumbnail_widget.clicked.connect(self._open_media_viewer)
+                thumbnail_widget.clicked.connect(self._open_media_viewer_from_form)
                 # ----------------------------------------
                 self.facture_thumbnails_layout.addWidget(thumbnail_widget)
                 self.current_facture_thumbnails[file_path] = thumbnail_widget
@@ -1171,14 +1171,17 @@ class RapportDepensePage(QWidget):
             # (Si on passe en non-modal, gérer la liste self.open_viewers)
 
             # Passer la liste valide et l'index recalculé
-            viewer = MediaViewer(media_source=valid_files, initial_index=valid_initial_index, parent=self.window()) # Parent = fenêtre principale
-            # Rendre la fenêtre modale à l'application
-            viewer.setWindowModality(Qt.ApplicationModal)
-            viewer.show()
-            # Si non-modal:
-            # viewer.setAttribute(Qt.WA_DeleteOnClose) # Optionnel: nettoyer mémoire
-            # self.open_viewers.append(viewer) # Garder référence
-            # viewer.show()
+             viewer = MediaViewer(media_source=valid_files, initial_index=valid_initial_index, parent=self.window()) # Parent = fenêtre principale
+             # Rendre la fenêtre modale à l'application
+
+             # --- CORRECTION: Définir les flags pour l'affichage en fenêtre séparée --- 
+             viewer.setWindowFlags(viewer.windowFlags() | Qt.Window | Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+             # ------------------------------------------------------------------------
+
+             viewer.setWindowModality(Qt.ApplicationModal) # Garder modal
+             viewer.show()
+             # Si non-modal:
+             # viewer.setAttribute(Qt.WA_DeleteOnClose) # Optionnel: nettoyer mémoire
 
         except FileNotFoundError as e:
              QMessageBox.critical(self, "Erreur Fichier", str(e))
@@ -1189,8 +1192,29 @@ class RapportDepensePage(QWidget):
         except Exception as e:
             print(f"Erreur inattendue ouverture MediaViewer: {e}")
             traceback.print_exc()
-            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue: {e}")
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue lors de l'ouverture du visualiseur: {e}")
     # --- FIN MODIFICATION ---
+
+    # --- NOUVEAU Slot pour gérer clic depuis FORMULAIRE --- 
+    def _open_media_viewer_from_form(self, clicked_file_path: str):
+        """Prépare les arguments et appelle _open_media_viewer pour un clic venant du formulaire."""
+        all_paths = list(self.current_facture_thumbnails.keys())
+        if not all_paths:
+            print("WARN: _open_media_viewer_from_form appelé mais self.current_facture_thumbnails est vide.")
+            return
+
+        try:
+            clicked_index = all_paths.index(clicked_file_path)
+            # Appeler la méthode principale avec la liste complète et l'index trouvé
+            self._open_media_viewer(all_files=all_paths, initial_index=clicked_index)
+        except ValueError:
+            print(f"ERROR: Chemin cliqué '{clicked_file_path}' non trouvé dans self.current_facture_thumbnails.keys().")
+            QMessageBox.critical(self, "Erreur Interne", f"Le fichier cliqué ({os.path.basename(clicked_file_path)}) ne correspond à aucune miniature actuellement affichée.")
+        except Exception as e:
+            print(f"Erreur inattendue dans _open_media_viewer_from_form: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur interne est survenue avant d'ouvrir le visualiseur: {e}")
+    # ------------------------------------------------------
 
 # Bloc de test simple
 if __name__ == '__main__':
