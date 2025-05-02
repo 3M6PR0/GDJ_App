@@ -293,36 +293,6 @@ class CardWidget(QFrame):
                     details_layout.addWidget(label_widget, i + 1, 2) # +1 pour ligne 0 (séparateur)
                     details_layout.addWidget(value_widget, i + 1, 3)
 
-            # Remplir Colonne 5 (Facture)
-            factures_widget = QWidget() # Renommé pour clarté, même si une seule facture
-            factures_layout = QVBoxLayout(factures_widget)
-            factures_layout.setContentsMargins(0, 0, 0, 0)
-            factures_layout.setSpacing(4)
-
-            factures_title = QLabel("Facture:") # Titre au singulier
-            factures_title.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
-            factures_layout.addWidget(factures_title)
-
-            facture_obj = getattr(self.entry_data, facture_attr, None)
-
-            if facture_obj is not None:
-                # Afficher une représentation de l'objet Facture
-                # Vous pourriez vouloir accéder à des attributs spécifiques de facture_obj ici
-                # ex: facture_label = QLabel(facture_obj.chemin_fichier)
-                facture_label = QLabel(str(facture_obj)) 
-                facture_label.setStyleSheet("background-color: transparent; border: none;")
-                facture_label.setWordWrap(True)
-                factures_layout.addWidget(facture_label)
-            else:
-                no_facture_label = QLabel("Aucune")
-                no_facture_label.setStyleSheet("background-color: transparent; border: none; font-style: italic;")
-                factures_layout.addWidget(no_facture_label)
-
-            factures_layout.addStretch() # Pousse les factures vers le haut
-            # Ajouter le widget de la facture à la grille, ligne 1, col 4, span N lignes
-            row_span = max(len(attrs_col1), len(attrs_col3)) + 1
-            details_layout.addWidget(factures_widget, 1, 4, row_span, 1)
-
             # --- NOUVEAU: Ajouter la section Facture Colonne 5 --- 
             facture_label = QLabel("Facture:")
             facture_label.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
