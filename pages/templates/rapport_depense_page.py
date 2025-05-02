@@ -893,7 +893,7 @@ class RapportDepensePage(QWidget):
                 self._add_card_widget(new_entry) # Ajouter seulement la nouvelle carte
                 # ------------------------------------------------------
                 self._update_totals_display() # TODO: Mettre à jour les totaux
-                QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.")
+                # QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.") # <--- Commenté
 
         except KeyError as e:
              # Gérer le cas où un champ attendu n'existe pas dans self.form_fields
