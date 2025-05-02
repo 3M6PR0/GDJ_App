@@ -42,6 +42,7 @@ class CardWidget(QFrame):
         self.entry_data = entry_data
         self.entry_type = entry_type
         self.options_menu = None # Pour création paresseuse du menu
+        self._original_background_style = "" # Pour sauvegarder le style original
 
         # --- Obtenir les variables de thème POUR le style inline --- 
         theme = get_theme_vars()
@@ -550,5 +551,54 @@ class CardWidget(QFrame):
         print(f"CardWidget: Thumbnail clicked! Emitting signal with index {index} for list: {all_files}") # Debug
         self.thumbnail_clicked.emit(all_files, index)
     # ---------------------------------------------------------
+
+    def set_options_enabled(self, enabled: bool):
+        """Active ou désactive le bouton du menu d'options."""
+        if self.options_button:
+            self.options_button.setEnabled(enabled)
+
+    def set_editing_highlight(self, is_editing: bool):
+        """Applique ou retire une bordure jaune vif pour indiquer l'édition."""
+        # edit_style_bg = "background-color: #FFF59D;" # Ancien style background
+        edit_border_style = "border: 2px solid #FFD600;" # Jaune vif
+        default_border_style = "border: none;"
+        base_selector = f"#CardWidget[objectName=\"CardWidget\"]"
+
+        # Obtenir le style actuel pour pouvoir le modifier
+        current_stylesheet = self.styleSheet()
+        
+        # Construire le nouveau style pour le sélecteur de base
+        # On garde les autres propriétés définies dans __init__ (radius, margin)
+        if is_editing:
+            new_base_style = f"{{ {self._original_background_style} {edit_border_style} border-radius: {RADIUS_BOX}; margin: 0 5px; }}"
+        else:
+            new_base_style = f"{{ {self._original_background_style} {default_border_style} border-radius: {RADIUS_BOX}; margin: 0 5px; }}"
+        
+        # Essayer de remplacer seulement la règle pour #CardWidget
+        # C'est délicat car le style peut contenir d'autres règles (:hover, etc.)
+        # Une approche plus simple mais potentiellement moins robuste est de
+        # reconstruire la partie principale du style.
+        
+        # Trouver le début et la fin de la règle #CardWidget { ... }
+        start_block = current_stylesheet.find(f"{base_selector} {{")
+        if start_block != -1:
+            end_block = current_stylesheet.find("}", start_block)
+            if end_block != -1:
+                # Remplacer l'ancien bloc par le nouveau
+                new_stylesheet = current_stylesheet[:start_block] + f"{base_selector} {new_base_style}" + current_stylesheet[end_block+1:]
+                self.setStyleSheet(new_stylesheet)
+            else:
+                 print("WARN: Fin de bloc non trouvée pour CardWidget style, application directe.")
+                 # Fallback: ajoute le nouveau style (peut écraser d'autres styles)
+                 # Ceci est moins idéal
+                 other_styles = "\n".join([line for line in current_stylesheet.splitlines() if not line.strip().startswith(base_selector)])
+                 final_style = f"{base_selector} {new_base_style}" + ("\n" + other_styles if other_styles else "")
+                 self.setStyleSheet(final_style)
+        else:
+             print("WARN: Bloc de style CardWidget non trouvé, application directe.")
+             # Fallback: comme ci-dessus
+             other_styles = "\n".join([line for line in current_stylesheet.splitlines() if not line.strip().startswith(base_selector)])
+             final_style = f"{base_selector} {new_base_style}" + ("\n" + other_styles if other_styles else "")
+             self.setStyleSheet(final_style)
 
 # --- Fin Widget Card --- 

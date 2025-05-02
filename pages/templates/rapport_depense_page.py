@@ -44,6 +44,9 @@ class RapportDepensePage(QWidget):
         self.num_commande_container = None
         self.payeur_group = None # Pour groupe Payeur
         self.refacturer_group = None # Pour groupe Refacturer
+        self.editing_entry = None # Garde la référence de l'entrée en cours d'édition
+        self.cancel_button = None # Référence au bouton Annuler (créé si besoin)
+        self._original_frame_style = "" # Pour sauvegarder le style du frame en mode édition
         
         # --- Stockage des miniatures --- 
         self.current_facture_thumbnails = {} # { file_path: ThumbnailWidget }
@@ -864,6 +867,11 @@ class RapportDepensePage(QWidget):
         """ Ajoute l'entrée en lisant les champs du formulaire. """
         entry_type = self.entry_type_combo.currentText()
         
+        # --- AJOUT: Appel de la validation --- 
+        if not self._validate_form_data(entry_type):
+            return # Stopper si la validation échoue
+        # -------------------------------------
+
         try:
             # Récupérer les valeurs communes (Date et Description)
             date_val = self.form_fields['date'].date().toPyDate()
@@ -936,14 +944,6 @@ class RapportDepensePage(QWidget):
                               facture_obj = None 
                  # -------------------------------------------
 
-                 # Validation spécifique Repas
-                 if not restaurant_val:
-                     QMessageBox.warning(self, "Champ manquant", "Le nom du restaurant est requis.")
-                     return
-                 if total_apres_taxes_val <= 0:
-                      QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                      return
-                 
                  # --- Créer l'objet Repas --- 
                  new_entry = Repas(
                      date_repas=date_val, 
@@ -993,7 +993,7 @@ class RapportDepensePage(QWidget):
                      return
                  if total_apres_taxes_val <= 0:
                      QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                 return
+                     return
 
                  # --- Créer l'objet Depense (Adapter selon le modèle réel) --- 
                  # Supposons que le constructeur de Depense ressemble à ça:
@@ -1479,7 +1479,7 @@ class RapportDepensePage(QWidget):
                 # --- AJOUT: Connecter signaux options ---
                 card.delete_requested.connect(functools.partial(self._handle_delete_entry, entry))
                 card.duplicate_requested.connect(functools.partial(self._handle_duplicate_entry, entry))
-                # card.edit_requested.connect(functools.partial(self._handle_edit_entry, entry)) # Pour plus tard
+                card.edit_requested.connect(functools.partial(self._handle_edit_entry, entry))
                 # card.copy_requested.connect(functools.partial(self._handle_copy_entry, entry)) # Pour plus tard
                 # ----------------------------------------
                 self.entries_list_layout.addWidget(card)
@@ -1586,9 +1586,456 @@ class RapportDepensePage(QWidget):
             traceback.print_exc()
             QMessageBox.critical(self, "Erreur Critique", f"Une erreur est survenue lors de la duplication de l'entrée:\\n{e}")
 
+    # --- Méthodes pour le Mode Édition ---
+
+    def _handle_edit_entry(self, entry_to_edit):
+        """Lance le mode édition pour l'entrée spécifiée."""
+        if self.editing_entry:
+            # Si déjà en mode édition, demander confirmation?
+            reply = QMessageBox.question(self, "Édition en cours",
+                                         "Vous éditez déjà une autre entrée. Voulez-vous annuler l'édition actuelle et éditer cette nouvelle entrée?",
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+            else:
+                self._cancel_edit() # Annuler l'édition précédente
+
+        print(f"Entrée en mode édition pour: {entry_to_edit}")
+        self.editing_entry = entry_to_edit
+
+        # 1. Changer le type dans le ComboBox
+        entry_type_str = ""
+        if isinstance(entry_to_edit, Deplacement): entry_type_str = "Déplacement"
+        elif isinstance(entry_to_edit, Repas): entry_type_str = "Repas"
+        elif isinstance(entry_to_edit, Depense): entry_type_str = "Dépense"
+
+        if entry_type_str:
+            self.entry_type_combo.blockSignals(True) # Empêche _update_entry_form d'effacer
+            self.entry_type_combo.setCurrentText(entry_type_str)
+            self.entry_type_combo.blockSignals(False)
+            # S'assurer que le formulaire correspond bien (au cas où setCurrentText n'émettrait pas)
+            # Normalement currentIndexChanged est émis même si l'index ne change pas vraiment
+            # mais pour être sûr, on force la mise à jour si le texte est déjà le bon.
+            # On appelle directement _update_entry_form pour recréer la structure.
+            self._update_entry_form()
+            # Il faut ensuite peupler le formulaire qui vient d'être créé
+            self._populate_form_with_entry(entry_to_edit)
+            # Activer l'UI du mode édition
+            self._enter_edit_mode_ui()
+        else:
+            print(f"ERROR: Type d'entrée inconnu pour l'édition: {type(entry_to_edit)}")
+            self.editing_entry = None # Annuler l'entrée en mode édition
+            QMessageBox.warning(self, "Erreur", "Type d'entrée non reconnu.")
+
+    def _populate_form_with_entry(self, entry):
+        """Remplit les champs du formulaire actuel avec les données de l'entrée."""
+        print(f"Peuplement du formulaire avec: {entry}")
+        try:
+            # --- Champs Communs --- 
+            entry_date = getattr(entry, 'date_repas', getattr(entry, 'date_deplacement', getattr(entry, 'date_depense', getattr(entry, 'date', None))))
+            if entry_date and 'date' in self.form_fields:
+                self.form_fields['date'].setDate(QDate(entry_date))
+            else:
+                print("WARN: Date non trouvée ou champ date inexistant dans le formulaire")
+
+            # --- Champs Spécifiques --- 
+            if isinstance(entry, Deplacement):
+                if 'client' in self.form_fields: self.form_fields['client'].setText(getattr(entry, 'client', ''))
+                if 'ville' in self.form_fields: self.form_fields['ville'].setText(getattr(entry, 'ville', ''))
+                if 'numero_commande' in self.form_fields: self.form_fields['numero_commande'].setText(getattr(entry, 'numero_commande', ''))
+                if 'kilometrage' in self.form_fields: self.form_fields['kilometrage'].setValue(getattr(entry, 'kilometrage', 0.0))
+                # Mettre à jour l'affichage du montant pour déplacement
+                TAUX_KM = 0.50 # TODO: Externaliser
+                montant_deplacement = getattr(entry, 'kilometrage', 0.0) * TAUX_KM
+                self._update_montant_display(montant_deplacement)
+
+            elif isinstance(entry, Repas):
+                if 'restaurant' in self.form_fields: self.form_fields['restaurant'].setText(getattr(entry, 'restaurant', ''))
+                if 'client_repas' in self.form_fields: self.form_fields['client_repas'].setText(getattr(entry, 'client', ''))
+                
+                # Payeur (True = Employé)
+                is_payeur_employe = getattr(entry, 'payeur', True) 
+                if 'payeur_employe' in self.form_fields: self.form_fields['payeur_employe'].setChecked(is_payeur_employe)
+                if 'payeur_jacmar' in self.form_fields: self.form_fields['payeur_jacmar'].setChecked(not is_payeur_employe)
+
+                # Refacturer (True = Oui)
+                is_refacturer_oui = getattr(entry, 'refacturer', False)
+                if 'refacturer_oui' in self.form_fields: self.form_fields['refacturer_oui'].setChecked(is_refacturer_oui)
+                if 'refacturer_non' in self.form_fields: self.form_fields['refacturer_non'].setChecked(not is_refacturer_oui)
+                # Assurer que la visibilité de N° Cmd est correcte
+                self._toggle_num_commande_row_visibility(is_refacturer_oui)
+                if 'numero_commande_repas' in self.form_fields: self.form_fields['numero_commande_repas'].setText(getattr(entry, 'numero_commande', '') if is_refacturer_oui else '')
+
+                # Montants et Taxes
+                def set_float_field(key, attribute_name):
+                    if key in self.form_fields:
+                        value = getattr(entry, attribute_name, 0.0)
+                        try:
+                            self.form_fields[key].setText(f"{float(value):.2f}".replace('.', ',') if isinstance(value, (int, float)) else str(value))
+                        except (ValueError, TypeError):
+                             self.form_fields[key].setText("0,00") # Ou laisser vide?
+                
+                set_float_field('total_avant_taxes', 'totale_avant_taxes')
+                set_float_field('pourboire', 'pourboire')
+                set_float_field('tps', 'tps')
+                set_float_field('tvq', 'tvq')
+                set_float_field('tvh', 'tvh')
+                set_float_field('total_apres_taxes', 'totale_apres_taxes')
+
+                # Factures
+                # 1. Nettoyer les miniatures actuelles du formulaire
+                for path in list(self.current_facture_thumbnails.keys()):
+                    self._remove_facture_thumbnail(path, update_model=False)
+                # 2. Ajouter les miniatures de l'entrée en cours d'édition
+                facture_obj = getattr(entry, 'facture', None)
+                if isinstance(facture_obj, Facture) and facture_obj.folder_path and facture_obj.filenames:
+                    for filename in facture_obj.filenames:
+                        full_path = os.path.join(facture_obj.folder_path, filename)
+                        if os.path.exists(full_path):
+                            self._create_and_add_thumbnail(full_path)
+                        else:
+                            print(f"WARN: Fichier facture non trouvé pour l'édition: {full_path}")
+                
+                # Mettre à jour l'affichage du montant (devrait être déjà fait par total_apres_taxes)
+                self._update_montant_display(self.form_fields['total_apres_taxes'].text())
+
+            elif isinstance(entry, Depense):
+                if 'type_depense' in self.form_fields: self.form_fields['type_depense'].setCurrentText(getattr(entry, 'type_depense', 'Autre'))
+                if 'description' in self.form_fields: self.form_fields['description'].setText(getattr(entry, 'description', ''))
+                if 'fournisseur' in self.form_fields: self.form_fields['fournisseur'].setText(getattr(entry, 'fournisseur', ''))
+                
+                # Payeur (True = Employé)
+                is_payeur_employe = getattr(entry, 'payeur', True)
+                if 'payeur_employe_dep' in self.form_fields: self.form_fields['payeur_employe_dep'].setChecked(is_payeur_employe)
+                if 'payeur_jacmar_dep' in self.form_fields: self.form_fields['payeur_jacmar_dep'].setChecked(not is_payeur_employe)
+
+                # Montants et Taxes (avec suffixe _dep)
+                def set_float_field_dep(key, attribute_name):
+                    if key in self.form_fields:
+                        value = getattr(entry, attribute_name, 0.0)
+                        try:
+                            self.form_fields[key].setText(f"{float(value):.2f}".replace('.', ',') if isinstance(value, (int, float)) else str(value))
+                        except (ValueError, TypeError):
+                            self.form_fields[key].setText("0,00")
+
+                set_float_field_dep('total_avant_taxes_dep', 'totale_avant_taxes')
+                set_float_field_dep('tps_dep', 'tps')
+                set_float_field_dep('tvq_dep', 'tvq')
+                set_float_field_dep('tvh_dep', 'tvh')
+                set_float_field_dep('total_apres_taxes_dep', 'totale_apres_taxes')
+
+                # Factures (Si Depense peut avoir des factures)
+                # Copier/Adapter la logique de Repas si nécessaire ici
+
+                # Mettre à jour l'affichage du montant
+                self._update_montant_display(self.form_fields['total_apres_taxes_dep'].text())
+
+        except Exception as e:
+            print(f"Erreur lors du peuplement du formulaire: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Erreur", f"Impossible de charger les données de l'entrée dans le formulaire.\\n{e}")
+            self._cancel_edit() # Quitter le mode édition en cas d'erreur grave
+
+    def _enter_edit_mode_ui(self):
+        """Met à jour l'interface pour refléter le mode édition."""
+        # Changer bouton Ajouter -> Appliquer
+        self.add_button.setText("Appliquer")
+        try: self.add_button.clicked.disconnect(self._add_entry) 
+        except TypeError: pass # Ignorer si déjà déconnecté
+        try: self.add_button.clicked.connect(self._apply_edit)
+        except TypeError: pass # Ignorer si déjà connecté?
+
+        # Créer et/ou afficher bouton Annuler
+        if not self.cancel_button:
+            self.cancel_button = QPushButton("Annuler")
+            self.cancel_button.setObjectName("TopNavButton") # Même style que les autres
+            # Trouver le layout des boutons (supposé être le dernier layout ajouté au frame d'ajout)
+            buttons_layout = None
+            add_entry_layout = self.add_entry_frame.get_content_layout()
+            if add_entry_layout.count() > 0:
+                 last_item = add_entry_layout.itemAt(add_entry_layout.count() - 1)
+                 if isinstance(last_item, QHBoxLayout): # Vérifier si c'est bien le HBox des boutons
+                     buttons_layout = last_item
+            
+            if buttons_layout:
+                # Insérer Annuler entre Effacer et Appliquer/Ajouter
+                buttons_layout.insertWidget(2, self.cancel_button) # Index 2 si stretch, effacer, [ici], ajouter, stretch
+            else:
+                 print("ERROR: Impossible de trouver le layout des boutons pour insérer Annuler.")
+                 self.cancel_button = None # Ne pas le garder s'il n'a pas pu être ajouté
+                 return # Sortir si on ne peut pas ajouter Annuler
+
+        if self.cancel_button:
+            self.cancel_button.setVisible(True)
+            try: self.cancel_button.clicked.connect(self._cancel_edit)
+            except TypeError: pass # Ignorer si déjà connecté
+        
+        # Désactiver le choix du type
+        self.entry_type_combo.setEnabled(False)
+        
+        # --- AJOUT: Désactiver tri/filtre/expand --- 
+        self.sort_primary_combo.setEnabled(False)
+        self.sort_secondary_combo.setEnabled(False)
+        self.filter_type_combo.setEnabled(False)
+        self.expand_collapse_button.setEnabled(False)
+        # --------------------------------------------
+
+        # Optionnel: Mettre en évidence le frame d'ajout?
+        # --- Appliquer la bordure jaune au frame --- 
+        self._original_frame_style = self.add_entry_frame.styleSheet() # Sauvegarder style actuel
+        # Définir SEULEMENT la bordure pour ce sélecteur spécifique
+        self.add_entry_frame.setStyleSheet("QFrame#CustomFrame { border: 2px solid #FFD600; }")
+        # -------------------------------------------
+
+        # --- Mise en évidence de la carte et verrouillage des options ---
+        target_card = None
+        for i in range(self.entries_list_layout.count()):
+            item = self.entries_list_layout.itemAt(i)
+            widget = item.widget()
+            if isinstance(widget, CardWidget):
+                widget.set_options_enabled(False) # Désactiver options sur toutes
+                if widget.entry_data == self.editing_entry:
+                    widget.set_editing_highlight(True) # Mettre en évidence la bonne
+                    target_card = widget
+        
+        # Faire défiler jusqu'à la carte mise en évidence
+        if target_card:
+            QTimer.singleShot(0, lambda w=target_card: self.entries_scroll_area.ensureWidgetVisible(w, 0, 100)) # Marge verticale 100px
+        # ------------------------------------------------------------------
+
+    def _exit_edit_mode_ui(self):
+        """Restaure l'interface après avoir quitté le mode édition."""
+        self.editing_entry = None
+
+        # Changer bouton Appliquer -> Ajouter
+        self.add_button.setText("Ajouter")
+        try: self.add_button.clicked.disconnect(self._apply_edit)
+        except TypeError: pass
+        try: self.add_button.clicked.connect(self._add_entry)
+        except TypeError: pass
+
+        # Cacher et déconnecter bouton Annuler
+        if self.cancel_button:
+            self.cancel_button.setVisible(False)
+            try: self.cancel_button.clicked.disconnect(self._cancel_edit)
+            except TypeError: pass
+        
+        # Réactiver le choix du type
+        self.entry_type_combo.setEnabled(True)
+
+        # Nettoyer le formulaire
+        self._clear_entry_form()
+
+        # Optionnel: Retirer la mise en évidence
+        # self.add_entry_frame.setStyleSheet("") # Reset style
+        # --- Restaurer le style original du frame --- 
+        if self._original_frame_style is not None:
+            self.add_entry_frame.setStyleSheet(self._original_frame_style)
+            self._original_frame_style = "" # Réinitialiser pour la prochaine fois
+        # ------------------------------------------
+
+        # --- Restauration des cartes --- 
+        for i in range(self.entries_list_layout.count()):
+            item = self.entries_list_layout.itemAt(i)
+            widget = item.widget()
+            if isinstance(widget, CardWidget):
+                widget.set_options_enabled(True)     # Réactiver options
+                widget.set_editing_highlight(False)  # Retirer mise en évidence
+        # -------------------------------
+
+        # --- AJOUT: Réactiver tri/filtre/expand --- 
+        self.sort_primary_combo.setEnabled(True)
+        self.sort_secondary_combo.setEnabled(True)
+        self.filter_type_combo.setEnabled(True)
+        self.expand_collapse_button.setEnabled(True)
+        # ------------------------------------------
+
+    def _apply_edit(self):
+        """Sauvegarde les modifications de l'entrée en cours et quitte le mode édition."""
+        if not self.editing_entry:
+            print("ERROR: _apply_edit appelé sans entrée en cours d'édition.")
+            self._exit_edit_mode_ui() # Quitter proprement quand même
+            return
+        
+        print(f"Application des modifications pour: {self.editing_entry}")
+        original_entry = self.editing_entry # Garder référence pour la fin
+
+        try:
+            # --- AJOUT: Validation avant d'appliquer --- 
+            current_entry_type_str = ""
+            if isinstance(self.editing_entry, Deplacement): current_entry_type_str = "Déplacement"
+            elif isinstance(self.editing_entry, Repas): current_entry_type_str = "Repas"
+            elif isinstance(self.editing_entry, Depense): current_entry_type_str = "Dépense"
+            
+            if not self._validate_form_data(current_entry_type_str):
+                return # Stopper si validation échoue, RESTER en mode édition
+            # -------------------------------------------
+
+            # Récupérer les valeurs du formulaire (logique similaire à _add_entry)
+            date_val = self.form_fields['date'].date().toPyDate()
+            
+            # --- Mise à jour des attributs de self.editing_entry --- 
+            current_entry_type = type(self.editing_entry)
+
+            # Mettre à jour la date commune
+            if hasattr(self.editing_entry, 'date_repas'): self.editing_entry.date_repas = date_val
+            elif hasattr(self.editing_entry, 'date_deplacement'): self.editing_entry.date_deplacement = date_val
+            elif hasattr(self.editing_entry, 'date_depense'): self.editing_entry.date_depense = date_val
+            elif hasattr(self.editing_entry, 'date'): self.editing_entry.date = date_val
+
+            if current_entry_type is Deplacement:
+                self.editing_entry.client = self.form_fields['client'].text()
+                self.editing_entry.ville = self.form_fields['ville'].text()
+                self.editing_entry.numero_commande = self.form_fields['numero_commande'].text()
+                self.editing_entry.kilometrage = self.form_fields['kilometrage'].value()
+                TAUX_KM = 0.50 # TODO: Externaliser
+                self.editing_entry.montant = self.editing_entry.kilometrage * TAUX_KM
+
+            elif current_entry_type is Repas:
+                self.editing_entry.restaurant = self.form_fields['restaurant'].text()
+                self.editing_entry.client = self.form_fields['client_repas'].text() # Attention, clé différente
+                self.editing_entry.payeur = self.form_fields['payeur_employe'].isChecked()
+                self.editing_entry.refacturer = self.form_fields['refacturer_oui'].isChecked()
+                self.editing_entry.numero_commande = self.form_fields['numero_commande_repas'].text() if self.editing_entry.refacturer else ""
+                
+                def get_float_from_field_apply(key):
+                    try: return float(self.form_fields[key].text().replace(',', '.'))
+                    except (KeyError, ValueError): return 0.0
+                
+                self.editing_entry.totale_avant_taxes = get_float_from_field_apply('total_avant_taxes')
+                self.editing_entry.pourboire = get_float_from_field_apply('pourboire')
+                self.editing_entry.tps = get_float_from_field_apply('tps')
+                self.editing_entry.tvq = get_float_from_field_apply('tvq')
+                self.editing_entry.tvh = get_float_from_field_apply('tvh')
+                self.editing_entry.totale_apres_taxes = get_float_from_field_apply('total_apres_taxes')
+                # self.editing_entry.employe = ... # Si nécessaire
+                # self.editing_entry.jacmar = ... # Si nécessaire
+                
+                # Mise à jour Facture
+                all_paths = list(self.current_facture_thumbnails.keys())
+                if not all_paths:
+                    self.editing_entry.facture = None # Aucune facture dans le formulaire
+                else:
+                    first_path = all_paths[0]
+                    folder_path = os.path.dirname(first_path)
+                    filenames = [os.path.basename(p) for p in all_paths]
+                    # Vérifier si la facture existante peut être mise à jour ou s'il faut en créer une nouvelle
+                    if isinstance(self.editing_entry.facture, Facture):
+                        self.editing_entry.facture.folder_path = folder_path
+                        self.editing_entry.facture.filenames = filenames
+                    else:
+                        try:
+                            self.editing_entry.facture = Facture(folder_path=folder_path, filenames=filenames)
+                        except Exception as fact_err:
+                            print(f"ERROR: Impossible de créer/màj l'objet Facture pendant l'édition: {fact_err}")
+                            self.editing_entry.facture = None # Laisser à None en cas d'erreur
+            
+            elif current_entry_type is Depense:
+                self.editing_entry.type_depense = self.form_fields['type_depense'].currentText()
+                self.editing_entry.description = self.form_fields['description'].text()
+                self.editing_entry.fournisseur = self.form_fields['fournisseur'].text()
+                self.editing_entry.payeur = self.form_fields['payeur_employe_dep'].isChecked()
+                
+                def get_float_from_field_apply_dep(key):
+                    try: return float(self.form_fields[key].text().replace(',', '.'))
+                    except (KeyError, ValueError): return 0.0
+                
+                self.editing_entry.totale_avant_taxes = get_float_from_field_apply_dep('total_avant_taxes_dep')
+                self.editing_entry.tps = get_float_from_field_apply_dep('tps_dep')
+                self.editing_entry.tvq = get_float_from_field_apply_dep('tvq_dep')
+                self.editing_entry.tvh = get_float_from_field_apply_dep('tvh_dep')
+                self.editing_entry.totale_apres_taxes = get_float_from_field_apply_dep('total_apres_taxes_dep')
+                # self.editing_entry.facture = ... # Si Depense a une facture
+
+            # Validation (ajouter si nécessaire)
+            # ...
+
+            # Rafraîchir l'affichage et émettre signal
+            print(f"Modifications appliquées à: {self.editing_entry}")
+            self._update_totals_display()
+            self._apply_sorting_and_filtering() # Rafraîchit la liste des cartes
+            signals.document_modified.emit()
+
+            # Quitter le mode édition
+            self._exit_edit_mode_ui()
+
+        except KeyError as e:
+             QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire lors de l'application: {e}. Le formulaire est peut-être incomplet.")
+             # Ne pas quitter le mode édition pour que l'utilisateur puisse corriger?
+        except Exception as e:
+             QMessageBox.critical(self, "Erreur Application", f"Impossible d'appliquer les modifications: {e}")
+             traceback.print_exc()
+             # Ne pas quitter le mode édition ici non plus?
+
+    def _cancel_edit(self):
+        """Annule l'édition en cours et quitte le mode édition."""
+        print("Annulation de l'édition.")
+        self._exit_edit_mode_ui()
+
+    # --- Fin Méthodes Mode Édition ---
+
     # --- Mock Class pour tests (si nécessaire) ---
     class MockRapportDepense:
         pass # Ajout pour corriger l'IndentationError
+
+    def _validate_form_data(self, entry_type):
+        """Valide les données du formulaire pour un type d'entrée donné."""
+        # Helper pour récupérer un float ou 0.0
+        def get_float_from_form(key):
+            try:
+                return float(self.form_fields[key].text().replace(',', '.'))
+            except (KeyError, ValueError):
+                return 0.0
+
+        if entry_type == "Déplacement":
+            # Ajouter des validations si nécessaire (ex: client/ville non vide?)
+            # client_val = self.form_fields['client'].text()
+            # if not client_val:
+            #     QMessageBox.warning(self, "Champ manquant", "Le nom du client est requis pour un déplacement.")
+            #     return False
+            pass # Pas de validation spécifique pour l'instant
+
+        elif entry_type == "Repas":
+            restaurant_val = self.form_fields['restaurant'].text()
+            if not restaurant_val:
+                QMessageBox.warning(self, "Champ manquant", "Le nom du restaurant est requis.")
+                return False
+            
+            total_apres_taxes_val = get_float_from_form('total_apres_taxes')
+            if total_apres_taxes_val <= 0:
+                 QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
+                 return False
+            
+            # Ajouter d'autres validations si besoin (ex: N° Cmd si refacturer?)
+            # is_refacturer_oui = self.form_fields['refacturer_oui'].isChecked()
+            # num_commande_repas_val = self.form_fields['numero_commande_repas'].text()
+            # if is_refacturer_oui and not num_commande_repas_val:
+            #     QMessageBox.warning(self, "Champ manquant", "Le numéro de commande est requis si 'Refacturer' est coché.")
+            #     return False
+
+        elif entry_type == "Dépense":
+            description_val = self.form_fields['description'].text()
+            if not description_val:
+                QMessageBox.warning(self, "Champ manquant", "La description est requise.")
+                return False
+            
+            total_apres_taxes_val = get_float_from_form('total_apres_taxes_dep')
+            if total_apres_taxes_val <= 0:
+                 QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
+                 return False
+        
+        else:
+            print(f"WARN: Validation demandée pour type inconnu: {entry_type}")
+            # Peut-être retourner False par sécurité?
+            # QMessageBox.warning(self, "Erreur interne", "Type d'entrée inconnu pour validation.")
+            # return False 
+            pass # Ou considérer comme valide si type inconnu?
+
+        return True # Si toutes les validations passent
+
+    def _update_totals_display(self):
+        # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
+        pass 
 
 # Bloc de test simple
 if __name__ == '__main__':
