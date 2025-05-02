@@ -5,6 +5,8 @@ from PyQt5.QtCore import pyqtSignal, QObject
 class ThemeSignalEmitter(QObject):
     # Signal qui émet le nouveau nom de thème (str)
     theme_changed_signal = pyqtSignal(str)
+    # Signal émis quand un document est modifié (ajout, suppression, duplication d'entrée)
+    document_modified = pyqtSignal()
 
 # Créer une instance globale unique de l'émetteur
 signals = ThemeSignalEmitter()

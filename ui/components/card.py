@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QFrame, QFormLayout, QGridLayout)
-from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize, pyqtSignal
+                             QPushButton, QFrame, QFormLayout, QGridLayout,
+                             QMenu, QAction)
+from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize, pyqtSignal, QPoint
 from PyQt5.QtGui import QIcon
 from datetime import date
 from utils.icon_loader import get_icon_path # Assumer que utils est accessible depuis widgets
@@ -27,7 +28,12 @@ except ImportError:
 class CardWidget(QFrame):
     # --- AJOUT: Signal pour clic miniature --- 
     thumbnail_clicked = pyqtSignal(list, int)
-    # -----------------------------------------
+    # --- AJOUT: Signaux pour les options du menu --- 
+    edit_requested = pyqtSignal()
+    duplicate_requested = pyqtSignal()
+    copy_requested = pyqtSignal() # Le sens de "copier" reste à définir
+    delete_requested = pyqtSignal()
+    # -------------------------------------------
 
     def __init__(self, entry_data, entry_type, parent=None):
         super().__init__(parent)
@@ -35,6 +41,7 @@ class CardWidget(QFrame):
         self.setObjectName("CardWidget") 
         self.entry_data = entry_data
         self.entry_type = entry_type
+        self.options_menu = None # Pour création paresseuse du menu
 
         # --- Obtenir les variables de thème POUR le style inline --- 
         theme = get_theme_vars()
@@ -125,11 +132,35 @@ class CardWidget(QFrame):
         info_label = QLabel(summary_info)
         info_label.setStyleSheet("font-weight: bold; background-color: transparent; border: none;") # Forcer transparence
 
-        # --- Obtenir les variables de thème POUR le style inline du bouton --- 
+        # --- Obtenir les variables de thème POUR le style inline des boutons --- 
         theme = get_theme_vars()
-        # card_bg_color = theme.get("COLOR_PRIMARY_LIGHT", "#4a4d4f") # Déjà présent pour la carte
         hover_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#5a5d5f") # Couleur pour le survol
-        # -------------------------------------------------------------------
+        # --------------------------------------------------------------------
+
+        # --- AJOUT: Bouton Options --- 
+        self.options_button = QPushButton()
+        options_icon_path = get_icon_path("round_more_vert.png")
+        if options_icon_path:
+            self.options_button.setIcon(QIcon(options_icon_path))
+        self.options_button.setFixedSize(24, 24) # Taille similaire à l'autre bouton
+        self.options_button.setObjectName("CardOptionsButton") # Nom pour QSS
+        self.options_button.setToolTip("Options")
+        # Appliquer un style similaire au bouton expand
+        self.options_button.setStyleSheet(f"""
+            QPushButton#CardOptionsButton {{
+                background-color: transparent;
+                border: none;
+                border-radius: 3px;
+            }}
+            QPushButton#CardOptionsButton:hover {{
+                background-color: {hover_bg_color};
+            }}
+            QPushButton#CardOptionsButton:pressed {{
+                background-color: {theme.get("COLOR_PRIMARY_DARK", "#3a3d3f")}; /* Couleur légèrement plus foncée au clic */
+            }}
+        """)
+        self.options_button.clicked.connect(self._show_options_menu)
+        # --- Fin Ajout Bouton Options ---
 
         # Bouton pour déplier/replier
         self.expand_button = QPushButton()
@@ -173,7 +204,8 @@ class CardWidget(QFrame):
 
         summary_layout.addWidget(info_label)        # Info à gauche
         summary_layout.addStretch(1)                # Espace extensible
-        summary_layout.addWidget(self.expand_button) # Bouton à droite
+        summary_layout.addWidget(self.expand_button) # Bouton expand/collapse d'abord
+        summary_layout.addWidget(self.options_button) # Bouton options ensuite (à droite)
         
         # Assurer que le widget de résumé est transparent
         summary_widget.setStyleSheet("background-color: transparent; border: none;")
@@ -385,6 +417,80 @@ class CardWidget(QFrame):
         icon_path = get_icon_path(icon_name)
         if icon_path:
             self.expand_button.setIcon(QIcon(icon_path))
+
+    # --- AJOUT: Slot pour afficher le menu d'options --- 
+    @Slot()
+    def _show_options_menu(self):
+        if not self.options_menu:
+            self.options_menu = QMenu(self)
+            self.options_menu.setObjectName("CardOptionsMenu") # Pour QSS
+
+            # Créer les actions
+            edit_action = QAction("Modifier", self)
+            duplicate_action = QAction("Dupliquer", self)
+            copy_action = QAction("Copier", self)
+            delete_action = QAction("Supprimer", self)
+            delete_action.setObjectName("DeleteAction") # Pour style spécifique si besoin (ex: rouge)
+
+            # Connecter les actions aux signaux
+            edit_action.triggered.connect(self.edit_requested.emit)
+            duplicate_action.triggered.connect(self.duplicate_requested.emit)
+            copy_action.triggered.connect(self.copy_requested.emit)
+            delete_action.triggered.connect(self.delete_requested.emit)
+
+            # Ajouter les actions au menu
+            self.options_menu.addAction(edit_action)
+            self.options_menu.addAction(duplicate_action)
+            self.options_menu.addAction(copy_action)
+            self.options_menu.addSeparator()
+            self.options_menu.addAction(delete_action)
+
+            # Appliquer un style de base (inspiré de ce qui pourrait être dans recent_list_page)
+            theme = get_theme_vars()
+            menu_bg = theme.get("COLOR_PRIMARY_MEDIUM", "#555")
+            menu_fg = theme.get("COLOR_TEXT_PRIMARY", "#EEE")
+            menu_selection_bg = theme.get("COLOR_ACCENT", "#007ACC")
+            menu_separator = theme.get("COLOR_PRIMARY_LIGHT", "#666")
+            delete_fg = theme.get("COLOR_ERROR", "#E53935") # Couleur rouge pour supprimer
+
+            self.options_menu.setStyleSheet(f"""
+                QMenu#CardOptionsMenu {{
+                    background-color: {menu_bg};
+                    color: {menu_fg};
+                    border: 1px solid {theme.get("COLOR_PRIMARY_DARK", "#444")};
+                    border-radius: 4px;
+                    padding: 4px;
+                }}
+                QMenu#CardOptionsMenu::item {{
+                    padding: 5px 20px;
+                    background-color: transparent;
+                }}
+                QMenu#CardOptionsMenu::item:selected {{
+                    background-color: {menu_selection_bg};
+                    color: {menu_fg}; /* Ou une couleur de texte contrastante si besoin */
+                    border-radius: 2px;
+                }}
+                QMenu#CardOptionsMenu::separator {{
+                    height: 1px;
+                    background-color: {menu_separator};
+                    margin-left: 5px;
+                    margin-right: 5px;
+                    margin-top: 2px;
+                    margin-bottom: 2px;
+                }}
+                QMenu#CardOptionsMenu QAction#DeleteAction {{
+                    color: {delete_fg}; /* Couleur spécifique pour Supprimer */
+                }}
+                QMenu#CardOptionsMenu QAction#DeleteAction:selected {{
+                    color: {menu_fg}; /* Revenir couleur normale sur sélection */
+                    background-color: {delete_fg}; /* Fond rouge sur sélection */
+                }}
+            """)
+
+        # Afficher le menu sous le bouton
+        button_pos = self.options_button.mapToGlobal(QPoint(0, self.options_button.height()))
+        self.options_menu.exec_(button_pos)
+    # --- Fin Slot Menu Options ---
 
     # --- Méthode pour générer miniature (copiée depuis rapport_depense_page) ---
     # (Avec ajustement pour être une méthode de classe)

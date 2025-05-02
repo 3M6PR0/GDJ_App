@@ -29,6 +29,7 @@ import os # Pour manipuler les chemins
 from windows.media_viewer import MediaViewer
 # ---------------------------------
 import functools # <--- AJOUT
+import copy       # <--- AJOUT pour deepcopy
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
@@ -220,7 +221,7 @@ class RapportDepensePage(QWidget):
         add_entry_content_layout.addLayout(buttons_layout) 
         # ----------------------------------------
         
-        # --- AJOUT DU FRAME D'AJOUT À LA SECTION INFÉRIEURE (GAUCHE) --- 
+        # --- AJOUT DU FRAME D'AJOUT À LA SECTION INFÉRIEURE (GAUCHE) ---
         bottom_section_layout.addWidget(self.add_entry_frame, 1) # Retour à l'alignement par défaut
 
         # --- Frame Droite (Section Inférieure): Affichage des Entrées --- 
@@ -647,7 +648,7 @@ class RapportDepensePage(QWidget):
             frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
             frame_content_layout.setContentsMargins(5, 5, 5, 5)
             frame_content_layout.setSpacing(8)
-            
+
             # Layout horizontal pour Label + Bouton Icône
             label_button_layout = QHBoxLayout()
             label_button_layout.setContentsMargins(0,0,0,0)
@@ -794,7 +795,7 @@ class RapportDepensePage(QWidget):
         current_row += 1
         
         # ... (reste _update_entry_form: montant, politique taille) ...
-        
+
     def _update_montant_display(self, value):
         """ Met à jour le label montant dans la colonne de droite. """
         if hasattr(self, 'montant_display_label') and self.montant_display_label:
@@ -934,7 +935,7 @@ class RapportDepensePage(QWidget):
                               # Continuer sans facture en cas d'erreur
                               facture_obj = None 
                  # -------------------------------------------
-                 
+
                  # Validation spécifique Repas
                  if not restaurant_val:
                      QMessageBox.warning(self, "Champ manquant", "Le nom du restaurant est requis.")
@@ -1021,7 +1022,7 @@ class RapportDepensePage(QWidget):
 
             if new_entry: # Si une entrée a été créée
                 print(f"Entrée ajoutée au document: {new_entry}")
-                self._clear_entry_form()
+                self._clear_entry_form() 
                 # --- MODIFICATION: Appeler la méthode de tri/filtrage --- 
                 self._apply_sorting_and_filtering() # Rafraîchir la liste affichée
                 # ------------------------------------------------------
@@ -1432,6 +1433,23 @@ class RapportDepensePage(QWidget):
             sorted_entries = filtered_entries # Fallback
         # --------------------------------------------------
 
+        # --- AJOUT: Sauvegarde de l'état d'expansion des cartes --- 
+        card_expansion_states = {}
+        for i in range(self.entries_list_layout.count()):
+            item = self.entries_list_layout.itemAt(i)
+            widget = item.widget()
+            if isinstance(widget, CardWidget):
+                # Assumer que CardWidget a un attribut entry_data et un bouton expand_button
+                # Ou une méthode comme is_expanded()
+                if hasattr(widget, 'entry_data') and hasattr(widget, 'expand_button'):
+                    entry = widget.entry_data
+                    is_expanded = widget.expand_button.isChecked()
+                    # Utiliser l'objet entry lui-même comme clé (doit être hashable)
+                    # Si les entrées n'ont pas d'ID unique stable, ceci pourrait poser problème
+                    # si l'objet lui-même change d'identité (peu probable ici)
+                    card_expansion_states[entry] = is_expanded
+        # ------------------------------------------------------------
+
         # 5. Vider le layout
         while self.entries_list_layout.count():
             child = self.entries_list_layout.takeAt(0)
@@ -1458,11 +1476,119 @@ class RapportDepensePage(QWidget):
                     parent=self
                 )
                 card.thumbnail_clicked.connect(self._open_media_viewer)
+                # --- AJOUT: Connecter signaux options ---
+                card.delete_requested.connect(functools.partial(self._handle_delete_entry, entry))
+                card.duplicate_requested.connect(functools.partial(self._handle_duplicate_entry, entry))
+                # card.edit_requested.connect(functools.partial(self._handle_edit_entry, entry)) # Pour plus tard
+                # card.copy_requested.connect(functools.partial(self._handle_copy_entry, entry)) # Pour plus tard
+                # ----------------------------------------
                 self.entries_list_layout.addWidget(card)
+
+                # --- AJOUT: Restauration de l'état d'expansion --- 
+                if entry in card_expansion_states:
+                    # Assumer que l'état est contrôlé par le check state du bouton
+                    if hasattr(card, 'expand_button'):
+                        card.expand_button.setChecked(card_expansion_states[entry])
+                        # Il faut aussi potentiellement appeler la méthode qui gère l'affichage
+                        # des détails si setChecked ne le fait pas automatiquement.
+                        # Ceci dépend de l'implémentation de CardWidget._toggle_details
+                        if hasattr(card, '_toggle_details'):
+                            # Appeler directement peut causer des problèmes si lié à toggled.
+                            # Il est préférable que setChecked déclenche la logique interne.
+                            # card._toggle_details(card_expansion_states[entry]) # À vérifier
+                            pass # Supposer que setChecked suffit
+                # ----------------------------------------------------
 
         # Ajouter le stretch final
         self.entries_list_layout.addStretch(1)
         print("  List repopulated.")
+
+    def _handle_delete_entry(self, entry_to_delete):
+        """Supprime une entrée (déplacement, repas, dépense) du document et rafraîchit l'interface."""
+        entry_type = type(entry_to_delete)
+        removed = False
+
+        try:
+            if entry_type is Deplacement and entry_to_delete in self.document.deplacements:
+                self.document.deplacements.remove(entry_to_delete)
+                removed = True
+                print(f"Déplacement supprimé: {entry_to_delete}") # Log de débogage
+            elif entry_type is Repas and entry_to_delete in self.document.repas:
+                self.document.repas.remove(entry_to_delete)
+                removed = True
+                print(f"Repas supprimé: {entry_to_delete}") # Log de débogage
+            elif entry_type is Depense and entry_to_delete in self.document.depenses:
+                self.document.depenses.remove(entry_to_delete)
+                removed = True
+                print(f"Dépense supprimée: {entry_to_delete}") # Log de débogage
+            else:
+                print(f"WARN: Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}")
+
+            if removed:
+                # Mettre à jour les totaux affichés
+                self._update_totals_display()
+                # Rafraîchir la liste des cartes (qui inclut maintenant le filtrage/tri)
+                self._apply_sorting_and_filtering()
+                # Émettre un signal si d'autres parties de l'application doivent savoir que les données ont changé
+                signals.document_modified.emit()
+            else:
+                QMessageBox.warning(self, "Erreur", "L'entrée à supprimer n'a pas été trouvée dans le document.")
+
+        except Exception as e:
+            print(f"Erreur lors de la suppression de l'entrée: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Erreur Critique", f"Une erreur est survenue lors de la suppression de l'entrée:\\n{e}")
+
+    def _handle_duplicate_entry(self, entry_to_duplicate):
+        """Crée une copie profonde d'une entrée et l'ajoute au document."""
+        try:
+            # Utiliser deepcopy pour une copie totalement indépendante
+            new_entry = copy.deepcopy(entry_to_duplicate)
+            print(f"Duplication de: {entry_to_duplicate}")
+            print(f"  Copie créée: {new_entry}")
+
+            # Optionnel: Ajuster des attributs de la copie si nécessaire
+            # Par exemple, réinitialiser un ID ou mettre la date à aujourd'hui
+            # if hasattr(new_entry, 'id'):
+            #     new_entry.id = None # Ou générer un nouvel ID
+            # if hasattr(new_entry, 'date'): # Adapter aux noms d'attributs réels
+            #     today = date.today()
+            #     if hasattr(new_entry, 'date_repas'): new_entry.date_repas = today
+            #     elif hasattr(new_entry, 'date_deplacement'): new_entry.date_deplacement = today
+            #     elif hasattr(new_entry, 'date_depense'): new_entry.date_depense = today
+
+            entry_type = type(new_entry)
+            added = False
+
+            if entry_type is Deplacement:
+                self.document.ajouter_deplacement(new_entry)
+                added = True
+            elif entry_type is Repas:
+                self.document.ajouter_repas(new_entry)
+                added = True
+            elif entry_type is Depense:
+                self.document.ajouter_depense(new_entry)
+                added = True
+            else:
+                print(f"WARN: Type d'entrée inconnu lors de la duplication: {entry_type}")
+                QMessageBox.warning(self, "Type Inconnu", f"Impossible de dupliquer l'entrée de type {entry_type}.")
+
+            if added:
+                print(f"Entrée dupliquée ajoutée au document: {new_entry}")
+                # Mettre à jour l'affichage
+                self._update_totals_display()
+                self._apply_sorting_and_filtering()
+                signals.document_modified.emit()
+                # Optionnel: Sélectionner/scroller vers la nouvelle carte?
+
+        except Exception as e:
+            print(f"Erreur lors de la duplication de l'entrée: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Erreur Critique", f"Une erreur est survenue lors de la duplication de l'entrée:\\n{e}")
+
+    # --- Mock Class pour tests (si nécessaire) ---
+    class MockRapportDepense:
+        pass # Ajout pour corriger l'IndentationError
 
 # Bloc de test simple
 if __name__ == '__main__':
