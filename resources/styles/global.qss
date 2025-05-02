@@ -482,12 +482,14 @@ QTabWidget#DocumentTabWidget QTabBar::tab:!selected:hover {
 
 /* Bouton de fermeture sur l'onglet */
 QTabWidget#DocumentTabWidget QTabBar::close-button {
-    /* image: url(...); */ /* Mettre une icône si désiré */
+    /* image: url(../icons/{{THEME}}/round_close.png); */ /* <-- Retrait */
+    /* width: 16px; */ /* <-- Retrait */
+    /* height: 16px; */ /* <-- Retrait */
     subcontrol-position: right;
     subcontrol-origin: padding;
     border-radius: 2px;
     background-color: transparent;
-    /* padding: 2px; */
+    padding: 2px; /* Revenir à l'état initial */
 }
 
 QTabWidget#DocumentTabWidget QTabBar::close-button:hover {

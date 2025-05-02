@@ -334,25 +334,33 @@ class DocumentsOpenPage(QWidget):
                 # Tentons de ne changer que la couleur de l'onglet courant via l'index
                 # comme avant, mais sur le tabBar lui-même.
                 try:
-                    # Cibler via index ne marche pas dans setStyleSheet
-                    # Essayons de définir des propriétés et utiliser QSS?
-                    # self.tab_widget.widget(index).setProperty("isSpecialTab", True)
-                    # self.tab_widget.tabBar().setStyleSheet("QTabBar::tab[isSpecialTab="true"] { background-color: ... }")
-                    # Ne fonctionne probablement pas.
-                    
                     # Revenir à la tentative sur l'index avec QColor
-                    self.tab_widget.tabBar().setTabBackgroundColor(index, QColor(accent_color_hex))
-                    self.tab_widget.tabBar().setTabTextColor(index, QColor(accent_color_hex)) # Texte accent sur fond indéfini
-                    print(f"Tentative de setTabBackgroundColor/TextColor sur index {index}")
+                    # --- Supprimer les tentatives de couleur qui échouent --- 
+                    # self.tab_widget.tabBar().setTabBackgroundColor(index, QColor(accent_color_hex))
+                    # self.tab_widget.tabBar().setTabTextColor(index, QColor(accent_color_hex)) 
+                    # print(f"Tentative de setTabBackgroundColor/TextColor sur index {index}")
 
-                    # Garder l'icône
-                    icon_name = "round_receipt_long.png" # Icône pour rapport
-                    icon_path = get_icon_path(icon_name)
-                    if icon_path:
-                        self.tab_widget.setTabIcon(index, QIcon(icon_path))
-                        print(f"Icône {icon_name} appliquée à l'onglet {index} ({title})")
+                    # --- Définir l'icône PRINCIPALE de l'onglet --- 
+                    main_icon_name = "round_receipt_long.png" # Icône pour rapport
+                    main_icon_path = get_icon_path(main_icon_name)
+                    if main_icon_path:
+                        self.tab_widget.setTabIcon(index, QIcon(main_icon_path))
+                        print(f"Icône principale {main_icon_name} appliquée à l'onglet {index} ({title})")
                     else:
-                        print(f"WARN: Icône {icon_name} non trouvée pour l'onglet.")
+                        print(f"WARN: Icône principale {main_icon_name} non trouvée pour l'onglet.")
+                    
+                    # --- Tenter de définir l'icône du bouton 'X' via setStyleSheet sur tabBar --- 
+                    close_icon_name = "round_close.png"
+                    close_icon_path = get_icon_path(close_icon_name)
+                    if close_icon_path:
+                        # Échapper les backslashes pour QSS url() sur Windows
+                        qss_path = close_icon_path.replace('\\', '/')
+                        style_sheet_str = f"QTabBar::close-button {{ image: url('{qss_path}'); width: 16px; height: 16px; }}"
+                        self.tab_widget.tabBar().setStyleSheet(style_sheet_str)
+                        print(f"Tentative d'appliquer setStyleSheet pour close-button icon {close_icon_name}")
+                    else:
+                        print(f"WARN: Icône close {close_icon_name} non trouvée.")
+                    # ----------------------------------------------------------------------------
 
                 except Exception as e_color:
                     print(f"WARN: Erreur application couleur/icône onglet Rapport Dépense (Index): {e_color}")
