@@ -70,7 +70,7 @@ class WelcomeWindow(QWidget): # RENOMMÉ
         # Le PreferencesController sera instancié SEULEMENT si la page est affichée,
         # et il utilisera le Singleton Preference.
         self.preferences_page_instance = PreferencesPage()
-        # self.preferences_controller_instance = PreferencesController(self.preferences_page_instance) # <- Supprimé
+        self.preferences_controller_instance = None # <- AJOUT: Initialiser à None
         # ----------------------------------------------------------------
 
         # --- Instancier UNIQUEMENT les pages ici --- 
@@ -431,6 +431,28 @@ class WelcomeWindow(QWidget): # RENOMMÉ
         page_widget = page_map.get(button.text())
         
         if page_widget:
+            # --- AJOUT: Instanciation du PreferencesController à la demande --- 
+            button_text = button.text()
+            if button_text == "Preference" and self.preferences_controller_instance is None:
+                try:
+                    print("Instantiating PreferencesController on demand...")
+                    # Importer ici si pas déjà fait globalement (dépend de la structure)
+                    from controllers.preferences.preferences_controller import PreferencesController 
+                    self.preferences_controller_instance = PreferencesController(
+                        self.preferences_page_instance, 
+                        self.controller # Passer le main controller
+                    )
+                    print("PreferencesController instantiated.")
+                except ImportError as ie:
+                    print(f"ERROR: Could not import PreferencesController: {ie}")
+                    # Gérer l'erreur: Afficher un message? Désactiver le bouton?
+                    return 
+                except Exception as e:
+                    print(f"ERROR: Failed to instantiate PreferencesController: {e}")
+                    # Gérer l'erreur
+                    return
+            # ------------------------------------------------------------------
+            
             index = self.stacked_widget.indexOf(page_widget)
             if index != -1:
                 self.stacked_widget.setCurrentIndex(index)

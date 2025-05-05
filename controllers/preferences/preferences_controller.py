@@ -30,6 +30,39 @@ def _get_nested_attr(obj, attr_path, default=None):
     return obj
 
 class PreferencesController(QObject):
+    """Contrôleur pour la page des Préférences.
+
+    Ce contrôleur gère la logique de la page des préférences utilisateur. Il interagit
+    avec les Singletons `Preference` (pour lire/écrire les valeurs des préférences) et
+    `ConfigData` (pour lire les options de configuration, ex: listes Jacmar).
+
+    Responsabilités principales :
+    - Charger les options de configuration (listes Jacmar) depuis `ConfigData`.
+    - Peupler les ComboBox de la vue avec ces options.
+    - Charger les valeurs actuelles des préférences depuis le Singleton `Preference`.
+    - Afficher ces valeurs dans les widgets correspondants de la vue.
+    - Gérer les interactions utilisateur : sélection d'image de signature, 
+      import/export de préférences, sauvegarde des modifications.
+    - Gérer la logique d'activation/désactivation et de réinitialisation 
+      des champs modifiés.
+    - Appliquer les changements de thème visuellement et notifier les autres 
+      composants via un signal.
+
+    Attributes:
+        view: L'instance de la vue `PreferencesPage` associée.
+        main_controller: Référence (optionnelle) au contrôleur principal 
+            de l'application, utilisé pour l'application globale du thème.
+        prefs_singleton (Preference): L'instance unique du Singleton Preference.
+        initial_prefs_copy (Preference): Une copie profonde de l'état initial des 
+            préférences, utilisée pour détecter les modifications et réinitialiser les champs.
+        jacmar_emplacements (list): Liste des emplacements Jacmar chargée depuis ConfigData.
+        jacmar_departements (list): Liste des départements Jacmar chargée depuis ConfigData.
+        jacmar_titres (list): Liste des titres Jacmar chargée depuis ConfigData.
+        jacmar_superviseurs (list): Liste des superviseurs Jacmar chargée depuis ConfigData.
+        jacmar_plafonds (list): Liste des noms de plafonds chargée depuis ConfigData.
+        _selected_signature_path (str | None): Chemin vers le fichier image de 
+            signature actuellement sélectionné ou chargé.
+    """
     def __init__(self, view, main_controller=None):
         """
         Initialise le contrôleur pour la page Préférences.
@@ -81,13 +114,18 @@ class PreferencesController(QObject):
          """Charge les listes d'options Jacmar depuis ConfigData.""" 
          try:
              config = ConfigData.get_instance()
-             jacmar_config = config.get_top_level_key("jacmar_options", default={})
+             jacmar_config = config.get_top_level_key("jacmar", default={})
              
              self.jacmar_emplacements = jacmar_config.get('emplacements', [])
              self.jacmar_departements = jacmar_config.get('departements', [])
              self.jacmar_titres = jacmar_config.get('titres', [])
              self.jacmar_superviseurs = jacmar_config.get('superviseurs', [])
-             self.jacmar_plafonds = jacmar_config.get('plafonds', []) # Utilise clé 'plafonds'
+             plafonds_raw = jacmar_config.get('plafond_deplacement', []) 
+             if isinstance(plafonds_raw, list) and len(plafonds_raw) > 0 and isinstance(plafonds_raw[0], dict):
+                 self.jacmar_plafonds = list(plafonds_raw[0].keys()) 
+             else:
+                 logger.warning(f"Structure inattendue pour 'plafond_deplacement' dans config: {plafonds_raw}")
+                 self.jacmar_plafonds = []
              
              logger.info("Options Jacmar chargées depuis ConfigData pour PreferencesController.")
              

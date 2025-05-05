@@ -138,6 +138,19 @@ class SignaturePreviewWidget(QWidget):
 
 # --- Classe PreferencesPage (Modifiée) --- 
 class PreferencesPage(QWidget):
+    """Page principale des préférences utilisateur.
+
+    Contient les sections pour le profil utilisateur, les options Jacmar,
+    les paramètres généraux et l'apparence. Gère l'affichage des champs,
+    la prévisualisation de la signature, et les boutons d'action (Sauvegarder, etc.).
+    Le style des composants est géré par des feuilles de style QSS externes.
+
+    Signals:
+        select_signature_requested: Demande l'ouverture du dialogue de sélection de signature.
+        save_prefs_requested: Demande la sauvegarde des préférences actuelles.
+        import_prefs_requested: Demande l'importation de préférences.
+        export_prefs_requested: Demande l'exportation de préférences.
+    """
     select_signature_requested = pyqtSignal()
     save_prefs_requested = pyqtSignal()
     import_prefs_requested = pyqtSignal()
@@ -168,7 +181,6 @@ class PreferencesPage(QWidget):
         try: 
             from ui.components.frame import Frame
         except ImportError:
-            print("ERREUR: Impossible d'importer ui.components.frame.Frame")
             Frame = QFrame 
             Frame.get_content_layout = lambda s: QVBoxLayout(s)
         
@@ -310,7 +322,6 @@ class PreferencesPage(QWidget):
     def _wrap_widget_in_hbox(self, widget):
         # Ancienne méthode gardée pour compatibilité si appelée ailleurs, mais dépréciée
         # pour les champs principaux
-        print("Warning: _wrap_widget_in_hbox est dépréciée pour les champs principaux, utiliser _wrap_widget_with_refresh")
         container = QWidget()
         container.setStyleSheet("background-color: transparent;")
         layout = QHBoxLayout(container)
@@ -376,8 +387,6 @@ class PreferencesPage(QWidget):
     def update_signature_preview(self, pixmap=None, error_text=None):
         # Met à jour le pixmap dans notre widget personnalisé
         if error_text:
-             print(f"Erreur signature: {error_text}") # Afficher dans console
-             # On pourrait afficher l'erreur sur le widget lui-même mais c'est plus complexe
              self.signature_display_widget.setPixmap(None) # Effacer l'image
         else:
             self.signature_display_widget.setPixmap(pixmap) # Mettre à jour le pixmap (None si vide)
@@ -398,7 +407,6 @@ class PreferencesPage(QWidget):
 
     def populate_jacmar_combos(self, emplacements, departements, titres, superviseurs, plafonds):
         """Remplit les ComboBox de la section Jacmar avec les listes fournies."""
-        print("Peuplement des ComboBox Jacmar dans la vue...")
         self.cb_emplacement.clear()
         self.cb_emplacement.addItems(emplacements if emplacements else ["N/A"])
         
@@ -418,7 +426,6 @@ class PreferencesPage(QWidget):
     # --- AJOUT : Slot pour maj icones boutons --- 
     @Slot(str)
     def _update_button_icons(self, theme_name):
-        # logger.debug(f"PreferencesPage updating button icons for theme: {theme_name}")
         for button, icon_base_name in self._theme_aware_buttons.items():
             if not button: continue # Sécurité
             try:
@@ -426,14 +433,11 @@ class PreferencesPage(QWidget):
                 new_icon = QIcon(new_icon_path)
                 if not new_icon.isNull():
                     button.setIcon(new_icon)
-                    # Optionnel: réappliquer la taille si elle changeait?
-                    # button.setIconSize(QSize(x, y)) 
                 else:
                     # Fallback si icône non trouvée (même par défaut)
                     button.setIcon(QIcon())
                     button.setText("?") # Ou autre placeholder
             except Exception as e:
-                print(f"ERROR: Updating icon '{icon_base_name}' for button '{button.objectName()}': {e}")
                 button.setIcon(QIcon())
                 button.setText("?")
     # ---------------------------------------------
