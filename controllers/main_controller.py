@@ -67,19 +67,18 @@ class MainController(QObject):
         self.documents = {}
         self.about_page = None
         self.about_controller_instance = None
-        # --- AJOUT: Créer et stocker PreferencesController --- 
-        try:
-            # Importer DANS le try pour éviter dépendance circulaire si __init__ est complexe
-            from controllers.preferences.preferences_controller import PreferencesController
-            self.preferences_controller = PreferencesController(main_controller=self) # Créé sans vue initiale
-            logger.info("MainController: PreferencesController instance created.")
-        except ImportError as e_imp:
-            logger.critical(f"CRITICAL ERROR: Cannot import PreferencesController: {e_imp}")
-            self.preferences_controller = None # S'assurer qu'il est None si import échoue
-        except Exception as e_prefs_init:
-            logger.critical(f"CRITICAL ERROR: Cannot initialize PreferencesController: {e_prefs_init}")
-            self.preferences_controller = None
-        # ----------------------------------------------------
+        # --- SUPPRESSION: Instanciation PreferencesController --- 
+        # try:
+        #     from controllers.preferences.preferences_controller import PreferencesController
+        #     self.preferences_controller = PreferencesController(main_controller=self) 
+        #     logger.info("MainController: PreferencesController instance created.")
+        # except ImportError as e_imp:
+        #     logger.critical(f"CRITICAL ERROR: Cannot import PreferencesController: {e_imp}")
+        #     self.preferences_controller = None
+        # except Exception as e_prefs_init:
+        #     logger.critical(f"CRITICAL ERROR: Cannot initialize PreferencesController: {e_prefs_init}")
+        #     self.preferences_controller = None
+        # ------------------------------------------------------
         self.navigate_to_notes_after_welcome = False 
         self._startup_update_check_done = False
         self.new_doc_window = None # Garder une référence si DocumentWindow est unique

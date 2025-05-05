@@ -21,9 +21,9 @@ from pages.about.about_page import AboutPage
 from controllers.about.about_controller import AboutController
 from pages.documents.documents_page import DocumentsPage 
 from controllers.documents.documents_controller import DocumentsController
-# --- Importer PreferencesPage et PreferencesController --- 
+# --- MODIFICATION: Importer SEULEMENT la page Preferences --- 
 from pages.preferences.preferences_page import PreferencesPage
-from controllers.preferences.preferences_controller import PreferencesController
+# from controllers.preferences.preferences_controller import PreferencesController # <- Supprimé
 # --- AJOUT IMPORTS POUR SETTINGS --- 
 from pages.settings.settings_page import SettingsPage
 from controllers.settings.settings_controller import SettingsController
@@ -46,9 +46,9 @@ from pages.about.about_page import AboutPage
 from controllers.about.about_controller import AboutController
 from pages.documents.documents_page import DocumentsPage 
 from controllers.documents.documents_controller import DocumentsController
-# --- Importer PreferencesPage et PreferencesController --- 
+# --- MODIFICATION: Importer SEULEMENT la page Preferences --- 
 from pages.preferences.preferences_page import PreferencesPage
-from controllers.preferences.preferences_controller import PreferencesController
+# from controllers.preferences.preferences_controller import PreferencesController # <- Supprimé
 # --- AJOUT IMPORTS POUR SETTINGS --- 
 from pages.settings.settings_page import SettingsPage
 from controllers.settings.settings_controller import SettingsController
@@ -65,28 +65,27 @@ class WelcomeWindow(QWidget): # RENOMMÉ
         self.setWindowFlags(self.windowFlags() | Qt.WindowContextHelpButtonHint)
         self.setObjectName("WelcomeWindow") 
 
-        # Section Préférences (créée AVANT DocumentsController)
+        # --- MODIFICATION: Ne plus instancier PreferencesController ici --- 
+        # L'instance globale Preference est chargée via Preference.get_instance()
+        # Le PreferencesController sera instancié SEULEMENT si la page est affichée,
+        # et il utilisera le Singleton Preference.
         self.preferences_page_instance = PreferencesPage()
-        # Le contrôleur principal n'est pas passé ici pour l'instant
-        self.preferences_controller_instance = PreferencesController(self.preferences_page_instance)
+        # self.preferences_controller_instance = PreferencesController(self.preferences_page_instance) # <- Supprimé
+        # ----------------------------------------------------------------
 
-        # --- Instancier les pages/contrôleurs principaux --- 
+        # --- Instancier UNIQUEMENT les pages ici --- 
         self.documents_page_instance = DocumentsPage()
-        # Passer l'instance de preferences_controller_instance ici
-        self.documents_controller_instance = DocumentsController(
-            self.documents_page_instance,
-            self.controller, # Le main_controller
-            self.preferences_controller_instance # La référence directe
-        )
-        
-        # Section A Propos
+        # --- SUPPRESSION INSTANCIATION CONTRÔLEUR ICI ---
+        # self.documents_controller_instance = DocumentsController(...)
+        # ------------------------------------------------
         self.about_page_instance = AboutPage()
-        self.about_controller_instance = AboutController(self.about_page_instance, version_str=self.version_str)
-        
-        # --- AJOUT INSTANCES SETTINGS --- 
+        # --- SUPPRESSION INSTANCIATION CONTRÔLEUR ICI ---
+        # self.about_controller_instance = AboutController(...)
+        # ------------------------------------------------
         self.settings_page_instance = SettingsPage()
-        # Passer le main_controller au SettingsController
-        self.settings_controller_instance = SettingsController(self.settings_page_instance, self.controller)
+        # --- SUPPRESSION INSTANCIATION CONTRÔLEUR ICI ---
+        # self.settings_controller_instance = SettingsController(...)
+        # ------------------------------------------------
         
         self.stacked_widget = QStackedWidget()
         
@@ -244,85 +243,122 @@ class WelcomeWindow(QWidget): # RENOMMÉ
 
         main_layout.addWidget(sidebar)
 
-        # --- Zone de contenu principale (droite) --- 
-        content_area = QFrame()
-        content_area.setObjectName("ContentAreaFrame") # Nouveau nom pour style éventuel
-        content_layout = QVBoxLayout(content_area)
-        content_layout.setContentsMargins(0, 0, 0, 0) 
+        # --- Panneau de contenu principal ---
+        content_panel = QFrame()
+        content_panel.setObjectName("ContentPanel")
+        content_layout = QVBoxLayout(content_panel)
+        content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
-        self.stacked_widget.setObjectName("ContentArea") # Donner un nom au QStackedWidget
+        # Ajouter les pages AU STACK ICI (AVANT instanciation des contrôleurs)
+        self.stacked_widget.addWidget(self.documents_page_instance) # Index 0
+        self.stacked_widget.addWidget(self.preferences_page_instance) # Index 1
+        self.stacked_widget.addWidget(self.about_page_instance)      # Index 2
+        self.stacked_widget.addWidget(self.settings_page_instance)   # Index 3
         
-        # Ajouter les pages au stacked widget
-        self.stacked_widget.addWidget(self.documents_page_instance)
-        self.stacked_widget.addWidget(self.preferences_page_instance)
-        self.stacked_widget.addWidget(self.about_page_instance)
-        self.stacked_widget.addWidget(self.settings_page_instance) # Ajouter Settings
-
         content_layout.addWidget(self.stacked_widget)
-        main_layout.addWidget(content_area, 1) # Donner plus d'espace à droite
+        main_layout.addWidget(content_panel, 1)
 
-        outer_layout.addWidget(main_content_widget, 1)
+        outer_layout.addWidget(main_content_widget)
+        
+        # --- AJOUT: Instancier les contrôleurs ICI, APRÈS que l'UI est prête --- 
+        print("*** WelcomeWindow.init_ui: STARTING CONTROLLER INSTANTIATION ***") # AJOUT PRINT
+        # Documents
+        try:
+            print("  -> Instantiating DocumentsController...") # AJOUT PRINT
+            self.documents_controller_instance = DocumentsController(
+                self.documents_page_instance,
+                self.controller # Le main_controller
+            )
+            print("  -> DocumentsController INSTANTIATED.") # AJOUT PRINT
+            # Connecter signal pour montrer page Settings si besoin
+            if hasattr(self.documents_controller_instance, 'request_settings_page'):
+                 self.documents_controller_instance.request_settings_page.connect(self.show_settings_page)
+        except Exception as e:
+            print(f"ERROR instantiating DocumentsController in WelcomeWindow: {e}")
+            self.documents_controller_instance = None
 
-        # --- Redimensionner la fenêtre --- 
-        self.resize(1000, 700) 
-        # -------------------------------
+        # A Propos
+        try:
+            print("  -> Instantiating AboutController...") # AJOUT PRINT
+            self.about_controller_instance = AboutController(
+                self.about_page_instance, 
+                version_str=self.version_str
+            )
+            print("  -> AboutController INSTANTIATED.") # AJOUT PRINT
+        except Exception as e:
+             print(f"ERROR instantiating AboutController in WelcomeWindow: {e}")
+             self.about_controller_instance = None
+        
+        # Settings
+        try:
+            print("  -> Instantiating SettingsController...") # AJOUT PRINT
+            self.settings_controller_instance = SettingsController(
+                self.settings_page_instance, 
+                self.controller # Le main_controller
+            )
+            print("  -> SettingsController INSTANTIATED.") # AJOUT PRINT
+        except Exception as e:
+             print(f"ERROR instantiating SettingsController in WelcomeWindow: {e}")
+             self.settings_controller_instance = None
+        print("*** WelcomeWindow.init_ui: FINISHED CONTROLLER INSTANTIATION ***") # AJOUT PRINT
+        # ----------------------------------------------------------------------
 
-        # --- Sélectionner la page par défaut (Documents) --- 
-        # Trouver le bouton "Documents" et le checker au démarrage
-        for btn in self.sidebar_button_group.buttons():
-            if btn.text() == "Documents":
-                btn.setChecked(True)
-                # Peut-être appeler _change_page ici aussi pour initialiser correctement ?
-                self._change_page(btn) # Assure que la page est affichée
-                break
-                
+        # Afficher la page par défaut (Documents)
+        self.navigate_to_section("Documents")
+
+    @Slot()
+    def show_settings_page(self): # Nouvelle méthode pour afficher Settings
+         print("WelcomeWindow: Showing Settings page via show_settings_page")
+         # Décocher les autres boutons
+         for btn in self.sidebar_button_group.buttons():
+             btn.setChecked(False)
+         # Afficher la page dans le stack
+         self.stacked_widget.setCurrentIndex(3) 
+
+    # --- Méthode pour afficher Settings via clic bouton (EXISTANTE, ajustée) ---
     @Slot()
     def _show_settings_page_from_button(self):
-        """Slot pour le clic sur le bouton Settings. Affiche la page Settings."""
-        print("Settings button clicked, changing page...")
-        
-        # Désélectionner les boutons de navigation principaux
-        # car Settings n'est pas l'un d'eux.
-        current_button = self.sidebar_button_group.checkedButton()
-        if current_button:
-            # Déchecker le bouton actuel SANS déclencher _change_page
-            # En déconnectant temporairement le signal ou en utilisant blockSignals
-            self.sidebar_button_group.setExclusive(False) # Permettre de déchecker
-            current_button.setChecked(False)
-            self.sidebar_button_group.setExclusive(True) # Rétablir l'exclusivité
-            # Mettre à jour le style visuel du container du bouton déchecké
-            if hasattr(current_button, 'parentWidget') and callable(current_button.parentWidget):
-                container = current_button.parentWidget()
-                if container and container.objectName() == "SidebarButtonContainer":
-                     container.setProperty("checked", False)
-                     container.style().unpolish(container)
-                     container.style().polish(container)
+        print("WelcomeWindow: Showing Settings page via _show_settings_page_from_button")
+        # Décocher les autres boutons
+        for btn in self.sidebar_button_group.buttons():
+             btn.setChecked(False)
+        # Afficher la page dans le stack
+        self.stacked_widget.setCurrentIndex(3) # Index 3 pour Settings
+        # --- AJOUT: Instancier PreferencesController si besoin --- 
+        # Vérifier si un contrôleur existe déjà pour la page des préférences
+        # Ce n'est plus nécessaire car Settings a son propre contrôleur
+        # if self.preferences_page_instance and not hasattr(self.preferences_page_instance, '_controller_attached'):
+        #     try:
+        #         # PAS BESOIN D'INSTANCIER PREFERENCESCONTROLLER ICI
+        #         # pref_controller = PreferencesController(self.preferences_page_instance, self.controller)
+        #         # self.preferences_page_instance._controller_attached = True # Marqueur
+        #         print("WelcomeWindow: PreferencesController NOT instantiated here anymore.")
+        #     except Exception as e:
+        #         print(f"ERROR Instantiating PreferencesController on demand: {e}")
+        # -----------------------------------------------------------
 
-        # Changer l'index du stacked widget
-        index = self.stacked_widget.indexOf(self.settings_page_instance)
-        if index != -1:
-            self.stacked_widget.setCurrentIndex(index)
-            print(f"Switched to Settings page (index {index}).")
-        else:
-            print("ERROR: Could not find Settings page index in stacked widget.")
-            
     def navigate_to_section(self, section_name):
         """ Navigue vers une section spécifique (ex: "A Propos") après l'init. """
         print(f"navigate_to_section called with: {section_name}")
         button_to_check = None
         target_page = None
 
-        if section_name == "A Propos":
+        # --- AJOUT DU CAS DOCUMENTS --- 
+        if section_name == "Documents":
+            button_to_check = self.nav_buttons.get("Documents")
+            target_page = self.documents_page_instance
+        # -------------------------------
+        elif section_name == "A Propos":
             button_to_check = self.nav_buttons.get("A Propos")
             target_page = self.about_page_instance
         elif section_name == "Paramètres": # Pour la nav auto vers MàJ
              button_to_check = None # Settings n'a pas de bouton nav principal
              target_page = self.settings_page_instance
         # Ajouter d'autres sections si nécessaire
-        # elif section_name == "Preference":
-        #     button_to_check = self.nav_buttons.get("Preference")
-        #     target_page = self.preferences_page_instance
+        elif section_name == "Preference": # Exemple si on réactive la navigation directe
+            button_to_check = self.nav_buttons.get("Preference")
+            target_page = self.preferences_page_instance
         # etc...
 
         if target_page:

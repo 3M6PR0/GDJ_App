@@ -1,9 +1,9 @@
 {
     "jacmar": {
         "emplacements": [
-          "Mascouche",
-          "Quebec"
-        ],
+            "Mascouche",
+            "Quebec"
+          ],
         "departements": [
           "Bureau",
           "Entrepôt",
@@ -41,5 +41,30 @@
             "Cap 2": 3000.0
           }
         ]
+    },
+    "document": {
+        "Rapport de depense": [
+          "date",
+          "nom",
+          "prenom",
+          "emplacements",
+          "departements",
+          "superviseurs",
+          "plafond_deplacement"
+        ],
+        "Ecriture comptable": [
+          "date",
+          "nom",
+          "prenom",
+          "emplacements"
+        ],
+        "Rapport de temps supplémentaire": [
+          "Mascouche",
+          "Quebec"
+        ],
+        "CSA": [
+          "Mascouche",
+          "Quebec"
+        ] 
     }
 }

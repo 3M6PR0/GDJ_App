@@ -2,12 +2,17 @@
 
 import json
 import os
+import logging # AJOUT
 
 # Importation optionnelle pour Path, mais utilisons str pour l'instant pour simplifier
 # from pathlib import Path
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+
+# --- AJOUT Logger --- 
+logger = logging.getLogger(__name__)
+# ------------------
 
 class Profile:
     """Préférences relatives au profil utilisateur."""
@@ -81,18 +86,48 @@ class Application:
                 else:
                     setattr(self, key, value)
 
+# --- MODIFICATION: Transformer Preference en Singleton --- 
 class Preference:
-    """Classe principale contenant toutes les préférences."""
-    # --- Chemin par défaut relatif --- 
-    DEFAULT_PREF_FILENAME = "data/preference.json"
+    """Classe Singleton contenant toutes les préférences."""
+    # --- Singleton Implementation --- 
+    _instance = None
+    _initialized = False
+    _preference_file_path = "data/preference.json" # Chemin relatif par défaut
 
-    def __init__(self,
-                 profile: Profile = None,
-                 jacmar: Jacmar = None,
-                 application: Application = None):
-        self.profile = profile if profile is not None else Profile()
-        self.jacmar = jacmar if jacmar is not None else Jacmar()
-        self.application = application if application is not None else Application()
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+            logger.debug("Creating new Preference Singleton instance.")
+        return cls._instance
+
+    def __init__(self):
+        """
+        Initializes the Singleton. Creates default sub-objects and loads 
+        data from file only on the first call.
+        """
+        if Preference._initialized: # Utiliser le nom de la classe ici
+             return
+
+        # Initialiser les sous-objets SEULEMENT lors de la première initialisation
+        self.profile = Profile()
+        self.jacmar = Jacmar()
+        self.application = Application()
+        
+        # Charger les données depuis le fichier
+        self.load() # Appelle la méthode load de CETTE instance
+        
+        Preference._initialized = True # Marquer comme initialisé
+        logger.info("Preference Singleton initialized.")
+
+    @classmethod
+    def get_instance(cls):
+        """
+        Returns the single instance of the Preference class.
+        Creates and initializes it (including loading data) if it doesn't exist yet.
+        """
+        return cls() # Appelle __new__ et __init__
+
+    # --- Fin Singleton Implementation ---
 
     def to_dict(self):
         """Retourne une représentation dictionnaire de l'objet Preference complet."""
@@ -102,45 +137,49 @@ class Preference:
             "application": self.application.to_dict()
         }
 
-    def save(self, relative_filepath=DEFAULT_PREF_FILENAME):
-        """Sauvegarde les préférences actuelles via get_resource_path."""
-        # Construire le chemin absolu
-        absolute_filepath = get_resource_path(relative_filepath)
-        print(f"DEBUG: Chemin sauvegarde prefs calculé: {absolute_filepath}") # Ajout debug
+    def save(self, relative_filepath=None):
+        """Sauvegarde les préférences actuelles via get_resource_path.
+           Utilise le chemin par défaut de la classe si non fourni.
+        """
+        # Utiliser le chemin par défaut de la classe si aucun n'est fourni
+        filepath_to_use = relative_filepath or Preference._preference_file_path
+        absolute_filepath = get_resource_path(filepath_to_use)
+        logger.debug(f"Chemin sauvegarde prefs calculé: {absolute_filepath}")
         try:
-            # S'assurer que le répertoire existe
             dir_path = os.path.dirname(absolute_filepath)
             if dir_path:
                 os.makedirs(dir_path, exist_ok=True)
             
             data_to_save = self.to_dict()
             
-            # Écrire dans le fichier JSON en utilisant le chemin absolu
             with open(absolute_filepath, 'w', encoding='utf-8') as f:
                 json.dump(data_to_save, f, ensure_ascii=False, indent=4)
-            print(f"Préférences sauvegardées avec succès dans {absolute_filepath}")
+            logger.info(f"Préférences sauvegardées avec succès dans {absolute_filepath}")
             
         except Exception as e:
-            print(f"Erreur lors de la sauvegarde des préférences dans {absolute_filepath}: {e}")
+            logger.error(f"Erreur lors de la sauvegarde des préférences dans {absolute_filepath}: {e}", exc_info=True)
 
-    def load(self, relative_filepath=DEFAULT_PREF_FILENAME):
-        """Charge les préférences via get_resource_path."""
-        # Construire le chemin absolu
-        absolute_filepath = get_resource_path(relative_filepath)
-        print(f"DEBUG: Chemin chargement prefs calculé: {absolute_filepath}") # Ajout debug
+    def load(self, relative_filepath=None):
+        """Charge les préférences via get_resource_path.
+           Utilise le chemin par défaut de la classe si non fourni.
+        """
+        # Utiliser le chemin par défaut de la classe si aucun n'est fourni
+        filepath_to_use = relative_filepath or Preference._preference_file_path
+        absolute_filepath = get_resource_path(filepath_to_use)
+        logger.debug(f"Chemin chargement prefs calculé: {absolute_filepath}")
 
         if not os.path.exists(absolute_filepath):
-            print(f"Fichier de préférences non trouvé: {absolute_filepath}. Utilisation des valeurs par défaut.")
-            # Initialiser avec les valeurs par défaut (déjà fait dans __init__)
-            # self.__init__() # Réinitialiser explicitement ?
+            logger.warning(f"Fichier de préférences non trouvé: {absolute_filepath}. Utilisation des valeurs par défaut.")
+            # Les valeurs par défaut sont déjà définies lors de la création des sous-objets
+            # S'assurer de sauvegarder ces valeurs par défaut pour la prochaine fois
+            self.save(filepath_to_use)
             return False
             
         try:
-            # Lire depuis le chemin absolu
             with open(absolute_filepath, 'r', encoding='utf-8') as f:
                 loaded_data = json.load(f)
             
-            # Mettre à jour les sous-objets avec les données chargées
+            # Mettre à jour les sous-objets existants
             if 'profile' in loaded_data and isinstance(loaded_data['profile'], dict):
                 self.profile.update_from_dict(loaded_data['profile'])
             if 'jacmar' in loaded_data and isinstance(loaded_data['jacmar'], dict):
@@ -148,15 +187,24 @@ class Preference:
             if 'application' in loaded_data and isinstance(loaded_data['application'], dict):
                 self.application.update_from_dict(loaded_data['application'])
                 
-            print(f"Préférences chargées avec succès depuis {absolute_filepath}")
+            logger.info(f"Préférences chargées avec succès depuis {absolute_filepath}")
             return True
             
         except json.JSONDecodeError as e:
-            print(f"Erreur JSON dans {absolute_filepath}: {e}...")
+            logger.error(f"Erreur JSON dans {absolute_filepath}: {e}. Utilisation des valeurs par défaut inchangées.")
             return False
         except Exception as e:
-            print(f"Erreur chargement {absolute_filepath}: {e}...")
+            logger.error(f"Erreur chargement {absolute_filepath}: {e}. Utilisation des valeurs par défaut inchangées.", exc_info=True)
             return False
+
+    def update_from_dict(self, data: dict):
+         """Met à jour les préférences complètes depuis un dictionnaire (utile pour import).""" 
+         if 'profile' in data and isinstance(data['profile'], dict):
+             self.profile.update_from_dict(data['profile'])
+         if 'jacmar' in data and isinstance(data['jacmar'], dict):
+             self.jacmar.update_from_dict(data['jacmar'])
+         if 'application' in data and isinstance(data['application'], dict):
+             self.application.update_from_dict(data['application'])
 
 # Exemple d'utilisation:
 if __name__ == '__main__':
