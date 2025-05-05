@@ -563,9 +563,9 @@ class MainController:
         print("<<< Exiting _ensure_main_window_exists method...")
 
     # --- NOUVELLE MÉTHODE pour afficher la DocumentWindow --- 
-    def show_new_document_window(self):
-        """Crée et affiche une nouvelle instance de DocumentWindow, maximisée."""
-        print("MainController: Création et affichage de DocumentWindow...")
+    def show_new_document_window(self, doc_type: str, data: dict):
+        """Crée et affiche une nouvelle instance de DocumentWindow avec les données spécifiées."""
+        print(f"MainController: Création et affichage de DocumentWindow pour type='{doc_type}'...")
         
         # --- Fermer la fenêtre de bienvenue si elle est ouverte --- 
         if self.welcome_window and self.welcome_window.isVisible():
@@ -574,24 +574,39 @@ class MainController:
         # --------------------------------------------------------
         
         try:
-            # Créer une nouvelle instance (pourrait être stockée si nécessaire)
-            self.new_doc_window = DocumentWindow()
+            # Créer une nouvelle instance avec les données fournies
+            # Utiliser une variable locale pour éviter d'écraser une éventuelle instance précédente immédiatement
+            # --- MODIFICATION: Passer les arguments à DocumentWindow --- 
+            new_window = DocumentWindow(main_controller=self, initial_doc_type=doc_type, initial_doc_data=data)
+            # --- Stocker la référence (optionnel, si on ne veut qu'une seule DocumentWindow) --- 
+            self.new_doc_window = new_window # Mettre à jour la référence
+            # ----------------------------------------------------------------------------------
+            
             # Afficher la fenêtre maximisée
-            self.new_doc_window.showMaximized()
+            new_window.showMaximized()
             # Optionnel: la rendre active
-            self.new_doc_window.activateWindow()
-            self.new_doc_window.raise_()
+            new_window.activateWindow()
+            new_window.raise_()
             print("MainController: DocumentWindow affichée.")
             
-            # --- AJOUT: Connecter le signal des paramètres --- 
+            # --- Connexion des signaux (reste pareil, utilise self.new_doc_window) --- 
             try:
+                # --- MODIFIÉ: Connecter request_main_action à handle_main_action_request --- 
+                # Note: Cette connexion a été remplacée par un appel direct + QTimer
+                # On la laisse commentée pour l'instant.
+                # print(f"MainController (id={id(self)}): Connecting request_main_action from DocumentWindow (id={id(self.new_doc_window)}) to handle_main_action_request...")
+                # self.new_doc_window.request_main_action.connect(self.handle_main_action_request, Qt.QueuedConnection)
+                # print("MainController: Signal request_main_action connecté à handle_main_action_request (Queued).")
+                # --- Connecter le signal des paramètres --- 
                 self.new_doc_window.title_bar.settings_requested.connect(self.show_settings_window)
                 print("MainController: Signal settings_requested connecté.")
             except AttributeError as e_connect:
-                 print(f"ERREUR connexion signal settings_requested: {e_connect}")
-            # ------------------------------------------------
+                 print(f"ERREUR connexion signal(s) DocumentWindow: {e_connect}")
+            # ----------------------------------------------------------------------
         except Exception as e:
             print(f"ERREUR lors de la création/affichage de DocumentWindow: {e}")
+            import traceback
+            traceback.print_exc()
     # --------------------------------------------------------
 
     # --- AJOUT: Méthode pour afficher la fenêtre des paramètres ---

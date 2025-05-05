@@ -122,8 +122,17 @@ class DocumentsTypeSelectionPage(QWidget):
         self.type_combo.clear()
         self.type_combo.addItems(types_list) 
 
-    def update_content_area(self, fields_data: dict):
+    def update_content_area(self, fields_structure: list, default_values: dict, jacmar_data: dict):
         """Nettoie et repeuple avec formulaire, gère le champ date spécial."""
+        # --- AJOUT LOG: Afficher les arguments reçus --- 
+        print("DEBUG (View - update_content_area): Received:")
+        # --- MODIFICATION LOG: Afficher la liste directement --- 
+        print(f"  -> fields_structure (list): {fields_structure}")
+        # ------------------------------------------------------
+        print(f"  -> default_values: {default_values}")
+        print(f"  -> jacmar_data keys: {list(jacmar_data.keys())}")
+        # ----------------------------------------------
+        
         # 1. Supprimer l'ancien conteneur et nettoyer la map
         if self.dynamic_content_container is not None:
             self.main_content_layout.removeWidget(self.dynamic_content_container)
@@ -137,7 +146,7 @@ class DocumentsTypeSelectionPage(QWidget):
         self.dynamic_content_container.setStyleSheet("background-color: transparent;")
         
         # 3. Si pas de données, ajouter conteneur vide et sortir
-        if not fields_data:
+        if not fields_structure:
             stretch_index = self.main_content_layout.count() - 1
             self.main_content_layout.insertWidget(stretch_index, self.dynamic_content_container)
             return
@@ -147,8 +156,24 @@ class DocumentsTypeSelectionPage(QWidget):
         new_form_layout.setSpacing(10)
         new_form_layout.setVerticalSpacing(8)
 
-        for field_name, field_info in fields_data.items():
-            field_type = field_info.get("type", "combo")
+        # --- AJOUT LOG: Début de la boucle --- 
+        print(f"DEBUG (View): Starting loop to create {len(fields_structure)} fields...")
+        # -------------------------------------
+        for field_name in fields_structure:
+            # --- AJOUT LOG: Champ en cours --- 
+            print(f"  -> Processing field: '{field_name}'")
+            # ---------------------------------
+            
+            # --- Déduire le type de widget DANS la boucle --- 
+            field_type = "lineedit" # Type par défaut
+            if field_name == "date":
+                field_type = "month_year_combo"
+            elif field_name in jacmar_data: # Si le nom existe comme clé dans jacmar_data, c'est un combo
+                 field_type = "combo"
+            # Ajouter d'autres logiques si nécessaire (ex: type explicite dans config?)
+            print(f"    -> Deduced field type: {field_type}")
+            # ------------------------------------------------
+            
             label_text = field_name.replace('_', ' ').replace("departements", "département").capitalize() + ":"
             label = QLabel(label_text)
             label.setObjectName("FormLabel")
@@ -156,7 +181,7 @@ class DocumentsTypeSelectionPage(QWidget):
             widget = None
             widget_layout = None
             initial_value = None
-            default_pref_value = field_info.get("default")
+            default_pref_value = default_values.get(field_name)
 
             # --- GESTION SPÉCIFIQUE DU CHAMP DATE --- 
             if field_type == "month_year_combo":
@@ -221,69 +246,61 @@ class DocumentsTypeSelectionPage(QWidget):
                 continue # Passer au champ suivant
             
             # --- GESTION DES AUTRES CHAMPS (LABEL, COMBO, LINEEDIT) --- 
-            if field_type == "label":
-                value = field_info.get("value", "")
-                widget = QLabel(str(value))
-                widget.setObjectName(f"dynamic_label_{field_name}")
-                widget.setWordWrap(True)
-                new_form_layout.addRow(label, widget)
-                self._current_dynamic_widgets.extend([label, widget])
-                continue
             elif field_type == "combo":
-                options = field_info.get("options", [])
+                options = jacmar_data.get(field_name, [])
                 widget = QComboBox()
                 widget.setObjectName(f"dynamic_combo_{field_name}")
                 widget.addItems(options if options else ["N/A"])
                 initial_value = str(default_pref_value) if default_pref_value is not None else ""
                 if initial_value:
                     widget.setCurrentText(initial_value)
-                    if widget.currentText() != initial_value: initial_value = widget.currentText()
-            elif field_type == "lineedit":
-                initial_value = str(field_info.get("value", ""))
+                    # Vérifier si la valeur a été acceptée (elle pourrait ne pas être dans la liste)
+                    if widget.currentText() != initial_value: 
+                        print(f"WARN: Default value '{initial_value}' for '{field_name}' not found in options.")
+                        initial_value = widget.currentText() # Utiliser la valeur actuelle comme initiale
+            elif field_type == "lineedit": # Tous les autres cas deviennent des lineedit
+                initial_value = str(default_pref_value if default_pref_value is not None else "")
                 widget = QLineEdit()
                 widget.setObjectName(f"dynamic_lineedit_{field_name}")
                 widget.setText(initial_value)
-            else:
-                widget = QLabel(f"Type de champ inconnu: {field_type}")
+            else: # Cas d'erreur si field_type était autre chose?
+                print(f"WARN: Unhandled field type '{field_type}' for field '{field_name}'")
+                widget = QLabel(f"Type de champ non géré: {field_type}")
                 new_form_layout.addRow(label, widget)
                 self._current_dynamic_widgets.extend([label, widget])
                 continue
 
+            # --- Le reste (bouton reset, layout H, connexion signaux) est commun --- 
             widget.setProperty("initial_value", initial_value)
 
-            # --- Créer le bouton Reset avec icône et effet d'opacité --- 
-            reset_button = QPushButton() # Pas de texte
-            reset_button.setObjectName("DynamicResetButton") # Pour QSS éventuel
+            reset_button = QPushButton() 
+            reset_button.setObjectName("DynamicResetButton")
             reset_icon = QIcon(RESET_ICON_PATH)
             if not reset_icon.isNull():
                 reset_button.setIcon(reset_icon)
-                reset_button.setIconSize(QSize(16, 16)) # Taille de l'icône
+                reset_button.setIconSize(QSize(16, 16)) 
             else:
                 print(f"WARN: Icône Reset non trouvée: {RESET_ICON_PATH}, utilisation texte.")
-                reset_button.setText("↺") # Fallback texte
-                reset_button.setFont(QFont("Arial", 10)) # Ajuster taille texte fallback
-            reset_button.setFixedSize(20, 20) # Taille du bouton
+                reset_button.setText("↺") 
+                reset_button.setFont(QFont("Arial", 10))
+            reset_button.setFixedSize(20, 20) 
             reset_button.setToolTip(f"Réinitialiser {field_name} à sa valeur initiale")
-            reset_button.setFlat(True) # Style plat
-            reset_button.setFocusPolicy(Qt.NoFocus) # Pas de focus
-            reset_button.setEnabled(False) # Initialement désactivé
+            reset_button.setFlat(True) 
+            reset_button.setFocusPolicy(Qt.NoFocus) 
+            reset_button.setEnabled(False) 
 
             opacity_effect = QGraphicsOpacityEffect(reset_button)
-            opacity_effect.setOpacity(0.0) # Initialement invisible
+            opacity_effect.setOpacity(0.0) 
             reset_button.setGraphicsEffect(opacity_effect)
-            # Le bouton reste techniquement visible pour occuper l'espace
 
-            # Stocker le bouton ET l'effet
             self._reset_buttons_map[widget] = (reset_button, opacity_effect)
 
-            # --- Créer le layout horizontal pour widget + bouton --- 
             widget_layout = QHBoxLayout()
             widget_layout.setContentsMargins(0,0,0,0)
             widget_layout.setSpacing(5)
             widget_layout.addWidget(widget, 1)
             widget_layout.addWidget(reset_button)
 
-            # --- Connecter les signaux --- 
             change_slot = functools.partial(self._handle_dynamic_field_change, widget)
             if isinstance(widget, QLineEdit):
                 widget.textChanged.connect(change_slot)
@@ -293,10 +310,10 @@ class DocumentsTypeSelectionPage(QWidget):
             reset_slot = functools.partial(self._reset_dynamic_field, widget)
             reset_button.clicked.connect(reset_slot)
             
-            # Ajouter la ligne au formulaire
             new_form_layout.addRow(label, widget_layout)
             self._current_dynamic_widgets.extend([label, widget, reset_button])
             # --- FIN GESTION AUTRES CHAMPS ---
+        # --- FIN MODIFICATION BOUCLE ---
 
         # 5. Appliquer et ajouter le layout
         self.dynamic_content_container.setLayout(new_form_layout)

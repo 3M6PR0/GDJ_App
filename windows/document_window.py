@@ -7,8 +7,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DocumentWindow(QWidget):
-    def __init__(self, initial_doc_type=None, initial_doc_data=None, parent=None):
+    def __init__(self, main_controller, initial_doc_type=None, initial_doc_data=None, parent=None):
         super().__init__(parent)
+        self.main_controller = main_controller
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setObjectName("DocumentWindow")
 
