@@ -528,3 +528,10 @@ QFrame#VerticalPageSeparator {
     max-width: 1px; /* Garder une épaisseur minimale si nécessaire */
     min-width: 1px;
 } 
+
+/* --- Style pour le Cadre Facture --- */
+QFrame#FactureFrame {
+    background-color: {{COLOR_PRIMARY_LIGHT}};
+    border-radius: {{RADIUS_BOX}};
+    border: none;
+} 

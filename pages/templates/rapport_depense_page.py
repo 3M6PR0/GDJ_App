@@ -650,10 +650,18 @@ class RapportDepensePage(QWidget):
 
             # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
             self.form_fields['facture_frame'] = QFrame()
+            self.form_fields['facture_frame'].setObjectName("FactureFrame") # <-- AJOUT objectName
+            self.form_fields['facture_frame'].setAutoFillBackground(True) # <-- AJOUT
             self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel)
-            self.form_fields['facture_frame'].setFrameShadow(QFrame.Sunken)
-            # Retirer le style inline, laisser QSS gérer ou définir un style cohérent ici si besoin.
-            # self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {RADIUS_BOX}; border: none;") 
+            # --- SUPPRIMER le setStyleSheet direct --- 
+            # try:
+            #     theme = get_theme_vars()
+            #     frame_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#3c3f41") # Utiliser MEDIUM
+            #     radius = theme.get("RADIUS_BOX", "6px")
+            #     self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {radius}; border: none;")
+            # except Exception as e:
+            #     print(f"WARN: Erreur application style au frame facture: {e}")
+            # -----------------------------------------
             
             # Layout interne du frame
             frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
@@ -669,11 +677,36 @@ class RapportDepensePage(QWidget):
             label_button_layout.addWidget(facture_label_in_frame)
             label_button_layout.addStretch(1) # Pousse le bouton vers la droite
             
-            # NOUVEAU Bouton Plus (remplace l'ancien)
-            self.add_facture_button = QPushButton("+")
+            # NOUVEAU Bouton remplacé par icône
+            self.add_facture_button = QPushButton() # Créer sans texte
+            add_icon_path = get_icon_path("round_add_circle.png")
+            if add_icon_path:
+                self.add_facture_button.setIcon(QIcon(add_icon_path))
+                self.add_facture_button.setIconSize(QSize(22, 22)) # Taille icône (ajustable)
+            else:
+                self.add_facture_button.setText("+") # Fallback texte si icône non trouvée
             self.add_facture_button.setFixedSize(30, 30)
             self.add_facture_button.setToolTip("Ajouter une facture (Image ou PDF)")
-            self.add_facture_button.setObjectName("AddButtonFacture") 
+            self.add_facture_button.setObjectName("TopNavButton") # <-- Nouveau nom, comme Effacer/Ajouter
+            # --- Appliquer le style :hover directement --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#ffffff")
+                # Récupérer le style de base et forcer les dimensions
+                base_style = "QPushButton#TopNavButton { background-color: transparent; border: none; padding: 0px; border-radius: {{RADIUS_DEFAULT}}; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }" 
+                hover_style = f"QPushButton#TopNavButton:hover {{ background-color: {accent_color}; color: {text_on_accent}; }}"
+                pressed_style = f"QPushButton#TopNavButton:pressed {{ background-color: {theme.get('COLOR_ACCENT_PRESSED', '#003d82')}; color: {text_on_accent}; }}"
+                # Combiner les styles
+                combined_style = f"{base_style}\n{hover_style}\n{pressed_style}"
+                # Remplacer les placeholders si présents dans base_style
+                combined_style = combined_style.replace("{{RADIUS_DEFAULT}}", theme.get("RADIUS_DEFAULT", "4px")) 
+                self.add_facture_button.setStyleSheet(combined_style)
+            except Exception as e:
+                print(f"WARN: Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}")
+                # Fallback : appliquer juste le :hover rouge pour voir si ça marche
+                # self.add_facture_button.setStyleSheet("QPushButton#TopNavButton:hover { background-color: red; }")
+            # -----------------------------------------
             self.add_facture_button.clicked.connect(self._select_factures)
             label_button_layout.addWidget(self.add_facture_button) # Ajouter le nouveau bouton
             
