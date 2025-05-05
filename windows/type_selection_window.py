@@ -92,6 +92,15 @@ class TypeSelectionWindow(QWidget):
                 logger.warning("TypeSelectionWindow: preferences_controller non fourni.")
             # ----------------------------------------------------------------------
             
+            # --- AJOUT LOG: Vérifier les données extraites AVANT passage --- 
+            print("-"*20 + " DEBUG TypeSelectionWindow - Données extraites " + "-"*20)
+            print(f"  default_values: {default_values}")
+            print(f"  jacmar_options: {jacmar_options}")
+            print(f"  document_types: {self.document_types}")
+            print(f"  document_fields_map: {self.document_fields_map}")
+            print("-"*60)
+            # -------------------------------------------------------------
+            
             # --- MODIFICATION: Passer les données préparées au contrôleur --- 
             self.selection_controller = DocumentsTypeSelectionController(
                 view=self.selection_page, 
@@ -116,6 +125,14 @@ class TypeSelectionWindow(QWidget):
             else:
                 logger.warning("TypeSelectionWindow: Internal selection_controller n'a pas le signal 'create_request'.")
             # ----------------------------------------------------------------------
+
+            # --- AJOUT: Activer le contrôleur pour l'affichage initial --- 
+            try:
+                self.selection_controller.activate()
+                logger.info("TypeSelectionWindow: selection_controller activated for initial display.")
+            except Exception as e_activate:
+                logger.error(f"Erreur lors de l'activation initiale du selection_controller: {e_activate}")
+            # -----------------------------------------------------------
 
         except Exception as e_page:
             logger.error(f"Erreur lors de l'instanciation de DocumentsTypeSelectionPage dans TypeSelectionWindow: {e_page}", exc_info=True)
