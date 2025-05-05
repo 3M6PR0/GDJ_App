@@ -20,11 +20,37 @@ from models.config_data import ConfigData
 
 # --- AJOUT: Importer la vue et get_resource_path --- 
 from pages.documents.documents_type_selection_page import DocumentsTypeSelectionPage
-# Retrait import get_resource_path si plus utilisé ici
-# from utils.paths import get_resource_path
-# ---------------------------------------------------
+
 
 class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
+    """Contrôleur gérant la logique de la page de sélection du type de document.
+
+    Ce contrôleur est responsable de :
+    - Peupler le ComboBox des types de documents disponibles.
+    - Récupérer les options de configuration (ex: options Jacmar) et les 
+      valeurs par défaut (profil utilisateur) depuis les Singletons 
+      ConfigData et Preference.
+    - Mettre à jour dynamiquement le formulaire affiché dans la vue en 
+      fonction du type de document sélectionné.
+    - Gérer les interactions utilisateur (sélection de type, clic sur "Créer" ou "Annuler").
+    - Valider les données saisies avant de demander la création.
+    - Émettre des signaux vers le contrôleur parent (DocumentsController) 
+      pour demander la création du document ou l'annulation.
+
+    Signals:
+        create_request (pyqtSignal(str, dict)): Émis lorsque l'utilisateur clique 
+            sur "Créer" avec succès. Passe le type de document choisi et un 
+            dictionnaire des données saisies.
+        cancel_requested (pyqtSignal()): Émis lorsque l'utilisateur clique sur "Annuler".
+
+    Attributes:
+        view (DocumentsTypeSelectionPage): L'instance de la vue associée.
+        document_types (list[str]): La liste des types de documents à afficher.
+        jacmar_options (dict): Dictionnaire contenant les listes d'options 
+            spécifiques à Jacmar (emplacements, departements, etc.).
+        default_profile_values (dict): Dictionnaire contenant les valeurs par défaut 
+            provenant des préférences utilisateur (nom, prénom, etc.).
+    """
     # --- AJOUT: Signaux émis par ce contrôleur --- 
     create_request = pyqtSignal(str, dict) # Type et données du formulaire
     cancel_requested = pyqtSignal() # Pour revenir en arrière
@@ -32,6 +58,11 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
 
     # --- MODIFICATION: Signature __init__ simplifiée --- 
     def __init__(self, view: DocumentsTypeSelectionPage):
+        """Initialise le contrôleur de sélection de type de document.
+
+        Args:
+            view: L'instance de la vue DocumentsTypeSelectionPage associée.
+        """
         super().__init__()
         self.view = view
         # logger.info("--- DocumentsTypeSelectionController.__init__ START ---") # AJOUT LOG
@@ -88,37 +119,21 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
 
     # --- AJOUT: Méthodes helper pour extraire les données --- 
     def _extract_jacmar_options(self, config: ConfigData) -> dict:
-        """Extrait les listes d'options Jacmar depuis ConfigData."""
+        """Extrait et structure les listes d'options Jacmar depuis ConfigData."""
         print("--- DTSC: _extract_jacmar_options START ---") # AJOUT PRINT
         jacmar_data = {}
         jacmar_config = config.get_top_level_key("jacmar", default={})
         print(f"  _extract_jacmar_options: Got jacmar_config keys: {list(jacmar_config.keys())}") # AJOUT PRINT
         
-        # Emplacements
-        emplacements_list = jacmar_config.get('emplacements', [])
-        print(f"  _extract_jacmar_options: Retrieved emplacements: {emplacements_list}") # AJOUT PRINT
-        jacmar_data["emplacements"] = emplacements_list
+        # Extraire chaque liste d'options
+        jacmar_data["emplacements"] = jacmar_config.get('emplacements', [])
+        jacmar_data["departements"] = jacmar_config.get('departements', [])
+        jacmar_data["titres"] = jacmar_config.get('titres', [])
+        jacmar_data["superviseurs"] = jacmar_config.get('superviseurs', [])
         
-        # Departements
-        departements_list = jacmar_config.get('departements', [])
-        print(f"  _extract_jacmar_options: Retrieved departements: {departements_list}") # AJOUT PRINT
-        jacmar_data["departements"] = departements_list
-        
-        # Titres
-        titres_list = jacmar_config.get('titres', [])
-        print(f"  _extract_jacmar_options: Retrieved titres: {titres_list}") # AJOUT PRINT
-        jacmar_data["titres"] = titres_list
-        
-        # Superviseurs
-        superviseurs_list = jacmar_config.get('superviseurs', [])
-        print(f"  _extract_jacmar_options: Retrieved superviseurs: {superviseurs_list}") # AJOUT PRINT
-        jacmar_data["superviseurs"] = superviseurs_list
-        
-        # Plafond Deplacement
-        # --- CORRECTION: Utiliser la bonne clé 'plafond_deplacement' --- 
-        plafonds_raw = jacmar_config.get('plafond_deplacement', []) # <- CORRECTION CLÉ
+        # Gérer le cas spécifique de plafond_deplacement
+        plafonds_raw = jacmar_config.get('plafond_deplacement', [])
         print(f"  _extract_jacmar_options: Retrieved plafond_deplacement raw: {plafonds_raw}") # AJOUT PRINT
-        # -------------------------------------------------------------
         if isinstance(plafonds_raw, list) and len(plafonds_raw) > 0 and isinstance(plafonds_raw[0], dict):
             jacmar_data["plafond_deplacement"] = list(plafonds_raw[0].keys())
             print(f"  DTSC: Extracted plafond keys: {jacmar_data['plafond_deplacement']}")
@@ -130,23 +145,23 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
         return jacmar_data
 
     def _extract_default_values(self, prefs: Preference) -> dict:
-         """Extrait les valeurs par défaut depuis le Singleton Preference.""" 
+         """Extrait les valeurs par défaut pertinentes depuis le Singleton Preference."""
          defaults = {}
          if prefs.profile:
              defaults["nom"] = prefs.profile.nom
              defaults["prenom"] = prefs.profile.prenom
          if prefs.jacmar:
-             defaults["emplacements"] = prefs.jacmar.emplacement # Valeur par défaut unique
-             defaults["departements"] = prefs.jacmar.departement # Valeur par défaut unique
-             defaults["titre"] = prefs.jacmar.titre             # Valeur par défaut unique
-             defaults["superviseurs"] = prefs.jacmar.superviseur # Valeur par défaut unique
-             defaults["plafond_deplacement"] = prefs.jacmar.plafond # Valeur par défaut unique (clé)
+             defaults["emplacements"] = prefs.jacmar.emplacement
+             defaults["departements"] = prefs.jacmar.departement
+             defaults["titres"] = prefs.jacmar.titre # Note: La clé de préférence est "titre" (singulier)
+             defaults["superviseurs"] = prefs.jacmar.superviseur
+             defaults["plafond_deplacement"] = prefs.jacmar.plafond
          return defaults
     # -------------------------------------------------------
 
     # --- AJOUT: Méthode _populate_type_selection_combo (depuis DocumentsController) --- 
     def _populate_type_selection_combo(self):
-        """Appelle la méthode de la vue TypeSelection pour remplir son ComboBox."""
+        """Peuple le ComboBox principal de la vue avec les types de documents."""
         # logger.info("--- _populate_type_selection_combo START --- ") # AJOUT LOG
         print("*** DTSC: _populate_type_selection_combo START ***") # USE PRINT
         # logger.debug(f"  Types à ajouter: {self.document_types}") # AJOUT LOG
@@ -186,7 +201,11 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
 
     # --- AJOUT: Méthode activate --- 
     def activate(self):
-        """Appelé lorsque cette page/contrôleur devient actif."""
+        """Méthode appelée lorsque la page de sélection devient active.
+        
+        Déclenche la mise à jour initiale du formulaire dynamique basé sur 
+        le type de document actuellement sélectionné dans le ComboBox.
+        """
         # logger.debug("DocumentsTypeSelectionController activated.")
         print("DocumentsTypeSelectionController activated.")
         try:
@@ -230,11 +249,6 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
         elif selected_type == "CSA":
             print(f"Détermination des champs pour: {selected_type} (aucun champ requis)")
             fields_structure_list = [] # Aucun champ pour CSA
-        # --------------------------
-        # --- Ajoutez d'autres elif pour d'autres types --- 
-        # elif selected_type == "Autre Type Document":
-        #    logger.debug(f"Détermination des champs pour: {selected_type}")
-        #    fields_structure_list = ["champ_a", "champ_b"]
         else:
             # Cas où le type sélectionné n'est pas géré ici (ou si la string est vide)
             if selected_type:
@@ -253,12 +267,6 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
         print(f"Utilisation des données locales: DefaultValues={default_values}, JacmarOptionsKeys={list(jacmar_data.keys())}")
         # -------------------------------------------------------------------------
 
-        # --- AJOUT LOG: Vérifier les données passées à la vue --- 
-        # logger.debug(f"DEBUG (Controller): Appelle update_content_area avec:")
-        # logger.debug(f"  -> fields_structure_list: {fields_structure_list}")
-        # logger.debug(f"  -> default_values: {default_values}") 
-        # logger.debug(f"  -> jacmar_data: {jacmar_data}") 
-        # -------------------------------------------------------
         if hasattr(self.view, 'update_content_area'):
             try:
                  self.view.update_content_area(fields_structure_list, default_values, jacmar_data)
@@ -275,7 +283,15 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
     # --- Slot _handle_create_request (Validation inchangée pour l'instant) --- 
     @Slot(str)
     def _handle_create_request(self, selected_type):
-        """Gère la demande de création venant de la vue."""
+        """Gère la requête de création émise par la vue.
+
+        Récupère les données du formulaire dynamique, effectue une validation 
+        simple (pour "Rapport de depense") et émet le signal `create_request` 
+        vers le contrôleur parent si la validation réussit.
+
+        Args:
+            selected_type: Le type de document qui était sélectionné lors du clic.
+        """
         # logger.info(f"DocumentsTypeSelectionController: Create request received for type '{selected_type}'.")
         print(f"DocumentsTypeSelectionController: Create request received for type '{selected_type}'.")
         form_data = {}
@@ -297,7 +313,6 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
 
         # --- Validation (gardée ici, utilise les noms de champs hardcodés) --- 
         if selected_type == "Rapport de depense":
-            # !! IMPORTANT !! Mettez à jour cette liste si les champs requis changent
             required_fields = ["nom", "prenom", "date", "emplacements", "departements", "superviseurs", "plafond_deplacement"] 
             missing_fields = []
             for field in required_fields:
@@ -319,16 +334,5 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
         logger.info(f"DocumentsTypeSelectionController: Émission du signal create_request avec type='{selected_type}'...")
         self.create_request.emit(selected_type, form_data)
         # -----------------------------------------------------
-    # ------------------------------------------------------------------------
-
-    # --- SUPPRIMER ANCIENNES MÉTHODES PLACEHOLDER --- 
-    # @Slot()
-    # def create_document(self):
-    #     pass
-
-    # @Slot()
-    # def cancel_creation(self):
-    #      pass 
-    # --------------------------------------------
 
 print("DocumentsTypeSelectionController defined (uses Singletons)") 
