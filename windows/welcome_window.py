@@ -8,6 +8,10 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QStackedWidget, QButtonGroup, QAbstractButton)
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
 from PyQt5.QtGui import QIcon, QPixmap, QFont
+import logging
+# --- DÉPLACER CETTE LIGNE AU NIVEAU DU MODULE ---
+logger = logging.getLogger('GDJ_App') 
+# -----------------------------------------------
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
@@ -186,7 +190,8 @@ class WelcomeWindow(QWidget): # RENOMMÉ
                 btn.setIcon(icon)
                 btn.setIconSize(QSize(16, 16))
             else:
-                print(f"WARN: Icône {icon_name} non trouvée: {icon_path}")
+                # Utiliser le logger ici
+                logger.warning(f"Icône {icon_name} non trouvée: {icon_path}")
             
             btn_hbox.addWidget(btn, 1)
             self.sidebar_button_group.addButton(btn)
@@ -221,7 +226,8 @@ class WelcomeWindow(QWidget): # RENOMMÉ
             self.btn_settings.setIcon(settings_icon)
             self.btn_settings.setIconSize(QSize(18, 18))
         else:
-            print(f"WARN: Icône Settings non trouvée: {settings_icon_path}, utilisation texte.")
+            # Utiliser le logger ici
+            logger.warning(f"Icône Settings non trouvée: {settings_icon_path}, utilisation texte.")
             self.btn_settings.setText("⚙")
             self.btn_settings.setFont(QFont("Arial", 12))
         self.btn_settings.setObjectName("SettingsButton")
@@ -262,46 +268,50 @@ class WelcomeWindow(QWidget): # RENOMMÉ
         outer_layout.addWidget(main_content_widget)
         
         # --- AJOUT: Instancier les contrôleurs ICI, APRÈS que l'UI est prête --- 
-        print("*** WelcomeWindow.init_ui: STARTING CONTROLLER INSTANTIATION ***") # AJOUT PRINT
+        logger.debug("*** WelcomeWindow.init_ui: STARTING CONTROLLER INSTANTIATION ***")
+        
         # Documents
-        try:
-            print("  -> Instantiating DocumentsController...") # AJOUT PRINT
-            self.documents_controller_instance = DocumentsController(
-                self.documents_page_instance,
-                self.controller # Le main_controller
-            )
-            print("  -> DocumentsController INSTANTIATED.") # AJOUT PRINT
-            # Connecter signal pour montrer page Settings si besoin
-            if hasattr(self.documents_controller_instance, 'request_settings_page'):
-                 self.documents_controller_instance.request_settings_page.connect(self.show_settings_page)
-        except Exception as e:
-            print(f"ERROR instantiating DocumentsController in WelcomeWindow: {e}")
-            self.documents_controller_instance = None
+        logger.debug("  -> Instantiating DocumentsController...")
+        if self.documents_page_instance:
+            logger.debug("--- Vérification du format logger AVANT DocumentsController ---")
+            try:
+                self.documents_controller_instance = DocumentsController(
+                    self.documents_page_instance,
+                    self.controller # Le main_controller
+                )
+                logger.debug("  -> DocumentsController INSTANTIATED.")
+                if hasattr(self.documents_controller_instance, 'request_settings_page'):
+                     self.documents_controller_instance.request_settings_page.connect(self.show_settings_page)
+            except Exception as e:
+                logger.error(f"Erreur instanciation DocumentsController: {e}", exc_info=True)
+                self.documents_controller_instance = None
+        else:
+            logger.error("WelcomeWindow: Impossible d'instancier DocumentsController car documents_page_instance est None.")
 
         # A Propos
         try:
-            print("  -> Instantiating AboutController...") # AJOUT PRINT
+            logger.debug("  -> Instantiating AboutController...")
             self.about_controller_instance = AboutController(
                 self.about_page_instance, 
                 version_str=self.version_str
             )
-            print("  -> AboutController INSTANTIATED.") # AJOUT PRINT
+            logger.debug("  -> AboutController INSTANTIATED.")
         except Exception as e:
-             print(f"ERROR instantiating AboutController in WelcomeWindow: {e}")
+             logger.error(f"Erreur instanciation AboutController: {e}", exc_info=True)
              self.about_controller_instance = None
         
         # Settings
         try:
-            print("  -> Instantiating SettingsController...") # AJOUT PRINT
+            logger.debug("  -> Instantiating SettingsController...")
             self.settings_controller_instance = SettingsController(
                 self.settings_page_instance, 
                 self.controller # Le main_controller
             )
-            print("  -> SettingsController INSTANTIATED.") # AJOUT PRINT
+            logger.debug("  -> SettingsController INSTANTIATED.")
         except Exception as e:
-             print(f"ERROR instantiating SettingsController in WelcomeWindow: {e}")
+             logger.error(f"Erreur instanciation SettingsController: {e}", exc_info=True)
              self.settings_controller_instance = None
-        print("*** WelcomeWindow.init_ui: FINISHED CONTROLLER INSTANTIATION ***") # AJOUT PRINT
+        logger.debug("*** WelcomeWindow.init_ui: FINISHED CONTROLLER INSTANTIATION ***")
         # ----------------------------------------------------------------------
 
         # Afficher la page par défaut (Documents)
@@ -309,7 +319,7 @@ class WelcomeWindow(QWidget): # RENOMMÉ
 
     @Slot()
     def show_settings_page(self): # Nouvelle méthode pour afficher Settings
-         print("WelcomeWindow: Showing Settings page via show_settings_page")
+         logger.debug("WelcomeWindow: Showing Settings page via show_settings_page")
          # Décocher les autres boutons
          for btn in self.sidebar_button_group.buttons():
              btn.setChecked(False)
@@ -319,7 +329,7 @@ class WelcomeWindow(QWidget): # RENOMMÉ
     # --- Méthode pour afficher Settings via clic bouton (EXISTANTE, ajustée) ---
     @Slot()
     def _show_settings_page_from_button(self):
-        print("WelcomeWindow: Showing Settings page via _show_settings_page_from_button")
+        logger.debug("WelcomeWindow: Showing Settings page via _show_settings_page_from_button")
         # Décocher les autres boutons
         for btn in self.sidebar_button_group.buttons():
              btn.setChecked(False)
@@ -340,7 +350,7 @@ class WelcomeWindow(QWidget): # RENOMMÉ
 
     def navigate_to_section(self, section_name):
         """ Navigue vers une section spécifique (ex: "A Propos") après l'init. """
-        print(f"navigate_to_section called with: {section_name}")
+        logger.debug(f"navigate_to_section called with: {section_name}")
         button_to_check = None
         target_page = None
 
@@ -365,11 +375,11 @@ class WelcomeWindow(QWidget): # RENOMMÉ
             index = self.stacked_widget.indexOf(target_page)
             if index != -1:
                 self.stacked_widget.setCurrentIndex(index)
-                print(f"Switched to page index {index} for section '{section_name}'.")
+                logger.debug(f"Switched to page index {index} for section '{section_name}'.")
                 
                 # Gérer l'état des boutons de navigation
                 if button_to_check:
-                    print(f"Attempting to check button '{button_to_check.text()}'.")
+                    logger.debug(f"Attempting to check button '{button_to_check.text()}'.")
                     # Désélectionner le bouton actuel d'abord (si différent)
                     current_button = self.sidebar_button_group.checkedButton()
                     if current_button and current_button != button_to_check:
@@ -396,22 +406,22 @@ class WelcomeWindow(QWidget): # RENOMMÉ
                 
                 # --- Si la navigation vers A Propos est demandée, activer l'onglet Release Notes --- 
                 if section_name == "A Propos" and self.controller.navigate_to_notes_after_welcome:
-                    print("Special condition: Navigating to 'A Propos' and need to show Release Notes.")
+                    logger.debug("Special condition: Navigating to 'A Propos' and need to show Release Notes.")
                     if hasattr(self.about_controller_instance, 'activate_release_notes_tab'):
-                         print("Calling about_controller_instance.activate_release_notes_tab()...")
+                         logger.debug("Calling about_controller_instance.activate_release_notes_tab()...")
                          self.about_controller_instance.activate_release_notes_tab()
                          # Réinitialiser le flag dans le contrôleur principal APRÈS navigation réussie
-                         print("Resetting navigate_to_notes_after_welcome flag in main_controller.")
+                         logger.debug("Resetting navigate_to_notes_after_welcome flag in main_controller.")
                          self.controller.navigate_to_notes_after_welcome = False 
                     else:
-                         print("ERROR: about_controller_instance does not have 'activate_release_notes_tab' method.")
+                         logger.error("ERROR: about_controller_instance does not have 'activate_release_notes_tab' method.")
                 # -----------------------------------------------------------------------------------
                 return True # Navigation réussie (au moins changement de page)
             else:
-                print(f"ERROR: Could not find index for target_page of section '{section_name}'.")
+                logger.error(f"ERROR: Could not find index for target_page of section '{section_name}'.")
                 return False
         else:
-            print(f"ERROR: No target page defined for section_name '{section_name}'.")
+            logger.error(f"ERROR: No target page defined for section_name '{section_name}'.")
             return False
 
     # --- AJOUT : Méthode pour récupérer le SettingsController ---
@@ -422,7 +432,7 @@ class WelcomeWindow(QWidget): # RENOMMÉ
 
     @Slot(QAbstractButton)
     def _change_page(self, button: QAbstractButton): 
-        print(f"Sidebar button clicked: {button.text()}")
+        logger.debug(f"Sidebar button clicked: {button.text()}")
         page_map = {
             "Documents": self.documents_page_instance,
             "Preference": self.preferences_page_instance,
@@ -435,20 +445,19 @@ class WelcomeWindow(QWidget): # RENOMMÉ
             button_text = button.text()
             if button_text == "Preference" and self.preferences_controller_instance is None:
                 try:
-                    print("Instantiating PreferencesController on demand...")
-                    # Importer ici si pas déjà fait globalement (dépend de la structure)
+                    logger.debug("Instantiating PreferencesController on demand...")
                     from controllers.preferences.preferences_controller import PreferencesController 
                     self.preferences_controller_instance = PreferencesController(
                         self.preferences_page_instance, 
                         self.controller # Passer le main controller
                     )
-                    print("PreferencesController instantiated.")
+                    logger.debug("PreferencesController instantiated.")
                 except ImportError as ie:
-                    print(f"ERROR: Could not import PreferencesController: {ie}")
+                    logger.error(f"ERROR: Could not import PreferencesController: {ie}")
                     # Gérer l'erreur: Afficher un message? Désactiver le bouton?
                     return 
                 except Exception as e:
-                    print(f"ERROR: Failed to instantiate PreferencesController: {e}")
+                    logger.error(f"ERROR: Failed to instantiate PreferencesController: {e}")
                     # Gérer l'erreur
                     return
             # ------------------------------------------------------------------
@@ -456,11 +465,11 @@ class WelcomeWindow(QWidget): # RENOMMÉ
             index = self.stacked_widget.indexOf(page_widget)
             if index != -1:
                 self.stacked_widget.setCurrentIndex(index)
-                print(f"Switched to page: {button.text()} (index {index})")
+                logger.debug(f"Switched to page: {button.text()} (index {index})")
             else:
-                print(f"ERROR: Page for button '{button.text()}' not found in stacked widget.")
+                logger.error(f"ERROR: Page for button '{button.text()}' not found in stacked widget.")
         else:
-            print(f"Warning: No page associated with button '{button.text()}'.")
+            logger.warning(f"Warning: No page associated with button '{button.text()}'.")
 
         # S'assurer que l'état visuel des autres boutons est correct
         # (Normalement géré par QButtonGroup et les connexions lambda, mais double check)
@@ -505,7 +514,7 @@ class WelcomeWindow(QWidget): # RENOMMÉ
                      self.btn_settings.setIcon(QIcon())
                      self.btn_settings.setText("?")
              except Exception as e:
-                  print(f"ERROR updating settings icon: {e}")
+                  logger.error(f"ERROR updating settings icon: {e}")
                   self.btn_settings.setIcon(QIcon())
                   self.btn_settings.setText("?")
     # ---------------------------------------------

@@ -17,8 +17,16 @@ from models.preference import Preference
 # --- AJOUT IMPORT ICON LOADER --- 
 from utils import icon_loader 
 
-# --- Logging initial et config --- 
-# ... (config logging existante)
+# --- Configuration du Logger --- 
+# Importer et appeler setup_logger TOUT AU DÉBUT
+from utils.logger import setup_logger
+setup_logger(level=logging.DEBUG) # Utiliser DEBUG pendant le dév.
+# Maintenant, on peut utiliser logging.getLogger('GDJ_App') partout
+logger = logging.getLogger('GDJ_App') # Récupérer le logger configuré
+# --- AJOUT LOG DE VÉRIFICATION IMMÉDIAT --- 
+logger.info("--- Logger configuré dans main.py (Vérification immédiate) ---")
+# ------------------------------------------
+# ----------------------------- 
 
 # --- Gestionnaire global d'exceptions --- 
 # ... (global_exception_handler existant)

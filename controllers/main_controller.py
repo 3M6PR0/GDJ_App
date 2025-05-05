@@ -15,7 +15,7 @@ from config import CONFIG
 from updater.update_checker import check_for_updates
 from utils.stylesheet_loader import load_stylesheet
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
@@ -61,7 +61,7 @@ class MainController(QObject):
         # --- AJOUT: Appeler __init__ du parent --- 
         super().__init__()
         # ---------------------------------------
-        print("--- Entering MainController __init__ ---")
+        logger.info("--- Entering MainController __init__ ---")
         self.main_window = None
         self.welcome_window = None
         self.documents = {}
@@ -91,7 +91,7 @@ class MainController(QObject):
         
         last_run_version_file = get_resource_path("data/last_run_version.txt")
         last_run_version_str = self._read_version_file(last_run_version_file) 
-        print(f"DEBUG __init__: Current Version='{self.current_version_str}', Last Run Version Read='{last_run_version_str}'")
+        logger.debug(f"DEBUG __init__: Current Version='{self.current_version_str}', Last Run Version Read='{last_run_version_str}'")
 
         do_navigate_on_startup = False
         try:
@@ -100,17 +100,17 @@ class MainController(QObject):
             # Navigate if current version is strictly greater than the last run version
             if current_v > last_run_v:
                 do_navigate_on_startup = True
-                print(f"DEBUG __init__: Update detected (current {current_v} > last run {last_run_v}). Setting navigation flag.")
+                logger.debug(f"DEBUG __init__: Update detected (current {current_v} > last run {last_run_v}). Setting navigation flag.")
             else:
-                 print(f"DEBUG __init__: No update detected (current {current_v} <= last run {last_run_v}).")
+                 logger.debug(f"DEBUG __init__: No update detected (current {current_v} <= last run {last_run_v}).")
         except version.InvalidVersion:
             # Treat parse error (like first run "0.0.0") as needing navigation
-            print(f"DEBUG __init__: InvalidVersion detected. Setting navigation flag for first run/update.")
+            logger.debug(f"DEBUG __init__: InvalidVersion detected. Setting navigation flag for first run/update.")
             try:
                  version.parse(self.current_version_str) # Check current is valid
                  do_navigate_on_startup = True
             except version.InvalidVersion:
-                 print("ERROR __init__: Current version is also invalid. Navigation flag set to False.")
+                 logger.error("ERROR __init__: Current version is also invalid. Navigation flag set to False.")
                  do_navigate_on_startup = False
 
         # Set the flag for later use in show_welcome_page
@@ -118,11 +118,11 @@ class MainController(QObject):
 
         # If navigation is needed, update the last_run_version file NOW
         if do_navigate_on_startup:
-            print("DEBUG __init__: Writing current version to last_run_version.txt because navigation flag is set.")
+            logger.debug("DEBUG __init__: Writing current version to last_run_version.txt because navigation flag is set.")
             self._write_last_run_version(last_run_version_file, self.current_version_str)
             
         # --- Exiting MainController __init__ --- 
-        print("--- Exiting MainController __init__ --- ")
+        logger.info("--- Exiting MainController __init__ --- ")
 
     def show_welcome_page(self):
         """Crée et affiche la WelcomeWindow, et lance la vérif MàJ."""
@@ -135,56 +135,56 @@ class MainController(QObject):
                 if os.path.exists(icon_path):
                     self.welcome_window.setWindowIcon(QIcon(icon_path))
                 else:
-                    print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+                    logger.warning(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
             except Exception as e:
-                print(f"Erreur lors de la définition de l'icône pour WelcomeWindow: {e}")
+                logger.error(f"Erreur lors de la définition de l'icône pour WelcomeWindow: {e}", exc_info=True)
         
         self.welcome_window.show()
-        print("DEBUG show_welcome_page: WelcomeWindow shown.")
+        logger.debug("DEBUG show_welcome_page: WelcomeWindow shown.")
 
         # --- MODIFICATION : Appeler la vérification SEULEMENT si pas déjà faite --- 
         if not self._startup_update_check_done:
-             print("DEBUG show_welcome_page: Performing startup update check (first time)...")
+             logger.debug("DEBUG show_welcome_page: Performing startup update check (first time)...")
              self._perform_startup_update_check()
              self._startup_update_check_done = True # Marquer comme fait
         else:
-             print("DEBUG show_welcome_page: Startup update check already performed.")
+             logger.debug("DEBUG show_welcome_page: Startup update check already performed.")
         # --------------------------------------------------------------------
 
         # --- Gestion de la navigation vers les notes (reste pareil) ---
         if self.navigate_to_notes_after_welcome:
-            print("DEBUG show_welcome_page: Flag is True, attempting navigation to 'A Propos' section...")
+            logger.debug("DEBUG show_welcome_page: Flag is True, attempting navigation to 'A Propos' section...")
             try:
                 # Assume welcome_window has this method
                 self.welcome_window.navigate_to_section("A Propos") 
-                print("DEBUG show_welcome_page: Called welcome_window.navigate_to_section('A Propos').")
+                logger.debug("DEBUG show_welcome_page: Called welcome_window.navigate_to_section('A Propos').")
                 # The WelcomeWindow logic should handle activating the correct sub-tab 
                 # and resetting the flag self.navigate_to_notes_after_welcome to False.
             except AttributeError:
-                print("ERROR show_welcome_page: WelcomeWindow does not have method 'navigate_to_section'.")
+                logger.error("ERROR show_welcome_page: WelcomeWindow does not have method 'navigate_to_section'.")
             except Exception as e:
-                 print(f"ERROR show_welcome_page: Exception during navigation call: {e}")
+                 logger.error(f"ERROR show_welcome_page: Exception during navigation call: {e}", exc_info=True)
         else:
-             print("DEBUG show_welcome_page: Flag is False, no automatic navigation needed.")
+             logger.debug("DEBUG show_welcome_page: Flag is False, no automatic navigation needed.")
 
     def _ensure_main_window_exists(self):
         """Crée la MainWindow si elle n'existe pas et établit les connexions."""
-        print(">>> Entering _ensure_main_window_exists method...")
-        print(f"--- Checking if self.main_window is None (Current value: {self.main_window is None})...")
+        logger.debug(">>> Entering _ensure_main_window_exists method...")
+        logger.debug(f"--- Checking if self.main_window is None (Current value: {self.main_window is None})...")
         if self.main_window is None:
-            print("--- Condition self.main_window is None PASSED. Attempting to create MainWindow instance...")
+            logger.debug("--- Condition self.main_window is None PASSED. Attempting to create MainWindow instance...")
             try:
                 # --- AJOUT TRY/EXCEPT ET LOGGING ---
-                print("--- BEFORE MainWindow() instantiation ---")
+                logger.debug("--- BEFORE MainWindow() instantiation ---")
                 # --- Import local pour être sûr (peut-être redondant mais sûr) ---
                 from ui.main_window import MainWindow
                 self.main_window = MainWindow() # <--- Potential failure point
-                print(f"--- AFTER MainWindow() instantiation. self.main_window is None: {self.main_window is None} ---")
+                logger.debug(f"--- AFTER MainWindow() instantiation. self.main_window is None: {self.main_window is None} ---")
                 # ------------------------------------
 
                 # --- DÉFINIR LA RÉFÉRENCE DU MainController DANS MainWindow ---
                 # (Seulement si l'instantiation a réussi)
-                print("--- Calling main_window.set_main_controller(self) ---")
+                logger.debug("--- Calling main_window.set_main_controller(self) ---")
                 self.main_window.set_main_controller(self)
                 # ------------------------------------------------------------
 
@@ -194,28 +194,28 @@ class MainController(QObject):
                     if os.path.exists(icon_path):
                         self.main_window.setWindowIcon(QIcon(icon_path))
                     else:
-                         print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+                         logger.warning(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
                 except Exception as e_icon:
-                     print(f"Erreur lors de la définition de l'icône pour MainWindow: {e_icon}")
+                     logger.error(f"Erreur lors de la définition de l'icône pour MainWindow: {e_icon}", exc_info=True)
 
                 # Connecter les actions du menu de la MainWindow au contrôleur
-                print("--- Connecting MainWindow menu actions ---")
+                logger.debug("--- Connecting MainWindow menu actions ---")
                 self.main_window.action_new.triggered.connect(self.create_new_document_from_menu)
                 self.main_window.action_open.triggered.connect(self.open_document_from_menu)
                 self.main_window.action_close.triggered.connect(self.close_current_document)
                 try:
                     self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
                 except AttributeError:
-                    print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
-                print("--- MainWindow menu actions connected ---")
+                    logger.warning("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
+                logger.debug("--- MainWindow menu actions connected ---")
 
             except Exception as e_init:
                 # --- CAPTURER L'ERREUR D'INITIALISATION ---
-                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                print(f"CRITICAL ERROR: Exception during MainWindow instantiation: {e_init}")
+                logger.critical(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                logger.critical(f"CRITICAL ERROR: Exception during MainWindow instantiation: {e_init}")
                 import traceback
                 traceback.print_exc() # Afficher la trace complète de l'erreur
-                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                logger.critical(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 # S'assurer que main_window reste None en cas d'échec
                 self.main_window = None
             # --- FIN AJOUT ---
@@ -224,30 +224,30 @@ class MainController(QObject):
         if self.main_window:
             # Fermer la fenêtre de bienvenue si elle est ouverte
             if self.welcome_window and self.welcome_window.isVisible():
-                 print("--- Closing WelcomeWindow as MainWindow is ensured ---")
+                 logger.debug("--- Closing WelcomeWindow as MainWindow is ensured ---")
                  self.welcome_window.close()
 
             # Afficher la fenêtre principale si elle était cachée
             if not self.main_window.isVisible():
-                 print("--- Showing MainWindow as it was not visible ---")
+                 logger.debug("--- Showing MainWindow as it was not visible ---")
                  self.main_window.show()
         else:
-             print("--- MainWindow is still None after creation attempt. Cannot proceed. --- ")
+             logger.debug("--- MainWindow is still None after creation attempt. Cannot proceed. --- ")
 
-        print(f"--- Final check before exiting _ensure_main_window_exists. self.main_window is None: {self.main_window is None} ---")
-        print("<<< Exiting _ensure_main_window_exists method...")
+        logger.debug(f"--- Final check before exiting _ensure_main_window_exists. self.main_window is None: {self.main_window is None} ---")
+        logger.debug("<<< Exiting _ensure_main_window_exists method...")
 
     def _read_version_file(self, file_path):
         """ Lit un fichier de version (reçoit le chemin complet). """
         if not os.path.exists(file_path):
-            print(f"Fichier version non trouvé: {file_path}")
+            logger.warning(f"Fichier version non trouvé: {file_path}")
             return "0.0.0" # Version par défaut si non trouvé
         config = configparser.ConfigParser()
         try:
             config.read(file_path, encoding="utf-8")
             return config.get("Version", "value").strip()
         except Exception as e:
-            print(f"Erreur lecture {file_path}: {e}")
+            logger.error(f"Erreur lecture {file_path}: {e}")
             return "0.0.0"
 
     def _write_last_run_version(self, file_path, current_version):
@@ -258,19 +258,19 @@ class MainController(QObject):
             os.makedirs(os.path.dirname(file_path), exist_ok=True) # Crée le dossier data si besoin
             with open(file_path, 'w', encoding='utf-8') as configfile:
                 config.write(configfile)
-            print(f"Version {current_version} écrite dans {file_path}")
+            logger.debug(f"Version {current_version} écrite dans {file_path}")
         except Exception as e:
-            print(f"Erreur écriture {file_path}: {e}")
+            logger.error(f"Erreur écriture {file_path}: {e}")
 
     def show_release_notes_dialog(self, auto_update_context=False):
         """ Affiche la boîte de dialogue modale avec les notes de version (pour action manuelle). """
         # Ne pas appeler ensure_main_window si c'est le contexte auto (géré par check_...)
         if not auto_update_context:
              self._ensure_main_window_exists()
-             print("Affichage manuel des notes de version...")
+             logger.debug("Affichage manuel des notes de version...")
         else:
              # Normalement, on ne devrait plus arriver ici dans le contexte auto
-             print("Avertissement: show_release_notes_dialog appelée en contexte auto ?")
+             logger.warning("show_release_notes_dialog appelée en contexte auto ?")
              return 
 
         notes_content = "Notes de version non trouvées."
@@ -281,10 +281,10 @@ class MainController(QObject):
             # (Le fichier lui-même n'a plus de v spécifiques dans le titre)
             notes_content = f"# Notes de version - v{self.current_version_str}\n\n{notes_content}"
         except FileNotFoundError:
-            print(f"Erreur: {self.release_notes_file} non trouvé.")
+            logger.warning(f"Erreur: {self.release_notes_file} non trouvé.")
             notes_content = f"# Notes de version - v{self.current_version_str}\n\nErreur : Fichier {os.path.basename(self.release_notes_file)} introuvable."
         except Exception as e:
-            print(f"Erreur lecture {self.release_notes_file}: {e}")
+            logger.error(f"Erreur lecture {self.release_notes_file}: {e}")
             notes_content = f"# Notes de version - v{self.current_version_str}\n\nErreur lors de la lecture des notes de version: {e}"
 
         dialog = ReleaseNotesDialog(self.current_version_str, notes_content, parent=self.main_window)
@@ -293,7 +293,7 @@ class MainController(QObject):
     def create_new_document(self):
         """Action appelée par le bouton 'Nouveau' de WelcomeWindow."""
         self._ensure_main_window_exists()
-        print("Fonctionnalité 'Nouveau Document' (via WelcomeWindow) désactivée car NewDocumentDialog est supprimé.")
+        logger.warning("Fonctionnalité 'Nouveau Document' (via WelcomeWindow) désactivée car NewDocumentDialog est supprimé.")
         pass # Ne fait rien pour l'instant
 
     def open_document(self):
@@ -305,7 +305,7 @@ class MainController(QObject):
                                                   "Ouvrir un document GDJ", "", 
                                                   "GDJ Documents (*.gdj);;Tous les fichiers (*.*)", options=options)
         if filePath:
-            print(f"Ouverture du document: {filePath}")
+            logger.debug(f"Ouverture du document: {filePath}")
             # Ici, il faudrait charger le document depuis le fichier
             # Pour l'instant, on simule comme avant
             self._open_and_add_document_tab(f"Doc: {os.path.basename(filePath)}", None) # Passe le chemin ou titre
@@ -313,7 +313,7 @@ class MainController(QObject):
     def open_specific_document(self, path):
         """Action appelée par double-clic sur un item récent dans WelcomeWindow."""
         self._ensure_main_window_exists()
-        print(f"Ouverture du document spécifique: {path}")
+        logger.debug(f"Ouverture du document spécifique: {path}")
         # Ici, il faudrait charger le document depuis le `path`
         # Simulé pour l'instant
         self._open_and_add_document_tab(f"Doc: {os.path.basename(path)}", None) 
@@ -322,7 +322,7 @@ class MainController(QObject):
         """Action appelée par le menu Fichier > Nouveau."""
         # Pas besoin d'appeler _ensure_main_window_exists ici car le menu n'est visible
         # que si la fenêtre principale existe déjà.
-        print("Fonctionnalité 'Nouveau Document' (via Menu) désactivée car NewDocumentDialog est supprimé.")
+        logger.warning("Fonctionnalité 'Nouveau Document' (via Menu) désactivée car NewDocumentDialog est supprimé.")
         pass # Ne fait rien pour l'instant
             
     def open_document_from_menu(self):
@@ -330,7 +330,7 @@ class MainController(QObject):
         options = QFileDialog.Options()
         filePath, _ = QFileDialog.getOpenFileName(self.main_window, "Ouvrir un document GDJ", "", "GDJ Documents (*.gdj);;Tous les fichiers (*.*)", options=options)
         if filePath:
-            print(f"Ouverture du document (menu): {filePath}")
+            logger.debug(f"Ouverture du document (menu): {filePath}")
             self._open_and_add_document_tab(f"Doc: {os.path.basename(filePath)}", None)
 
     def _create_and_add_document_tab(self, doc_type, data):
@@ -339,11 +339,11 @@ class MainController(QObject):
         try:
             # --- CORRIGER LES COMPARAISONS DE STRING --- 
             if doc_type == "Rapport de depense": # <- Correspondre au log
-                print("Importing RapportDepense...")
+                logger.debug("Importing RapportDepense...")
                 # --- CORRECTION IMPORT --- 
                 from models.documents.rapport_depense.rapport_depense import RapportDepense
                 # -------------------------
-                print("Creating RapportDepense instance...")
+                logger.debug("Creating RapportDepense instance...")
                 new_doc = RapportDepense(title=f"{doc_type} - {data.get('nom')}", depenses=[data.get('montant')])
             elif doc_type == "Écriture Comptable":
                 from models.documents.ecriture_comptable import EcritureComptable
@@ -361,7 +361,7 @@ class MainController(QObject):
                 from models.documents.robot import Robot
                 new_doc = Robot(title=f"{doc_type} - {data.get('titre')}", config=data.get('config'))
             else: # Ajout d'un cas par défaut ou log
-                print(f"Type de document inconnu ou non géré: {doc_type}")
+                logger.debug(f"Type de document inconnu ou non géré: {doc_type}")
                 return
             
             if new_doc:
@@ -370,7 +370,7 @@ class MainController(QObject):
                 self.main_window.tab_widget.setCurrentIndex(idx)
                 self.documents[new_doc.title] = doc_page
         except Exception as e:
-            print(f"Erreur lors de la création du document: {e}")
+            logger.error(f"Erreur lors de la création du document: {e}")
 
     def _open_and_add_document_tab(self, title, document_data):
         """Factorisation de la logique d'ouverture d'un document et ajout d'onglet."""
@@ -399,7 +399,7 @@ class MainController(QObject):
         self._ensure_main_window_exists() # Assure que la MainWindow est prête
         
         if self.about_page is None:
-            print("Création de la page À Propos et de son contrôleur...")
+            logger.debug("Création de la page À Propos et de son contrôleur...")
             self.about_page = AboutPage()
             # Créer et garder la référence au contrôleur
             self.about_controller_instance = AboutController(self.about_page) 
@@ -408,77 +408,78 @@ class MainController(QObject):
             if self.main_window.tab_widget.indexOf(self.about_page) == -1:
                  self.main_window.tab_widget.addTab(self.about_page, "À Propos")
             else:
-                 print("Avertissement: La page À Propos existait déjà dans les onglets ?")
+                 logger.warning("Avertissement: La page À Propos existait déjà dans les onglets ?")
         
         # Sélectionner l'onglet 'À Propos'
         idx = self.main_window.tab_widget.indexOf(self.about_page)
         if idx != -1:
             self.main_window.tab_widget.setCurrentIndex(idx)
-            print("Navigation vers l'onglet À Propos effectuée.")
+            logger.debug("Navigation vers l'onglet À Propos effectuée.")
         else:
-            print("Erreur: Impossible de trouver l'index de la page À Propos après création/vérification.")
+            logger.error("Erreur: Impossible de trouver l'index de la page À Propos après création/vérification.")
 
     # --- NOUVELLE MÉTHODE POUR LA VÉRIFICATION AU DÉMARRAGE ---
     def _perform_startup_update_check(self):
         """Vérifie les MàJ au démarrage et planifie l'action si confirmée."""
+        logger.info("Performing startup update check...")
         try:
             status, update_info = check_for_updates()
-            print(f"Startup update check status: {status}")
+            logger.info(f"Startup update check status: {status}")
             if status == "USER_CONFIRMED_UPDATE":
-                print("User confirmed update from startup prompt. Scheduling navigation within WelcomeWindow...")
-                self._pending_update_info = update_info
+                logger.info("User confirmed update from startup prompt. Scheduling navigation within WelcomeWindow...")
+                self.pending_update_info = update_info
                 # --- APPELER LA NOUVELLE MÉTHODE VIA QTIMER --- 
                 QTimer.singleShot(0, self._navigate_welcome_to_settings_and_update)
             elif status == "UPDATE_DECLINED":
-                 print("Startup update declined by user.")
+                 logger.info("Startup update declined by user.")
             elif update_info and not update_info.get('available') and status != "À jour":
-                 print(f"Startup update check notice: {status}") # Affiche les erreurs etc.
+                 logger.info(f"Startup update check notice: {status}") # Affiche les erreurs etc.
 
         except Exception as e:
-            print(f"Error during startup update check: {e}")
-            if hasattr(self, '_pending_update_info'):
-                 del self._pending_update_info
+            logger.error(f"Error during startup update check: {e}")
+            if hasattr(self, 'pending_update_info'):
+                 del self.pending_update_info
 
     # --- NOUVELLE MÉTHODE POUR GÉRER DANS WELCOMEWINDOW --- 
     def _navigate_welcome_to_settings_and_update(self):
         """Navigue vers les paramètres DANS WelcomeWindow et lance la MàJ."""
-        print("Navigating WelcomeWindow to settings and initiating update...")
-        if hasattr(self, '_pending_update_info') and self._pending_update_info:
-            update_info = self._pending_update_info.copy() # Prendre une copie
-            if hasattr(self, '_pending_update_info'):
-                del self._pending_update_info # Nettoyer
+        logger.info("Navigating WelcomeWindow to settings and initiating update...")
+        if hasattr(self, 'pending_update_info') and self.pending_update_info:
+            update_info = self.pending_update_info.copy() # Prendre une copie
+            if hasattr(self, 'pending_update_info'):
+                del self.pending_update_info # Nettoyer
 
             if self.welcome_window:
                 try:
                     # 1. Naviguer dans WelcomeWindow
-                    print("Calling welcome_window.navigate_to_section('Paramètres')...")
+                    logger.debug("Calling welcome_window.navigate_to_section('Paramètres')...")
                     # Assumons True pour succès, False/Exception pour échec
                     navigation_successful = self.welcome_window.navigate_to_section("Paramètres") 
 
                     if navigation_successful:
-                         print("Navigation to WelcomeWindow settings section successful.")
+                         logger.debug("Navigation to WelcomeWindow settings section successful.")
                          # 2. Récupérer le SettingsController de WelcomeWindow
-                         print("Getting SettingsController from WelcomeWindow...")
+                         logger.debug("Getting SettingsController from WelcomeWindow...")
                          settings_controller = self.welcome_window.get_settings_controller()
 
                          if settings_controller:
-                              print("Got SettingsController instance from WelcomeWindow.")
+                              logger.debug("Got SettingsController instance from WelcomeWindow.")
                               # 3. Lancer le téléchargement
-                              print("Calling initiate_update_from_prompt on WelcomeWindow's SettingsController...")
+                              logger.debug("Calling initiate_update_from_prompt on WelcomeWindow's SettingsController...")
                               settings_controller.initiate_update_from_prompt(update_info)
                          else:
-                              print("ERROR: welcome_window.get_settings_controller() returned None.")
+                              logger.error("ERROR: welcome_window.get_settings_controller() returned None.")
                     else:
-                         print("ERROR: welcome_window.navigate_to_section('Paramètres') failed or returned False.")
+                         logger.error("ERROR: welcome_window.navigate_to_section('Paramètres') failed or returned False.")
 
                 except AttributeError as ae:
-                     print(f"ERROR: WelcomeWindow is missing a required method (navigate_to_section or get_settings_controller): {ae}")
+                     logger.error(f"ERROR: WelcomeWindow is missing a required method (navigate_to_section or get_settings_controller): {ae}")
                 except Exception as e:
-                     print(f"ERROR: An unexpected error occurred during WelcomeWindow navigation/update initiation: {e}")
+                     logger.error(f"ERROR: An unexpected error occurred during WelcomeWindow navigation/update initiation: {e}", exc_info=True)
             else:
-                print("ERROR: WelcomeWindow instance is None. Cannot navigate.")
+                logger.error("ERROR: WelcomeWindow instance is None. Cannot navigate.")
         else:
-            print("Warning: _navigate_welcome_to_settings_and_update called but no pending update info found.")
+            logger.warning("Warning: _navigate_welcome_to_settings_and_update called but no pending update info found.")
 
     # --- NOUVELLE MÉTHODE POUR APPLIQUER LE THÈME ---
     def apply_theme(self, theme_name):
@@ -503,7 +504,9 @@ class MainController(QObject):
         # Ou seulement si style_applied est True ? Décision: Mettre à jour quand même
         # car le thème logique a changé.
         try:
+            from utils import icon_loader # S'assurer de l'import localement?
             icon_loader.set_active_theme(theme_name)
+            logger.debug(f"Icon theme set to '{theme_name}'")
         except Exception as e_icon:
              logger.error(f"Error setting icon theme for '{theme_name}': {e_icon}", exc_info=True)
 
@@ -511,22 +514,22 @@ class MainController(QObject):
 
     def _ensure_main_window_exists(self):
         """Crée la MainWindow si elle n'existe pas et établit les connexions."""
-        print(">>> Entering _ensure_main_window_exists method...")
-        print(f"--- Checking if self.main_window is None (Current value: {self.main_window is None})...")
+        logger.debug(">>> Entering _ensure_main_window_exists method...")
+        logger.debug(f"--- Checking if self.main_window is None (Current value: {self.main_window is None})...")
         if self.main_window is None:
-            print("--- Condition self.main_window is None PASSED. Attempting to create MainWindow instance...")
+            logger.debug("--- Condition self.main_window is None PASSED. Attempting to create MainWindow instance...")
             try:
                 # --- AJOUT TRY/EXCEPT ET LOGGING ---
-                print("--- BEFORE MainWindow() instantiation ---")
+                logger.debug("--- BEFORE MainWindow() instantiation ---")
                 # --- Import local pour être sûr (peut-être redondant mais sûr) ---
                 from ui.main_window import MainWindow
                 self.main_window = MainWindow() # <--- Potential failure point
-                print(f"--- AFTER MainWindow() instantiation. self.main_window is None: {self.main_window is None} ---")
+                logger.debug(f"--- AFTER MainWindow() instantiation. self.main_window is None: {self.main_window is None} ---")
                 # ------------------------------------
 
                 # --- DÉFINIR LA RÉFÉRENCE DU MainController DANS MainWindow ---
                 # (Seulement si l'instantiation a réussi)
-                print("--- Calling main_window.set_main_controller(self) ---")
+                logger.debug("--- Calling main_window.set_main_controller(self) ---")
                 self.main_window.set_main_controller(self)
                 # ------------------------------------------------------------
 
@@ -536,28 +539,28 @@ class MainController(QObject):
                     if os.path.exists(icon_path):
                         self.main_window.setWindowIcon(QIcon(icon_path))
                     else:
-                         print(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+                         logger.warning(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
                 except Exception as e_icon:
-                     print(f"Erreur lors de la définition de l'icône pour MainWindow: {e_icon}")
+                     logger.error(f"Erreur lors de la définition de l'icône pour MainWindow: {e_icon}", exc_info=True)
 
                 # Connecter les actions du menu de la MainWindow au contrôleur
-                print("--- Connecting MainWindow menu actions ---")
+                logger.debug("--- Connecting MainWindow menu actions ---")
                 self.main_window.action_new.triggered.connect(self.create_new_document_from_menu)
                 self.main_window.action_open.triggered.connect(self.open_document_from_menu)
                 self.main_window.action_close.triggered.connect(self.close_current_document)
                 try:
                     self.main_window.actionAfficherNotesVersion.triggered.connect(self.show_release_notes_dialog)
                 except AttributeError:
-                    print("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
-                print("--- MainWindow menu actions connected ---")
+                    logger.warning("Avertissement : L'action 'actionAfficherNotesVersion' n'a pas été trouvée dans l'UI.")
+                logger.debug("--- MainWindow menu actions connected ---")
 
             except Exception as e_init:
                 # --- CAPTURER L'ERREUR D'INITIALISATION ---
-                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                print(f"CRITICAL ERROR: Exception during MainWindow instantiation: {e_init}")
+                logger.critical(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                logger.critical(f"CRITICAL ERROR: Exception during MainWindow instantiation: {e_init}")
                 import traceback
                 traceback.print_exc() # Afficher la trace complète de l'erreur
-                print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                logger.critical(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 # S'assurer que main_window reste None en cas d'échec
                 self.main_window = None
             # --- FIN AJOUT ---
@@ -566,27 +569,27 @@ class MainController(QObject):
         if self.main_window:
             # Fermer la fenêtre de bienvenue si elle est ouverte
             if self.welcome_window and self.welcome_window.isVisible():
-                 print("--- Closing WelcomeWindow as MainWindow is ensured ---")
+                 logger.debug("--- Closing WelcomeWindow as MainWindow is ensured ---")
                  self.welcome_window.close()
 
             # Afficher la fenêtre principale si elle était cachée
             if not self.main_window.isVisible():
-                 print("--- Showing MainWindow as it was not visible ---")
+                 logger.debug("--- Showing MainWindow as it was not visible ---")
                  self.main_window.show()
         else:
-             print("--- MainWindow is still None after creation attempt. Cannot proceed. --- ")
+             logger.debug("--- MainWindow is still None after creation attempt. Cannot proceed. --- ")
 
-        print(f"--- Final check before exiting _ensure_main_window_exists. self.main_window is None: {self.main_window is None} ---")
-        print("<<< Exiting _ensure_main_window_exists method...")
+        logger.debug(f"--- Final check before exiting _ensure_main_window_exists. self.main_window is None: {self.main_window is None} ---")
+        logger.debug("<<< Exiting _ensure_main_window_exists method...")
 
     # --- NOUVELLE MÉTHODE pour afficher la DocumentWindow --- 
     def show_new_document_window(self, doc_type: str, data: dict):
         """Crée et affiche une nouvelle instance de DocumentWindow avec les données spécifiées."""
-        print(f"MainController: Création et affichage de DocumentWindow pour type='{doc_type}'...")
+        logger.info(f"MainController: Création et affichage de DocumentWindow pour type='{doc_type}'...")
         
         # --- Fermer la fenêtre de bienvenue si elle est ouverte --- 
         if self.welcome_window and self.welcome_window.isVisible():
-            print("MainController: Fermeture de WelcomeWindow avant d'ouvrir DocumentWindow.")
+            logger.debug("MainController: Fermeture de WelcomeWindow avant d'ouvrir DocumentWindow.")
             self.welcome_window.close()
         # --------------------------------------------------------
         
@@ -604,7 +607,7 @@ class MainController(QObject):
             # Optionnel: la rendre active
             new_window.activateWindow()
             new_window.raise_()
-            print("MainController: DocumentWindow affichée.")
+            logger.info("MainController: DocumentWindow affichée.")
             
             # --- Connexion des signaux (reste pareil, utilise self.new_doc_window) --- 
             try:
@@ -625,7 +628,7 @@ class MainController(QObject):
                  logger.error(f"ERREUR connexion signal(s) DocumentWindow: {e_connect}")
             # ----------------------------------------------------------------------
         except Exception as e:
-            print(f"ERREUR lors de la création/affichage de DocumentWindow: {e}")
+            logger.error(f"ERREUR lors de la création/affichage de DocumentWindow: {e}")
             import traceback
             traceback.print_exc()
     # --------------------------------------------------------
@@ -633,7 +636,7 @@ class MainController(QObject):
     # --- AJOUT: Méthode pour afficher la fenêtre des paramètres ---
     def show_settings_window(self):
         """Crée (si nécessaire) et affiche la fenêtre des paramètres."""
-        print("MainController: Demande d'affichage de SettingsWindow...")
+        logger.info("MainController: Demande d'affichage de SettingsWindow...")
         if self.settings_window is None or not self.settings_window.isVisible():
             try:
                 # Créer une nouvelle instance si elle n'existe pas ou a été fermée
@@ -652,13 +655,13 @@ class MainController(QObject):
                 self.settings_window.show()
                 self.settings_window.activateWindow()
                 self.settings_window.raise_()
-                print("MainController: SettingsWindow créée et affichée.")
+                logger.info("MainController: SettingsWindow créée et affichée.")
             except Exception as e:
-                print(f"ERREUR lors de la création/affichage de SettingsWindow: {e}")
+                logger.error(f"ERREUR lors de la création/affichage de SettingsWindow: {e}")
                 self.settings_window = None # Assurer que la référence est nulle en cas d'erreur
         else:
             # Si la fenêtre existe déjà et est visible, la mettre au premier plan
-            print("MainController: SettingsWindow existe déjà, activation...")
+            logger.debug("MainController: SettingsWindow existe déjà, activation...")
             self.settings_window.activateWindow()
             self.settings_window.raise_()
     # -------------------------------------------------------------

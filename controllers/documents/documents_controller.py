@@ -4,7 +4,8 @@
 
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
 import logging
-logger = logging.getLogger(__name__)
+# Récupérer le logger configuré
+logger = logging.getLogger('GDJ_App') # Utiliser le nom du logger défini
 
 # Importer la vue principale (conteneur)
 from pages.documents.documents_page import DocumentsPage
@@ -39,65 +40,62 @@ class DocumentsController(QObject):
             view: L'instance de la vue conteneur (DocumentsPage).
             main_controller: L'instance du contrôleur principal de l'application.
         """
-        print("*** DocumentsController.__init__ START ***")
+        logger.debug("*** DocumentsController.__init__ START ***")
         super().__init__()
-        print(f"  DocumentsController: Received view = {view}")
+        logger.debug(f"  DocumentsController: Received view = {view}")
         self.view = view
         self.main_controller = main_controller
         # self.preferences_controller = preferences_controller # <- Supprimé
         
         # Récupérer les références aux sous-pages depuis la vue
-        print("  DocumentsController: Attempting to access self.view.recent_list_page...")
+        logger.debug("  DocumentsController: Attempting to access self.view.recent_list_page...")
         self.recent_list_page = getattr(self.view, 'recent_list_page', None)
-        print(f"  DocumentsController: self.recent_list_page = {self.recent_list_page}")
-        print("  DocumentsController: Attempting to access self.view.type_selection_page...")
+        logger.debug(f"  DocumentsController: self.recent_list_page = {self.recent_list_page}")
+        logger.debug("  DocumentsController: Attempting to access self.view.type_selection_page...")
         self.type_selection_page = getattr(self.view, 'type_selection_page', None)
-        print(f"  DocumentsController: self.type_selection_page = {self.type_selection_page}")
+        logger.debug(f"  DocumentsController: self.type_selection_page = {self.type_selection_page}")
         
         if not self.recent_list_page or not self.type_selection_page:
             logger.error("DocumentsController: Sous-pages manquantes dans DocumentsPage!")
-            print("ERROR: DocumentsController: Sous-pages manquantes dans DocumentsPage!")
             # Gérer l'erreur ? Idéalement, ne pas continuer si les vues sont manquantes.
         
         self.recent_list_controller = None
         self.type_selection_controller = None
         
         # Instancier les sous-contrôleurs seulement si les vues existent
-        print("  DocumentsController: Instantiating sub-controllers...")
+        logger.debug("  DocumentsController: Instantiating sub-controllers...")
         if self.recent_list_page:
             try:
-                print("    -> Instantiating DocumentsRecentListController...")
+                logger.debug("    -> Instantiating DocumentsRecentListController...")
                 # RecentListController pourrait avoir besoin de Prefs/Config, à vérifier/adapter si besoin
                 self.recent_list_controller = DocumentsRecentListController(
                     view=self.recent_list_page, 
                     parent_controller=self
                 )
-                print("    -> DocumentsRecentListController INSTANTIATED.")
+                logger.debug("    -> DocumentsRecentListController INSTANTIATED.")
             except Exception as e:
                 logger.error(f"Erreur instanciation DocumentsRecentListController: {e}", exc_info=True)
-                print(f"ERROR instantiating DocumentsRecentListController: {e}")
 
         if self.type_selection_page:
             logger.debug(f"DocumentsController: Vérification avant instanciation: self.type_selection_page = {self.type_selection_page}")
             try:
-                print("    -> Instantiating DocumentsTypeSelectionController...")
+                logger.debug("    -> Instantiating DocumentsTypeSelectionController...")
                 # TypeSelectionController récupère ses données lui-même via les Singletons
                 self.type_selection_controller = DocumentsTypeSelectionController(
                     view=self.type_selection_page # Ne passe que la vue
                 )
-                print("    -> DocumentsTypeSelectionController INSTANTIATED.")
+                logger.debug("    -> DocumentsTypeSelectionController INSTANTIATED.")
             except Exception as e: # Garder une capture générique
                 logger.error(f"Erreur instanciation DocumentsTypeSelectionController: {e}", exc_info=True)
-                print(f"ERROR instantiating DocumentsTypeSelectionController: {e}")
 
-        print("  DocumentsController: Connecting signals...")
+        logger.debug("  DocumentsController: Connecting signals...")
         self._connect_signals()
 
-        print("  DocumentsController: Showing initial page...")
+        logger.debug("  DocumentsController: Showing initial page...")
         self.show_recent_list_page()
         
         logger.info("DocumentsController initialisé (simplifié, utilise Singletons indirectement).")
-        print("*** DocumentsController.__init__ END ***")
+        logger.debug("*** DocumentsController.__init__ END ***")
 
     def _connect_signals(self):
         """Connecte les signaux entre les sous-contrôleurs et vers le MainController."""

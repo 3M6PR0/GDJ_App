@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QApplication
 import sys
 import subprocess
 import os
+import logging
 from config import CONFIG
 
 # Importer la vue et potentiellement le main_controller et update_checker
@@ -12,6 +13,8 @@ from pages.settings.settings_page import SettingsPage
 from updater.update_checker import check_for_updates, prompt_update 
 # Importer le worker de téléchargement
 from updater.downloader import DownloadWorker 
+
+logger = logging.getLogger('GDJ_App')
 
 class SettingsController(QObject):
     def __init__(self, view: SettingsPage, main_controller):
@@ -27,7 +30,7 @@ class SettingsController(QObject):
         self._connect_signals()
         self._update_initial_view()
         
-        print("SettingsController initialized")
+        logger.info("SettingsController initialized")
 
     def _connect_signals(self):
         """Connecte les signaux aux slots. Gère la reconnexion si nécessaire."""
@@ -44,7 +47,7 @@ class SettingsController(QObject):
         except TypeError: 
             pass
         self.view.btn_cancel_update.clicked.connect(self._cancel_download)
-        print("SettingsController: Signals connected/reconnected")
+        logger.debug("SettingsController: Signals connected/reconnected")
 
     def _update_initial_view(self):
         """Met à jour les widgets de la vue avec les données initiales."""
@@ -55,7 +58,7 @@ class SettingsController(QObject):
             
             self._set_idle_state() # Assurer l'état initial
         except Exception as e:
-            print(f"Error updating initial settings view: {e}")
+            logger.error(f"Error updating initial settings view: {e}", exc_info=True)
             self.view.lbl_current_version.setText("Version actuelle : Erreur")
             self.view.lbl_update_status.setText("Statut : Erreur")
 
@@ -87,14 +90,13 @@ class SettingsController(QObject):
         except TypeError: 
             pass
         self.view.btn_check_updates.clicked.connect(self._perform_update) 
-        print("SettingsController: Button reconnected to _perform_update")
+        logger.debug("SettingsController: Button reconnected to _perform_update")
 
     def _set_downloading_state(self):
         """Configure l'UI pour l'état 'Téléchargement en cours'."""
-        print("Setting UI to downloading state...")
+        logger.debug("Setting UI to downloading state...")
         self.view.lbl_current_version.setVisible(False)
         self.view.lbl_update_status.setText("Statut : Téléchargement...") # ou vide
-        self.view.btn_check_updates.setVisible(False) # Cacher "Vérifier/Mettre à jour"
         
         self.view.progress_bar.setVisible(True)
         self.view.progress_bar.setValue(0)
@@ -110,7 +112,7 @@ class SettingsController(QObject):
     @Slot()
     def _check_for_updates_manually(self):
         """Vérifie les MaJ et met à jour l'UI en fonction du résultat."""
-        print("Manual update check requested...")
+        logger.info("Manual update check requested...")
         self.view.lbl_update_status.setText("Statut : Vérification en cours...")
         QApplication.processEvents()
         self.view.btn_check_updates.setEnabled(False) 
@@ -120,7 +122,7 @@ class SettingsController(QObject):
         try:
             # Appeler la fonction et récupérer les deux valeurs de retour
             status_msg, update_info = check_for_updates(manual_check=True)
-            print(f"Update check finished. Result msg: '{status_msg}', Info: {update_info}")
+            logger.info(f"Update check finished. Result msg: '{status_msg}', Info: {update_info}")
             
             # Stocker les infos pour le bouton "Mettre à jour"
             self.last_update_info = update_info 
@@ -138,7 +140,7 @@ class SettingsController(QObject):
                 self.view.btn_check_updates.setEnabled(True) # Assurer réactivation
 
         except Exception as e:
-            print(f"Error calling check_for_updates function: {e}")
+            logger.error(f"Error calling check_for_updates function: {e}", exc_info=True)
             self.view.lbl_update_status.setText(f"Statut : Erreur critique ({e})")
             self._set_idle_state() # Remettre à l'état idle en cas d'erreur
         # finally:
@@ -149,7 +151,7 @@ class SettingsController(QObject):
     @Slot()
     def _perform_update(self):
         """Lance le téléchargement de la mise à jour."""
-        print("Update button clicked. Initiating download...")
+        logger.info("Update button clicked. Initiating download...")
         if self.last_update_info["available"] and self.last_update_info["url"]:
             installer_url = self.last_update_info["url"]
             
@@ -161,7 +163,7 @@ class SettingsController(QObject):
             # Peut-être un sous-dossier dans AppData/Local/GDJ/temp ?
             temp_dir = os.path.join(os.getenv('LOCALAPPDATA', '.'), CONFIG.get('APP_NAME', 'GDJ'), 'temp_updates')
             os.makedirs(temp_dir, exist_ok=True)
-            print(f"Download destination folder: {temp_dir}")
+            logger.debug(f"Download destination folder: {temp_dir}")
 
             # Créer et démarrer le thread de téléchargement
             self.download_thread = QThread(self) # parent=self pour cleanup
@@ -181,11 +183,11 @@ class SettingsController(QObject):
             self.download_thread.finished.connect(self.download_thread.deleteLater)
             self.download_worker.finished.connect(self.download_worker.deleteLater)
 
-            print("Starting download thread...")
+            logger.info("Starting download thread...")
             self.download_thread.start()
 
         else:
-             print("ERROR: _perform_update called but no valid update info available.")
+             logger.error("ERROR: _perform_update called but no valid update info available.")
              self._set_idle_state()
 
     # --- Slots pour les signaux du downloader ---
@@ -224,7 +226,7 @@ class SettingsController(QObject):
 
     @Slot(bool, str)
     def _download_finished(self, success, path_or_error):
-        print(f"Download finished signal received. Success: {success}, Path/Error: {path_or_error}")
+        logger.info(f"Download finished signal received. Success: {success}, Path/Error: {path_or_error}")
         self.download_thread = None # Réinitialiser
         self.download_worker = None
         if success:
@@ -241,7 +243,7 @@ class SettingsController(QObject):
     def _download_error(self, message):
          # Ce slot est un peu redondant avec finished(False, error_msg)
          # mais on le garde pour l'instant.
-        print(f"Download error signal received: {message}")
+        logger.error(f"Download error signal received: {message}")
         if self.download_thread: # S'assurer qu'on n'est pas déjà revenu à idle
             self.view.lbl_update_status.setText(f"Statut : Erreur ({message})")
             self._set_idle_state()
@@ -251,14 +253,14 @@ class SettingsController(QObject):
     @Slot()
     def _cancel_download(self):
         """Slot appelé par le bouton ARRÊTER."""
-        print("Cancel button clicked.")
+        logger.info("Cancel button clicked.")
         if self.download_worker:
-             print("  Signalling download worker to cancel...")
+             logger.info("  Signalling download worker to cancel...")
              self.download_worker.cancel() # Appelle le slot cancel du worker
              # --- Réinitialiser l'UI en fonction de l'état PRÉCÉDENT --- 
-             print("  Resetting UI based on previous update status...")
+             logger.info("  Resetting UI based on previous update status...")
              if self.last_update_info["available"] and self.last_update_info["url"]:
-                 print("  Restoring to 'update available' state.")
+                 logger.info("  Restoring to 'update available' state.")
                  self._set_update_available_state(self.last_update_info["version"], self.last_update_info["url"])
                  # --- S'assurer que les éléments de progression sont cachés --- 
                  self.view.progress_bar.setVisible(False)
@@ -270,11 +272,11 @@ class SettingsController(QObject):
                  self.view.btn_check_updates.setVisible(True)
                  self.view.lbl_current_version.setVisible(True) # Réafficher la version
              else:
-                 print("  Restoring to initial 'idle' state.")
+                 logger.info("  Restoring to initial 'idle' state.")
                  self._set_idle_state()
              # On laisse le worker terminer son annulation en arrière-plan
         else:
-             print("  No active download worker found to cancel.")
+             logger.info("  No active download worker found to cancel.")
              # Restaurer l'état basé sur last_update_info aussi ici pour la cohérence
              if self.last_update_info["available"] and self.last_update_info["url"]:
                  self._set_update_available_state(self.last_update_info["version"], self.last_update_info["url"])
@@ -284,25 +286,25 @@ class SettingsController(QObject):
     def _launch_installer_and_exit(self, installer_path):
         """Lance l'installateur et quitte l'application."""
         try:
-            print(f"Launching installer: {installer_path}")
+            logger.info(f"Launching installer: {installer_path}")
             # Utiliser Popen pour ne pas attendre la fin de l'installateur
             subprocess.Popen([installer_path])
-            print("Installer launched. Exiting application.")
+            logger.info("Installer launched. Exiting application.")
             QApplication.instance().quit()
             # sys.exit(0) # Peut aussi fonctionner
         except FileNotFoundError:
-             print(f"ERROR: Installer not found at {installer_path}")
+             logger.error(f"ERROR: Installer not found at {installer_path}")
              self.view.lbl_update_status.setText(f"Erreur : Installateur non trouvé ({os.path.basename(installer_path)})")
              self._set_idle_state()
         except Exception as e:
-             print(f"Error launching installer: {e}")
+             logger.error(f"Error launching installer: {e}")
              self.view.lbl_update_status.setText(f"Erreur lancement installeur: {e}")
              self._set_idle_state()
 
     # --- NOUVELLE MÉTHODE PUBLIQUE --- 
     def initiate_update_from_prompt(self, update_info):
         """Lance le téléchargement directement à partir des infos fournies."""
-        print(f"Initiating update download directly with info: {update_info}")
+        logger.info(f"Initiating update download directly with info: {update_info}")
         if update_info and update_info.get("available") and update_info.get("url"):
             # Stocker ces infos comme si on venait de les vérifier
             self.last_update_info = update_info
@@ -314,12 +316,12 @@ class SettingsController(QObject):
             # Définir le dossier de destination (identique à _perform_update)
             temp_dir = os.path.join(os.getenv('LOCALAPPDATA', '.'), CONFIG.get('APP_NAME', 'GDJ'), 'temp_updates')
             os.makedirs(temp_dir, exist_ok=True)
-            print(f"Download destination folder: {temp_dir}")
+            logger.debug(f"Download destination folder: {temp_dir}")
 
             # Créer et démarrer le thread de téléchargement (identique à _perform_update)
             # S'assurer qu'un téléchargement n'est pas déjà en cours (sécurité)
             if self.download_thread is not None:
-                 print("Warning: Download thread already exists. Cancelling previous one?")
+                 logger.warning("Warning: Download thread already exists. Cancelling previous one?")
                  # Optionnel: Tenter d'annuler l'ancien avant de lancer le nouveau?
                  # Pour l'instant, on écrase les références, l'ancien thread pourrait continuer un peu
                  # S'il est géré correctement par Qt (parent=self), il sera détruit.
@@ -339,11 +341,11 @@ class SettingsController(QObject):
             self.download_thread.finished.connect(self.download_thread.deleteLater)
             self.download_worker.finished.connect(self.download_worker.deleteLater)
 
-            print("Starting download thread from prompt...")
+            logger.info("Starting download thread from prompt...")
             self.download_thread.start()
 
         else:
-             print("ERROR: initiate_update_from_prompt called with invalid update info.")
+             logger.error("ERROR: initiate_update_from_prompt called with invalid update info.")
              # Revenir à l'état par défaut au cas où
              self._set_idle_state()
 

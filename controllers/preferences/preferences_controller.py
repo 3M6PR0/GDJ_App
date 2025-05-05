@@ -16,7 +16,8 @@ from models.config_data import ConfigData # Singleton
 from pages.preferences.preferences_page import SimpleToggle, SignaturePreviewWidget # Ajouter SignaturePreviewWidget
 
 # --- AJOUT Logger --- 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__) # <- Commenté
+logger = logging.getLogger('GDJ_App') # <- Utiliser le logger configuré
 # ------------------
 
 def _get_nested_attr(obj, attr_path, default=None):
@@ -481,4 +482,4 @@ class PreferencesController(QObject):
         try: signals.theme_changed_signal.emit(theme_to_apply)
         except Exception as e_signal: logger.error(f"Error emitting theme_changed_signal: {e_signal}")
 
-print("PreferencesController (utilisant Preference Singleton) defined") # Message final 
+logger.info("PreferencesController (utilisant Preference Singleton) defined") 

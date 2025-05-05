@@ -68,7 +68,7 @@ class NewDocumentWindow(QWidget):
 # Bloc de test
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
-    logging.basicConfig(level=logging.INFO)
+    # logging.basicConfig(level=logging.INFO) # -> COMMENTÉ
     
     # Charger styles et theme pour le test
     from utils.stylesheet_loader import load_stylesheet

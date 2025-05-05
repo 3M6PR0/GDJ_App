@@ -4,6 +4,7 @@
 import os
 import re
 import markdown
+import logging # AJOUT Logging
 from PyQt5.QtCore import QObject
 
 # --- Import de la fonction utilitaire --- 
@@ -14,6 +15,8 @@ from utils.paths import get_resource_path
 
 # --- Constante pour le chemin relatif --- 
 README_PATH = "README.md"
+
+logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
 
 class AboutReadmeController(QObject):
     def __init__(self, view: 'QWidget', version_str: str = "?.?.?", parent=None):
@@ -28,7 +31,7 @@ class AboutReadmeController(QObject):
         try:
             # --- Charger le README en utilisant get_resource_path --- 
             readme_full_path = get_resource_path(README_PATH)
-            print(f"DEBUG: Chemin README calculé: {readme_full_path}") # Ajout debug
+            logger.debug(f"Chemin README calculé: {readme_full_path}")
             if os.path.exists(readme_full_path):
                 with open(readme_full_path, 'r', encoding='utf-8') as f:
                     markdown_content = f.read()
@@ -54,18 +57,19 @@ class AboutReadmeController(QObject):
 
             else:
                 html_content = f"<p style='color: red;'>Fichier non trouvé: {readme_full_path}</p>"
+                logger.error(f"Fichier README non trouvé: {readme_full_path}") # Log erreur
         
         except ImportError as ie:
              html_content = f"<p style='color: red;'>Erreur d'importation : {ie}. La bibliothèque 'markdown' ou 're' est-elle installée?</p>"
-             print(f"Erreur Import: {ie}")
+             logger.error(f"Erreur Import dans AboutReadmeController: {ie}", exc_info=True)
         except Exception as e:
             html_content = f"<p style='color: red;'>Erreur lors du chargement ou traitement de README.md: {e}</p>"
-            print(f"Erreur README processing: {e}")
+            logger.error(f"Erreur README processing: {e}", exc_info=True)
         
         # Passer le HTML final (badge avec styles en ligne) à la vue
         if hasattr(self.view, 'set_content'):
             self.view.set_content(html_content)
         else:
-            print("ERREUR: La vue AboutReadmePage n'a pas de méthode set_content")
+            logger.error("ERREUR: La vue AboutReadmePage n'a pas de méthode set_content")
 
-    print("AboutReadmeController initialized and processing README") # Debug 
+logger.info("AboutReadmeController initialized and processing README") # Debug -> Info 
