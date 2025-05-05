@@ -54,14 +54,32 @@ class ReleaseNotesDialog(QDialog):
 
         self.setLayout(layout)
 
-class MainController:
+# --- MODIFICATION: Faire hériter de QObject --- 
+class MainController(QObject):
+# -------------------------------------------
     def __init__(self):
+        # --- AJOUT: Appeler __init__ du parent --- 
+        super().__init__()
+        # ---------------------------------------
         print("--- Entering MainController __init__ ---")
         self.main_window = None
         self.welcome_window = None
         self.documents = {}
         self.about_page = None
         self.about_controller_instance = None
+        # --- AJOUT: Créer et stocker PreferencesController --- 
+        try:
+            # Importer DANS le try pour éviter dépendance circulaire si __init__ est complexe
+            from controllers.preferences.preferences_controller import PreferencesController
+            self.preferences_controller = PreferencesController(main_controller=self) # Créé sans vue initiale
+            logger.info("MainController: PreferencesController instance created.")
+        except ImportError as e_imp:
+            logger.critical(f"CRITICAL ERROR: Cannot import PreferencesController: {e_imp}")
+            self.preferences_controller = None # S'assurer qu'il est None si import échoue
+        except Exception as e_prefs_init:
+            logger.critical(f"CRITICAL ERROR: Cannot initialize PreferencesController: {e_prefs_init}")
+            self.preferences_controller = None
+        # ----------------------------------------------------
         self.navigate_to_notes_after_welcome = False 
         self._startup_update_check_done = False
         self.new_doc_window = None # Garder une référence si DocumentWindow est unique
@@ -591,17 +609,21 @@ class MainController:
             
             # --- Connexion des signaux (reste pareil, utilise self.new_doc_window) --- 
             try:
-                # --- MODIFIÉ: Connecter request_main_action à handle_main_action_request --- 
-                # Note: Cette connexion a été remplacée par un appel direct + QTimer
-                # On la laisse commentée pour l'instant.
-                # print(f"MainController (id={id(self)}): Connecting request_main_action from DocumentWindow (id={id(self.new_doc_window)}) to handle_main_action_request...")
-                # self.new_doc_window.request_main_action.connect(self.handle_main_action_request, Qt.QueuedConnection)
-                # print("MainController: Signal request_main_action connecté à handle_main_action_request (Queued).")
-                # --- Connecter le signal des paramètres --- 
-                self.new_doc_window.title_bar.settings_requested.connect(self.show_settings_window)
-                print("MainController: Signal settings_requested connecté.")
+                # --- RÉINTRODUIRE LA CONNEXION DU SIGNAL --- 
+                if hasattr(self.new_doc_window, 'request_main_action'):
+                    self.new_doc_window.request_main_action.connect(self.handle_main_action_request)
+                    logger.info("MainController: Connecté new_doc_window.request_main_action -> handle_main_action_request")
+                else:
+                    logger.warning("MainController: new_doc_window n'a pas le signal 'request_main_action'.")
+                # ---------------------------------------------
+                # --- Connecter le signal des paramètres (inchangé) --- 
+                if hasattr(self.new_doc_window.title_bar, 'settings_requested'):
+                    self.new_doc_window.title_bar.settings_requested.connect(self.show_settings_window)
+                    logger.info("MainController: Signal settings_requested connecté.")
+                else:
+                     logger.warning("MainController: title_bar n'a pas le signal 'settings_requested'.")
             except AttributeError as e_connect:
-                 print(f"ERREUR connexion signal(s) DocumentWindow: {e_connect}")
+                 logger.error(f"ERREUR connexion signal(s) DocumentWindow: {e_connect}")
             # ----------------------------------------------------------------------
         except Exception as e:
             print(f"ERREUR lors de la création/affichage de DocumentWindow: {e}")
@@ -641,6 +663,69 @@ class MainController:
             self.settings_window.activateWindow()
             self.settings_window.raise_()
     # -------------------------------------------------------------
+
+    # --- AJOUT SLOT POUR GÉRER LES ACTIONS DE DocumentWindow --- 
+    @pyqtSlot(str)
+    def handle_main_action_request(self, action_name):
+        logger.info(f"MainController: Reçu request_main_action avec action: '{action_name}'")
+        if action_name == 'new_document':
+            logger.info("Action 'new_document' reçue, appel de show_type_selection_window...")
+            self.show_type_selection_window()
+        elif action_name == 'settings': # Exemple si on gérait les paramètres aussi via ce signal
+             logger.info("Action 'settings' reçue, appel de show_settings_window...")
+             self.show_settings_window() # Appeler la méthode existante
+        else:
+             logger.warning(f"Action inconnue reçue via request_main_action: {action_name}")
+    # ------------------------------------------------------
+
+    # --- AJOUT: Méthode pour afficher la fenêtre de sélection de type --- 
+    def show_type_selection_window(self):
+        """Crée et affiche la fenêtre TypeSelectionWindow."""
+        # --- Vérifier/Importer TypeSelectionWindow --- 
+        try:
+            from windows.type_selection_window import TypeSelectionWindow
+        except ImportError:
+            logger.error("Impossible d'importer TypeSelectionWindow.")
+            QMessageBox.critical(None, "Erreur Interne", "Composant manquant: TypeSelectionWindow.")
+            return
+            
+        logger.info("MainController: Création et affichage de TypeSelectionWindow...")
+        try:
+            # --- Créer une instance (garder référence pour la connexion/gestion?) --- 
+            # Pour l'instant, on crée une nouvelle instance à chaque fois.
+            # Si on veut une seule instance, ajouter logique avec self.type_selection_win
+            self.type_selection_window_instance = TypeSelectionWindow(preferences_controller=self.preferences_controller)
+            
+            # --- Connecter le signal de création --- 
+            if hasattr(self.type_selection_window_instance, 'document_creation_requested'):
+                 self.type_selection_window_instance.document_creation_requested.connect(self._handle_creation_from_selection_window)
+                 logger.info("Connecté TypeSelectionWindow.document_creation_requested -> _handle_creation_from_selection_window")
+            else:
+                 logger.warning("TypeSelectionWindow n'a pas de signal 'document_creation_requested'.")
+                 
+            self.type_selection_window_instance.show()
+            self.type_selection_window_instance.activateWindow()
+            self.type_selection_window_instance.raise_()
+            logger.info("TypeSelectionWindow affichée.")
+        except Exception as e_tsw:
+             logger.error(f"Erreur lors de la création/affichage de TypeSelectionWindow: {e_tsw}", exc_info=True)
+             QMessageBox.critical(None, "Erreur", f"Impossible d'ouvrir la fenêtre de sélection de type.\n{e_tsw}")
+    # ---------------------------------------------------------------------
+
+    # --- AJOUT: Slot pour gérer la création depuis TypeSelectionWindow --- 
+    @pyqtSlot(str, dict)
+    def _handle_creation_from_selection_window(self, doc_type: str, data: dict):
+        logger.info(f"MainController: Reçu demande de création depuis TypeSelectionWindow: Type='{doc_type}'")
+        # Fermer la fenêtre de sélection AVANT d'ouvrir la nouvelle DocumentWindow
+        if hasattr(self, 'type_selection_window_instance') and self.type_selection_window_instance:
+             logger.info("Fermeture de TypeSelectionWindow...")
+             self.type_selection_window_instance.close()
+             # Optionnel: Supprimer la référence pour permettre une nouvelle instance plus tard
+             # del self.type_selection_window_instance 
+             
+        # Appeler la méthode qui crée et affiche DocumentWindow
+        self.show_new_document_window(doc_type, data)
+    # -------------------------------------------------------------------
 
 # --- SECTION PRINCIPALE (FIN DU FICHIER) --- 
 def main():

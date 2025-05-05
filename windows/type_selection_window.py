@@ -1,7 +1,7 @@
 # windows/type_selection_window.py
 import logging
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QFrame
-from PyQt5.QtCore import Qt, pyqtSlot as Slot
+from PyQt5.QtCore import Qt, pyqtSlot as Slot, pyqtSignal
 from ui.components.custom_titlebar import CustomTitleBar
 from pages.documents.documents_type_selection_page import DocumentsTypeSelectionPage # <-- Importer la page cible
 # --- AJOUT IMPORT CONTROLEUR ---
@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 class TypeSelectionWindow(QWidget):
     """Fenêtre dédiée à l'affichage de la page de sélection du type de document."""
+    # --- AJOUT: Signal émis par cette fenêtre --- 
+    document_creation_requested = pyqtSignal(str, dict)
+    # -------------------------------------------
+
     def __init__(self, preferences_controller: PreferencesController, parent=None):
         super().__init__(parent)
         # Utiliser les flags standards pour une fenêtre indépendante sans cadre natif
@@ -54,34 +58,64 @@ class TypeSelectionWindow(QWidget):
         # Contenu principal : La page de sélection
         try:
             # Instancier la page
-            # Faut-il passer des arguments à DocumentsTypeSelectionPage? Supposons non pour l'instant.
             self.selection_page = DocumentsTypeSelectionPage() 
-            # Ajouter la page au layout principal, en lui donnant l'espace restant
             main_layout.addWidget(self.selection_page, 1) 
             logger.info("Page DocumentsTypeSelectionPage instanciée et ajoutée à TypeSelectionWindow.")
             
-            # --- MODIFICATION: Passer les données au contrôleur --- 
+            # --- AJOUT: Extraire les données nécessaires du PreferencesController --- 
+            default_values = {}
+            jacmar_options = {}
+            if self.preferences_controller:
+                current_prefs = self.preferences_controller.current_preferences
+                if current_prefs:
+                    # Récupérer les valeurs par défaut
+                    if current_prefs.profile:
+                        default_values["nom"] = current_prefs.profile.nom
+                        default_values["prenom"] = current_prefs.profile.prenom
+                    if current_prefs.jacmar:
+                        default_values["emplacements"] = current_prefs.jacmar.emplacement
+                        default_values["departements"] = current_prefs.jacmar.departement
+                        default_values["superviseurs"] = current_prefs.jacmar.superviseur
+                        default_values["plafond_deplacement"] = current_prefs.jacmar.plafond
+                    logger.info(f"Données par défaut extraites: {default_values}")
+                    
+                    # Récupérer les listes pour les combos Jacmar (depuis PrefsController)
+                    jacmar_options["emplacements"] = getattr(self.preferences_controller, 'jacmar_emplacements', [])
+                    jacmar_options["departements"] = getattr(self.preferences_controller, 'jacmar_departements', [])
+                    jacmar_options["titres"] = getattr(self.preferences_controller, 'jacmar_titres', [])
+                    jacmar_options["superviseurs"] = getattr(self.preferences_controller, 'jacmar_superviseurs', [])
+                    jacmar_options["plafond_deplacement"] = getattr(self.preferences_controller, 'jacmar_plafonds', [])
+                    logger.info(f"Options Jacmar extraites: {list(jacmar_options.keys())}")
+                else:
+                    logger.warning("TypeSelectionWindow: current_preferences est None dans PreferencesController.")
+            else:
+                logger.warning("TypeSelectionWindow: preferences_controller non fourni.")
+            # ----------------------------------------------------------------------
+            
+            # --- MODIFICATION: Passer les données préparées au contrôleur --- 
             self.selection_controller = DocumentsTypeSelectionController(
                 view=self.selection_page, 
-                document_types=self.document_types, # <- Passer les types chargés
-                document_fields_map=self.document_fields_map, # <- Passer la map chargée
-                preferences_controller=self.preferences_controller # <- Passer le contrôleur reçu
+                document_types=self.document_types,          # <- Config chargée
+                document_fields_map=self.document_fields_map, # <- Config chargée
+                default_profile_values=default_values,      # <- Données extraites
+                jacmar_options=jacmar_options               # <- Données extraites
             )
-            logger.info("Contrôleur DocumentsTypeSelectionController instancié avec les données.")
+            logger.info("Contrôleur DocumentsTypeSelectionController instancié avec les données préparées.")
             # ------------------------------------------------------
             
-            # Connecter les signaux du CONTROLEUR (et non plus de la page directement)
-            # Le contrôleur gère maintenant les actions
-            self.selection_controller.creation_requested.connect(self.handle_creation_request)
+            # --- Connecter les signaux du CONTROLEUR --- 
+            # Connecter creation_requested n'est plus nécessaire ici si on connecte create_request ci-dessous
+            # self.selection_controller.creation_requested.connect(self.handle_creation_request)
             self.selection_controller.cancel_requested.connect(self.close) # Annuler ferme la fenêtre
-            logger.info("Signaux du DocumentsTypeSelectionController connectés.")
+            logger.info("Signal cancel_requested du contrôleur connecté à self.close.")
 
-            # Supprimer les anciennes connexions directes à la page
-            # if hasattr(self.selection_page, 'type_selected'):
-            #      pass 
-            # if hasattr(self.selection_page, 'cancel_requested'):
-            #      self.selection_page.cancel_requested.connect(self.close)
-            #      logger.info("Connecté cancel_requested de la page à self.close.")
+            # --- Connecter le signal interne `create_request` au signal externe --- 
+            if hasattr(self.selection_controller, 'create_request'):
+                self.selection_controller.create_request.connect(self.document_creation_requested.emit)
+                logger.info("TypeSelectionWindow: Connecté internal controller.create_request -> self.document_creation_requested")
+            else:
+                logger.warning("TypeSelectionWindow: Internal selection_controller n'a pas le signal 'create_request'.")
+            # ----------------------------------------------------------------------
 
         except Exception as e_page:
             logger.error(f"Erreur lors de l'instanciation de DocumentsTypeSelectionPage dans TypeSelectionWindow: {e_page}", exc_info=True)
@@ -124,27 +158,6 @@ class TypeSelectionWindow(QWidget):
             logger.error(f"Erreur chargement config dans TypeSelectionWindow ({config_full_path}): {e}")
     # -------------------------------------------------
     
-    # --- MÉTHODE POUR GÉRER LE SIGNAL DU CONTROLEUR ---
-    @Slot(str, dict)
-    def handle_creation_request(self, selected_type, form_data):
-        """Gère la demande de création reçue du contrôleur."""
-        logger.info(f"TypeSelectionWindow: Demande de création reçue pour '{selected_type}' avec data: {form_data}")
-        # TODO: Que faire ici?
-        # 1. Ouvrir la DocumentWindow? 
-        # 2. Émettre un autre signal vers la fenêtre parente (DocumentWindow)?
-        # Pour l'instant, on ferme juste la fenêtre de sélection.
-        self.close()
-        
-        # Exemple si on voulait ouvrir DocumentWindow directement depuis ici:
-        # try:
-        #    from windows.document_window import DocumentWindow
-        #    # Passer les données à la nouvelle fenêtre
-        #    self.doc_win = DocumentWindow(initial_doc_type=selected_type, initial_doc_data=form_data, parent=self.parent()) # parent() de TypeSelectionWindow
-        #    self.doc_win.showMaximized()
-        # except Exception as e_docwin:
-        #    logger.error(f"Erreur ouverture DocumentWindow depuis TypeSelection: {e_docwin}")
-    # ---------------------------------------------------
-
     # --- Méthodes potentielles pour gérer la sélection (Commentées) ---
     # def handle_type_selection(self, selected_type):
 

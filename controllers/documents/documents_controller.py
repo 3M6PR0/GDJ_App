@@ -6,6 +6,10 @@ from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
 from PyQt5.QtWidgets import QListWidgetItem, QMessageBox # Ajouter QMessageBox
 import json
 import os
+# --- AJOUT: Import logging --- 
+import logging
+logger = logging.getLogger(__name__)
+# -----------------------------
 
 # Import de la vue principale et des vues/contrôleurs des sous-pages
 # from pages.documents.documents_page import DocumentsPage
@@ -62,30 +66,59 @@ class DocumentsController(QObject):
         self.main_controller = main_controller # Pour appeler open_document etc.
         self.preferences_controller = preferences_controller
         
-        # --- SUPPRIMER chargement config, fait par les sous-contrôleurs --- 
-        # self._load_config_data()
-        # -----------------------------------------------------------------
+        # --- AJOUT: Charger la config ICI --- 
+        self._load_config_data()
+        # ----------------------------------
         
         # Instancier les sous-pages réelles
         self.recent_list_page = DocumentsRecentListPage()
         self.type_selection_page = DocumentsTypeSelectionPage()
         
+        # --- AJOUT: Extraire les données pour TypeSelectionController --- 
+        default_values = {}
+        jacmar_options = {}
+        if self.preferences_controller:
+            current_prefs = self.preferences_controller.current_preferences
+            if current_prefs:
+                # Récupérer les valeurs par défaut
+                if current_prefs.profile:
+                    default_values["nom"] = current_prefs.profile.nom
+                    default_values["prenom"] = current_prefs.profile.prenom
+                if current_prefs.jacmar:
+                    default_values["emplacements"] = current_prefs.jacmar.emplacement
+                    default_values["departements"] = current_prefs.jacmar.departement
+                    default_values["superviseurs"] = current_prefs.jacmar.superviseur
+                    default_values["plafond_deplacement"] = current_prefs.jacmar.plafond
+                logger.info(f"DocumentsController: Données par défaut extraites: {default_values}")
+                
+                # Récupérer les listes pour les combos Jacmar
+                jacmar_options["emplacements"] = getattr(self.preferences_controller, 'jacmar_emplacements', [])
+                jacmar_options["departements"] = getattr(self.preferences_controller, 'jacmar_departements', [])
+                jacmar_options["titres"] = getattr(self.preferences_controller, 'jacmar_titres', [])
+                jacmar_options["superviseurs"] = getattr(self.preferences_controller, 'jacmar_superviseurs', [])
+                jacmar_options["plafond_deplacement"] = getattr(self.preferences_controller, 'jacmar_plafonds', [])
+                logger.info(f"DocumentsController: Options Jacmar extraites: {list(jacmar_options.keys())}")
+            else:
+                logger.warning("DocumentsController: current_preferences est None dans PreferencesController.")
+        else:
+            logger.warning("DocumentsController: preferences_controller non fourni.")
+        # -------------------------------------------------------------
+        
         # --- Instancier les sous-contrôleurs --- 
         self.recent_list_controller = DocumentsRecentListController(self.recent_list_page, self)
+        # --- MODIFICATION: Passer les données extraites --- 
         self.type_selection_controller = DocumentsTypeSelectionController(
             view=self.type_selection_page, 
-            preferences_controller=self.preferences_controller
-            # main_controller n'est pas requis par TypeSelectionController pour l'instant
+            document_types=self.document_types,          # <- Config chargée
+            document_fields_map=self.document_fields_map, # <- Config chargée
+            default_profile_values=default_values,      # <- Données extraites
+            jacmar_options=jacmar_options               # <- Données extraites
         )
-        # ----------------------------------------
+        # --------------------------------------------------
         
         # Ajouter les pages au QStackedWidget de la vue (DocumentsPage)
         self.view.documents_stack.addWidget(self.recent_list_page)
         self.view.documents_stack.addWidget(self.type_selection_page)
-        
-        # --- SUPPRIMER appel direct à _populate_type_selection_combo --- 
-        # self._populate_type_selection_combo()
-        # -------------------------------------------------------------
         
         # Connecter les signaux
         self._connect_signals()
@@ -93,15 +126,28 @@ class DocumentsController(QObject):
         # Afficher la page initiale (la liste des récents)
         self.show_recent_list_page() 
 
-    # --- SUPPRIMER _load_config_data --- 
-    # def _load_config_data(...): 
-    #     ...
-    # -----------------------------------
+    # --- AJOUT: Méthode _load_config_data --- 
+    def _load_config_data(self, relative_filepath="data/config_data.json"):
+        """Charge la config depuis le chemin relatif via get_resource_path."""
+        self.document_types = []
+        self.document_fields_map = {}
+        config_full_path = get_resource_path(relative_filepath)
+        logger.debug(f"DocumentsController: Chargement config depuis: {config_full_path}")
+        try:
+            if not os.path.exists(config_full_path):
+                logger.warning(f"Fichier config introuvable: {config_full_path}")
+                return
+            with open(config_full_path, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+            document_config = config_data.get("document", {})
+            self.document_types = list(document_config.keys())
+            self.document_fields_map = document_config
+            logger.info(f"DocumentsController: Types de documents chargés: {self.document_types}")
+        except Exception as e:
+            logger.error(f"Erreur chargement config dans DocumentsController ({config_full_path}): {e}")
+    # ---------------------------------------
             
-    # --- SUPPRIMER _populate_type_selection_combo --- 
-    # def _populate_type_selection_combo(self):
-    #     ...
-    # ---------------------------------------------
+    # --- Suppression _populate_type_selection_combo --- 
 
     def _connect_signals(self):
         """Connecte tous les signaux nécessaires."""

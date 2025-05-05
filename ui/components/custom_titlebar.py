@@ -28,8 +28,8 @@ class CustomTitleBar(QWidget):
     minimize_requested = pyqtSignal()
     maximize_restore_requested = pyqtSignal()
     close_requested = pyqtSignal()
-    # --- AJOUT : Signal pour le nouveau bouton ---
-    custom_action_requested = pyqtSignal()
+    # --- MODIFICATION : Renommer le signal --- 
+    new_document_requested = pyqtSignal() # <<< RENOMMÉ
     # --- AJOUT: Signal pour demander l'ouverture des paramètres ---
     settings_requested = pyqtSignal()
     # ---------------------------------------------------------------------
@@ -407,10 +407,16 @@ class CustomTitleBar(QWidget):
         self._file_menu.setMinimumWidth(220)
         
         # Actions standard
-        action_new = self._file_menu.addAction("Nouveau")
+        action_new = QAction(QIcon(icon_loader.get_icon_path("round_note_add.png")), "Nouveau", self)
+        action_new.setShortcut(Qt.CTRL | Qt.Key_N) # Ctrl+N
+        # --- MODIFICATION: Connecter au slot qui émet le signal --- 
+        action_new.triggered.connect(self._handle_new_action)
+        # ------------------------------------------------------
+        self._file_menu.addAction(action_new)
+        
         action_open = self._file_menu.addAction("Ouvrir...")
         action_recent = self._file_menu.addAction("Recent")
-        # TODO: Connecter action_new.triggered, action_open.triggered, etc.
+        # TODO: Connecter action_open.triggered, action_recent.triggered
         
         # --- Titre de section intégré au séparateur ---
         # self._file_menu.addSeparator() # <<< Supprimé
@@ -558,6 +564,14 @@ class CustomTitleBar(QWidget):
         if self.btn_view: self.btn_view.setVisible(True)
         if self.btn_help: self.btn_help.setVisible(True)
     # -----------------------------------------------------
+
+    # --- NOUVELLE MÉTHODE: Gérer le clic sur l'action "Nouveau" --- 
+    @Slot()
+    def _handle_new_action(self):
+        """Émet le signal lorsque l'action Nouveau est cliquée."""
+        logger.info("CustomTitleBar: Action 'Nouveau' cliquée, émission de new_document_requested.")
+        self.new_document_requested.emit()
+    # -----------------------------------------------------------
 
 # --- Section pour tester la barre seule --- 
 if __name__ == '__main__':

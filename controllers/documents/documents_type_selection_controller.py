@@ -19,43 +19,30 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
     cancel_requested = pyqtSignal() # Pour revenir en arrière
     # -------------------------------------------
 
-    # --- MODIFICATION: __init__ pour accepter les dépendances --- 
-    def __init__(self, view: DocumentsTypeSelectionPage, preferences_controller):
+    # --- MODIFICATION: __init__ pour accepter les données directement --- 
+    def __init__(self, view: DocumentsTypeSelectionPage, 
+                 document_types: list, document_fields_map: dict, 
+                 default_profile_values: dict, jacmar_options: dict):
         super().__init__()
         self.view = view
-        self.preferences_controller = preferences_controller
+        # --- RETRAIT: self.preferences_controller = preferences_controller ---
         
-        # Charger la configuration (types, champs)
-        self._load_config_data()
+        # --- Stocker les données reçues --- 
+        self.document_types = document_types
+        self.document_fields_map = document_fields_map
+        self.default_profile_values = default_profile_values
+        self.jacmar_options = jacmar_options
+        # --------------------------------
+        
+        # Charger la configuration (types, champs) - Déjà fait par le parent
+        # self._load_config_data()
         
         # Peupler le combobox initialement
-        self._populate_type_selection_combo()
+        self._populate_type_selection_combo() # Utilise self.document_types
         
         # Connecter les signaux internes de la vue
         self._connect_view_signals()
     # -------------------------------------------------------
-
-    # --- AJOUT: Méthode _load_config_data (depuis DocumentsController) --- 
-    def _load_config_data(self, relative_filepath="data/config_data.json"):
-        """Charge la config depuis le chemin relatif via get_resource_path."""
-        self.document_types = []
-        self.document_fields_map = {}
-        # Pas besoin des données Jacmar ou plafond ici, géré dans _on_document_type_selected
-        config_full_path = get_resource_path(relative_filepath)
-        print(f"DEBUG (TypeSelectionController): Chemin config_data.json calculé: {config_full_path}")
-        try:
-            if not os.path.exists(config_full_path):
-                print(f"Avertissement: Fichier config introuvable: {config_full_path}")
-                return
-            with open(config_full_path, 'r', encoding='utf-8') as f:
-                config_data = json.load(f)
-            document_config = config_data.get("document", {})
-            self.document_types = list(document_config.keys())
-            self.document_fields_map = document_config
-            print(f"Types de documents chargés: {self.document_types}")
-        except Exception as e:
-            print(f"Erreur chargement config ({config_full_path}): {e}")
-    # --------------------------------------------------------------
 
     # --- AJOUT: Méthode _populate_type_selection_combo (depuis DocumentsController) --- 
     def _populate_type_selection_combo(self):
@@ -73,7 +60,13 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
     # --- MODIFICATION: Connecter les signaux de la vue aux slots de CE contrôleur --- 
     def _connect_view_signals(self):
         try:
-            self.view.create_requested.connect(self._handle_create_request)
+            # --- MODIFICATION: create_requested de la vue est connecté à _handle_create_request ICI --- 
+            # self.view.create_requested.connect(self._handle_create_request) # Déjà connecté via la vue?
+            # Vérifier la logique de connexion dans _on_create_clicked de la vue
+            # Si la vue émet le signal create_requested(type), il faut le connecter ici.
+            # -> _on_create_clicked émet create_requested(type). On le connecte ici.
+            self.view.create_requested.connect(self._handle_create_request) 
+            # ---------------------------------------------------------------------------------------
             self.view.cancel_requested.connect(self.cancel_requested.emit) # Émet le signal
             self.view.type_combo.currentTextChanged.connect(self._on_document_type_selected)
             print("DEBUG (TypeSelectionController): Signaux de la vue connectés.")
@@ -96,89 +89,45 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
             else:
                 print("DEBUG (Activate): Aucun type initial sélectionné dans le ComboBox.")
                 if hasattr(self.view, 'update_content_area'):
-                     self.view.update_content_area({}, {}, {}) # Vider
+                     self.view.update_content_area([], {}, {}) # Vider
         except Exception as e:
             print(f"ERREUR lors du déclenchement initial des champs (activate): {e}")
     # -----------------------------
 
     # --- Slots --- 
-    # --- AJOUT: Slot _on_document_type_selected (depuis DocumentsController) --- 
+    # --- MODIFICATION: Slot _on_document_type_selected pour utiliser les données stockées --- 
     @Slot(str)
     def _on_document_type_selected(self, selected_type):
         """Met à jour la zone de contenu dynamique de la vue en fonction du type."""
         print(f"--- _on_document_type_selected: Type='{selected_type}' ---") 
         if selected_type in self.document_fields_map:
-            fields_structure_dict = self.document_fields_map[selected_type]
-            default_values = {}
-            jacmar_values_for_type = {} 
-            try:
-                if self.preferences_controller:
-                    jacmar_values_for_type = {
-                        "emplacements": getattr(self.preferences_controller, 'jacmar_emplacements', []),
-                        "departements": getattr(self.preferences_controller, 'jacmar_departements', []),
-                        "titres": getattr(self.preferences_controller, 'jacmar_titres', []),
-                        "superviseurs": getattr(self.preferences_controller, 'jacmar_superviseurs', []),
-                        "plafond_deplacement": getattr(self.preferences_controller, 'jacmar_plafonds', [])
-                    }
-                    print(f"DEBUG: Données Jacmar extraites des attributs de PrefsController: {list(jacmar_values_for_type.keys())}")
-
-                    def get_pref_value_obj(base_pref_obj, path, default=None):
-                        keys = path.split('.')
-                        val = base_pref_obj
-                        try:
-                            for key in keys:
-                                if key in ['profile', 'jacmar', 'application']:
-                                    val = getattr(val, key)
-                                else:
-                                    val = getattr(val, key)
-                            return val if val is not None else default
-                        except AttributeError:
-                            print(f"  -> get_pref_value_obj: Path '{path}' -> ATTRIBUTE ERROR, returning default: {default}")
-                            return default
-                        except Exception as e:
-                            print(f"ERROR get_pref_value_obj ({path}): {e}")
-                            print(f"  -> get_pref_value_obj: Path '{path}' -> EXCEPTION, returning default: {default}")
-                            return default
-
-                    current_prefs_obj = self.preferences_controller.current_preferences
-                    print(f"DEBUG: Current Preferences Object state before extraction:")
-                    try:
-                        print(f"  -> Profile: {current_prefs_obj.profile.to_dict()}")
-                        print(f"  -> Jacmar: {current_prefs_obj.jacmar.to_dict()}")
-                    except Exception as e_log_prefs:
-                        print(f"  -> ERROR logging prefs state: {e_log_prefs}")
-                    
-                    if "nom" in fields_structure_dict:
-                         default_values["nom"] = get_pref_value_obj(current_prefs_obj, 'profile.nom', '')
-                    if "prenom" in fields_structure_dict:
-                         default_values["prenom"] = get_pref_value_obj(current_prefs_obj, 'profile.prenom', '')
-                    if "date" in fields_structure_dict: pass 
-                    if "emplacements" in fields_structure_dict:
-                         default_values["emplacements"] = get_pref_value_obj(current_prefs_obj, 'jacmar.emplacement', '')
-                    if "departements" in fields_structure_dict:
-                         default_values["departements"] = get_pref_value_obj(current_prefs_obj, 'jacmar.departement', '')
-                    if "superviseurs" in fields_structure_dict:
-                         default_values["superviseurs"] = get_pref_value_obj(current_prefs_obj, 'jacmar.superviseur', '')
-                    if "plafond_deplacement" in fields_structure_dict:
-                         default_values["plafond_deplacement"] = get_pref_value_obj(current_prefs_obj, 'jacmar.plafond', '')
-
-                    print(f"DEBUG: Valeurs par défaut extraites de current_preferences: {default_values}")
-                else:
-                    print("WARNING: preferences_controller non disponible.")
-            except AttributeError as e_attr:
-                 print(f"ERREUR lecture attribut PreferencesController: {e_attr}")
-            except Exception as e_prefs:
-                print(f"ERREUR lecture préférences/jacmar: {e_prefs}")
+            fields_structure_list = self.document_fields_map[selected_type] # C'est une liste de noms
+            
+            # --- Utiliser les données passées à __init__ --- 
+            default_values = {} 
+            # Combiner les défauts de profil et jacmar (si besoin)
+            # Attention: Ici on prend juste les valeurs directes passées.
+            # Si on voulait combiner 'profile.nom' etc, il faudrait ajuster
+            # la structure de default_profile_values passée
+            # Pour l'instant, on suppose que default_profile_values contient { 'nom': ..., 'prenom': ... }
+            # et jacmar_options contient { 'emplacement': ..., 'departement': ... etc }
+            # -> On a besoin de TOUTES les valeurs par défaut possibles dans un seul dict
+            #    Donc, default_profile_values devrait contenir AUSSI les défauts jacmar.
+            default_values = self.default_profile_values # Utiliser directement le dict reçu
+            jacmar_data = self.jacmar_options # Utiliser directement le dict reçu
+            print(f"DEBUG: Utilisation des données reçues: DefaultValues={default_values}, JacmarOptionsKeys={list(jacmar_data.keys())}")
+            # ---------------------------------------------
 
             # --- AJOUT LOG: Vérifier les données passées à la vue --- 
             print(f"DEBUG (Controller): Appelle update_content_area avec:")
-            print(f"  -> fields_structure_dict: {fields_structure_dict}")
-            # print(f"  -> default_values: {default_values}") # Moins pertinent si les champs n'apparaissent pas
-            # print(f"  -> jacmar_values_for_type: {jacmar_values_for_type}") # Idem
+            print(f"  -> fields_structure_list: {fields_structure_list}")
+            print(f"  -> default_values: {default_values}") 
+            print(f"  -> jacmar_data: {jacmar_data}") 
             # -------------------------------------------------------
             if hasattr(self.view, 'update_content_area'):
                 try:
-                     self.view.update_content_area(fields_structure_dict, default_values, jacmar_values_for_type)
+                     # Passer la liste et les dictionnaires préparés
+                     self.view.update_content_area(fields_structure_list, default_values, jacmar_data)
                 except Exception as e_update:
                      print(f"ERROR: Erreur lors de la mise à jour du formulaire dynamique: {e_update}")
                      import traceback
@@ -188,7 +137,7 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
         else:
             print(f"Warning: Type '{selected_type}' non trouvé dans la config.")
             if hasattr(self.view, 'update_content_area'):
-                self.view.update_content_area({}, {}, {}) # Vider
+                self.view.update_content_area([], {}, {}) # Vider
     # ----------------------------------------------------------------------
 
     # --- MODIFICATION: Slot _handle_create_request (depuis DocumentsController) --- 
@@ -211,11 +160,12 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
              return
 
         # --- Validation (gardée ici) --- 
+        # --- MODIFIER : Utiliser selected_type --- 
         if selected_type == "Rapport de depense":
             required_fields = ["nom", "prenom", "date", "emplacements", "departements", "superviseurs", "plafond_deplacement"]
             missing_fields = []
             for field in required_fields:
-                if field not in form_data or not str(form_data[field]).strip():
+                if field not in form_data or not str(form_data.get(field, '')).strip(): # Utiliser get()
                     readable_field = field.replace("_", " ").capitalize()
                     if field == "departements": readable_field = "Département"
                     if field == "emplacements": readable_field = "Emplacement"

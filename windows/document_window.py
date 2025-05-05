@@ -1,12 +1,13 @@
 # windows/document_window.py
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
-from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtCore import Qt, QEvent, pyqtSignal, pyqtSlot
 from ui.components.custom_titlebar import CustomTitleBar
 from pages.documents_open.documents_open_page import DocumentsOpenPage
 import logging
 logger = logging.getLogger(__name__)
 
 class DocumentWindow(QWidget):
+    request_main_action = pyqtSignal(str)
     def __init__(self, main_controller, initial_doc_type=None, initial_doc_data=None, parent=None):
         super().__init__(parent)
         self.main_controller = main_controller
@@ -23,6 +24,15 @@ class DocumentWindow(QWidget):
         window_title = f"Document - {self.initial_doc_type}" if self.initial_doc_type else "Document"
         self.title_bar = CustomTitleBar(self, title=window_title, icon_base_name="logo-gdj.png", show_menu_button_initially=True)
         main_layout.addWidget(self.title_bar)
+
+        try:
+            if hasattr(self.title_bar, 'new_document_requested'):
+                 self.title_bar.new_document_requested.connect(self._handle_new_document_request)
+                 logger.info("DocumentWindow: Connecté title_bar.new_document_requested -> _handle_new_document_request")
+            else:
+                 logger.warning("DocumentWindow: title_bar n'a pas le signal 'new_document_requested'.")
+        except Exception as e_connect:
+             logger.error(f"DocumentWindow: Erreur connexion new_document_requested: {e_connect}")
 
         separator_line = QFrame(self)
         separator_line.setObjectName("TitleSeparatorLine")
@@ -46,6 +56,11 @@ class DocumentWindow(QWidget):
         logger.info(f"DocumentWindow instance créée pour type: {self.initial_doc_type}")
 
         self.installEventFilter(self)
+
+    @pyqtSlot()
+    def _handle_new_document_request(self):
+        logger.info("DocumentWindow: Reçu new_document_requested de title_bar, émission de request_main_action('new_document').")
+        self.request_main_action.emit('new_document')
 
     def eventFilter(self, obj, event):
         if obj == self and event.type() == QEvent.MouseButtonPress:
