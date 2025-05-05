@@ -1,9 +1,12 @@
 # pages/about/about_readme_page.py
 
+import logging
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTextBrowser, QPushButton, QHBoxLayout
 from PyQt5.QtCore import pyqtSignal
 # Importer le composant Frame personnalisé
 from ui.components.frame import Frame
+
+logger = logging.getLogger('GDJ_App')
 
 class AboutReadmePage(QWidget):
     # Signal émis lorsque l'utilisateur demande à voir les notes
@@ -52,7 +55,7 @@ class AboutReadmePage(QWidget):
         page_layout.addLayout(button_layout, 0)
         
         self.setLayout(page_layout)
-        print("AboutReadmePage UI initialized with Frame component, no outer margins") # Debug
+        logger.info("AboutReadmePage UI initialized with Frame component, no outer margins")
         
     def set_content(self, html_content):
         """Met à jour le contenu HTML du QTextBrowser."""

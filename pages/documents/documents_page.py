@@ -18,7 +18,8 @@ from .documents_type_selection_page import DocumentsTypeSelectionPage
 
 # --- AJOUT: Import logging --- 
 import logging
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__) # <- Commenté
+logger = logging.getLogger('GDJ_App') # <- Utiliser le logger configuré
 # -----------------------------
 
 # --- Classe DocumentsPage (Conteneur uniquement) --- 

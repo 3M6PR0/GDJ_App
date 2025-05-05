@@ -4,9 +4,12 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QScrollArea, QFrame, QLabel,
 # from PyQt5.QtWidgets import QProgressBar
 from ui.components.progressbar import CircularProgressBar 
 from PyQt5.QtCore import Qt, QSize
+import logging # AJOUT
 
 # Importer le composant Frame personnalisé
 from ui.components.frame import Frame 
+
+logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
 
 class SettingsPage(QWidget):
     def __init__(self, parent=None):
@@ -14,6 +17,7 @@ class SettingsPage(QWidget):
         self.setObjectName("SettingsPage")
         
         self._setup_ui()
+        logger.debug("SettingsPage initialisée.") # Utiliser logger
 
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -149,4 +153,4 @@ class SettingsPage(QWidget):
         scroll_area.setWidget(scroll_content)
         main_layout.addWidget(scroll_area)
         
-        print("SettingsPage UI initialized with update progress elements") # Debug 
+        logger.info("SettingsPage UI initialized with update progress elements") 

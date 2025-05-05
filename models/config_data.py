@@ -4,7 +4,8 @@ import logging
 import copy
 from utils.paths import get_resource_path
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__) # <- Commenté
+logger = logging.getLogger('GDJ_App') # <- Utiliser le logger configuré
 
 class ConfigData:
     """

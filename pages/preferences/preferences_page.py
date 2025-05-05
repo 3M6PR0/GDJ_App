@@ -1,13 +1,13 @@
 import sys
 import os
+import logging
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSpacerItem,
-    QSizePolicy, QLineEdit, QGridLayout, QFormLayout, QComboBox, QStyleOption, QGraphicsOpacityEffect # QStyleOption importé ici
+    QSizePolicy, QLineEdit, QGridLayout, QFormLayout, QComboBox, QStyleOption, QGraphicsOpacityEffect
 )
 from PyQt5.QtCore import Qt, QSize, QRect, QPoint, pyqtProperty, QEasingCurve, QPropertyAnimation, pyqtSignal, QEvent, pyqtSlot as Slot
-# QFont, QPainter, QPen, QBrush retirés (SimpleToggle gardé mais stylisé par QSS)
-from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPen, QPalette # Rajouter les imports nécessaires pour SimpleToggle.paintEvent
-import functools # Importer functools
+from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPen, QPalette
+import functools
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
@@ -16,10 +16,8 @@ from utils import icon_loader # <-- AJOUT DE L'IMPORT
 from utils.signals import signals 
 # -------------------
 
-# Constantes de couleur/police supprimées
+logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
 
-# --- SimpleToggle (Nettoyé) ---
-# Le style est maintenant géré par QSS global ciblant SimpleToggle
 class SimpleToggle(QWidget):
     toggled = pyqtSignal(bool)
 
@@ -49,9 +47,6 @@ class SimpleToggle(QWidget):
         super().mousePressEvent(event)
 
     def paintEvent(self, event):
-        # Le dessin est toujours nécessaire, mais les couleurs viendront 
-        # de la feuille de style appliquée à ce widget.
-        # Nous devons récupérer les couleurs depuis la palette actuelle.
         painter = QPainter(self) # Créer QPainter ICI
         painter.setRenderHint(QPainter.Antialiasing)
         
@@ -155,8 +150,6 @@ class PreferencesPage(QWidget):
     save_prefs_requested = pyqtSignal()
     import_prefs_requested = pyqtSignal()
     export_prefs_requested = pyqtSignal()
-    # Signal pour indiquer qu'un champ doit être réinitialisé (optionnel, on peut tout gérer dans le contrôleur)
-    # field_revert_requested = pyqtSignal(str) # Le nom du champ à réinitialiser
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -167,12 +160,14 @@ class PreferencesPage(QWidget):
         # --- AJOUT : Dictionnaire pour boutons thème --- 
         self._theme_aware_buttons = {}
         # ---------------------------------------------
+        logger.debug("PreferencesPage initialisée.") # Utiliser logger
         self.init_ui()
         # --- AJOUT : Connecter signal thème --- 
         signals.theme_changed_signal.connect(self._update_button_icons)
         # --------------------------------------
 
     def init_ui(self):
+        logger.debug("Construction UI PreferencesPage...") # Utiliser logger
         prefs_main_layout = QGridLayout(self)
         prefs_main_layout.setSpacing(15)
         prefs_main_layout.setContentsMargins(10, 10, 10, 10)
@@ -320,8 +315,6 @@ class PreferencesPage(QWidget):
         return label
 
     def _wrap_widget_in_hbox(self, widget):
-        # Ancienne méthode gardée pour compatibilité si appelée ailleurs, mais dépréciée
-        # pour les champs principaux
         container = QWidget()
         container.setStyleSheet("background-color: transparent;")
         layout = QHBoxLayout(container)

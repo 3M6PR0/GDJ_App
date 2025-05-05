@@ -1,7 +1,9 @@
 # pages/about/about_page.py
 
+import logging # AJOUT
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QStackedWidget, QHBoxLayout # Correction: PyQt5
 
+logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
 
 class AboutPage(QWidget):
     def __init__(self, parent=None):
@@ -15,9 +17,9 @@ class AboutPage(QWidget):
         
         # Conteneur pour les sous-pages (README, Notes)
         self.stack = QStackedWidget()
-        print(f"DEBUG: AboutPage._setup_ui: id(self)={id(self)}, stack created: id(self.stack)={id(self.stack)}") # DEBUG
+        logger.debug(f"AboutPage._setup_ui: id(self)={id(self)}, stack created: id(self.stack)={id(self.stack)}")
         # Donner un stretch factor au stack pour qu'il prenne l'espace disponible
         self.main_layout.addWidget(self.stack, 1)
 
         self.setLayout(self.main_layout)
-        print("AboutPage UI (dans pages/about/) initialized") # Debug 
+        logger.info("AboutPage UI (dans pages/about/) initialized") 

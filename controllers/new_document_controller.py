@@ -4,7 +4,7 @@ from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
 
 from utils.paths import get_resource_path # Pour charger la config
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 
 class NewDocumentController(QObject):
     # Signal émis lorsque l'utilisateur confirme la création
@@ -110,6 +110,7 @@ class NewDocumentController(QObject):
         # Émettre le signal vers MainController
         self.creation_confirmed.emit(selected_type, initial_data)
         # Fermer la fenêtre de dialogue
+        logger.debug("Closing view from NewDocumentController after create confirmation.")
         self.view.close()
 
     @pyqtSlot()

@@ -1,9 +1,12 @@
 # pages/about/about_release_notes_page.py # <- Nouveau nom
 
+import logging # AJOUT
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTextBrowser, QPushButton, QHBoxLayout
 from PyQt5.QtCore import pyqtSignal
 # Importer le composant Frame personnalisé
 from ui.components.frame import Frame
+
+logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
 
 class AboutReleaseNotesPage(QWidget): # <- Nom de classe mis à jour
     # Signal émis lorsque l'utilisateur demande à retourner au README
@@ -49,7 +52,7 @@ class AboutReleaseNotesPage(QWidget): # <- Nom de classe mis à jour
         page_layout.addLayout(button_layout, 0)
         
         self.setLayout(page_layout)
-        print("AboutReleaseNotesPage UI initialized with Frame component, no outer margins") # Debug
+        logger.info("AboutReleaseNotesPage UI initialized with Frame component, no outer margins")
 
     def set_content(self, markdown_content):
         """Met à jour le contenu du QTextBrowser."""

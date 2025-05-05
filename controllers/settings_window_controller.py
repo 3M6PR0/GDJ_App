@@ -3,7 +3,8 @@ from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
 from PyQt5.QtWidgets import QAbstractButton # Pour typer le slot _change_page
 
 import logging
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__) # <- Commenté
+logger = logging.getLogger('GDJ_App') # <- Utiliser le logger configuré
 
 # Importer les contrôleurs des sous-pages
 from controllers.preferences.preferences_controller import PreferencesController

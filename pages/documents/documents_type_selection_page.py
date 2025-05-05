@@ -16,7 +16,8 @@ from utils.paths import get_resource_path
 from utils import icon_loader
 from utils.signals import signals
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__) # <- Commenté
+logger = logging.getLogger('GDJ_App') # <- Utiliser le logger configuré
 
 RESET_ICON_PATH = get_resource_path("resources/icons/clear/round_refresh.png")
 

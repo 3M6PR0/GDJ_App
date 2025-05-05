@@ -22,7 +22,8 @@ try:
 except ImportError:
     fitz = None # Définir fitz à None si l'import échoue
     PYMUPDF_AVAILABLE = False
-    print("Avertissement: PyMuPDF (fitz) n'est pas installé. Les miniatures PDF ne seront pas disponibles.")
+    # print("Avertissement: PyMuPDF (fitz) n'est pas installé. Les miniatures PDF ne seront pas disponibles.") # MODIFICATION
+    logger.warning("PyMuPDF (fitz) n'est pas installé. Les miniatures PDF ne seront pas disponibles.") # MODIFICATION
 # --------------------------------------------------------------------------
 import os # Pour manipuler les chemins
 # --- AJOUT: Import MediaViewer --- 
@@ -30,9 +31,12 @@ from windows.media_viewer import MediaViewer
 # ---------------------------------
 import functools # <--- AJOUT
 import copy       # <--- AJOUT pour deepcopy
+import logging
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
+
+logger = logging.getLogger('GDJ_App')
 
 class RapportDepensePage(QWidget):
     def __init__(self, document: RapportDepense, parent=None):
@@ -88,6 +92,8 @@ class RapportDepensePage(QWidget):
             }
         """)
         # -------------------------------------------------------------
+
+        logger.debug("RapportDepensePage initialized.")
 
         self._setup_ui()
         # self._load_data() # Pas besoin avec le QLabel simple
@@ -159,12 +165,14 @@ class RapportDepensePage(QWidget):
             if icon_path:
                 icon = QIcon(icon_path)
             else:
-                print(f"WARNING: Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.")
+                # print(f"WARNING: Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.") # MODIFICATION
+                logger.warning(f"Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.") # MODIFICATION
                 fallback_path = get_icon_path(fallback_icon_name)
                 if fallback_path:
                     icon = QIcon(fallback_path)
                 else:
-                     print(f"ERROR: Fallback icon '{fallback_icon_name}' also not found.")
+                     # print(f"ERROR: Fallback icon '{fallback_icon_name}' also not found.") # MODIFICATION
+                     logger.error(f"Fallback icon '{fallback_icon_name}' also not found.") # MODIFICATION
             self.entry_type_combo.addItem(icon, text)
         # --- Fin Modification ---
         self.entry_type_combo.currentIndexChanged.connect(self._update_entry_form)
@@ -284,12 +292,14 @@ class RapportDepensePage(QWidget):
             if icon_path:
                 icon = QIcon(icon_path)
             else:
-                print(f"WARNING: Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.")
+                # print(f"WARNING: Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.") # MODIFICATION
+                logger.warning(f"Icon '{icon_name}' not found for ComboBox item '{text}'. Trying fallback.") # MODIFICATION
                 fallback_path = get_icon_path(fallback_icon_name)
                 if fallback_path:
                     icon = QIcon(fallback_path)
                 else:
-                     print(f"ERROR: Fallback icon '{fallback_icon_name}' also not found.")
+                     # print(f"ERROR: Fallback icon '{fallback_icon_name}' also not found.") # MODIFICATION
+                     logger.error(f"Fallback icon '{fallback_icon_name}' also not found.") # MODIFICATION
             self.filter_type_combo.addItem(icon, text)
         # --- Fin ajout avec icônes ---
         # self.filter_type_combo.currentIndexChanged.connect(self._apply_sorting_and_filtering)
@@ -703,7 +713,8 @@ class RapportDepensePage(QWidget):
                 combined_style = combined_style.replace("{{RADIUS_DEFAULT}}", theme.get("RADIUS_DEFAULT", "4px")) 
                 self.add_facture_button.setStyleSheet(combined_style)
             except Exception as e:
-                print(f"WARN: Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}")
+                # print(f"WARN: Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}") # MODIFICATION
+                logger.warning(f"Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}") # MODIFICATION
                 # Fallback : appliquer juste le :hover rouge pour voir si ça marche
                 # self.add_facture_button.setStyleSheet("QPushButton#TopNavButton:hover { background-color: red; }")
             # -----------------------------------------
@@ -934,7 +945,8 @@ class RapportDepensePage(QWidget):
                                          kilometrage=kilometrage_val, 
                                          montant=montant_deplacement)
                  self.document.ajouter_deplacement(new_entry)
-                 print(f"Déplacement ajouté: {new_entry}")
+                 # print(f"Déplacement ajouté: {new_entry}") # MODIFICATION
+                 logger.info(f"Déplacement ajouté: {new_entry}") # MODIFICATION
 
             elif entry_type == "Repas":
                  # Récupérer les valeurs spécifiques depuis self.form_fields
@@ -978,9 +990,10 @@ class RapportDepensePage(QWidget):
                          filenames = [os.path.basename(p) for p in all_paths]
                          try:
                               facture_obj = Facture(folder_path=folder_path, filenames=filenames)
-                              print(f"[TEMP] Objet Facture créé: {facture_obj}")
+                              # print(f"[TEMP] Objet Facture créé: {facture_obj}") # MODIFICATION
+                              logger.debug(f"Objet Facture créé: {facture_obj}") # MODIFICATION
                          except (TypeError, ValueError) as fact_err:
-                              QMessageBox.warning(self, "Erreur Facture", f"Impossible de créer l'objet Facture:\n{fact_err}")
+                              QMessageBox.warning(self, "Erreur Facture", f"Impossible de créer l'objet Facture:\\n{fact_err}")
                               # Continuer sans facture en cas d'erreur
                               facture_obj = None 
                  # -------------------------------------------
@@ -1006,7 +1019,8 @@ class RapportDepensePage(QWidget):
                  )
                  # self.document.entries.append(new_entry)
                  self.document.ajouter_repas(new_entry) # Utiliser la méthode dédiée
-                 print(f"Ajout Repas: {new_entry}") # Garder pour info
+                 # print(f"Ajout Repas: {new_entry}") # Garder pour info # MODIFICATION
+                 logger.info(f"Ajout Repas: {new_entry}") # MODIFICATION
                  
             elif entry_type == "Dépense":
                  # --- Lire les valeurs du formulaire Dépense --- 
@@ -1059,10 +1073,12 @@ class RapportDepensePage(QWidget):
                  # new_entry = Depense(date=date_val, description=description_val, montant=montant_val)
                  # self.document.entries.append(new_entry)
                  self.document.ajouter_depense(new_entry) # Utiliser la méthode dédiée
-                 print(f"Ajout Dépense: {new_entry}") # Garder pour info
+                 # print(f"Ajout Dépense: {new_entry}") # Garder pour info # MODIFICATION
+                 logger.info(f"Ajout Dépense: {new_entry}") # MODIFICATION
 
             if new_entry: # Si une entrée a été créée
-                print(f"Entrée ajoutée au document: {new_entry}")
+                # print(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
+                logger.debug(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
                 self._clear_entry_form() 
                 # --- MODIFICATION: Appeler la méthode de tri/filtrage --- 
                 self._apply_sorting_and_filtering() # Rafraîchir la liste affichée
@@ -1074,7 +1090,8 @@ class RapportDepensePage(QWidget):
              QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire: {e}. Le formulaire pour '{entry_type}' est peut-être incomplet.")
         except Exception as e:
              QMessageBox.critical(self, "Erreur", f"Impossible d'ajouter l'entrée: {e}")
-             traceback.print_exc() 
+             # traceback.print_exc() # MODIFICATION
+             logger.exception(f"Impossible d'ajouter l'entrée:") # MODIFICATION
 
     def _update_totals_display(self):
          # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
@@ -1082,7 +1099,7 @@ class RapportDepensePage(QWidget):
 
     def _toggle_num_commande_row_visibility(self, checked):
         """ Affiche ou cache la ligne (label + champ) N° Commande dans le QGridLayout. """
-        print(f"_toggle_num_commande_row_visibility appelé avec checked={checked}") # DEBUG
+        logger.debug(f"_toggle_num_commande_row_visibility appelé avec checked={checked}") # MODIFICATION
         if hasattr(self, 'num_commande_repas_field') and self.num_commande_repas_field and \
            hasattr(self, 'num_commande_repas_label') and self.num_commande_repas_label and \
            hasattr(self, 'num_commande_row_index') and self.dynamic_form_layout: # Vérifier layout et index
@@ -1097,11 +1114,11 @@ class RapportDepensePage(QWidget):
                 # Il n'y a pas de setRowVisible direct, on cache les widgets. 
                 # Si besoin de réorganiser, il faudrait retirer/réajouter les widgets.
                 
-                print(f"  Label et Field N° Commande setVisible({checked}) effectué pour la ligne {self.num_commande_row_index}.") # DEBUG
+                logger.debug(f"  Label et Field N° Commande setVisible({checked}) effectué pour la ligne {self.num_commande_row_index}.") # MODIFICATION
             except Exception as e:
-                 print(f"  Erreur lors de la modification de visibilité de la ligne N° Commande ({self.num_commande_row_index}): {e}") # DEBUG
+                 logger.error(f"  Erreur lors de la modification de visibilité de la ligne N° Commande ({self.num_commande_row_index}): {e}") # MODIFICATION
         else:
-            print("  Erreur: Widgets N° Commande, index de ligne, ou layout non trouvés.") # DEBUG
+            logger.error("  Erreur: Widgets N° Commande, index de ligne, ou layout non trouvés.") # MODIFICATION
 
     def _populate_entries_list(self):
         """Appelle la méthode centrale pour initialiser la liste des entrées."""
@@ -1140,7 +1157,8 @@ class RapportDepensePage(QWidget):
                     pixmap = QPixmap(placeholder_path).scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
         except Exception as e:
-            print(f"Erreur génération miniature pour {file_path}: {e}")
+            # print(f"Erreur génération miniature pour {file_path}: {e}") # MODIFICATION
+            logger.error(f"Erreur génération miniature pour {file_path}: {e}") # MODIFICATION
             # Utiliser l'icône placeholder en cas d'erreur aussi
             placeholder_path = get_icon_path("round_description.png")
             if placeholder_path:
@@ -1171,7 +1189,8 @@ class RapportDepensePage(QWidget):
             for file_path in file_paths:
                 if file_path not in self.current_facture_thumbnails:
                      self._create_and_add_thumbnail(file_path)
-                     print(f"[TEMP] Facture ajoutée UI: {file_path}")
+                     # print(f"[TEMP] Facture ajoutée UI: {file_path}") # MODIFICATION
+                     logger.debug(f"Facture ajoutée UI: {file_path}") # MODIFICATION
 
     def _create_and_add_thumbnail(self, file_path):
         pixmap = None
@@ -1183,7 +1202,8 @@ class RapportDepensePage(QWidget):
             if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
                 pixmap = QPixmap(file_path)
                 if pixmap.isNull():
-                     print(f"Erreur: Impossible de charger l'image {file_path}")
+                     # print(f"Erreur: Impossible de charger l'image {file_path}") # MODIFICATION
+                     logger.error(f"Impossible de charger l'image {file_path}") # MODIFICATION
                      return
             # --- Génération Pixmap (PDF) ---
             elif file_path.lower().endswith('.pdf'):
@@ -1202,23 +1222,25 @@ class RapportDepensePage(QWidget):
                          qimage = QImage(fitz_pix.samples, fitz_pix.width, fitz_pix.height, fitz_pix.stride, QImage.Format_RGB888)
                          pixmap = QPixmap.fromImage(qimage)
                      else:
-                          print(f"Erreur: PDF vide {file_path}")
+                          # print(f"Erreur: PDF vide {file_path}") # MODIFICATION
+                          logger.error(f"PDF vide {file_path}") # MODIFICATION
                           # Créer un pixmap placeholder gris?
                           pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
                           pixmap.fill(Qt.darkGray)
                      doc.close()
                  except Exception as pdf_error:
-                      print(f"Erreur PyMuPDF pour {file_path}: {pdf_error}")
+                      logger.error(f"Erreur PyMuPDF pour {file_path}: {pdf_error}") # MODIFICATION
                       QMessageBox.warning(self, "Erreur PDF", f"Impossible de générer la miniature pour {file_path}.\n{pdf_error}")
                       # Créer un pixmap placeholder rouge?
                       pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
                       pixmap.fill(Qt.red)
             # --- Format non supporté --- 
             else:
-                 print(f"Format non supporté: {file_path}")
-                 # Créer un pixmap placeholder?
-                 pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
-                 pixmap.fill(Qt.lightGray)
+                # print(f"Format non supporté: {file_path}") # MODIFICATION
+                logger.warning(f"Format de fichier non supporté pour la miniature: {file_path}") # MODIFICATION
+                # Créer un pixmap placeholder?
+                pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
+                pixmap.fill(Qt.lightGray)
 
             # --- Création et ajout du widget --- 
             if pixmap:
@@ -1234,8 +1256,9 @@ class RapportDepensePage(QWidget):
                 QTimer.singleShot(0, lambda w=thumbnail_widget: self.facture_scroll_area.ensureWidgetVisible(w, 50, 0))
         
         except Exception as e:
-            print(f"Erreur inattendue création miniature pour {file_path}: {e}")
-            traceback.print_exc()
+            # print(f"Erreur inattendue création miniature pour {file_path}: {e}") # MODIFICATION
+            # traceback.print_exc() # MODIFICATION
+            logger.exception(f"Erreur inattendue création miniature pour {file_path}:") # MODIFICATION
 
     def _remove_facture_thumbnail(self, file_path, update_model=True):
         if file_path in self.current_facture_thumbnails:
@@ -1255,7 +1278,7 @@ class RapportDepensePage(QWidget):
             # if update_model: # Le flag update_model devient moins pertinent ici
             #      pass 
         else:
-             print(f"Avertissement: Tentative suppression miniature non trouvée: {file_path}")
+             logger.warning(f"Tentative suppression miniature non trouvée: {file_path}") # MODIFICATION
     # ------------------------------------------------
 
     # --- MODIFICATION Signature et Logique _open_media_viewer ---
@@ -1278,12 +1301,14 @@ class RapportDepensePage(QWidget):
              try:
                  valid_initial_index = valid_files.index(clicked_file_path)
              except ValueError:
-                 print(f"WARN: Fichier cliqué {clicked_file_path} était dans all_files mais pas trouvé dans valid_files après vérification existance. Bizarre. Ouverture index 0.")
+                 # print(f"WARN: Fichier cliqué {clicked_file_path} était dans all_files mais pas trouvé dans valid_files après vérification existance. Bizarre. Ouverture index 0.") # MODIFICATION
+                 logger.warning(f"Fichier cliqué {clicked_file_path} était dans all_files mais pas trouvé dans valid_files après vérification existance. Ouverture index 0.") # MODIFICATION
                  # Garde valid_initial_index à 0
         else:
              # Si le fichier cliqué n'existe pas/plus, on prend le premier valide (index 0)
               if valid_files: # Assure qu'il y a au moins un fichier valide
-                  print(f"WARN: Fichier cliqué {clicked_file_path} non trouvé ou invalide, ouverture du premier fichier valide ({valid_files[0]}).")
+                  # print(f"WARN: Fichier cliqué {clicked_file_path} non trouvé ou invalide, ouverture du premier fichier valide ({valid_files[0]}).") # MODIFICATION
+                  logger.warning(f"Fichier cliqué {clicked_file_path} non trouvé ou invalide, ouverture du premier fichier valide ({valid_files[0]}).") # MODIFICATION
                   # Garde valid_initial_index à 0
               else:
                    # Ne devrait pas arriver car vérifié plus haut, mais par sécurité
@@ -1314,8 +1339,9 @@ class RapportDepensePage(QWidget):
         except TypeError as e:
              QMessageBox.critical(self, "Erreur Type", str(e))
         except Exception as e:
-            print(f"Erreur inattendue ouverture MediaViewer: {e}")
-            traceback.print_exc()
+            # print(f"Erreur inattendue ouverture MediaViewer: {e}") # MODIFICATION
+            # traceback.print_exc() # MODIFICATION
+            logger.exception(f"Erreur inattendue ouverture MediaViewer:") # MODIFICATION
             QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue lors de l'ouverture du visualiseur: {e}")
     # --- FIN MODIFICATION ---
 
@@ -1324,7 +1350,8 @@ class RapportDepensePage(QWidget):
         """Prépare les arguments et appelle _open_media_viewer pour un clic venant du formulaire."""
         all_paths = list(self.current_facture_thumbnails.keys())
         if not all_paths:
-            print("WARN: _open_media_viewer_from_form appelé mais self.current_facture_thumbnails est vide.")
+            # print("WARN: _open_media_viewer_from_form appelé mais self.current_facture_thumbnails est vide.") # MODIFICATION
+            logger.warning("_open_media_viewer_from_form appelé mais self.current_facture_thumbnails est vide.") # MODIFICATION
             return
 
         try:
@@ -1332,11 +1359,13 @@ class RapportDepensePage(QWidget):
             # Appeler la méthode principale avec la liste complète et l'index trouvé
             self._open_media_viewer(all_files=all_paths, initial_index=clicked_index)
         except ValueError:
-            print(f"ERROR: Chemin cliqué '{clicked_file_path}' non trouvé dans self.current_facture_thumbnails.keys().")
+            # print(f"ERROR: Chemin cliqué '{clicked_file_path}' non trouvé dans self.current_facture_thumbnails.keys().") # MODIFICATION
+            logger.error(f"Chemin cliqué '{clicked_file_path}' non trouvé dans self.current_facture_thumbnails.keys().") # MODIFICATION
             QMessageBox.critical(self, "Erreur Interne", f"Le fichier cliqué ({os.path.basename(clicked_file_path)}) ne correspond à aucune miniature actuellement affichée.")
         except Exception as e:
-            print(f"Erreur inattendue dans _open_media_viewer_from_form: {e}")
-            traceback.print_exc()
+            # print(f"Erreur inattendue dans _open_media_viewer_from_form: {e}") # MODIFICATION
+            # traceback.print_exc() # MODIFICATION
+            logger.exception(f"Erreur inattendue dans _open_media_viewer_from_form:") # MODIFICATION
             QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur interne est survenue avant d'ouvrir le visualiseur: {e}")
     # ------------------------------------------------------
 
@@ -1369,13 +1398,15 @@ class RapportDepensePage(QWidget):
         secondary_sort_option = self.sort_secondary_combo.currentText()
         filter_option = self.filter_type_combo.currentText()
 
-        print(f"Applying sort/filter: Primary='{primary_sort_option}', Secondary='{secondary_sort_option}', Filter='{filter_option}'")
+        # print(f"Applying sort/filter: Primary='{primary_sort_option}', Secondary='{secondary_sort_option}', Filter='{filter_option}'") # MODIFICATION
+        logger.debug(f"Applying sort/filter: Primary='{primary_sort_option}', Secondary='{secondary_sort_option}', Filter='{filter_option}'") # MODIFICATION
 
         # 2. Récupérer toutes les entrées
         try:
             all_entries = self.document.deplacements + self.document.repas + self.document.depenses_diverses
         except Exception as e:
-            print(f"Erreur récupération entrées: {e}")
+            # print(f"Erreur récupération entrées: {e}") # MODIFICATION
+            logger.error(f"Erreur récupération entrées: {e}") # MODIFICATION
             all_entries = []
 
         # 3. Filtrer les entrées
@@ -1392,7 +1423,8 @@ class RapportDepensePage(QWidget):
                 if entry_type_str == filter_option:
                     filtered_entries.append(entry)
         
-        print(f"  {len(filtered_entries)} entries after filtering.")
+        # print(f"  {len(filtered_entries)} entries after filtering.") # MODIFICATION
+        logger.debug(f"  {len(filtered_entries)} entries after filtering.") # MODIFICATION
 
         # --- 4. Logique de Tri avec functools.cmp_to_key --- 
         
@@ -1467,10 +1499,12 @@ class RapportDepensePage(QWidget):
         # Trier en utilisant la fonction de comparaison
         try:
             sorted_entries = sorted(filtered_entries, key=functools.cmp_to_key(compare_entries))
-            print(f"  Sorted {len(sorted_entries)} entries using cmp_to_key.")
+            # print(f"  Sorted {len(sorted_entries)} entries using cmp_to_key.") # MODIFICATION
+            logger.debug(f"  Sorted {len(sorted_entries)} entries using cmp_to_key.") # MODIFICATION
         except Exception as e:
-            print(f"Erreur de tri (cmp_to_key): {e}")
-            traceback.print_exc()
+            # print(f"Erreur de tri (cmp_to_key): {e}") # MODIFICATION
+            # traceback.print_exc() # MODIFICATION
+            logger.exception(f"Erreur de tri (cmp_to_key):") # MODIFICATION
             sorted_entries = filtered_entries # Fallback
         # --------------------------------------------------
 
@@ -1542,7 +1576,8 @@ class RapportDepensePage(QWidget):
 
         # Ajouter le stretch final
         self.entries_list_layout.addStretch(1)
-        print("  List repopulated.")
+        # print("  List repopulated.") # MODIFICATION
+        logger.debug("  List repopulated.") # MODIFICATION
 
     def _handle_delete_entry(self, entry_to_delete):
         """Supprime une entrée (déplacement, repas, dépense) du document et rafraîchit l'interface."""
@@ -1553,17 +1588,21 @@ class RapportDepensePage(QWidget):
             if entry_type is Deplacement and entry_to_delete in self.document.deplacements:
                 self.document.deplacements.remove(entry_to_delete)
                 removed = True
-                print(f"Déplacement supprimé: {entry_to_delete}") # Log de débogage
+                # print(f"Déplacement supprimé: {entry_to_delete}") # Log de débogage # MODIFICATION
+                logger.info(f"Déplacement supprimé: {entry_to_delete}") # MODIFICATION
             elif entry_type is Repas and entry_to_delete in self.document.repas:
                 self.document.repas.remove(entry_to_delete)
                 removed = True
-                print(f"Repas supprimé: {entry_to_delete}") # Log de débogage
+                # print(f"Repas supprimé: {entry_to_delete}") # Log de débogage # MODIFICATION
+                logger.info(f"Repas supprimé: {entry_to_delete}") # MODIFICATION
             elif entry_type is Depense and entry_to_delete in self.document.depenses:
                 self.document.depenses.remove(entry_to_delete)
                 removed = True
-                print(f"Dépense supprimée: {entry_to_delete}") # Log de débogage
+                # print(f"Dépense supprimée: {entry_to_delete}") # Log de débogage # MODIFICATION
+                logger.info(f"Dépense supprimée: {entry_to_delete}") # MODIFICATION
             else:
-                print(f"WARN: Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}")
+                # print(f"WARN: Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}") # MODIFICATION
+                logger.warning(f"Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}") # MODIFICATION
 
             if removed:
                 # Mettre à jour les totaux affichés
@@ -1576,8 +1615,9 @@ class RapportDepensePage(QWidget):
                 QMessageBox.warning(self, "Erreur", "L'entrée à supprimer n'a pas été trouvée dans le document.")
 
         except Exception as e:
-            print(f"Erreur lors de la suppression de l'entrée: {e}")
-            traceback.print_exc()
+            # print(f"Erreur lors de la suppression de l'entrée: {e}") # MODIFICATION
+            # traceback.print_exc() # MODIFICATION
+            logger.exception(f"Erreur lors de la suppression de l'entrée:") # MODIFICATION
             QMessageBox.critical(self, "Erreur Critique", f"Une erreur est survenue lors de la suppression de l'entrée:\\n{e}")
 
     def _handle_duplicate_entry(self, entry_to_duplicate):
@@ -1585,8 +1625,10 @@ class RapportDepensePage(QWidget):
         try:
             # Utiliser deepcopy pour une copie totalement indépendante
             new_entry = copy.deepcopy(entry_to_duplicate)
-            print(f"Duplication de: {entry_to_duplicate}")
-            print(f"  Copie créée: {new_entry}")
+            # print(f"Duplication de: {entry_to_duplicate}") # MODIFICATION
+            logger.debug(f"Duplication de: {entry_to_duplicate}") # MODIFICATION
+            # print(f"  Copie créée: {new_entry}") # MODIFICATION
+            logger.debug(f"  Copie créée: {new_entry}") # MODIFICATION
 
             # Optionnel: Ajuster des attributs de la copie si nécessaire
             # Par exemple, réinitialiser un ID ou mettre la date à aujourd'hui
@@ -1611,11 +1653,13 @@ class RapportDepensePage(QWidget):
                 self.document.ajouter_depense(new_entry)
                 added = True
             else:
-                print(f"WARN: Type d'entrée inconnu lors de la duplication: {entry_type}")
+                # print(f"WARN: Type d'entrée inconnu lors de la duplication: {entry_type}") # MODIFICATION
+                logger.warning(f"Type d'entrée inconnu lors de la duplication: {entry_type}") # MODIFICATION
                 QMessageBox.warning(self, "Type Inconnu", f"Impossible de dupliquer l'entrée de type {entry_type}.")
 
             if added:
-                print(f"Entrée dupliquée ajoutée au document: {new_entry}")
+                # print(f"Entrée dupliquée ajoutée au document: {new_entry}") # MODIFICATION
+                logger.info(f"Entrée dupliquée ajoutée au document: {new_entry}") # MODIFICATION
                 # Mettre à jour l'affichage
                 self._update_totals_display()
                 self._apply_sorting_and_filtering()
@@ -1623,8 +1667,9 @@ class RapportDepensePage(QWidget):
                 # Optionnel: Sélectionner/scroller vers la nouvelle carte?
 
         except Exception as e:
-            print(f"Erreur lors de la duplication de l'entrée: {e}")
-            traceback.print_exc()
+            # print(f"Erreur lors de la duplication de l'entrée: {e}") # MODIFICATION
+            # traceback.print_exc() # MODIFICATION
+            logger.exception(f"Erreur lors de la duplication de l'entrée:") # MODIFICATION
             QMessageBox.critical(self, "Erreur Critique", f"Une erreur est survenue lors de la duplication de l'entrée:\\n{e}")
 
     # --- Méthodes pour le Mode Édition ---
@@ -1641,7 +1686,8 @@ class RapportDepensePage(QWidget):
             else:
                 self._cancel_edit() # Annuler l'édition précédente
 
-        print(f"Entrée en mode édition pour: {entry_to_edit}")
+        # print(f"Entrée en mode édition pour: {entry_to_edit}") # MODIFICATION
+        logger.debug(f"Entrée en mode édition pour: {entry_to_edit}") # MODIFICATION
         self.editing_entry = entry_to_edit
 
         # 1. Changer le type dans le ComboBox
@@ -1664,20 +1710,23 @@ class RapportDepensePage(QWidget):
             # Activer l'UI du mode édition
             self._enter_edit_mode_ui()
         else:
-            print(f"ERROR: Type d'entrée inconnu pour l'édition: {type(entry_to_edit)}")
+            # print(f"ERROR: Type d'entrée inconnu pour l'édition: {type(entry_to_edit)}") # MODIFICATION
+            logger.error(f"Type d'entrée inconnu pour l'édition: {type(entry_to_edit)}") # MODIFICATION
             self.editing_entry = None # Annuler l'entrée en mode édition
             QMessageBox.warning(self, "Erreur", "Type d'entrée non reconnu.")
 
     def _populate_form_with_entry(self, entry):
         """Remplit les champs du formulaire actuel avec les données de l'entrée."""
-        print(f"Peuplement du formulaire avec: {entry}")
+        # print(f"Peuplement du formulaire avec: {entry}") # MODIFICATION
+        logger.debug(f"Peuplement du formulaire avec: {entry}") # MODIFICATION
         try:
             # --- Champs Communs --- 
             entry_date = getattr(entry, 'date_repas', getattr(entry, 'date_deplacement', getattr(entry, 'date_depense', getattr(entry, 'date', None))))
             if entry_date and 'date' in self.form_fields:
                 self.form_fields['date'].setDate(QDate(entry_date))
             else:
-                print("WARN: Date non trouvée ou champ date inexistant dans le formulaire")
+                # print("WARN: Date non trouvée ou champ date inexistant dans le formulaire") # MODIFICATION
+                logger.warning(f"Date non trouvée ({entry_date}) ou champ 'date' inexistant dans le formulaire pour l'entrée {entry}") # MODIFICATION
 
             # --- Champs Spécifiques --- 
             if isinstance(entry, Deplacement):
@@ -1772,8 +1821,9 @@ class RapportDepensePage(QWidget):
                 self._update_montant_display(self.form_fields['total_apres_taxes_dep'].text())
 
         except Exception as e:
-            print(f"Erreur lors du peuplement du formulaire: {e}")
-            traceback.print_exc()
+            # print(f"Erreur lors du peuplement du formulaire: {e}") # MODIFICATION
+            # traceback.print_exc() # MODIFICATION
+            logger.exception(f"Erreur lors du peuplement du formulaire:") # MODIFICATION
             QMessageBox.critical(self, "Erreur", f"Impossible de charger les données de l'entrée dans le formulaire.\\n{e}")
             self._cancel_edit() # Quitter le mode édition en cas d'erreur grave
 
@@ -1802,7 +1852,8 @@ class RapportDepensePage(QWidget):
                 # Insérer Annuler entre Effacer et Appliquer/Ajouter
                 buttons_layout.insertWidget(2, self.cancel_button) # Index 2 si stretch, effacer, [ici], ajouter, stretch
             else:
-                 print("ERROR: Impossible de trouver le layout des boutons pour insérer Annuler.")
+                 # print("ERROR: Impossible de trouver le layout des boutons pour insérer Annuler.") # MODIFICATION
+                 logger.error("Impossible de trouver le layout des boutons pour insérer Annuler.") # MODIFICATION
                  self.cancel_button = None # Ne pas le garder s'il n'a pas pu être ajouté
                  return # Sortir si on ne peut pas ajouter Annuler
 
@@ -1894,11 +1945,13 @@ class RapportDepensePage(QWidget):
     def _apply_edit(self):
         """Sauvegarde les modifications de l'entrée en cours et quitte le mode édition."""
         if not self.editing_entry:
-            print("ERROR: _apply_edit appelé sans entrée en cours d'édition.")
+            # print("ERROR: _apply_edit appelé sans entrée en cours d'édition.") # MODIFICATION
+            logger.error("_apply_edit appelé sans entrée en cours d'édition.") # MODIFICATION
             self._exit_edit_mode_ui() # Quitter proprement quand même
             return
         
-        print(f"Application des modifications pour: {self.editing_entry}")
+        # print(f"Application des modifications pour: {self.editing_entry}") # MODIFICATION
+        logger.debug(f"Application des modifications pour: {self.editing_entry}") # MODIFICATION
         original_entry = self.editing_entry # Garder référence pour la fin
 
         try:
@@ -1968,7 +2021,8 @@ class RapportDepensePage(QWidget):
                         try:
                             self.editing_entry.facture = Facture(folder_path=folder_path, filenames=filenames)
                         except Exception as fact_err:
-                            print(f"ERROR: Impossible de créer/màj l'objet Facture pendant l'édition: {fact_err}")
+                            # print(f"ERROR: Impossible de créer/màj l'objet Facture pendant l'édition: {fact_err}") # MODIFICATION
+                            logger.error(f"Impossible de créer/màj l'objet Facture pendant l'édition: {fact_err}") # MODIFICATION
                             self.editing_entry.facture = None # Laisser à None en cas d'erreur
             
             elif current_entry_type is Depense:
@@ -1992,7 +2046,8 @@ class RapportDepensePage(QWidget):
             # ...
 
             # Rafraîchir l'affichage et émettre signal
-            print(f"Modifications appliquées à: {self.editing_entry}")
+            # print(f"Modifications appliquées à: {self.editing_entry}") # MODIFICATION
+            logger.info(f"Modifications appliquées à: {self.editing_entry}") # MODIFICATION
             self._update_totals_display()
             self._apply_sorting_and_filtering() # Rafraîchit la liste des cartes
             signals.document_modified.emit()
@@ -2005,19 +2060,20 @@ class RapportDepensePage(QWidget):
              # Ne pas quitter le mode édition pour que l'utilisateur puisse corriger?
         except Exception as e:
              QMessageBox.critical(self, "Erreur Application", f"Impossible d'appliquer les modifications: {e}")
-             traceback.print_exc()
+             # traceback.print_exc() # MODIFICATION
+             logger.exception(f"Impossible d'appliquer les modifications à l'entrée {original_entry}:") # MODIFICATION
              # Ne pas quitter le mode édition ici non plus?
 
     def _cancel_edit(self):
         """Annule l'édition en cours et quitte le mode édition."""
-        print("Annulation de l'édition.")
+        logger.debug("Annulation de l'édition.") # MODIFICATION
         self._exit_edit_mode_ui()
 
     # --- Fin Méthodes Mode Édition ---
 
     # --- Mock Class pour tests (si nécessaire) ---
     class MockRapportDepense:
-        pass # Ajout pour corriger l'IndentationError
+        pass # Ajout pour corriger l'IndentationError # MODIFICATION
 
     def _validate_form_data(self, entry_type):
         """Valide les données du formulaire pour un type d'entrée donné."""
@@ -2066,7 +2122,7 @@ class RapportDepensePage(QWidget):
                  return False
         
         else:
-            print(f"WARN: Validation demandée pour type inconnu: {entry_type}")
+            logger.warning(f"Validation demandée pour type inconnu: {entry_type}")
             # Peut-être retourner False par sécurité?
             # QMessageBox.warning(self, "Erreur interne", "Type d'entrée inconnu pour validation.")
             # return False 
@@ -2081,6 +2137,12 @@ class RapportDepensePage(QWidget):
 # Bloc de test simple
 if __name__ == '__main__':
     import sys
+    # Configuration de base du logger pour les tests, ne devrait pas interférer
+    # avec le logger principal configuré dans main.py
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    test_logger = logging.getLogger(__name__)
+    test_logger.info("Lancement du test de RapportDepensePage...")
+    
     from PyQt5.QtWidgets import QApplication
     
     # Simuler un objet document
@@ -2091,8 +2153,8 @@ if __name__ == '__main__':
             self.montant_total = 123.45
             
     app = QApplication(sys.argv)
-    doc = MockRapportDepense()
-    page = RapportDepensePage(document=doc)
+    mock_doc = MockRapportDepense() # Renommer pour éviter conflit avec import potentiel
+    page = RapportDepensePage(document=mock_doc)
     page.setWindowTitle("Test RapportDepensePage (Simplifié)")
     page.resize(400, 300)
     page.show()

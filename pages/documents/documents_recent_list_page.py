@@ -3,6 +3,7 @@
 
 import sys
 import os
+import logging
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget,
     QFrame, QSpacerItem, QSizePolicy, QLineEdit, QScrollArea, QListWidgetItem,
@@ -16,10 +17,12 @@ from ui.components.frame import Frame
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
-from utils import icon_loader
+from utils import icon_loader, theme
 # --- AJOUT IMPORT --- 
 from utils.signals import signals 
 # -------------------
+
+logger = logging.getLogger('GDJ_App')
 
 # --- Classe HoverButton (peut être supprimée si non utilisée) --- 
 class HoverButton(QPushButton):
@@ -163,7 +166,7 @@ class ProjectListItemWidget(QWidget):
                 self.parent_list_widget.setCurrentItem(None)
     def _handle_open(self): self.open_requested.emit(self.path_str)
     def _handle_browse(self): dir_path = os.path.dirname(self.path_str); QDesktopServices.openUrl(QUrl.fromLocalFile(dir_path)); self.browse_requested.emit(dir_path)
-    def _handle_copy(self): QApplication.clipboard().setText(self.path_str); print(f"Action: Copié {self.path_str}")
+    def _handle_copy(self): QApplication.clipboard().setText(self.path_str); logger.info(f"Action: Copié {self.path_str}")
     def _handle_remove(self): self.remove_requested.emit(self.path_str)
     @Slot(str)
     def update_theme_icons(self, theme_name):
@@ -176,7 +179,7 @@ class ProjectListItemWidget(QWidget):
                 self.options_button.setIcon(QIcon())
                 self.options_button.setText("...")
         except Exception as e:
-            print(f"ERROR: Updating icon for ProjectListItemWidget '{self.name}': {e}")
+            logger.error(f"ERROR: Updating icon for ProjectListItemWidget '{self.name}': {e}")
             self.options_button.setIcon(QIcon())
             self.options_button.setText("...")
         
@@ -187,7 +190,7 @@ class ProjectListItemWidget(QWidget):
             self.name_label.setStyleSheet(f"QLabel#ProjectListName {{ color: {primary_color}; background-color: transparent; }}")
             self.path_label.setStyleSheet(f"QLabel#ProjectListPath {{ color: {secondary_color}; background-color: transparent; }}")
         except Exception as e:
-            print(f"ERROR: Updating label colors in ProjectListItemWidget '{self.name}': {e}")
+            logger.error(f"ERROR: Updating label colors in ProjectListItemWidget '{self.name}': {e}")
 
 # --- Classe DocumentsRecentListPage --- 
 class DocumentsRecentListPage(QWidget):
@@ -202,6 +205,8 @@ class DocumentsRecentListPage(QWidget):
         super().__init__(parent)
         self.setObjectName("DocumentsRecentListPageWidget")
         self._setup_ui()
+        self._load_project_data()
+        logger.info("DocumentsRecentListPage initialized")
 
     def _setup_ui(self):
         list_page_layout = QVBoxLayout(self)

@@ -14,6 +14,7 @@ from PyQt5.QtGui import QIcon, QPixmap, QFont, QColor, QPalette
 from utils.theme import get_theme_vars
 from utils.icon_loader import get_icon_path
 from datetime import datetime, date
+import logging # AJOUT
 
 # --- Importer les templates --- 
 # (Il faudra les importer dynamiquement ou tous les importer ici)
@@ -24,6 +25,8 @@ from pages.templates.rapport_depense_page import RapportDepensePage
 # --- CORRECTION IMPORT --- 
 from models.documents.rapport_depense.rapport_depense import RapportDepense
 # -------------------------
+
+logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
 
 class DocumentsOpenPage(QWidget):
     # --- Modifier le constructeur --- 
@@ -132,7 +135,7 @@ class DocumentsOpenPage(QWidget):
             content_widget.setPalette(palette)
             content_widget.setAutoFillBackground(True) # Nécessaire avec setPalette
         except Exception as e:
-            print(f"WARN: Erreur application palette à DocumentContentArea: {e}")
+            logger.warning(f"WARN: Erreur application palette à DocumentContentArea: {e}")
         
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(0, 0, 0, 0)

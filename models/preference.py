@@ -11,7 +11,8 @@ import logging # AJOUT
 from utils.paths import get_resource_path
 
 # --- AJOUT Logger --- 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__) # <- Commenté
+logger = logging.getLogger('GDJ_App') # <- Utiliser le logger configuré
 # ------------------
 
 class Profile:
