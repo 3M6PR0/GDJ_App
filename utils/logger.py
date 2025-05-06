@@ -3,6 +3,7 @@ import sys # Ajout pour stdout
 import os  # Ajout pour getenv
 from pathlib import Path # Ajout pour gestion chemin
 import textwrap # Ajout pour le découpage des messages longs
+from logging.handlers import RotatingFileHandler # AJOUT POUR ROTATION
 
 # --- Configuration (Déplacé en haut pour clarté) ---
 APP_LOGGER_NAME = 'GDJ_App' # Nom unique pour notre logger applicatif
@@ -102,7 +103,13 @@ def setup_logger(level=logging.DEBUG):
 
     # --- Handler pour le Fichier --- (Nouveau)
     try:
-        file_handler = logging.FileHandler(LOG_FILE_PATH, encoding='utf-8')
+        # NOUVEAU: Utilisation de RotatingFileHandler
+        file_handler = RotatingFileHandler(
+            LOG_FILE_PATH, 
+            maxBytes=5*1024*1024,  # 5 MB par fichier
+            backupCount=0,         # Conserver 0 fichiers de sauvegarde, app.log est vidé à la rotation
+            encoding='utf-8'
+        )
         file_handler.setFormatter(formatter)
         # On pourrait définir un niveau différent si besoin:
         # file_handler.setLevel(logging.DEBUG)
