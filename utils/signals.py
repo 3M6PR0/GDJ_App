@@ -1,4 +1,8 @@
 from PyQt5.QtCore import pyqtSignal, QObject
+import logging
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 # Créer une classe QObject simple pour héberger le signal
 # car les signaux doivent appartenir à une instance QObject.
@@ -11,4 +15,4 @@ class ThemeSignalEmitter(QObject):
 # Créer une instance globale unique de l'émetteur
 signals = ThemeSignalEmitter()
 
-print("utils/signals.py defined.") 
+logger.info("utils/signals.py defined.") 

@@ -1,9 +1,13 @@
 import os
 import configparser
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget
+import logging # Ajout pour le logger
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 def get_version_from_file():
     # --- Utiliser get_resource_path --- 
@@ -14,7 +18,7 @@ def get_version_from_file():
         config.read(version_file, encoding='utf-8') # Ajouter encoding pour être sûr
         ver = config.get("Version", "value")
     except Exception as e:
-        print(f"Erreur lors de la lecture du fichier version ({version_file}) :", e)
+        logger.error(f"Erreur lors de la lecture du fichier version ({version_file}) : {e}")
         ver = "0.0.0"
     # Si la version ne commence pas par "v", on l'ajoute.
     if not ver.startswith("v"):

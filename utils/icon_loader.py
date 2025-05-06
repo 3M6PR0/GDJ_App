@@ -3,7 +3,7 @@ import logging
 import os
 from utils.paths import get_resource_path
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 
 # Variable globale du module pour stocker le nom du thème actif
 _active_theme = "Sombre"  # Thème par défaut au démarrage
@@ -69,4 +69,4 @@ def get_icon_path(icon_base_name: str) -> str:
              logger.error(f"Base icon '{icon_base_name}' also NOT found. Path tried: {absolute_base_path}")
              return "" # Retourner vide si aucune icône n'est trouvée
 
-print("utils/icon_loader.py defined with theme fallback.") 
+logger.info("utils/icon_loader.py defined with theme fallback.") 

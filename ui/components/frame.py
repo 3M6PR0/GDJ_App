@@ -7,7 +7,8 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot as Slot
 from utils import icon_loader
 from utils.signals import signals
 
-logger = logging.getLogger(__name__)
+# Initialisation du logger applicatif
+logger = logging.getLogger('GDJ_App')
 
 class Frame(QFrame):
     def __init__(self, title=None, icon_base_name=None, header_widget: QWidget = None, parent=None):
@@ -106,4 +107,4 @@ class Frame(QFrame):
         # ... (code commenté inchangé)
     # ------------------------------------------------------
 
-print("ui/components/frame.py defined with theme update logic.") 
+logger.info("ui/components/frame.py defined with theme update logic.") 

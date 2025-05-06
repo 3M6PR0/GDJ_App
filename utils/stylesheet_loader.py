@@ -5,6 +5,10 @@ from . import theme
 from .theme import get_theme_vars
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
+import logging
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 def load_stylesheet(relative_qss_files, theme_name='Sombre'):
     """
@@ -34,23 +38,23 @@ def load_stylesheet(relative_qss_files, theme_name='Sombre'):
     # Lire et combiner les fichiers
     for relative_filepath in relative_qss_files:
         absolute_filepath = get_resource_path(relative_filepath)
-        print(f"DEBUG: Chargement QSS depuis: {absolute_filepath} pour thème '{theme_name}'")
+        logger.debug(f"DEBUG: Chargement QSS depuis: {absolute_filepath} pour thème '{theme_name}'")
         try:
             with open(absolute_filepath, 'r', encoding='utf-8') as f:
                 combined_qss += f.read() + "\n"
         except FileNotFoundError:
-            print(f"Avertissement: Fichier QSS non trouvé: {absolute_filepath}")
+            logger.warning(f"Avertissement: Fichier QSS non trouvé: {absolute_filepath}")
         except Exception as e:
-            print(f"Erreur lors de la lecture du fichier QSS {absolute_filepath}: {e}")
+            logger.error(f"Erreur lors de la lecture du fichier QSS {absolute_filepath}: {e}")
             
     # Remplacer les placeholders {{NOM_VARIABLE}}
     def replace_placeholder(match):
         var_name = match.group(1)
         # Utiliser le dictionnaire fusionné
-        return all_theme_vars.get(var_name, f'{{{{UNDEFINED: {var_name}}}}})') # Note: Correction quote manquante
+        return all_theme_vars.get(var_name, f'{{{{UNDEFINED: {var_name}}}}}}}') # Correction: Retrait de la parenthèse )
 
     formatted_qss = re.sub(r'\{\{(\w+)\}\}', replace_placeholder, combined_qss)
     
     return formatted_qss
 
-print("utils/stylesheet_loader.py défini avec gestion de theme_name") 
+logger.info("utils/stylesheet_loader.py défini avec gestion de theme_name") 

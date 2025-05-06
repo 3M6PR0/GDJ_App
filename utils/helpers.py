@@ -1,4 +1,8 @@
 from PyQt5.QtWidgets import QLayout
+import logging
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 def _get_nested_attr(obj, attr_path, default=None):
     """Accède à un attribut imbriqué en utilisant une chaîne de caractères (ex: 'profile.nom').""" 
@@ -27,4 +31,4 @@ def clear_layout(layout: QLayout):
             elif item.layout() is not None:
                 clear_layout(item.layout())
 
-print("utils/helpers.py defined.") 
+logger.info("utils/helpers.py defined.") 

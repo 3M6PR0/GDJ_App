@@ -1,6 +1,10 @@
 import sys
 import os
 import shutil
+import logging # Ajout pour le logger
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 # --- Ajout pour résoudre les imports lors de l'exécution directe --- 
 # Calculer le chemin racine du projet (un niveau au-dessus de windows/)
@@ -77,7 +81,7 @@ class MediaViewer(QWidget):
             if 0 <= initial_index < len(self.file_list):
                 self.current_file_index = initial_index
             elif self.file_list: # Si liste non vide mais index invalide, prendre 0
-                print(f"WARN: Index initial {initial_index} invalide pour l'objet Facture, utilisation de l'index 0.")
+                logger.warning(f"WARN: Index initial {initial_index} invalide pour l'objet Facture, utilisation de l'index 0.")
                 self.current_file_index = 0
             # Si la liste est vide, file_list reste [] et current_index 0
         elif isinstance(media_source, list):
@@ -85,7 +89,7 @@ class MediaViewer(QWidget):
             if 0 <= initial_index < len(self.file_list):
                 self.current_file_index = initial_index
             elif self.file_list:
-                print(f"WARN: Index initial {initial_index} invalide pour la liste fournie, utilisation de l'index 0.")
+                logger.warning(f"WARN: Index initial {initial_index} invalide pour la liste fournie, utilisation de l'index 0.")
                 self.current_file_index = 0
         else:
             raise TypeError("media_source doit être un str (chemin), un objet Facture, ou une List[str].")
@@ -691,22 +695,16 @@ class MediaViewer(QWidget):
                         final_scroll_y = max(0, min(int(target_scroll_y), max_scroll_v))
                         scrollbar_v.setValue(final_scroll_y)
                     except Exception as e_inner:
-                        print(f"ERREUR dans adjust_scrollbars (image): {e_inner}")
-                        import traceback
-                        traceback.print_exc()
+                        logger.error(f"ERREUR dans adjust_scrollbars (image): {e_inner}", exc_info=True)
                     # ---------------------------------------------------
                 
                 QTimer.singleShot(10, adjust_scrollbars)
             except Exception as e_timer:
-                print(f"ERREUR lors de la configuration du timer adjust_scrollbars (image): {e_timer}")
-                import traceback
-                traceback.print_exc()
+                logger.error(f"ERREUR lors de la configuration du timer adjust_scrollbars (image): {e_timer}", exc_info=True)
             # -------------------------------------
                 
         except Exception as e_main:
-            print(f"ERREUR principale dans _apply_image_zoom: {e_main}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"ERREUR principale dans _apply_image_zoom: {e_main}", exc_info=True)
             QMessageBox.critical(self, "Erreur Interne Zoom Image", f"Une erreur interne est survenue dans _apply_image_zoom:\n{e_main}")
         # --- Fin du bloc Try/Except principal --- 
         # ------------------------------------------
@@ -769,7 +767,7 @@ class MediaViewer(QWidget):
              self.zoom_input.clearFocus()
              # -----------------------------------------
              
-             print(f"_go_to_entered_zoom: Valeur lue = {zoom_text}") # Log de test
+             logger.debug(f"_go_to_entered_zoom: Valeur lue = {zoom_text}")
 
              zoom_percent = int(zoom_text)
              new_zoom = zoom_percent / 100.0
@@ -804,9 +802,7 @@ class MediaViewer(QWidget):
              self._update_zoom_input() # Remettre l'ancienne valeur
          except Exception as e:
              # Restaurer le contenu du bloc except
-             print(f"ERREUR inattendue dans _go_to_entered_zoom: {e}")
-             import traceback
-             traceback.print_exc()
+             logger.error(f"ERREUR inattendue dans _go_to_entered_zoom: {e}", exc_info=True)
              QMessageBox.critical(self, "Erreur Interne", f"Une erreur inattendue est survenue:\n{e}")
              self._update_zoom_input()
     # -------------------------------------------
@@ -996,7 +992,7 @@ class MediaViewer(QWidget):
                      self._apply_image_zoom(new_zoom)
                      
         except Exception as e:
-             print(f"Erreur dans _fit_to_width: {e}")
+             logger.error(f"Erreur dans _fit_to_width: {e}", exc_info=True)
              # Ne pas planter, juste ne pas appliquer le zoom
     # ------------------------------------------
 
@@ -1044,7 +1040,7 @@ class MediaViewer(QWidget):
                     self._apply_image_zoom(new_zoom)
                     
         except Exception as e:
-            print(f"Erreur dans _fit_to_height: {e}")
+            logger.error(f"Erreur dans _fit_to_height: {e}", exc_info=True)
     # --------------------------------------------
 
     # --- NOUVEAU Slot pour ajuster à la page (Best Fit) --- 
@@ -1136,7 +1132,7 @@ class MediaViewer(QWidget):
                     self._apply_image_zoom(new_zoom, anchor_scroll=False)
 
         except Exception as e:
-            print(f"Erreur dans _fit_to_page: {e}")
+            logger.error(f"Erreur dans _fit_to_page: {e}", exc_info=True)
     # ---------------------------------------------------
 
     # --- NOUVEAU Helper pour mettre à jour l'état de navigation --- 

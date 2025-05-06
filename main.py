@@ -75,11 +75,11 @@ try:
             icon_path = icon_loader.get_icon_path("logo-gdj.ico") 
             if icon_path and os.path.exists(icon_path):
                 app.setWindowIcon(QIcon(icon_path))
-                logging.info(f"Application icon set from: {icon_path}")
+                logger.info(f"Application icon set from: {icon_path}")
             else:
-                logging.warning(f"Application icon (logo-gdj.ico) not found at calculated path: {icon_path}")
+                logger.warning(f"Application icon (logo-gdj.ico) not found at calculated path: {icon_path}")
         except Exception as e_icon:
-            logging.error(f"Error setting application icon: {e_icon}", exc_info=True)
+            logger.error(f"Error setting application icon: {e_icon}", exc_info=True)
         # --------------------------
         
         # --- Chargement QSS (utilise initial_theme, déjà correct) ---
@@ -114,7 +114,8 @@ try:
         logging.warning("Script executed when __name__ != '__main__'")
 
 except Exception as main_e:
-    logging.exception("CRITICAL ERROR during script initialization or main execution:")
-    print(f"CRITICAL ERROR: {main_e}")
-    traceback.print_exc()
+    logger.exception("CRITICAL ERROR during script initialization or main execution:")
+    # Les print suivants sont redondants car logger.exception inclut déjà la trace.
+    # print(f"CRITICAL ERROR: {main_e}") 
+    # traceback.print_exc()
     sys.exit(1)

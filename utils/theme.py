@@ -1,4 +1,8 @@
 # utils/theme.py
+import logging # Ajout pour le logger
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 """Configuration centralisée des thèmes de l'application."""
 
@@ -83,4 +87,4 @@ def get_theme_vars(theme_name='Sombre'):
     else: # Défaut sur sombre (pour "Sombre" ou toute autre valeur)
         return DARK_THEME.copy() 
 
-print(f"utils/theme.py défini avec thèmes DARK et LIGHT.") 
+logger.info(f"utils/theme.py défini avec thèmes DARK et LIGHT.") 

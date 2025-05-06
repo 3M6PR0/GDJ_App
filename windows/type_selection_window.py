@@ -15,7 +15,7 @@ from utils.paths import get_resource_path
 # Importer le contrôleur de préférences (nécessaire pour le contrôleur de sélection)
 from controllers.preferences.preferences_controller import PreferencesController
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 
 class TypeSelectionWindow(QWidget):
     """Fenêtre dédiée à l'affichage de la page de sélection du type de document."""
@@ -93,12 +93,12 @@ class TypeSelectionWindow(QWidget):
             # ----------------------------------------------------------------------
             
             # --- AJOUT LOG: Vérifier les données extraites AVANT passage --- 
-            print("-"*20 + " DEBUG TypeSelectionWindow - Données extraites " + "-"*20)
-            print(f"  default_values: {default_values}")
-            print(f"  jacmar_options: {jacmar_options}")
-            print(f"  document_types: {self.document_types}")
-            print(f"  document_fields_map: {self.document_fields_map}")
-            print("-"*60)
+            logger.debug("-"*20 + " DEBUG TypeSelectionWindow - Données extraites " + "-"*20)
+            logger.debug(f"  default_values: {default_values}")
+            logger.debug(f"  jacmar_options: {jacmar_options}")
+            logger.debug(f"  document_types: {self.document_types}")
+            logger.debug(f"  document_fields_map: {self.document_fields_map}")
+            logger.debug("-"*60)
             # -------------------------------------------------------------
             
             # --- MODIFICATION: Passer les données préparées au contrôleur --- 
@@ -193,7 +193,7 @@ if __name__ == '__main__':
         from utils import icon_loader, theme, signals # Assurez-vous que ces modules peuvent être importés
         theme.set_current_theme('Sombre') # Exemple pour icon_loader
     except ImportError as e:
-        print(f"Avertissement: Dépendances pour le test non trouvées ({e}), l'apparence peut être affectée.")
+        logger.warning(f"Avertissement: Dépendances pour le test non trouvées ({e}), l'apparence peut être affectée.")
 
     # Créer un contrôleur de préférences factice pour le test
     prefs_controller = PreferencesController() 

@@ -9,6 +9,10 @@ import configparser
 from packaging import version  # Pour comparer les versions
 from config import CONFIG
 from PyQt5.QtWidgets import QMessageBox
+import logging # Ajout pour le logger
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 # --- Import de la fonction utilitaire --- 
 from utils.paths import get_resource_path
@@ -30,14 +34,14 @@ def get_local_version():
     """Lit la version locale depuis le fichier version.txt."""
     # VERSION_FILE est maintenant le chemin absolu
     if not os.path.exists(VERSION_FILE):
-        print(f"DEBUG: {VERSION_FILE} non trouvé.") # Debug
+        logger.debug(f"DEBUG: {VERSION_FILE} non trouvé.") # Remplacement
         return "0.0.0"
     config = configparser.ConfigParser()
     try:
         config.read(VERSION_FILE, encoding="utf-8")
         return config.get("Version", "value").strip()
     except Exception as e:
-        print(f"Erreur lecture {VERSION_FILE}: {e}") # Debug
+        logger.error(f"Erreur lecture {VERSION_FILE}: {e}") # Remplacement
         return "0.0.0"
 
 
@@ -48,9 +52,9 @@ def get_remote_release_info():
         if response.status_code == 200:
             return response.json()
         else:
-            print("Erreur lors de la récupération des informations de release :", response.status_code)
+            logger.error(f"Erreur lors de la récupération des informations de release : {response.status_code}") # Remplacement
     except Exception as e:
-        print("Exception lors de la récupération de la release :", e)
+        logger.error(f"Exception lors de la récupération de la release : {e}") # Remplacement
     return None
 
 
@@ -59,7 +63,7 @@ def is_new_version_available(local_ver, remote_ver):
     try:
         return version.parse(remote_ver) > version.parse(local_ver)
     except Exception as e:
-        print("Erreur lors de la comparaison des versions :", e)
+        logger.error(f"Erreur lors de la comparaison des versions : {e}") # Remplacement
         return False
 
 
@@ -78,23 +82,23 @@ def prompt_update(remote_version):
 def launch_updater(installer_url):
     """Lance l'update helper en lui passant l'URL de l'installateur."""
     try:
-        print("Tentative de lancement de l'update helper...")
+        logger.info("Tentative de lancement de l'update helper...") # Remplacement
         # Utiliser la constante globale UPDATER_EXECUTABLE
-        print(f"Chemin updater: {UPDATER_EXECUTABLE}")
+        logger.info(f"Chemin updater: {UPDATER_EXECUTABLE}") # Remplacement
 
         if not os.path.exists(UPDATER_EXECUTABLE):
-            print(f"Erreur : {UPDATER_EXECUTABLE} non trouvé.")
+            logger.error(f"Erreur : {UPDATER_EXECUTABLE} non trouvé.") # Remplacement
             QMessageBox.critical(None, "Erreur de mise à jour",
                                  f"Le fichier nécessaire à la mise à jour est introuvable.\nChemin attendu : {UPDATER_EXECUTABLE}")
             return
 
-        print("Lancement de l'update helper avec l'URL :", installer_url)
+        logger.info(f"Lancement de l'update helper avec l'URL : {installer_url}") # Remplacement
         subprocess.Popen([UPDATER_EXECUTABLE, installer_url])
-        print("Update helper lancé, fermeture de l'application principale.")
+        logger.info("Update helper lancé, fermeture de l'application principale.") # Remplacement
         sys.exit(0)
 
     except Exception as e:
-        print("Erreur lors du lancement de l'updater :", e)
+        logger.error(f"Erreur lors du lancement de l'updater : {e}") # Remplacement
         QMessageBox.critical(None, "Erreur de mise à jour",
                              f"Une erreur est survenue lors du lancement de la mise à jour :\n{e}")
 
@@ -119,11 +123,11 @@ def check_for_updates(manual_check=False):
         if not release_info:
             status_message = "Erreur : Impossible de contacter GitHub."
             if manual_check:
-                print("Manual Check: " + status_message)
+                logger.info("Manual Check: " + status_message) # Remplacement
             return status_message, update_info # Sortir tôt
 
         remote_version = release_info.get("tag_name", "0.0.0")
-        print(f"Version locale : {local_version} | Version distante : {remote_version}")
+        logger.info(f"Version locale : {local_version} | Version distante : {remote_version}") # Remplacement
 
         is_new = is_new_version_available(local_version, remote_version)
 
@@ -145,7 +149,7 @@ def check_for_updates(manual_check=False):
             
             # --- Gestion spécifique vérification automatique --- 
             if not manual_check:
-                print("Automatic check found update, prompting user...")
+                logger.info("Automatic check found update, prompting user...") # Remplacement
                 if not installer_url:
                     # Si pas d'URL, on ne peut pas proposer la MàJ, même si version >
                     status_message = f"Mise à jour trouvée ({remote_version}) mais asset introuvable."
@@ -154,20 +158,20 @@ def check_for_updates(manual_check=False):
                     
                 # Proposer la MàJ seulement si URL existe
                 if prompt_update(remote_version):
-                    print("User accepted the update prompt.")
+                    logger.info("User accepted the update prompt.") # Remplacement
                     # NE PAS LANCER L'UPDATER ICI
                     # launch_updater(installer_url)
                     # RETOURNER UN STATUT SPÉCIFIQUE
                     return "USER_CONFIRMED_UPDATE", update_info
                 else:
-                    print("User declined the update prompt.")
+                    logger.info("User declined the update prompt.") # Remplacement
                     status_message = "Mise à jour refusée par l'utilisateur."
                     update_info["available"] = False # Refusée = non dispo pour l'instant
                     # Retourner ce statut
                     return "UPDATE_DECLINED", update_info
             else:
                  # Mode manuel: On a déjà l'URL dans update_info. Le statut est juste "Trouvée"
-                 print("Manual check found update. Info stored.")
+                 logger.info("Manual check found update. Info stored.") # Remplacement
                  if not installer_url:
                       status_message = f"Mise à jour trouvée ({remote_version}) mais asset introuvable."
                       update_info["available"] = False
@@ -176,21 +180,21 @@ def check_for_updates(manual_check=False):
 
         else:
             status_message = "À jour"
-            print("Aucune mise à jour disponible.")
+            logger.info("Aucune mise à jour disponible.") # Remplacement
             if manual_check:
-                print("Manual Check: " + status_message)
+                logger.info("Manual Check: " + status_message) # Remplacement
                 # RETIRER: QMessageBox.information(None, "Mise à jour", "Votre application est à jour.")
 
     except Exception as e:
         error_text = str(e)
-        print(f"Erreur lors de la vérification des mises à jour: {error_text}")
+        logger.error(f"Erreur lors de la vérification des mises à jour: {error_text}") # Remplacement
         status_message = f"Erreur lors de la vérification : {error_text}"
         update_info["available"] = False
         if manual_check:
-            print("Manual Check: Échec de la vérification des mises à jour.")
+            logger.info("Manual Check: Échec de la vérification des mises à jour.") # Remplacement
             # RETIRER: QMessageBox.warning(None, "Mise à jour", f"Impossible de vérifier les mises à jour.\nErreur: {e}")
     
     # Retourner le message final et l'info
     return status_message, update_info
 
-print("updater/update_checker.py défini")
+logger.info("updater/update_checker.py défini") # Remplacement

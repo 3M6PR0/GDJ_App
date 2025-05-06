@@ -13,6 +13,10 @@ from PyQt5.QtGui import QPixmap, QImage # Pour _generate_thumbnail_pixmap
 # --- AJOUT: Importer RoundedImageWidget --- 
 from widgets.thumbnail_widget import ThumbnailWidget
 # ------------------------------------------
+import logging # Ajout pour le logger
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 # --- AJOUT: Tentative d'import de fitz et définition de PYMUPDF_AVAILABLE --- 
 try:
@@ -103,7 +107,7 @@ class CardWidget(QFrame):
                 summary_layout.addWidget(icon_label) # Ajouter l'icône au début
                 # summary_layout.addSpacing(5) # Ajouter un petit espace après l'icône (Optionnel)
             else:
-                print(f"WARNING: CardWidget - Icône de type '{entry_type_icon_name}' non trouvée.")
+                logger.warning(f"CardWidget - Icône de type '{entry_type_icon_name}' non trouvée.")
                 # Optionnel: Ajouter un placeholder texte si icône non trouvée
                 # icon_label.setText("?") 
                 # summary_layout.addWidget(icon_label) # Ajouter même si vide/placeholder?
@@ -443,7 +447,7 @@ class CardWidget(QFrame):
             self.setStyleSheet(menu_open_style_rule)
 
         except Exception as e:
-            print(f"WARN: Erreur application style menu contextuel: {e}")
+            logger.warning(f"Erreur application style menu contextuel: {e}")
             # En cas d'erreur, on ne touche pas au style
             original_stylesheet = None # Pour éviter la restauration erronée
         # -------------------------------------------------------------------
@@ -539,7 +543,7 @@ class CardWidget(QFrame):
                 if original_stylesheet is not None: # Vérifier si on a bien sauvegardé un style
                     self.setStyleSheet(original_stylesheet)
             except Exception as e:
-                print(f"WARN: Erreur restauration style après menu contextuel: {e}")
+                logger.warning(f"Erreur restauration style après menu contextuel: {e}")
         # else: On ne restaure pas si "Modifier" a été cliqué, car set_editing_highlight va s'en charger.
         # ----------------------------------------------------------------------------
 
@@ -578,7 +582,7 @@ class CardWidget(QFrame):
                     pixmap = QPixmap(placeholder_path) 
 
         except Exception as e:
-            print(f"Erreur génération miniature (CardWidget) pour {file_path}: {e}")
+            logger.error(f"Erreur génération miniature (CardWidget) pour {file_path}: {e}")
             placeholder_path = get_icon_path("round_description.png")
             if placeholder_path:
                  pixmap = QPixmap(placeholder_path)
@@ -598,7 +602,7 @@ class CardWidget(QFrame):
     @Slot(list, int)
     def _on_thumbnail_button_clicked(self, all_files, index):
         """Émet le signal thumbnail_clicked avec les données reçues."""
-        print(f"CardWidget: Thumbnail clicked! Emitting signal with index {index} for list: {all_files}") # Debug
+        logger.debug(f"CardWidget: Thumbnail clicked! Emitting signal with index {index} for list: {all_files}")
         self.thumbnail_clicked.emit(all_files, index)
     # ---------------------------------------------------------
 
@@ -629,7 +633,7 @@ class CardWidget(QFrame):
             else:
                 self.setStyleSheet(normal_style)
         except Exception as e:
-            print(f"WARN: Erreur application style édition highlight: {e}")
+            logger.warning(f"Erreur application style édition highlight: {e}")
             # Fallback: essayer de ne rien faire pour éviter de casser plus
             pass 
 

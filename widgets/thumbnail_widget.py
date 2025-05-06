@@ -5,6 +5,10 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QIcon, QPainter, QBitmap, QColor, QPainterPath, QMouseEvent
 from PyQt5.QtCore import Qt, pyqtSignal, QSize, QRectF
+import logging # Ajout pour le logger
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 # --- Try importing icon loader, fallback to text if unavailable ---
 try:
@@ -12,7 +16,7 @@ try:
     ICON_LOADER_AVAILABLE = True
 except ImportError:
     ICON_LOADER_AVAILABLE = False
-    print("WARN: utils.icon_loader not found, using text 'X' for delete button.")
+    logger.warning("WARN: utils.icon_loader not found, using text 'X' for delete button.") # Remplacement de print
 # -------------------------------------------------------------
 
 # --- NOUVELLE CLASSE INTERNE --- 
@@ -190,14 +194,14 @@ if __name__ == '__main__':
     layout.addWidget(thumb3)
 
     def on_delete(path):
-        print(f"--- Signal reçu: Supprimer {path} ---")
+        logger.info(f"--- Signal reçu: Supprimer {path} ---") # Remplacement de print par logger.info
         # Trouver le widget correspondant et le supprimer (simulation)
-        sender_widget = app.sender().parent() # Le bouton est enfant du container, qui est enfant du ThumbnailWidget? Non.
+        # sender_widget = app.sender().parent() # Le bouton est enfant du container, qui est enfant du ThumbnailWidget? Non.
                                              # Plus fiable de chercher dans le layout
         for i in range(layout.count()):
             widget = layout.itemAt(i).widget()
             if isinstance(widget, ThumbnailWidget) and widget.file_path == path:
-                print(f"Widget trouvé pour {path}, suppression...")
+                logger.info(f"Widget trouvé pour {path}, suppression...") # Remplacement de print par logger.info
                 widget.deleteLater()
                 break
 

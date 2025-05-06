@@ -11,7 +11,8 @@ from utils.signals import signals
 # --- AJOUT IMPORT SPÉCIFIQUE --- 
 from utils.paths import get_resource_path 
 import logging
-logger = logging.getLogger(__name__)
+# Initialisation du logger applicatif
+logger = logging.getLogger('GDJ_App') 
 # -------------------
 
 # Utiliser les couleurs définies dans welcome_page ou les redéfinir/importer

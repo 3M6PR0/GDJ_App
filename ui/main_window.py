@@ -1,4 +1,8 @@
 from PyQt5.QtWidgets import QMainWindow, QTabWidget, QAction
+import logging
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -58,15 +62,15 @@ class MainWindow(QMainWindow):
             self.settings_controller = SettingsController(self.settings_page, None)
             
             index = self.tabs.addTab(self.settings_page, "Paramètres")
-            print(f"Onglet Paramètres ajouté à l'index {index}")
+            logger.info(f"Onglet Paramètres ajouté à l'index {index}")
 
     def navigate_to_settings_tab(self):
-        print("Attempting to navigate to settings tab...")
+        logger.info("Attempting to navigate to settings tab...")
         if not self.settings_page or not self.settings_controller:
-            print("Settings tab/controller not initialized. Attempting to add it.")
+            logger.info("Settings tab/controller not initialized. Attempting to add it.")
             self.add_settings_tab()
             if not self.settings_page or not self.settings_controller:
-                 print("ERROR: Failed to create Settings tab/controller on demand.")
+                 logger.error("ERROR: Failed to create Settings tab/controller on demand.")
                  return None
         
         target_index = -1
@@ -76,26 +80,26 @@ class MainWindow(QMainWindow):
                 break
                 
         if target_index != -1:
-            print(f"Found settings tab at index {target_index}. Switching...")
+            logger.info(f"Found settings tab at index {target_index}. Switching...")
             self.tabs.setCurrentIndex(target_index)
             return self.settings_controller
         else:
-            print("ERROR: Settings tab widget found, but could not find its index.")
+            logger.error("ERROR: Settings tab widget found, but could not find its index.")
             return None
 
     def set_main_controller(self, main_controller):
         if self.settings_controller:
-             print("Setting main_controller reference in SettingsController.")
+             logger.info("Setting main_controller reference in SettingsController.")
              self.settings_controller.main_controller = main_controller
         else:
-             print("Warning: SettingsController not yet initialized when setting main_controller.")
+             logger.warning("Warning: SettingsController not yet initialized when setting main_controller.")
 
     def close_tab(self, index):
         widget = self.tabs.widget(index)
         if widget == self.settings_page:
-            print("Attempt to close Settings tab ignored.")
+            logger.info("Attempt to close Settings tab ignored.")
             return
         
-        print(f"Closing tab at index {index}")
+        logger.info(f"Closing tab at index {index}")
         self.tabs.removeTab(index)
         widget.deleteLater()

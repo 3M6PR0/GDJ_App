@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt, QEvent, pyqtSignal, pyqtSlot
 from ui.components.custom_titlebar import CustomTitleBar
 from pages.documents_open.documents_open_page import DocumentsOpenPage
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 
 class DocumentWindow(QWidget):
     request_main_action = pyqtSignal(str)

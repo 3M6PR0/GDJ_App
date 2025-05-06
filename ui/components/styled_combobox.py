@@ -4,6 +4,10 @@ from PyQt5.QtCore import pyqtSlot as Slot, Qt
 from utils.signals import signals
 from utils.theme import get_theme_vars # Importer seulement ce qui existe
 from utils import theme as theme_module # Importer le module entier pour les constantes
+import logging # Ajout pour le logger
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 # --- Délégué Personnalisé (Interne au module) --- 
 class _StyledComboBoxDelegate(QStyledItemDelegate):
@@ -76,4 +80,4 @@ class StyledComboBox(QComboBox):
 
     # Ajouter d'autres méthodes ou propriétés spécifiques si nécessaire
 
-print("ui/components/styled_combobox.py defined") 
+logger.info("ui/components/styled_combobox.py defined") 

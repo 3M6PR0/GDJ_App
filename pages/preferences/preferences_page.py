@@ -435,4 +435,4 @@ class PreferencesPage(QWidget):
                 button.setText("?")
     # ---------------------------------------------
 
-print("PreferencesPage (dans pages/preferences/) defined") 
+logger.info("PreferencesPage (dans pages/preferences/) defined") 

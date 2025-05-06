@@ -317,7 +317,7 @@ SimpleToggle {
     
     /* 2. Tenter de forcer la couleur utilisée pour le rail (état décoché) 
        en redéfinissant le rôle QPalette.Dark spécifiquement pour ce widget. */
-    palette-dark: transparent; 
+    /* palette-dark: transparent; */ 
     
     /* 3. S'assurer que les autres couleurs utilisées par paintEvent 
        (Highlight pour état coché, BrightText pour le handle) restent correctes.
@@ -534,4 +534,14 @@ QFrame#FactureFrame {
     background-color: {{COLOR_PRIMARY_LIGHT}};
     border-radius: {{RADIUS_BOX}};
     border: none;
+} 
+
+/* -------------------------------------------------------------------------- */
+
+
+
+/* QMenu -------------------------------------------------------------------- */
+QMenu::item:selected {
+    padding: 5px 20px;
+    background-color: transparent;
 } 

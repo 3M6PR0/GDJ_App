@@ -2,11 +2,14 @@ import logging
 import sys # Ajout pour stdout
 import os  # Ajout pour getenv
 from pathlib import Path # Ajout pour gestion chemin
+import textwrap # Ajout pour le découpage des messages longs
 
 # --- Configuration (Déplacé en haut pour clarté) ---
 APP_LOGGER_NAME = 'GDJ_App' # Nom unique pour notre logger applicatif
 LOG_FORMAT = "[%(asctime)s] [%(filename)s:%(lineno)d] %(message)s" # Format: [Timestamp] [Fichier:Ligne] Message
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S" # Format du timestamp
+MAX_MESSAGE_LINE_LENGTH = 1000 # Longueur max pour la partie message
+CONTINUATION_PREFIX = "--> " # Préfixe pour les lignes de continuation
 
 # Déterminer le chemin du fichier log dans APPDATA
 try:
@@ -18,12 +21,57 @@ except Exception as e:
     print(f"ERREUR CRITIQUE: Impossible de configurer le répertoire de logs : {e}")
     LOG_FILE_PATH = Path('app.log') # Fallback sur le répertoire courant
 
+# --- Formatter Personnalisé --- 
+class MultilineFormatter(logging.Formatter):
+    """Formatter qui découpe les messages longs sur plusieurs lignes."""
+    def format(self, record):
+        # S'assurer que le message est formaté avec ses arguments
+        record.message = record.getMessage()
+        
+        # Formater le préfixe (ex: "[timestamp] [file:line]")
+        log_fmt_prefix_part = self._style._fmt.split('%(message)s')[0].strip()
+        prefix_formatter = logging.Formatter(log_fmt_prefix_part, datefmt=self.datefmt)
+        prefix = prefix_formatter.format(record)
+        prefix_with_space = prefix + " "
+
+        message_content = record.message # Le message utilisateur
+
+        # Découper le message utilisateur
+        wrapper = textwrap.TextWrapper(
+            width=MAX_MESSAGE_LINE_LENGTH,
+            initial_indent="", # Pas d'indentation initiale pour le message lui-même
+            subsequent_indent=CONTINUATION_PREFIX, # Préfixe pour les lignes suivantes
+            replace_whitespace=False,
+            drop_whitespace=True,
+            break_long_words=False,
+            break_on_hyphens=True
+        )
+        wrapped_message_lines = wrapper.wrap(message_content)
+
+        # Reconstruire les lignes de log finales
+        formatted_lines = []
+        if wrapped_message_lines:
+            # Première ligne: préfixe normal + première ligne du message
+            formatted_lines.append(prefix_with_space + wrapped_message_lines[0])
+            
+            # Lignes suivantes: indentation + ligne du message (qui contient déjà CONTINUATION_PREFIX)
+            continuation_indent = " " * len(prefix_with_space)
+            for line in wrapped_message_lines[1:]:
+                formatted_lines.append(continuation_indent + line)
+        else:
+            # Gérer les messages vides ou très courts
+            formatted_lines.append(prefix_with_space.rstrip() + message_content)
+
+        return "\n".join(formatted_lines)
+# ----------------------------
+
 def setup_logger(level=logging.DEBUG):
     """Configure et retourne le logger principal de l'application ('{APP_LOGGER_NAME}').
 
     Ajoute un handler pour écrire dans la console (stdout) et un autre
     pour écrire dans un fichier log ('app.log' dans le dossier APPDATA/GDJ_App/logs).
-    Utilise un format personnalisé incluant timestamp, nom de fichier:ligne et message.
+    Utilise un format personnalisé incluant timestamp, nom de fichier:ligne et message,
+    et découpe les messages longs sur plusieurs lignes.
 
     Args:
         level: Le niveau de logging minimum à capturer (par défaut: logging.DEBUG).
@@ -41,8 +89,9 @@ def setup_logger(level=logging.DEBUG):
         return logger
         
     logger.setLevel(level)
-    # Utiliser le format et date format définis globalement
-    formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
+    # --- Utiliser le MultilineFormatter --- 
+    formatter = MultilineFormatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
+    # -------------------------------------
 
     # --- Handler pour la Console (stdout) ---
     # Modifier le handler existant pour utiliser sys.stdout explicitement
@@ -79,9 +128,9 @@ def setup_logger(level=logging.DEBUG):
     # --- Log de confirmation APRES avoir ajouté les handlers et défini la propagation ---
     if logger.hasHandlers(): # Vérifier à nouveau au cas où file_handler a échoué
         if file_handler:
-            logger.info(f"Logger '{APP_LOGGER_NAME}' configuré. Handlers: Console, Fichier ({LOG_FILE_PATH}). Propagation désactivée.")
+            logger.info(f"Logger '{APP_LOGGER_NAME}' configuré. Handlers: Console, Fichier ({LOG_FILE_PATH}). Propagation désactivée. Multiline activé (max: {MAX_MESSAGE_LINE_LENGTH} chars).")
         else:
-            logger.warning(f"Logger '{APP_LOGGER_NAME}' configuré. Handlers: Console SEULEMENT (Erreur Fichier). Propagation désactivée.")
+            logger.warning(f"Logger '{APP_LOGGER_NAME}' configuré. Handlers: Console SEULEMENT (Erreur Fichier). Propagation désactivée. Multiline activé (max: {MAX_MESSAGE_LINE_LENGTH} chars).")
     else:
         # Ce cas ne devrait pas arriver si console_handler a réussi
         print(f"AVERTISSEMENT CRITIQUE: Logger {APP_LOGGER_NAME} n'a AUCUN handler après configuration!") 

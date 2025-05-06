@@ -3,6 +3,10 @@ import requests
 import time
 import os
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+import logging
+
+# Initialisation du logger
+logger = logging.getLogger('GDJ_App')
 
 class DownloadWorker(QObject):
     progress = pyqtSignal(int, int, float) # current_bytes, total_bytes, speed_mbps
@@ -23,7 +27,7 @@ class DownloadWorker(QObject):
         self._is_cancelled = False
         downloaded_path = ""
         try:
-            print(f"Starting download from: {self.url}")
+            logger.info(f"Starting download from: {self.url}")
             response = requests.get(self.url, stream=True, timeout=20)
             response.raise_for_status() # Lève une exception pour les codes 4xx/5xx
 
@@ -36,8 +40,8 @@ class DownloadWorker(QObject):
             # S'assurer que le dossier de destination existe
             os.makedirs(self.dest_folder, exist_ok=True)
 
-            print(f"Saving to: {downloaded_path}")
-            print(f"Total size: {total_size} bytes")
+            logger.info(f"Saving to: {downloaded_path}")
+            logger.info(f"Total size: {total_size} bytes")
             
             downloaded_size = 0
             start_time = time.time()
@@ -47,14 +51,14 @@ class DownloadWorker(QObject):
             with open(downloaded_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if self._is_cancelled:
-                        print("Download cancelled by user.")
+                        logger.info("Download cancelled by user.")
                         # Supprimer le fichier partiellement téléchargé
                         if os.path.exists(downloaded_path):
                            try:
                                os.remove(downloaded_path)
-                               print(f"Removed partially downloaded file: {downloaded_path}")
+                               logger.info(f"Removed partially downloaded file: {downloaded_path}")
                            except OSError as e:
-                               print(f"Error removing partial file {downloaded_path}: {e}")
+                               logger.error(f"Error removing partial file {downloaded_path}: {e}")
                         self.error.emit("Téléchargement annulé.")
                         self.finished.emit(False, "Annulé")
                         return # Sortir de la boucle et de la fonction
@@ -78,22 +82,22 @@ class DownloadWorker(QObject):
             self.progress.emit(downloaded_size, total_size, final_speed)
             
             if not self._is_cancelled:
-                print("Download finished successfully.")
+                logger.info("Download finished successfully.")
                 self.finished.emit(True, downloaded_path)
 
         except requests.exceptions.RequestException as e:
-            print(f"Download error: {e}")
+            logger.error(f"Download error: {e}")
             self.error.emit(f"Erreur réseau : {e}")
             self.finished.emit(False, str(e))
         except Exception as e:
-            print(f"Unexpected download error: {e}")
+            logger.error(f"Unexpected download error: {e}")
             self.error.emit(f"Erreur inattendue : {e}")
             self.finished.emit(False, str(e))
 
     @pyqtSlot()
     def cancel(self):
          """Slot pour demander l'annulation du téléchargement."""
-         print("Cancel requested for download worker.")
+         logger.info("Cancel requested for download worker.")
          self._is_cancelled = True
 
 # Note: Ce worker est conçu pour être déplacé dans un QThread.

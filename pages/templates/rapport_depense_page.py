@@ -371,21 +371,21 @@ class RapportDepensePage(QWidget):
         # --- AJOUT DU FRAME D'AFFICHAGE À LA SECTION INFÉRIEURE (DROITE) ---
         bottom_section_layout.addWidget(self.entries_display_frame, 4) # Retour à l'alignement par défaut
 
-        # --- AJOUT DE LA SECTION INFÉRIEURE AU LAYOUT PRINCIPAL --- 
+        # --- AJOUT DE LA SECTION INFÉRIEURE AU LAYOUT PRINCIPAL ---
         content_layout.addLayout(bottom_section_layout)
 
         # --- AJOUT: Ajouter le frame des totaux EN BAS --- 
         content_layout.addWidget(self.totals_frame)
         # --------------------------------------------------
 
-        # --- Ajuster les stretchs verticaux du layout principal --- 
+        # --- Ajuster les stretchs verticaux du layout principal ---
         # content_layout.setStretchFactor(self.totals_frame, 0) # Ancien
         # content_layout.setStretchFactor(bottom_section_layout, 1) # Ancien
         content_layout.setStretchFactor(bottom_section_layout, 1) # La section du milieu prend l'espace
         content_layout.setStretchFactor(self.totals_frame, 0) # Les totaux en bas prennent leur hauteur naturelle
         # ---------------------------------------------------------
 
-        # --- Initialiser le formulaire pour le premier type --- 
+        # --- Initialiser le formulaire pour le premier type ---
         self._update_entry_form()
 
         # --- Initialiser la liste des entrées via la méthode centrale ---
@@ -923,7 +923,7 @@ class RapportDepensePage(QWidget):
         if not self._validate_form_data(entry_type):
             return # Stopper si la validation échoue
         # -------------------------------------
-
+        
         try:
             # Récupérer les valeurs communes (Date et Description)
             date_val = self.form_fields['date'].date().toPyDate()
@@ -997,7 +997,7 @@ class RapportDepensePage(QWidget):
                               # Continuer sans facture en cas d'erreur
                               facture_obj = None 
                  # -------------------------------------------
-
+                 
                  # --- Créer l'objet Repas --- 
                  new_entry = Repas(
                      date_repas=date_val, 
@@ -1048,7 +1048,7 @@ class RapportDepensePage(QWidget):
                      return
                  if total_apres_taxes_val <= 0:
                      QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                     return
+                 return
 
                  # --- Créer l'objet Depense (Adapter selon le modèle réel) --- 
                  # Supposons que le constructeur de Depense ressemble à ça:

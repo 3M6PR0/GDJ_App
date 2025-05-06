@@ -8,7 +8,7 @@ from ui.components.custom_titlebar import CustomTitleBar
 from pages.documents_open.documents_open_page import DocumentsOpenPage
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 
 class NewDocumentWindow(QWidget):
     def __init__(self, initial_doc_type=None, initial_doc_data=None, parent=None):

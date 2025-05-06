@@ -211,7 +211,7 @@ class DocumentsOpenPage(QWidget):
     # --- Nouvelle méthode pour créer un onglet --- 
     def _create_tab(self, doc_type: str, doc_data: dict):
         """Crée la page template et l'ajoute comme onglet."""
-        print(f"DocumentsOpenPage: Tentative de création d'onglet type='{doc_type}'")
+        logger.info(f"DocumentsOpenPage: Tentative de création d'onglet type='{doc_type}'")
         page_widget = None
         tab_title = f"{doc_type} - Nouveau" # Titre par défaut
 
@@ -236,7 +236,7 @@ class DocumentsOpenPage(QWidget):
                             year = int(date_str.split('-')[1])
                             date_rapport = date(year, month_number, 1) 
                         except (ValueError, IndexError) as e_date:
-                             print(f"Erreur conversion date '{date_str}': {e_date}. Utilisation date actuelle.")
+                             logger.warning(f"Erreur conversion date '{date_str}': {e_date}. Utilisation date actuelle.")
                              date_rapport = date.today().replace(day=1)
                     else:
                          date_rapport = date.today().replace(day=1) # Date par défaut
@@ -261,15 +261,15 @@ class DocumentsOpenPage(QWidget):
                         plafond_deplacement=plafond_deplacement
                         # title sera généré automatiquement dans __init__
                     )
-                    print(f"Modèle {type(new_doc_model).__name__} créé: {new_doc_model}")
+                    logger.info(f"Modèle {type(new_doc_model).__name__} créé: {new_doc_model}")
                     page_widget = RapportDepensePage(document=new_doc_model) 
                     tab_title = new_doc_model.title # Utiliser le titre généré par le modèle
 
                 except KeyError as ke:
-                    print(f"ERREUR: Clé manquante dans doc_data lors de la création de RapportDepense: {ke}")
+                    logger.error(f"ERREUR: Clé manquante dans doc_data lors de la création de RapportDepense: {ke}")
                     raise ValueError(f"Donnée manquante : {ke}") # Propage l'erreur
                 except Exception as e_model:
-                    print(f"ERREUR lors de l'instanciation du modèle RapportDepense: {e_model}")
+                    logger.error(f"ERREUR lors de l'instanciation du modèle RapportDepense: {e_model}", exc_info=True)
                     raise # Propage l'erreur
                     
             # elif doc_type == "Ecriture comptable":
@@ -279,7 +279,7 @@ class DocumentsOpenPage(QWidget):
                 # page_widget = EcritureComptablePage(document=new_doc_model)
             # ... autres types ...
             else:
-                print(f"Type de document '{doc_type}' non géré pour la création d'onglet.")
+                logger.warning(f"Type de document '{doc_type}' non géré pour la création d'onglet.")
                 page_widget = QLabel(f"Template non trouvé pour {doc_type}")
                 page_widget.setAlignment(Qt.AlignCenter)
                 tab_title = f"Erreur - {doc_type}"
@@ -291,14 +291,14 @@ class DocumentsOpenPage(QWidget):
                 self.add_document_tab(page_widget, tab_title)
 
         except ImportError as ie:
-             print(f"ERREUR D'IMPORT dans DocumentsOpenPage._create_tab: {ie}")
+             logger.error(f"ERREUR D'IMPORT dans DocumentsOpenPage._create_tab: {ie}", exc_info=True)
              # Afficher l'erreur dans un onglet?
              error_widget = QLabel(f"Erreur Import: {ie}")
              self.add_document_tab(error_widget, f"Erreur Import - {doc_type}")
         except Exception as e:
-            print(f"ERREUR GÉNÉRALE dans DocumentsOpenPage._create_tab: {e}")
+            logger.error(f"ERREUR GÉNÉRALE dans DocumentsOpenPage._create_tab: {e}", exc_info=True)
             import traceback
-            traceback.print_exc()
+            traceback.print_exc() # Garder celui-ci pour le moment, ou le retirer si logger.error suffit
             error_widget = QLabel(f"Erreur Création: {e}")
             self.add_document_tab(error_widget, f"Erreur Création - {doc_type}")
     # --------------------------------------------
@@ -348,9 +348,9 @@ class DocumentsOpenPage(QWidget):
                     main_icon_path = get_icon_path(main_icon_name)
                     if main_icon_path:
                         self.tab_widget.setTabIcon(index, QIcon(main_icon_path))
-                        print(f"Icône principale {main_icon_name} appliquée à l'onglet {index} ({title})")
+                        logger.info(f"Icône principale {main_icon_name} appliquée à l'onglet {index} ({title})")
                     else:
-                        print(f"WARN: Icône principale {main_icon_name} non trouvée pour l'onglet.")
+                        logger.warning(f"Icône principale {main_icon_name} non trouvée pour l'onglet.")
                     
                     # --- Tenter de définir l'icône du bouton 'X' via setStyleSheet sur tabBar --- 
                     close_icon_name = "round_close.png"
@@ -360,26 +360,26 @@ class DocumentsOpenPage(QWidget):
                         qss_path = close_icon_path.replace('\\', '/')
                         style_sheet_str = f"QTabBar::close-button {{ image: url('{qss_path}'); width: 16px; height: 16px; }}"
                         self.tab_widget.tabBar().setStyleSheet(style_sheet_str)
-                        print(f"Tentative d'appliquer setStyleSheet pour close-button icon {close_icon_name}")
+                        logger.info(f"Tentative d'appliquer setStyleSheet pour close-button icon {close_icon_name}")
                     else:
-                        print(f"WARN: Icône close {close_icon_name} non trouvée.")
+                        logger.warning(f"Icône close {close_icon_name} non trouvée.")
                     # ----------------------------------------------------------------------------
 
                 except Exception as e_color:
-                    print(f"WARN: Erreur application couleur/icône onglet Rapport Dépense (Index): {e_color}")
+                    logger.warning(f"Erreur application couleur/icône onglet Rapport Dépense (Index): {e_color}", exc_info=True)
 
                 # Laisser l'icône appliquée même si la couleur échoue
 
             else:
-                print(f"WARN: Impossible d'appliquer style différé, onglet {index} n'existe plus.")
+                logger.warning(f"Impossible d'appliquer style différé, onglet {index} n'existe plus.")
         except Exception as e:
-            print(f"WARN: Erreur application couleur différée onglet Rapport Dépense: {e}")
+            logger.warning(f"Erreur application couleur différée onglet Rapport Dépense: {e}", exc_info=True)
 
     def close_tab(self, index):
         """Slot pour fermer l'onglet demandé."""
         widget = self.tab_widget.widget(index)
         if widget:
-            print(f"DocumentsOpenPage: Fermeture de l'onglet '{self.tab_widget.tabText(index)}' (index {index})")
+            logger.info(f"DocumentsOpenPage: Fermeture de l'onglet '{self.tab_widget.tabText(index)}' (index {index})")
             # Optionnel: Logique de sauvegarde ici avant deleteLater()
             widget.deleteLater() # Supprimer le widget de la page template
             self.tab_widget.removeTab(index)

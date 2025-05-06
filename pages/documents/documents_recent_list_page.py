@@ -277,7 +277,7 @@ class DocumentsRecentListPage(QWidget):
                 # empêcher la sélection visuelle par défaut (car on gère 
                 # la surbrillance via setCurrentItem uniquement pour le menu)
                 # On laisse cependant itemClicked se déclencher si besoin
-                print(f"DEBUG: Click intercepté sur item: {self.recent_list_widget.itemWidget(item_at_click).name}")
+                logger.debug(f"DEBUG: Click intercepté sur item: {self.recent_list_widget.itemWidget(item_at_click).name}")
                 # ATTENTION: Cela peut potentiellement bloquer d'autres interactions
                 # return True # Bloque complètement l'événement (peut-être trop)
                 pass # Laisser l'événement continuer mais la sélection visuelle ne devrait pas changer ? A tester
@@ -315,7 +315,7 @@ class DocumentsRecentListPage(QWidget):
     # Restaurer la méthode pour charger les données placeholder
     def _load_project_data(self):
         """Charge les données de projets (placeholder)."""
-        print("DocumentsRecentListPage: Chargement des données de projets (placeholder)...")
+        logger.info("DocumentsRecentListPage: Chargement des données de projets (placeholder)...")
         return [
             {"name": "GDJ", "path": "~/PycharmProjects/GDJ", "icon": "GD"},
             {"name": "GDJ_App", "path": "~/PycharmProjects/GDJ_App", "icon": "GD"},
@@ -327,7 +327,7 @@ class DocumentsRecentListPage(QWidget):
         widget_item = self.recent_list_widget.itemWidget(item)
         if isinstance(widget_item, ProjectListItemWidget):
             document_path = widget_item.path_str
-            print(f"DocumentsRecentListPage: Item clicked - {document_path}")
+            logger.info(f"DocumentsRecentListPage: Item clicked - {document_path}")
             self.open_specific_document_requested.emit(os.path.expanduser(document_path))
 
-print("DocumentsRecentListPage defined") 
+logger.info("DocumentsRecentListPage defined") 

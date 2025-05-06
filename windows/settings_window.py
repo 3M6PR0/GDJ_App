@@ -21,7 +21,7 @@ from pages.settings.settings_page import SettingsPage # Pour les mises à jour
 from controllers.settings_window_controller import SettingsWindowController
 # ----------------------------
 import logging # Ajouter logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 
 class SettingsWindow(QWidget):
     # Signal pour demander la fermeture (si nécessaire)
@@ -49,7 +49,7 @@ class SettingsWindow(QWidget):
         self.set_controller(self.controller) # Connecter les signaux UI
         # --------------------------------------------------
         
-        print("SettingsWindow instance créée")
+        logger.info("SettingsWindow instance créée")
 
     def set_controller(self, controller):
         self.controller = controller
@@ -155,7 +155,7 @@ class SettingsWindow(QWidget):
                 btn.setIcon(icon)
                 btn.setIconSize(QSize(16, 16))
             else:
-                print(f"WARN: SettingsWindow - Icône {icon_name} non trouvée: {icon_path}")
+                logger.warning(f"WARN: SettingsWindow - Icône {icon_name} non trouvée: {icon_path}")
             
             btn_hbox.addWidget(btn, 1)
             self.sidebar_button_group.addButton(btn)
@@ -247,7 +247,7 @@ class SettingsWindow(QWidget):
                 # Ajuster la taille si nécessaire, ici on prend celle des nav buttons
                 button.setIconSize(QSize(18, 18) if button == self.btn_updates else QSize(16, 16))
             else:
-                logger.warning(f"SettingsWindow: Icône {icon_base_name} non trouvée: {icon_path}")
+                logger.warning(f"WARN: SettingsWindow - Icône {icon_base_name} non trouvée: {icon_path}")
                 button.setText("?") # Fallback texte
         except Exception as e:
             logger.error(f"SettingsWindow: Erreur MAJ icône {icon_base_name}: {e}")
