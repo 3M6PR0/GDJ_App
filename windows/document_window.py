@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger('GDJ_App')
 
 class DocumentWindow(QWidget):
-    request_main_action = pyqtSignal(str)
+    request_main_action = pyqtSignal(str, QWidget)
     def __init__(self, main_controller, initial_doc_type=None, initial_doc_data=None, parent=None):
         super().__init__(parent)
         self.main_controller = main_controller
@@ -74,8 +74,8 @@ class DocumentWindow(QWidget):
 
     @pyqtSlot()
     def _handle_new_document_request(self):
-        logger.info("DocumentWindow: Reçu new_document_requested de title_bar, émission de request_main_action('new_document').")
-        self.request_main_action.emit('new_document')
+        logger.info("DocumentWindow: Reçu new_document_requested de title_bar, émission de request_main_action('new_document', self).")
+        self.request_main_action.emit('new_document', self)
 
     def eventFilter(self, obj, event):
         if obj == self and event.type() == QEvent.MouseButtonPress:

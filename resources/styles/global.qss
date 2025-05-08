@@ -243,17 +243,6 @@ QTextBrowser#NotesBrowser {
     border: none; /* Assurer qu'il n'y a pas de bordure non plus */
 }
 
-/* Optionnel: Styles spécifiques pour les liens dans ces browsers */
-QTextBrowser#ReadmeBrowser a,
-QTextBrowser#NotesBrowser a {
-    color: {{COLOR_ACCENT}};
-    text-decoration: none;
-}
-QTextBrowser#ReadmeBrowser a:hover,
-QTextBrowser#NotesBrowser a:hover {
-    text-decoration: underline;
-}
-
 /* --- Style spécifique pour les boutons de navigation type TopNavButton --- */
 QPushButton#TopNavButton {
     background-color: transparent;
@@ -447,11 +436,9 @@ QTabWidget#DocumentTabWidget::pane {
 }
 
 QTabWidget#DocumentTabWidget QTabBar::tab {
-    background-color: {{COLOR_PRIMARY_DARK}}; /* Fond pour non sélectionné */
+    background-color: {{COLOR_PRIMARY_MEDIUM}}; /* MODIFIÉ: Utilisation de COLOR_PRIMARY_MEDIUM */
     color: {{COLOR_TEXT_SECONDARY}};
-    /* border: 1px solid {{COLOR_PRIMARY_DARKEST}}; */ /* <-- SUPPRIMER Bordure */
-    border: none; /* <-- Assurer absence de bordure */
-    /* border-bottom: none; */ /* Devient inutile */
+    border: none; /* Assurer qu'il n'y a aucune bordure */
     border-top-left-radius: {{RADIUS_DEFAULT}};
     border-top-right-radius: {{RADIUS_DEFAULT}};
     padding: 6px 15px; /* Ajuster padding */
@@ -468,11 +455,8 @@ QTabWidget#DocumentTabWidget QTabBar::tab:first {
 QTabWidget#DocumentTabWidget QTabBar::tab:selected {
     background-color: {{COLOR_PRIMARY_DARKEST}}; /* Fond pour sélectionné (le plus foncé) */
     color: {{COLOR_TEXT_PRIMARY}};
-    /* border-color: {{COLOR_PRIMARY_DARK}}; */ /* <-- SUPPRIMER car border:none sur tab */
     border-bottom: none; /* <-- AJOUT: Explicitement sans bordure en bas */
     padding-bottom: 0px; /* <-- AJOUT: Forcer padding bas à 0 */
-    /* Optionnel: rendre la bordure du bas de la même couleur que le pane */
-    /* border-bottom-color: {{COLOR_PRIMARY_MEDIUM}}; */
 }
 
 QTabWidget#DocumentTabWidget QTabBar::tab:!selected:hover {

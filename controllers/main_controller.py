@@ -89,6 +89,8 @@ class MainController(QObject):
         self.open_document_windows = [] # NOUVEAU: Liste pour stocker les fenêtres ouvertes
         # --------------------------------------------------------------------
         self.settings_window = None # <<< AJOUT: Référence à SettingsWindow
+        self.type_selection_window_instance = None # Pour garder une référence si besoin
+        self.doc_creation_source_window = None # << AJOUT pour la fenêtre source
 
         # --- Corrected Logic AGAIN (Focus on Version Comparison) --- 
         self.version_file = get_resource_path("data/version.txt")
@@ -696,22 +698,24 @@ class MainController(QObject):
     # -------------------------------------------------------------
 
     # --- AJOUT SLOT POUR GÉRER LES ACTIONS DE DocumentWindow --- 
-    @pyqtSlot(str)
-    def handle_main_action_request(self, action_name):
-        logger.info(f"MainController: Reçu request_main_action avec action: '{action_name}'")
+    @pyqtSlot(str, QWidget)
+    def handle_main_action_request(self, action_name, source_window=None):
+        logger.info(f"MainController: Reçu request_main_action avec action: '{action_name}' depuis source: {source_window}")
         if action_name == 'new_document':
             logger.info("Action 'new_document' reçue, appel de show_type_selection_window...")
-            self.show_type_selection_window()
-        elif action_name == 'settings': # Exemple si on gérait les paramètres aussi via ce signal
+            self.show_type_selection_window(source_window=source_window)
+        elif action_name == 'settings':
              logger.info("Action 'settings' reçue, appel de show_settings_window...")
-             self.show_settings_window() # Appeler la méthode existante
+             self.show_settings_window()
         else:
              logger.warning(f"Action inconnue reçue via request_main_action: {action_name}")
     # ------------------------------------------------------
 
     # --- AJOUT: Méthode pour afficher la fenêtre de sélection de type --- 
-    def show_type_selection_window(self):
+    def show_type_selection_window(self, source_window=None):
         """Crée et affiche la fenêtre TypeSelectionWindow."""
+        self.doc_creation_source_window = source_window
+        logger.info(f"MainController: show_type_selection_window appelée, source_window: {source_window}")
         # --- Vérifier/Importer TypeSelectionWindow --- 
         try:
             from windows.type_selection_window import TypeSelectionWindow
@@ -747,19 +751,27 @@ class MainController(QObject):
     @pyqtSlot(str, dict)
     def _handle_creation_from_selection_window(self, doc_type: str, data: dict):
         logger.info(f"MainController: Reçu demande de création depuis TypeSelectionWindow: Type='{doc_type}'")
+        
+        # Déterminer la fenêtre cible pour un nouvel onglet
+        target_window_for_new_tab = None
+        if self.doc_creation_source_window and \
+           isinstance(self.doc_creation_source_window, DocumentWindow) and \
+           self.doc_creation_source_window.isVisible() and \
+           self.doc_creation_source_window in self.open_document_windows:
+            target_window_for_new_tab = self.doc_creation_source_window
+            logger.info(f"Utilisation de doc_creation_source_window comme cible pour onglet: {target_window_for_new_tab}")
+        elif self.open_document_windows: # Fallback si la source n'est pas une DocumentWindow valide/visible
+            target_window_for_new_tab = self.open_document_windows[-1]
+            logger.info(f"Fallback: Utilisation de la dernière DocumentWindow ouverte comme cible pour onglet: {target_window_for_new_tab}")
+
         # Fermer la fenêtre de sélection
         if hasattr(self, 'type_selection_window_instance') and self.type_selection_window_instance:
             logger.info("Fermeture de TypeSelectionWindow...")
             self.type_selection_window_instance.close()
-            # del self.type_selection_window_instance # Optionnel
 
-        # Vérifier si une DocumentWindow existe déjà et est visible
-        # Utiliser la dernière fenêtre de la liste comme référence potentielle
-        active_doc_window = self.open_document_windows[-1] if self.open_document_windows else None
-        
-        if active_doc_window and active_doc_window.isVisible():
-            logger.info("DocumentWindow existante détectée. Demande à l'utilisateur...")
-            msg_box = QMessageBox(active_doc_window) # Parent pour centrage
+        if target_window_for_new_tab and target_window_for_new_tab.isVisible(): # Vérifier si une cible pour onglet existe
+            logger.info(f"DocumentWindow cible ({target_window_for_new_tab}) détectée. Demande à l'utilisateur...")
+            msg_box = QMessageBox(target_window_for_new_tab) # Parent pour centrage
             msg_box.setWindowTitle("Nouveau Document")
             msg_box.setText("Une fenêtre de document est déjà ouverte.")
             msg_box.setInformativeText("Où souhaitez-vous ouvrir le nouveau document ?")
@@ -772,27 +784,26 @@ class MainController(QObject):
 
             if msg_box.clickedButton() == btn_new_tab:
                 logger.info("Utilisateur a choisi d'ouvrir dans un NOUVEL ONGLET.")
-                # Appeler la méthode sur la fenêtre active/dernière
-                if hasattr(active_doc_window, 'add_document_in_new_tab'):
-                    active_doc_window.add_document_in_new_tab(doc_type, data)
-                    active_doc_window.activateWindow() 
-                    active_doc_window.raise_()
+                if hasattr(target_window_for_new_tab, 'add_document_in_new_tab'):
+                    target_window_for_new_tab.add_document_in_new_tab(doc_type, data)
+                    target_window_for_new_tab.activateWindow() 
+                    target_window_for_new_tab.raise_()
                 else:
-                    logger.error("L'instance active DocumentWindow n'a pas de méthode 'add_document_in_new_tab'. Création d'une nouvelle fenêtre par défaut.")
+                    logger.error(f"L'instance {target_window_for_new_tab} n'a pas de méthode 'add_document_in_new_tab'. Création d'une nouvelle fenêtre par défaut.")
                     self.show_new_document_window(doc_type, data) # Fallback
             elif msg_box.clickedButton() == btn_new_window:
                 logger.info("Utilisateur a choisi d'ouvrir une NOUVELLE FENÊTRE de document.")
-                # show_new_document_window ajoute maintenant à la liste
                 self.show_new_document_window(doc_type, data)
             elif msg_box.clickedButton() == btn_cancel:
                 logger.info("Création de document annulée par l'utilisateur.")
             else:
                 logger.info("Dialogue de choix fermé sans sélection, annulation.")
         else:
-            # Pas de DocumentWindow existante ou visible, en créer une nouvelle
-            logger.info("Aucune DocumentWindow existante ou visible. Création d'une nouvelle.")
-            # show_new_document_window ajoute maintenant à la liste
+            # Pas de DocumentWindow existante appropriée pour un onglet, en créer une nouvelle
+            logger.info("Aucune DocumentWindow cible pour un onglet. Création d'une nouvelle fenêtre.")
             self.show_new_document_window(doc_type, data)
+        
+        self.doc_creation_source_window = None # Réinitialiser la source après usage
     # -------------------------------------------------------------------
 
 # --- SECTION PRINCIPALE (FIN DU FICHIER) --- 
