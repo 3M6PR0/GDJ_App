@@ -66,16 +66,13 @@ class MultilineFormatter(logging.Formatter):
         return "\n".join(formatted_lines)
 # ----------------------------
 
-def setup_logger(level=logging.DEBUG):
+def setup_logger():
     """Configure et retourne le logger principal de l'application ('{APP_LOGGER_NAME}').
 
     Ajoute un handler pour écrire dans la console (stdout) et un autre
     pour écrire dans un fichier log ('app.log' dans le dossier APPDATA/GDJ_App/logs).
     Utilise un format personnalisé incluant timestamp, nom de fichier:ligne et message,
     et découpe les messages longs sur plusieurs lignes.
-
-    Args:
-        level: Le niveau de logging minimum à capturer (par défaut: logging.DEBUG).
 
     Returns:
         L'instance du logger configuré.
@@ -89,7 +86,7 @@ def setup_logger(level=logging.DEBUG):
         # logger.debug("Logger déjà configuré.") 
         return logger
         
-    logger.setLevel(level)
+    logger.setLevel(logging.DEBUG) # FORCER le niveau DEBUG ici
     # --- Utiliser le MultilineFormatter --- 
     formatter = MultilineFormatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
     # -------------------------------------

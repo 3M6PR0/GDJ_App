@@ -22,11 +22,11 @@ from utils.signals import initialize_global_signals
 # --- Configuration du Logger --- 
 # Importer et appeler setup_logger TOUT AU DÉBUT
 from utils.logger import setup_logger
-setup_logger(level=logging.DEBUG) # Utiliser DEBUG pendant le dév.
+setup_logger() # MODIFIÉ: Appel sans argument
 # Maintenant, on peut utiliser logging.getLogger('GDJ_App') partout
 logger = logging.getLogger('GDJ_App') # Récupérer le logger configuré
 # --- AJOUT LOG DE VÉRIFICATION IMMÉDIAT --- 
-logger.info("--- Logger configuré dans main.py (Vérification immédiate) ---")
+logger.debug("--- Logger configuré dans main.py (Vérification immédiate) ---")
 # ------------------------------------------
 # ----------------------------- 
 

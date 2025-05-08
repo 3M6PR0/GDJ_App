@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QFormLayout,
 from PyQt5.QtCore import Qt, QDate, QSize, pyqtSignal, QTimer
 from PyQt5.QtGui import QDoubleValidator, QIcon, QColor, QPalette, QFont, QPixmap, QIntValidator, QImage
 from datetime import date # <--- Ajout import
+import calendar # AJOUT IMPORT
 from ui.components.frame import Frame # Correction: Chemin d'importation correct
 from models.documents.rapport_depense import RapportDepense, Deplacement, Repas, Depense, Facture # Importer les modèles
 from utils.theme import get_theme_vars, RADIUS_BOX # Importer les variables de thème
@@ -707,7 +708,31 @@ class RapportDepensePage(QWidget):
         current_row = 0 # Suivre la ligne actuelle du grid
 
         # --- Champs communs (toujours présents) - Déplacé ici ---
-        self.form_fields['date'] = CustomDateEdit(QDate.currentDate())
+        # Utiliser le premier jour du mois du rapport comme date par défaut
+        date_document = self.document.date_rapport
+        q_date_document = QDate(date_document.year, date_document.month, date_document.day)
+        self.form_fields['date'] = CustomDateEdit(q_date_document) # Utiliser la date du rapport pour init
+        
+        # --- AJOUT: Restreindre la plage de dates au mois du rapport --- 
+        try:
+            year = date_document.year
+            month = date_document.month
+            # Trouver le premier jour du mois
+            min_date_obj = date(year, month, 1)
+            q_min_date = QDate(min_date_obj)
+            # Trouver le dernier jour du mois
+            _, num_days = calendar.monthrange(year, month)
+            max_date_obj = date(year, month, num_days)
+            q_max_date = QDate(max_date_obj)
+            
+            # Appliquer les restrictions au CustomDateEdit
+            self.form_fields['date'].setMinimumDate(q_min_date)
+            self.form_fields['date'].setMaximumDate(q_max_date)
+            logger.debug(f"Plage de dates pour le sélecteur limitée à: {q_min_date.toString('yyyy-MM-dd')} - {q_max_date.toString('yyyy-MM-dd')}")
+        except Exception as e_date_range:
+            logger.error(f"Erreur lors de la définition de la plage de dates: {e_date_range}")
+        # --- FIN AJOUT ---
+        
         date_label = QLabel("Date:")
         self.dynamic_form_layout.addWidget(date_label, current_row, 0, Qt.AlignLeft)
         self.dynamic_form_layout.addWidget(self.form_fields['date'], current_row, 1)
