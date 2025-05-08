@@ -34,7 +34,7 @@ import copy       # <--- AJOUT pour deepcopy
 import logging
 
 # --- AJOUT IMPORT CONFIGDATA ---
-# from data.config_data import ConfigData # COMMENTED OUT
+from models.config_data import ConfigData # DÉCOMMENTÉ & CORRIGÉ CHEMIN
 # -----------------------------
 
 # Supposer qu'une classe RapportDepense existe dans vos modèles
@@ -55,6 +55,15 @@ class RapportDepensePage(QWidget):
         self.editing_entry = None # Garde la référence de l'entrée en cours d'édition
         self.cancel_button = None # Référence au bouton Annuler (créé si besoin)
         self._original_frame_style = "" # Pour sauvegarder le style du frame en mode édition
+        
+        self.total_rembourse_deplacement_label_value = QLabel("0.00 $")
+        self.total_rembourse_deplacement_label_value.setStyleSheet("font-weight: bold;")
+
+        # AJOUT: Initialisation des labels pour les nouveaux frames Repas et Dépenses Diverses
+        self.total_repas_valeur_label = QLabel("0.00 $")
+        self.total_repas_valeur_label.setStyleSheet("font-weight: bold;")
+        self.total_depenses_diverses_valeur_label = QLabel("0.00 $")
+        self.total_depenses_diverses_valeur_label.setStyleSheet("font-weight: bold;")
         
         # --- Stockage des miniatures --- 
         self.current_facture_thumbnails = {} # { file_path: ThumbnailWidget }
@@ -101,7 +110,9 @@ class RapportDepensePage(QWidget):
 
         self._setup_ui()
         # self._load_data() # Pas besoin avec le QLabel simple
-        # self._update_deplacement_info_display() # Appel initial pour peupler le cadre déplacement # COMMENTED OUT
+        self._update_deplacement_info_display() # DÉCOMMENTÉ: Appel initial pour peupler le cadre déplacement
+        self._update_repas_info_display() # AJOUT: Appel initial
+        self._update_depenses_diverses_info_display() # AJOUT: Appel initial
 
     def _setup_ui(self):
         # Layout vertical principal pour la page
@@ -129,6 +140,13 @@ class RapportDepensePage(QWidget):
         totals_form_layout.addRow("Déplacements:", self.total_deplacements_label)
         totals_form_layout.addRow("Repas:", self.total_repas_label)
         totals_form_layout.addRow("Dépenses diverses:", self.total_depenses_label)
+        
+        # AJOUT: Stretch avant le séparateur du total général
+        stretch_widget_totals = QWidget()
+        stretch_widget_totals.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        stretch_widget_totals.setStyleSheet("background-color: transparent;") # AJOUT: Rendre transparent
+        totals_form_layout.addRow(stretch_widget_totals)
+        
         # Ajouter un séparateur avant le total général
         separator = QFrame() # Utiliser QFrame standard ici
         separator.setFrameShape(QFrame.HLine)
@@ -136,7 +154,7 @@ class RapportDepensePage(QWidget):
         totals_form_layout.addRow(separator)
         totals_form_layout.addRow("Total Général:", self.total_general_label)
         
-        totals_content_layout.addStretch() # Pousser les totaux vers le haut
+        # totals_content_layout.addStretch() # SUPPRIMÉ: Le stretch est maintenant interne au QFormLayout
         # Pas de largeur fixe ici
 
         # content_layout.addWidget(self.totals_frame) # <-- SUPPRIMER ICI SI PRÉSENT, OU S'ASSURER QU'IL N'Y EST PAS
@@ -396,76 +414,197 @@ class RapportDepensePage(QWidget):
         deplacement_form_layout.setLabelAlignment(Qt.AlignRight)
         deplacement_content_layout.addLayout(deplacement_form_layout)
 
-        # Labels statiques comme demandé par l'utilisateur
-        deplacement_form_layout.addRow("Plafond:", QLabel("Valeur Plafond Placeholder"))
-        deplacement_form_layout.addRow("Taux de Remboursement:", QLabel("Valeur Taux Placeholder"))
+        # Labels dynamiques pour Plafond et Taux
+        self.plafond_label_value = QLabel("N/A")
+        self.taux_remboursement_label_value = QLabel("N/A")
+        self.total_rembourse_deplacement_label_value = QLabel("0.00 $") # AJOUT: Initialisation du QLabel
+
+        deplacement_form_layout.addRow("Plafond:", self.plafond_label_value)
+        deplacement_form_layout.addRow("Taux de Remboursement:", self.taux_remboursement_label_value)
         
-        deplacement_content_layout.addStretch() # Pousser les infos vers le haut
+        # AJOUT: Stretch avant le séparateur du total remboursé
+        stretch_widget_deplacement = QWidget()
+        stretch_widget_deplacement.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        stretch_widget_deplacement.setStyleSheet("background-color: transparent;") # AJOUT: Rendre transparent
+        deplacement_form_layout.addRow(stretch_widget_deplacement)
+        
+        # AJOUT: Séparateur avant le total remboursé
+        separator_deplacement = QFrame()
+        separator_deplacement.setFrameShape(QFrame.HLine)
+        separator_deplacement.setFrameShadow(QFrame.Sunken)
+        deplacement_form_layout.addRow(separator_deplacement)
+        
+        deplacement_form_layout.addRow("Total Remboursé:", self.total_rembourse_deplacement_label_value) 
+        
+        # deplacement_content_layout.addStretch() # SUPPRIMÉ: Le stretch est maintenant interne au QFormLayout
 
         bottom_frames_layout.addWidget(self.deplacement_frame, 1) # Stretch factor 1 pour équilibrer avec Totaux
 
-        # --- AJOUT DE LA SECTION BASSE (TOTAUX + DÉPLACEMENT) AU LAYOUT PRINCIPAL ---
-        # content_layout.addStretch(1) # SUPPRIMÉ: L'étirement est géré par middle_section_layout
+        # --- Nouveau Cadre: Repas ---
+        self.repas_frame = Frame("Repas", self)
+        repas_content_layout = self.repas_frame.get_content_layout()
+        repas_form_layout = QFormLayout()
+        repas_form_layout.setSpacing(8)
+        repas_form_layout.setLabelAlignment(Qt.AlignRight)
+        repas_content_layout.addLayout(repas_form_layout)
+
+        stretch_widget_repas = QWidget()
+        stretch_widget_repas.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        stretch_widget_repas.setStyleSheet("background-color: transparent;")
+        repas_form_layout.addRow(stretch_widget_repas)
+
+        separator_repas = QFrame()
+        separator_repas.setFrameShape(QFrame.HLine)
+        separator_repas.setFrameShadow(QFrame.Sunken)
+        repas_form_layout.addRow(separator_repas)
+
+        repas_form_layout.addRow("Total Remboursé:", self.total_repas_valeur_label) # MODIFIÉ: Changement de l'étiquette
+        bottom_frames_layout.addWidget(self.repas_frame, 1) # Stretch factor 1
+
+        # --- Nouveau Cadre: Dépenses Diverses ---
+        self.depenses_diverses_frame = Frame("Dépenses Diverses", self)
+        depenses_diverses_content_layout = self.depenses_diverses_frame.get_content_layout()
+        depenses_diverses_form_layout = QFormLayout()
+        depenses_diverses_form_layout.setSpacing(8)
+        depenses_diverses_form_layout.setLabelAlignment(Qt.AlignRight)
+        depenses_diverses_content_layout.addLayout(depenses_diverses_form_layout)
+
+        stretch_widget_depenses_div = QWidget()
+        stretch_widget_depenses_div.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        stretch_widget_depenses_div.setStyleSheet("background-color: transparent;")
+        depenses_diverses_form_layout.addRow(stretch_widget_depenses_div)
+
+        separator_depenses_div = QFrame()
+        separator_depenses_div.setFrameShape(QFrame.HLine)
+        separator_depenses_div.setFrameShadow(QFrame.Sunken)
+        depenses_diverses_form_layout.addRow(separator_depenses_div)
+
+        depenses_diverses_form_layout.addRow("Total Remboursé:", self.total_depenses_diverses_valeur_label) # MODIFIÉ: Changement de l'étiquette
+        bottom_frames_layout.addWidget(self.depenses_diverses_frame, 1) # Stretch factor 1
+
+        # --- AJOUT DE LA SECTION BASSE (TOTAUX + DÉPLACEMENT + REPAS + DEPENSES DIVERSES) AU LAYOUT PRINCIPAL ---
         content_layout.addLayout(bottom_frames_layout)
         
         # Initialisation du formulaire dynamique (appel original)
         self._update_entry_form()
 
-    # --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT ---
-    # def _update_deplacement_info_display(self):
-    #     logger.debug("Mise à jour des informations du cadre Déplacement.")
-    #     config_data = ConfigData.get_instance()
-    #     
-    #     # Taux de remboursement
-    #     try:
-    #         taux_remboursement_str = config_data.get_valeur_config('taux_remboursement_deplacement', '0.0')
-    #         taux_remboursement = float(taux_remboursement_str)
-    #         self.taux_remboursement_deplacement_label.setText(f"{taux_remboursement*100:.0f} %")
-    #     except ValueError:
-    #         taux_remboursement = 0.0
-    #         self.taux_remboursement_deplacement_label.setText("Erreur (taux)")
-    #         logger.error("Valeur invalide pour taux_remboursement_deplacement dans ConfigData.")
-    #     
-    #     # Plafond spécifique au document
-    #     try:
-    #         # Assumant que self.document (RapportDepense) a une méthode get() ou un accès dict-like
-    #         # et que 'plafond_deplacement' est la clé pour le plafond DANS les données du document.
-    #         plafond_document = self.document.get_data().get('plafond_deplacement') 
-    #         if plafond_document is None:
-    #             # Si non défini dans le document, chercher une valeur par défaut dans ConfigData
-    #             plafond_document_str = config_data.get_valeur_config('plafond_deplacement_par_defaut', '0.0') # Clé exemple
-    #             plafond_document = float(plafond_document_str)
-    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $ (défaut)")
-    #         else:
-    #             plafond_document = float(plafond_document) # Assurer que c'est un float
-    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $")
-    #
-    #     except ValueError:
-    #         plafond_document = 0.0
-    #         self.plafond_deplacement_document_label.setText("Erreur (plafond)")
-    #         logger.error("Valeur invalide pour plafond_deplacement dans les données du document ou ConfigData.")
-    #     except AttributeError:
-    #          plafond_document = 0.0
-    #          self.plafond_deplacement_document_label.setText("Erreur (doc data)")
-    #          logger.error("Impossible d'accéder à get_data() ou 'plafond_deplacement' sur self.document.")
-    #
-    #
-    #     # Calcul du Montant Remboursable
-    #     total_depenses_deplacement = 0.0
-    #     if hasattr(self.document, 'entries') and isinstance(self.document.entries, list):
-    #         for entry_proxy in self.document.entries: # entries sont des ObjectProxy
-    #             entry_data = entry_proxy.get_data() # Obtenir le dict de données
-    #             if entry_data.get('type') == 'Deplacement': # Utiliser 'type' comme dans RapportDepense class
-    #                 total_depenses_deplacement += float(entry_data.get('montant', 0.0))
-    #     
-    #     montant_brut_remboursable = total_depenses_deplacement * taux_remboursement
-    #     montant_net_remboursable = min(montant_brut_remboursable, plafond_document)
-    #     
-    #     self.montant_remboursable_deplacement_label.setText(f"{montant_net_remboursable:.2f} $")
-    #
-    #     logger.debug(f"Déplacement - Taux: {taux_remboursement}, Plafond Doc: {plafond_document}, Total Dép: {total_depenses_deplacement}, Brut Remb: {montant_brut_remboursable}, Net Remb: {montant_net_remboursable}")
+    # --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT --- # DÉCOMMENTÉE
+    def _update_deplacement_info_display(self):
+        logger.debug("Mise à jour des informations du cadre Déplacement.")
+        config_data = ConfigData.get_instance()
+        
+        current_taux_remboursement = 0.0 # Variable pour stocker le taux actuel
 
-    # --- FIN NOUVELLE MÉTHODE --- # COMMENTED OUT
+        # Taux de remboursement (logique existante conservée)
+        try:
+            # --- MODIFICATION: Accéder au taux via la structure de config_data.json ---
+            documents_config = config_data.get_top_level_key("documents", {})
+            rapport_depense_config = documents_config.get("rapport_depense", [{}])
+            if rapport_depense_config and isinstance(rapport_depense_config, list) and len(rapport_depense_config) > 0:
+                taux_remboursement_str = str(rapport_depense_config[0].get('Taux_remboursement', '0.0'))
+            else:
+                taux_remboursement_str = '0.0'
+            # --- FIN MODIFICATION ---
+            current_taux_remboursement = float(taux_remboursement_str) # Stocker le taux
+            self.taux_remboursement_label_value.setText(f"{current_taux_remboursement:.2f} $/km") # MODIFIÉ: Affichage décimal et unité $/km
+        except ValueError:
+            self.taux_remboursement_label_value.setText("Erreur (taux)")
+            logger.error("Valeur invalide ou chemin incorrect pour Taux_remboursement dans ConfigData.")
+        except Exception as e:
+            self.taux_remboursement_label_value.setText("Erreur (cfg taux)")
+            logger.error(f"Erreur inattendue lors de la récupération du taux de remboursement: {e}")
+
+        # Plafond spécifique au document
+        try:
+            # 1. Obtenir la clé du plafond à partir de l'objet RapportDepense
+            cle_plafond_document = self.document.plafond_deplacement # Ex: "Cap 1"
+            
+            if not cle_plafond_document: # Si la clé est vide ou None
+                self.plafond_label_value.setText("N/A (clé manquante)")
+                logger.warning("La clé 'plafond_deplacement' est manquante dans l'objet document.")
+                # Ne pas retourner ici pour permettre la mise à jour du total remboursé
+            else:
+                # 2. Accéder au dictionnaire des plafonds depuis ConfigData
+                jacmar_config = config_data.get_top_level_key("jacmar", {})
+                plafonds_liste = jacmar_config.get("plafond_deplacement", [])
+                
+                valeur_plafond_num = None
+                if plafonds_liste and isinstance(plafonds_liste, list) and len(plafonds_liste) > 0:
+                    plafonds_dict = plafonds_liste[0] # Le premier élément est le dictionnaire des plafonds
+                    if isinstance(plafonds_dict, dict):
+                        # 3. Utiliser la clé pour trouver la valeur numérique
+                        valeur_plafond_num = plafonds_dict.get(cle_plafond_document)
+
+                if valeur_plafond_num is not None:
+                    try:
+                        plafond_affiche = float(valeur_plafond_num)
+                        self.plafond_label_value.setText(f"{plafond_affiche:.2f} $")
+                        logger.info(f"Plafond '{cle_plafond_document}' appliqué: {plafond_affiche:.2f} $")
+                    except ValueError:
+                        self.plafond_label_value.setText("Erreur (val num)")
+                        logger.error(f"La valeur du plafond '{cle_plafond_document}' n'est pas un nombre valide: {valeur_plafond_num}")
+                else:
+                    self.plafond_label_value.setText(f"Non trouvé ({cle_plafond_document})")
+                    logger.warning(f"La clé de plafond '{cle_plafond_document}' du document n'a pas été trouvée dans config_data.json.")
+
+        except AttributeError as e:
+            self.plafond_label_value.setText("Erreur (doc)")
+            logger.error(f"Erreur d'attribut en accédant à 'plafond_deplacement' sur self.document: {e}")
+        except Exception as e: # Capture générique pour autres erreurs inattendues
+            self.plafond_label_value.setText("Erreur (gén.)")
+            logger.error(f"Erreur inattendue lors de la mise à jour de l'affichage du plafond: {e}", exc_info=True)
+
+        # AJOUT: Logique de mise à jour du total remboursé
+        try:
+            total_kilometrage = 0.0
+            if hasattr(self.document, 'deplacements') and isinstance(self.document.deplacements, list):
+                for deplacement_obj in self.document.deplacements:
+                    if hasattr(deplacement_obj, 'kilometrage'):
+                        try:
+                            total_kilometrage += float(deplacement_obj.kilometrage)
+                        except (ValueError, TypeError):
+                            logger.warning(f"Kilométrage invalide pour un déplacement: {deplacement_obj.kilometrage}")
+            
+            total_rembourse = total_kilometrage * current_taux_remboursement
+            self.total_rembourse_deplacement_label_value.setText(f"{total_rembourse:.2f} $")
+            logger.info(f"Total remboursé calculé: {total_rembourse:.2f} $ (Km: {total_kilometrage}, Taux: {current_taux_remboursement})")
+
+        except Exception as e:
+            self.total_rembourse_deplacement_label_value.setText("Erreur (calcul)")
+            logger.error(f"Erreur lors du calcul du total remboursé pour les déplacements: {e}", exc_info=True)
+
+        # La partie Calcul du Montant Remboursable est supprimée car non demandée
+        # logger.debug(f"Déplacement - Taux: ..., Plafond Doc: ...") # Log simplifié ou à ajuster si besoin
+
+    # --- FIN NOUVELLE MÉTHODE --- # DÉCOMMENTÉE
+
+    # AJOUT: Méthode pour mettre à jour les infos du cadre Repas
+    def _update_repas_info_display(self):
+        logger.debug("Mise à jour des informations du cadre Repas.")
+        # Pour l'instant, s'assurer que le label affiche 0.00 $
+        # La logique de calcul réelle du total des repas sera ajoutée plus tard si besoin.
+        try:
+            # Exemple: Calculer le total des repas à partir de self.document.repas
+            # total_repas_val = sum(r.totale_apres_taxes for r in self.document.repas if hasattr(r, 'totale_apres_taxes'))
+            # self.total_repas_valeur_label.setText(f"{total_repas_val:.2f} $")
+            self.total_repas_valeur_label.setText("0.00 $") # Initialisation/Placeholder
+        except Exception as e:
+            self.total_repas_valeur_label.setText("Erreur")
+            logger.error(f"Erreur lors de la mise à jour de l'affichage du total repas: {e}", exc_info=True)
+
+    # AJOUT: Méthode pour mettre à jour les infos du cadre Dépenses Diverses
+    def _update_depenses_diverses_info_display(self):
+        logger.debug("Mise à jour des informations du cadre Dépenses Diverses.")
+        # Pour l'instant, s'assurer que le label affiche 0.00 $
+        # La logique de calcul réelle du total des dépenses diverses sera ajoutée plus tard.
+        try:
+            # Exemple: Calculer le total des dépenses diverses à partir de self.document.depenses_diverses
+            # total_dep_div_val = sum(d.totale_apres_taxes for d in self.document.depenses_diverses if hasattr(d, 'totale_apres_taxes'))
+            # self.total_depenses_diverses_valeur_label.setText(f"{total_dep_div_val:.2f} $")
+            self.total_depenses_diverses_valeur_label.setText("0.00 $") # Initialisation/Placeholder
+        except Exception as e:
+            self.total_depenses_diverses_valeur_label.setText("Erreur")
+            logger.error(f"Erreur lors de la mise à jour de l'affichage du total dépenses diverses: {e}", exc_info=True)
 
     def _create_vertical_separator(self):
         """ Crée un QFrame configuré comme séparateur vertical. """
@@ -1313,8 +1452,8 @@ class RapportDepensePage(QWidget):
              logger.exception(f"Impossible d'ajouter l'entrée:") # MODIFICATION
 
     def _update_totals_display(self):
-         # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
-         pass 
+        # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
+        pass 
 
     def _toggle_num_commande_row_visibility(self, checked):
         """ Affiche ou cache la ligne (label + champ) N° Commande dans le QGridLayout. """
@@ -2352,7 +2491,7 @@ class RapportDepensePage(QWidget):
         # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
         pass 
 
-# --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT ---
+# --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT --- # DÉCOMMENTÉE (la deuxième définition, celle du bas du fichier)
     # def _update_deplacement_info_display(self): # COMMENTED OUT
     #     logger.debug("Mise à jour des informations du cadre Déplacement.")
     #     config_data = ConfigData.get_instance()
@@ -2361,52 +2500,34 @@ class RapportDepensePage(QWidget):
     #     try:
     #         taux_remboursement_str = config_data.get_valeur_config('taux_remboursement_deplacement', '0.0')
     #         taux_remboursement = float(taux_remboursement_str)
-    #         self.taux_remboursement_deplacement_label.setText(f"{taux_remboursement*100:.0f} %")
+    #         self.taux_remboursement_label_value.setText(f"{taux_remboursement*100:.0f} %") # MODIFIÉ
     #     except ValueError:
-    #         taux_remboursement = 0.0
-    #         self.taux_remboursement_deplacement_label.setText("Erreur (taux)")
+    #         # taux_remboursement = 0.0 # Inutile si on ne l'utilise pas plus loin
+    #         self.taux_remboursement_label_value.setText("Erreur (taux)") # MODIFIÉ
     #         logger.error("Valeur invalide pour taux_remboursement_deplacement dans ConfigData.")
     #     
     #     # Plafond spécifique au document
     #     try:
-    #         # Assumant que self.document (RapportDepense) a une méthode get() ou un accès dict-like
-    #         # et que 'plafond_deplacement' est la clé pour le plafond DANS les données du document.
-    #         plafond_document = self.document.get_data().get('plafond_deplacement') 
-    #         if plafond_document is None:
-    #             # Si non défini dans le document, chercher une valeur par défaut dans ConfigData
-    #             plafond_document_str = config_data.get_valeur_config('plafond_deplacement_par_defaut', '0.0') # Clé exemple
+    #         plafond_document_val = self.document.get_data().get('plafond_deplacement') 
+    #         if plafond_document_val is None:
+    #             plafond_document_str = config_data.get_valeur_config('plafond_deplacement_par_defaut', '0.0')
     #             plafond_document = float(plafond_document_str)
-    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $ (défaut)")
+    #             self.plafond_label_value.setText(f"{plafond_document:.2f} $ (défaut)") # MODIFIÉ
     #         else:
-    #             plafond_document = float(plafond_document) # Assurer que c'est un float
-    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $")
-    #
+    #             plafond_document = float(plafond_document_val) # Assurer que c'est un float
+    #             self.plafond_label_value.setText(f"{plafond_document:.2f} $") # MODIFIÉ
+
     #     except ValueError:
-    #         plafond_document = 0.0
-    #         self.plafond_deplacement_document_label.setText("Erreur (plafond)")
+    #         # plafond_document = 0.0 # Inutile
+    #         self.plafond_label_value.setText("Erreur (plafond)") # MODIFIÉ
     #         logger.error("Valeur invalide pour plafond_deplacement dans les données du document ou ConfigData.")
     #     except AttributeError:
-    #          plafond_document = 0.0
-    #          self.plafond_deplacement_document_label.setText("Erreur (doc data)")
-    #          logger.error("Impossible d'accéder à get_data() ou 'plafond_deplacement' sur self.document.")
-    #
-    #
-    #     # Calcul du Montant Remboursable
-    #     total_depenses_deplacement = 0.0
-    #     if hasattr(self.document, 'entries') and isinstance(self.document.entries, list):
-    #         for entry_proxy in self.document.entries: # entries sont des ObjectProxy
-    #             entry_data = entry_proxy.get_data() # Obtenir le dict de données
-    #             if entry_data.get('type') == 'Deplacement': # Utiliser 'type' comme dans RapportDepense class
-    #                 total_depenses_deplacement += float(entry_data.get('montant', 0.0))
-    #     
-    #     montant_brut_remboursable = total_depenses_deplacement * taux_remboursement
-    #     montant_net_remboursable = min(montant_brut_remboursable, plafond_document)
-    #     
-    #     self.montant_remboursable_deplacement_label.setText(f"{montant_net_remboursable:.2f} $")
-    #
-    #     logger.debug(f"Déplacement - Taux: {taux_remboursement}, Plafond Doc: {plafond_document}, Total Dép: {total_depenses_deplacement}, Brut Remb: {montant_brut_remboursable}, Net Remb: {montant_net_remboursable}")
+    #         # plafond_document = 0.0 # Inutile
+    #         self.plafond_label_value.setText("Erreur (doc data)") # MODIFIÉ
+    #         logger.error("Impossible d'accéder à get_data() ou 'plafond_deplacement' sur self.document.")
 
-    # --- FIN NOUVELLE MÉTHODE --- # COMMENTED OUT
+    # # Calcul du Montant Remboursable - SUPPRIMÉ
+    # --- FIN NOUVELLE MÉTHODE --- # DÉCOMMENTÉE
 
 # Bloc de test simple
 if __name__ == '__main__':
