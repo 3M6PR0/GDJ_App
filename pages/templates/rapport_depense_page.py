@@ -57,7 +57,7 @@ class RapportDepensePage(QWidget):
         self._original_frame_style = "" # Pour sauvegarder le style du frame en mode édition
         
         self.total_rembourse_deplacement_label_value = QLabel("0.00 $")
-        self.total_rembourse_deplacement_label_value.setStyleSheet("font-weight: bold;")
+        self.total_rembourse_deplacement_label_value.setStyleSheet("font-weight: bold;") # CORRECTION: Application du style gras
 
         # AJOUT: Initialisation des labels pour les nouveaux frames Repas et Dépenses Diverses
         self.total_repas_valeur_label = QLabel("0.00 $")
@@ -417,7 +417,8 @@ class RapportDepensePage(QWidget):
         # Labels dynamiques pour Plafond et Taux
         self.plafond_label_value = QLabel("N/A")
         self.taux_remboursement_label_value = QLabel("N/A")
-        self.total_rembourse_deplacement_label_value = QLabel("0.00 $") # AJOUT: Initialisation du QLabel
+        # La ligne suivante est supprimée car self.total_rembourse_deplacement_label_value est déjà initialisé et stylisé dans __init__
+        # self.total_rembourse_deplacement_label_value = QLabel("0.00 $") 
 
         deplacement_form_layout.addRow("Plafond:", self.plafond_label_value)
         deplacement_form_layout.addRow("Taux de Remboursement:", self.taux_remboursement_label_value)
