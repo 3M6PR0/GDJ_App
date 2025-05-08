@@ -1,8 +1,9 @@
 # windows/document_window.py
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
-from PyQt5.QtCore import Qt, QEvent, pyqtSignal, pyqtSlot
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QTabWidget, QMessageBox
+from PyQt5.QtCore import Qt, QEvent, pyqtSignal, pyqtSlot as Slot
 from ui.components.custom_titlebar import CustomTitleBar
 from pages.documents_open.documents_open_page import DocumentsOpenPage
+from PyQt5.QtWidgets import QApplication
 import logging
 logger = logging.getLogger('GDJ_App')
 
@@ -11,6 +12,7 @@ class DocumentWindow(QWidget):
     def __init__(self, main_controller, initial_doc_type=None, initial_doc_data=None, parent=None):
         super().__init__(parent)
         self.main_controller = main_controller
+        self._closed_due_to_last_tab = False
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setObjectName("DocumentWindow")
 
@@ -45,6 +47,18 @@ class DocumentWindow(QWidget):
             else:
                 logger.warning("DocumentWindow: title_bar n'a pas le signal 'close_all_documents_requested'.")
 
+            if hasattr(self.title_bar, 'close_window_requested'):
+                self.title_bar.close_window_requested.connect(self.close)
+                logger.info("DocumentWindow: Connecté title_bar.close_window_requested -> close")
+            else:
+                logger.warning("DocumentWindow: title_bar n'a pas le signal 'close_window_requested'.")
+
+            if hasattr(self.title_bar, 'settings_requested'):
+                self.title_bar.settings_requested.connect(self._handle_settings_request)
+                logger.info("DocumentWindow: Connecté title_bar.settings_requested -> _handle_settings_request")
+            else:
+                logger.warning("DocumentWindow: title_bar n'a pas le signal 'settings_requested'.")
+
         except Exception as e_connect:
              logger.error(f"DocumentWindow: Erreur connexion signaux title_bar: {e_connect}")
 
@@ -59,6 +73,11 @@ class DocumentWindow(QWidget):
             logger.info(f"DocumentWindow: Instanciation de DocumentsOpenPage avec type='{self.initial_doc_type}' et data='{self.initial_doc_data}'")
             self.documents_open_page = DocumentsOpenPage(initial_doc_type=self.initial_doc_type, initial_doc_data=self.initial_doc_data)
             main_layout.addWidget(self.documents_open_page, 1)
+            if hasattr(self.documents_open_page, 'tab_closed_signal'):
+                self.documents_open_page.tab_closed_signal.connect(self._handle_tab_closed)
+                logger.info("DocumentWindow: Connecté documents_open_page.tab_closed_signal -> _handle_tab_closed")
+            else:
+                logger.warning("DocumentWindow: documents_open_page n'a pas le signal 'tab_closed_signal'.")
         except Exception as e_page:
             logger.error(f"Erreur lors de l\'instanciation de DocumentsOpenPage: {e_page}", exc_info=True)
             error_label = QLabel(f"Erreur: Impossible de charger la page principale des documents.\n{e_page}")
@@ -85,12 +104,17 @@ class DocumentWindow(QWidget):
             else:
                  logger.error("DocumentWindow: Erreur inconnue lors de la tentative d'appel de add_new_document_to_tabs sur documents_open_page.")
 
-    @pyqtSlot()
+    @Slot()
     def _handle_new_document_request(self):
         logger.info("DocumentWindow: Reçu new_document_requested de title_bar, émission de request_main_action('new_document', self).")
         self.request_main_action.emit('new_document', self)
 
-    @pyqtSlot()
+    @Slot()
+    def _handle_settings_request(self):
+        logger.info("DocumentWindow: Reçu settings_requested de title_bar, émission de request_main_action('settings', self).")
+        self.request_main_action.emit('settings', self)
+
+    @Slot()
     def close_active_document_tab(self):
         """Ferme l'onglet de document actif dans cette fenêtre."""
         if hasattr(self, 'documents_open_page') and self.documents_open_page:
@@ -99,7 +123,7 @@ class DocumentWindow(QWidget):
         else:
             logger.warning("DocumentWindow: documents_open_page non disponible pour fermer l'onglet actif.")
 
-    @pyqtSlot()
+    @Slot()
     def close_all_document_tabs(self):
         """Ferme tous les onglets de document dans cette fenêtre."""
         if hasattr(self, 'documents_open_page') and self.documents_open_page:
@@ -108,6 +132,25 @@ class DocumentWindow(QWidget):
         else:
             logger.warning("DocumentWindow: documents_open_page non disponible pour fermer tous les onglets.")
 
+    @Slot(int)
+    def _handle_tab_closed(self, remaining_tabs):
+        logger.info(f"DocumentWindow: Reçu tab_closed_signal. Onglets restants: {remaining_tabs}")
+        if remaining_tabs == 0:
+            logger.info("DocumentWindow: Dernier onglet fermé, préparation pour afficher WelcomeWindow...")
+            self._closed_due_to_last_tab = True
+            
+            if self.main_controller and hasattr(self.main_controller, 'request_welcome_after_close'):
+                self.main_controller.request_welcome_after_close(self)
+            
+            # --- EMPÊCHER QT DE QUITTER SI C'EST LA DERNIÈRE FENÊTRE LOGIQUE ---
+            app = QApplication.instance() # S'assurer que QApplication est importé au début du fichier
+            if app and len(self.main_controller.open_document_windows) == 1: # Si c'est la dernière DocumentWindow
+                logger.debug("DocumentWindow: Temporairement quitOnLastWindowClosed = False avant de fermer.")
+                app.setQuitOnLastWindowClosed(False)
+            # ----------------------------------------------------------------------
+                 
+            self.close()
+
     def eventFilter(self, obj, event):
         if obj == self and event.type() == QEvent.MouseButtonPress:
             if self.title_bar.btn_file and self.title_bar.btn_file.isVisible():
@@ -115,6 +158,21 @@ class DocumentWindow(QWidget):
                     self.title_bar.show_initial_state()
         
         return super().eventFilter(obj, event)
+
+    def closeEvent(self, event):
+        logger.debug(f"DocumentWindow closeEvent received. Closed due to last tab: {self._closed_due_to_last_tab}")
+        if not self._closed_due_to_last_tab:
+            if self.main_controller and hasattr(self.main_controller, 'open_document_windows') and len(self.main_controller.open_document_windows) <= 1:
+                 logger.info("DocumentWindow closeEvent: Fermeture par 'X' de la (potentiellement) dernière DocumentWindow. Acceptation, QApplication devrait gérer.")
+                 event.accept()
+            else:
+                 logger.debug("DocumentWindow closeEvent: Fermeture par 'X', mais d'autres fenêtres existent. Acceptation.")
+                 event.accept()
+        else:
+            logger.debug("DocumentWindow closeEvent: Fermeture initiée par la fermeture du dernier onglet. Acceptation.")
+            event.accept()
+            logger.debug("DocumentWindow closeEvent: Calling self.deleteLater() as it was closed due to last tab.")
+            self.deleteLater()
 
 # Optionnel: pour tester cette fenêtre seule
 if __name__ == '__main__':

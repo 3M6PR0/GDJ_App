@@ -60,6 +60,7 @@ from controllers.settings.settings_controller import SettingsController
 # --- WelcomeWindow (Anciennement WelcomePage) --- 
 class WelcomeWindow(QWidget): # RENOMMÉ
     def __init__(self, controller, app_name="GDJ", version_str="?.?.?"):
+        logger.critical(">>> ENTERING WelcomeWindow __init__ <<< START") # Log critique entrée
         super().__init__()
         self.controller = controller
         self.app_name = app_name
@@ -93,8 +94,20 @@ class WelcomeWindow(QWidget): # RENOMMÉ
         
         self.stacked_widget = QStackedWidget()
         
-        self.init_ui()
-        
+        try:
+            self.init_ui()
+            logger.info("WelcomeWindow UI initialized successfully.")
+        except Exception as e_init_ui:
+            logger.critical(f"CRITICAL ERROR during WelcomeWindow init_ui: {e_init_ui}", exc_info=True)
+            # Que faire ici? La fenêtre risque de ne pas être utilisable.
+            # On pourrait essayer de juste montrer une erreur simple?
+            # self.setup_error_ui(e_init_ui)
+            logger.critical("<<< EXITING WelcomeWindow __init__ DUE TO UI ERROR <<<")
+            # Lever l'exception pour que le contrôleur sache qu'il y a eu un problème?
+            raise # Propage l'erreur au MainController
+
+        logger.critical("<<< EXITING WelcomeWindow __init__ <<< END") # Log critique sortie
+
     def init_ui(self):
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0,0,0,0)
@@ -518,6 +531,14 @@ class WelcomeWindow(QWidget): # RENOMMÉ
                   self.btn_settings.setIcon(QIcon())
                   self.btn_settings.setText("?")
     # ---------------------------------------------
+
+    def closeEvent(self, event):
+        """Surcharge pour gérer l'événement de fermeture."""
+        logger.debug("WelcomeWindow closeEvent received.")
+        # Nous n'avons plus besoin des logs critiques ou de la pile d'appel ici.
+        # QApplication gérera la fermeture de l'application si c'est la dernière fenêtre
+        # et que quitOnLastWindowClosed est True (ce qui est le cas par défaut maintenant).
+        event.accept() # Accepter simplement l'événement de fermeture.
 
 # Pour tester la page seule (optionnel)
 if __name__ == '__main__':

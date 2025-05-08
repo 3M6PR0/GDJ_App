@@ -29,6 +29,9 @@ from models.documents.rapport_depense.rapport_depense import RapportDepense
 logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
 
 class DocumentsOpenPage(QWidget):
+    # --- AJOUT SIGNAL --- 
+    tab_closed_signal = pyqtSignal(int)
+    # ------------------
     # --- Modifier le constructeur --- 
     def __init__(self, initial_doc_type=None, initial_doc_data=None, parent=None):
         super().__init__(parent)
@@ -384,10 +387,16 @@ class DocumentsOpenPage(QWidget):
         """Slot pour fermer l'onglet demandé."""
         widget = self.tab_widget.widget(index)
         if widget:
-            logger.info(f"DocumentsOpenPage: Fermeture de l'onglet '{self.tab_widget.tabText(index)}' (index {index})")
+            tab_text = self.tab_widget.tabText(index)
+            logger.info(f"DocumentsOpenPage: Fermeture de l'onglet '{tab_text}' (index {index})")
             # Optionnel: Logique de sauvegarde ici avant deleteLater()
             widget.deleteLater() # Supprimer le widget de la page template
             self.tab_widget.removeTab(index)
+            # --- Émettre le signal avec le nombre d'onglets restants ---
+            remaining_tabs = self.tab_widget.count()
+            logger.debug(f"DocumentsOpenPage: Onglet fermé. Onglets restants: {remaining_tabs}. Émission de tab_closed_signal.")
+            self.tab_closed_signal.emit(remaining_tabs)
+            # ------------------------------------------------------------
 
     def close_current_tab(self):
         """Ferme l'onglet actuellement sélectionné."""

@@ -91,6 +91,9 @@ class MainController(QObject):
         self.settings_window = None # <<< AJOUT: Référence à SettingsWindow
         self.type_selection_window_instance = None # Pour garder une référence si besoin
         self.doc_creation_source_window = None # << AJOUT pour la fenêtre source
+        # --- AJOUT FLAG ---
+        self._expecting_welcome_after_close = False
+        # ------------------
 
         # --- Corrected Logic AGAIN (Focus on Version Comparison) --- 
         self.version_file = get_resource_path("data/version.txt")
@@ -134,46 +137,101 @@ class MainController(QObject):
 
     def show_welcome_page(self):
         """Crée et affiche la WelcomeWindow, et lance la vérif MàJ."""
-        if self.welcome_window is None:
-            app_name = CONFIG.get('APP_NAME', 'MonApp')
-            self.welcome_window = WelcomeWindow(self, app_name, self.current_version_str)
-            # --- DÉFINIR L'ICÔNE DE LA FENÊTRE DE BIENVENUE ---
-            try:
-                icon_path = get_resource_path("resources/images/logo-gdj.ico")
-                if os.path.exists(icon_path):
-                    self.welcome_window.setWindowIcon(QIcon(icon_path))
-                else:
-                    logger.warning(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
-            except Exception as e:
-                logger.error(f"Erreur lors de la définition de l'icône pour WelcomeWindow: {e}", exc_info=True)
+        logger.critical(">>> ENTERING show_welcome_page <<< START") # Log critique entrée
         
-        self.welcome_window.show()
-        logger.debug("DEBUG show_welcome_page: WelcomeWindow shown.")
-
-        # --- MODIFICATION : Appeler la vérification SEULEMENT si pas déjà faite --- 
-        if not self._startup_update_check_done:
-             logger.debug("DEBUG show_welcome_page: Performing startup update check (first time)...")
-             self._perform_startup_update_check()
-             self._startup_update_check_done = True # Marquer comme fait
-        else:
-             logger.debug("DEBUG show_welcome_page: Startup update check already performed.")
-        # --------------------------------------------------------------------
-
-        # --- Gestion de la navigation vers les notes (reste pareil) ---
-        if self.navigate_to_notes_after_welcome:
-            logger.debug("DEBUG show_welcome_page: Flag is True, attempting navigation to 'A Propos' section...")
+        if self.welcome_window is None:
+            logger.info("show_welcome_page: self.welcome_window is None, creating new instance...") # Log info
+            app_name = CONFIG.get('APP_NAME', 'MonApp')
             try:
-                # Assume welcome_window has this method
-                self.welcome_window.navigate_to_section("A Propos") 
-                logger.debug("DEBUG show_welcome_page: Called welcome_window.navigate_to_section('A Propos').")
-                # The WelcomeWindow logic should handle activating the correct sub-tab 
-                # and resetting the flag self.navigate_to_notes_after_welcome to False.
-            except AttributeError:
-                logger.error("ERROR show_welcome_page: WelcomeWindow does not have method 'navigate_to_section'.")
-            except Exception as e:
-                 logger.error(f"ERROR show_welcome_page: Exception during navigation call: {e}", exc_info=True)
+                self.welcome_window = WelcomeWindow(self, app_name, self.current_version_str)
+                logger.info("show_welcome_page: New WelcomeWindow instance created.") # Log info
+                # --- DÉFINIR L'ICÔNE DE LA FENÊTRE DE BIENVENUE ---
+                try:
+                    icon_path = get_resource_path("resources/images/logo-gdj.ico")
+                    if os.path.exists(icon_path):
+                        self.welcome_window.setWindowIcon(QIcon(icon_path))
+                    else:
+                        logger.warning(f"Avertissement: Icône de fenêtre non trouvée à {icon_path}")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la définition de l'icône pour WelcomeWindow: {e}", exc_info=True)
+            except Exception as e_create_welcome:
+                logger.critical(f"CRITICAL ERROR creating WelcomeWindow instance: {e_create_welcome}", exc_info=True)
+                # Peut-être afficher une QMessageBox ici?
+                logger.critical("<<< EXITING show_welcome_page DUE TO CREATION ERROR <<<")
+                return # Sortir si la création échoue
         else:
-             logger.debug("DEBUG show_welcome_page: Flag is False, no automatic navigation needed.")
+             logger.info("show_welcome_page: self.welcome_window exists, attempting to show it.") # Log info
+
+        # Tentative d'affichage (peut échouer si l'objet C++ est détruit)
+        try:
+            self.welcome_window.show()
+            self.welcome_window.raise_()
+            self.welcome_window.activateWindow()
+            logger.debug("DEBUG show_welcome_page: WelcomeWindow shown, raised, and activated.")
+            # --- AJOUT POUR LOGGING GÉOMÉTRIE ---
+            if self.welcome_window:
+                logger.debug(f"WelcomeWindow geometry: {self.welcome_window.geometry()}")
+                logger.debug(f"WelcomeWindow isVisible: {self.welcome_window.isVisible()}")
+                logger.debug(f"WelcomeWindow isMinimized: {self.welcome_window.isMinimized()}")
+                logger.debug(f"WelcomeWindow windowState: {self.welcome_window.windowState()}")
+            # ------------------------------------
+
+            # --- MODIFICATION : Appeler la vérification SEULEMENT si pas déjà faite --- 
+            if not self._startup_update_check_done:
+                 logger.debug("DEBUG show_welcome_page: Performing startup update check (first time)...")
+                 self._perform_startup_update_check()
+                 self._startup_update_check_done = True # Marquer comme fait
+            else:
+                 logger.debug("DEBUG show_welcome_page: Startup update check already performed.")
+            # --------------------------------------------------------------------
+
+            # --- Gestion de la navigation vers les notes (reste pareil) ---
+            if self.navigate_to_notes_after_welcome:
+                logger.debug("DEBUG show_welcome_page: Flag is True, attempting navigation to 'A Propos' section...")
+                try:
+                    # Assume welcome_window has this method
+                    self.welcome_window.navigate_to_section("A Propos") 
+                    logger.debug("DEBUG show_welcome_page: Called welcome_window.navigate_to_section('A Propos').")
+                    # The WelcomeWindow logic should handle activating the correct sub-tab 
+                    # and resetting the flag self.navigate_to_notes_after_welcome to False.
+                except AttributeError:
+                    logger.error("ERROR show_welcome_page: WelcomeWindow does not have method 'navigate_to_section'.")
+                except Exception as e:
+                     logger.error(f"ERROR show_welcome_page: Exception during navigation call: {e}", exc_info=True)
+            else:
+                 logger.debug("DEBUG show_welcome_page: Flag is False, no automatic navigation needed.")
+
+            # --- RÉTABLIR LA FERMETURE AUTOMATIQUE DE L'APPLICATION ---
+            app = QApplication.instance()
+            if app:
+                logger.info("MainController: Rétablissement de app.setQuitOnLastWindowClosed(True) après affichage WelcomeWindow.")
+                app.setQuitOnLastWindowClosed(True)
+            # -----------------------------------------------------------
+
+            logger.critical("<<< EXITING show_welcome_page <<< END") # Log critique sortie
+
+        except RuntimeError as e_show:
+             logger.critical(f"RUNTIME ERROR calling show() on WelcomeWindow: {e_show}. Instance might be deleted.", exc_info=True)
+             logger.info("Attempting to recreate WelcomeWindow because show() failed...")
+             self.welcome_window = None
+             # --- ASSURER LE RÉTABLISSEMENT MÊME EN CAS D'ERREUR ---
+             app = QApplication.instance()
+             if app:
+                 logger.warning("MainController: Rétablissement de app.setQuitOnLastWindowClosed(True) après échec affichage WelcomeWindow (RuntimeError).")
+                 app.setQuitOnLastWindowClosed(True)
+             # ------------------------------------------------------
+             logger.critical("<<< EXITING show_welcome_page DUE TO SHOW() ERROR <<<")
+             return
+        except Exception as e_show_other:
+             logger.critical(f"UNEXPECTED ERROR calling show() on WelcomeWindow: {e_show_other}", exc_info=True)
+             # --- ASSURER LE RÉTABLISSEMENT MÊME EN CAS D'ERREUR ---
+             app = QApplication.instance()
+             if app:
+                 logger.warning("MainController: Rétablissement de app.setQuitOnLastWindowClosed(True) après échec affichage WelcomeWindow (Exception).")
+                 app.setQuitOnLastWindowClosed(True)
+             # ------------------------------------------------------
+             logger.critical("<<< EXITING show_welcome_page DUE TO UNEXPECTED SHOW() ERROR <<<")
+             return
 
     def _ensure_main_window_exists(self):
         """Crée la MainWindow si elle n'existe pas et établit les connexions."""
@@ -234,6 +292,7 @@ class MainController(QObject):
             if self.welcome_window and self.welcome_window.isVisible():
                  logger.debug("--- Closing WelcomeWindow as MainWindow is ensured ---")
                  self.welcome_window.close()
+                 self.welcome_window = None
 
             # Afficher la fenêtre principale si elle était cachée
             if not self.main_window.isVisible():
@@ -579,6 +638,7 @@ class MainController(QObject):
             if self.welcome_window and self.welcome_window.isVisible():
                  logger.debug("--- Closing WelcomeWindow as MainWindow is ensured ---")
                  self.welcome_window.close()
+                 self.welcome_window = None
 
             # Afficher la fenêtre principale si elle était cachée
             if not self.main_window.isVisible():
@@ -595,10 +655,12 @@ class MainController(QObject):
         """Crée et affiche une nouvelle instance de DocumentWindow, l'ajoute à la liste gérée."""
         logger.info(f"MainController: Création et affichage de DocumentWindow pour type='{doc_type}'...")
         
+        # Masquer WelcomeWindow si elle est visible
         if self.welcome_window and self.welcome_window.isVisible():
-            logger.debug("MainController: Fermeture de WelcomeWindow avant d'ouvrir DocumentWindow.")
-            self.welcome_window.close()
-        
+            logger.debug("MainController: Masquage de WelcomeWindow avant d'ouvrir DocumentWindow.")
+            self.welcome_window.hide() # Correct : hide()
+            # Ligne self.welcome_window = None est supprimée ici : Correct
+
         try:
             new_window = DocumentWindow(main_controller=self, initial_doc_type=doc_type, initial_doc_data=data)
             
@@ -649,20 +711,53 @@ class MainController(QObject):
             # --------------------------------------------------------------------------------------------
     # --------------------------------------------------------
 
-    # --- AJOUT: Slot pour gérer la fermeture d'une DocumentWindow --- 
+    # --- MÉTHODE MODIFIÉE --- 
     @pyqtSlot(QWidget)
     def _handle_document_window_closed(self, closed_window: QWidget):
-        """Slot appelé quand une DocumentWindow est détruite (fermée). Retire la fenêtre de la liste."""
-        # Utiliser l'objet fenêtre passé par le signal (via functools.partial)
-        if closed_window in self.open_document_windows:
-            try:
+        """Slot appelé quand une DocumentWindow est détruite (fermée). Retire la fenêtre de la liste.
+        Si c'était la dernière fenêtre ET que la fermeture était due au dernier onglet, ré-affiche WelcomeWindow.
+        """
+        logger.info(f"Début _handle_document_window_closed pour: {closed_window}")
+        window_was_in_list = False
+        try:
+            if closed_window in self.open_document_windows:
                 self.open_document_windows.remove(closed_window)
-                logger.info(f"DocumentWindow fermée et retirée de la liste. Restantes: {len(self.open_document_windows)}")
-            except ValueError:
-                 logger.warning(f"Tentative de retrait d'une DocumentWindow déjà retirée?")
-        else:
-             logger.warning(f"Signal 'destroyed' reçu pour une DocumentWindow non trouvée dans la liste.")
-    # ----------------------------------------------------------------
+                window_was_in_list = True
+                logger.info(f"DocumentWindow retirée de la liste. Restantes: {len(self.open_document_windows)}")
+            else:
+                 logger.warning(f"Signal 'destroyed' reçu pour une DocumentWindow ({closed_window}) non trouvée lors de l'appel _handle_document_window_closed.")
+
+            # --- LOGIQUE MODIFIÉE --- 
+            if not self.open_document_windows: # Si la liste est maintenant vide
+                should_show_welcome = self._expecting_welcome_after_close # Lire le flag
+                self._expecting_welcome_after_close = False # Réinitialiser DANS TOUS LES CAS où la liste est vide
+                
+                if should_show_welcome:
+                    logger.info("C'était la dernière DocumentWindow ET la fermeture était attendue (dernier onglet). Affichage WelcomeWindow...")
+                    # --- APPEL DIRECT (sans QTimer) ---
+                    self.show_welcome_page() 
+                    # -----------------------------------
+                else:
+                     logger.info("C'était la dernière DocumentWindow, mais fermeture non attendue (probablement clic 'X'). L'application devrait quitter via QApplication.")
+                     # Ne rien faire ici, laisser quitOnLastWindowClosed (qui est True) agir.
+            else:
+                 # S'il reste des fenêtres, le flag doit être False aussi
+                 if self._expecting_welcome_after_close: # Log si on le réinitialise ici
+                      logger.debug("_handle_document_window_closed: Réinitialisation du flag car il reste d'autres fenêtres.")
+                 self._expecting_welcome_after_close = False 
+            # --- FIN LOGIQUE MODIFIÉE --- 
+
+        except ValueError:
+             logger.warning(f"Tentative de retrait d'une DocumentWindow ({closed_window}) non trouvée via .remove().")
+             window_was_in_list = False
+             self._expecting_welcome_after_close = False # Reset flag en cas d'erreur
+        except Exception as e:
+             logger.error(f"Erreur inattendue lors du retrait de {closed_window} de la liste: {e}", exc_info=True)
+             window_was_in_list = False
+             self._expecting_welcome_after_close = False # Reset flag en cas d'erreur
+
+        logger.info(f"Fin _handle_document_window_closed pour: {closed_window}")
+    # ----------------------------------------------------
 
     # --- AJOUT: Méthode pour afficher la fenêtre des paramètres ---
     def show_settings_window(self):
@@ -805,6 +900,27 @@ class MainController(QObject):
         
         self.doc_creation_source_window = None # Réinitialiser la source après usage
     # -------------------------------------------------------------------
+
+    # --- AJOUT METHODE ---
+    def request_welcome_after_close(self, closing_window):
+        """
+        Appelé par DocumentWindow juste avant de se fermer car le dernier onglet
+        a été fermé. Met un flag si c'est la dernière fenêtre.
+        """
+        # Vérification supplémentaire pour robustesse
+        if not isinstance(closing_window, QWidget): 
+             logger.warning("request_welcome_after_close received non-QWidget object.")
+             return
+             
+        if closing_window in self.open_document_windows and len(self.open_document_windows) == 1:
+            logger.info("MainController: request_welcome_after_close reçue pour la dernière DocumentWindow. Flag activé.")
+            self._expecting_welcome_after_close = True
+        else:
+             # Log plus détaillé si la fenêtre n'est pas trouvée ou s'il y en a plusieurs
+             count = len(self.open_document_windows)
+             found = closing_window in self.open_document_windows
+             logger.debug(f"MainController: request_welcome_after_close reçue. Fenêtre trouvée: {found}, Nombre total: {count}. Flag inchangé.")
+    # --------------------
 
 # --- SECTION PRINCIPALE (FIN DU FICHIER) --- 
 def main():
