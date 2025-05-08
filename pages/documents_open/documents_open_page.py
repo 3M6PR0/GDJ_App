@@ -208,6 +208,11 @@ class DocumentsOpenPage(QWidget):
             for label in self.sidebar_labels.values():
                 label.setText("-")
 
+    def add_new_document_to_tabs(self, doc_type: str, doc_data: dict):
+        """Interface publique pour créer une page pour le document et l'ajouter comme nouvel onglet."""
+        logger.info(f"DocumentsOpenPage: Demande publique d'ajout d'onglet type='{doc_type}'")
+        self._create_tab(doc_type, doc_data) # Réutiliser la logique existante de _create_tab
+
     # --- Nouvelle méthode pour créer un onglet --- 
     def _create_tab(self, doc_type: str, doc_data: dict):
         """Crée la page template et l'ajoute comme onglet."""

@@ -64,13 +64,13 @@ class PreferencesController(QObject):
         _selected_signature_path (str | None): Chemin vers le fichier image de 
             signature actuellement sélectionné ou chargé.
     """
-    def __init__(self, view, main_controller=None):
+    def __init__(self, view=None, main_controller=None):
         """
         Initialise le contrôleur pour la page Préférences.
         Lit les données depuis les Singletons Preference et ConfigData.
 
         Args:
-            view (PreferencesPage): L'instance de la vue (page Préférences).
+            view (PreferencesPage | None, optional): L'instance de la vue (page Préférences). Defaults to None.
             main_controller: L'instance du contrôleur principal.
         """
         super().__init__()
@@ -98,17 +98,26 @@ class PreferencesController(QObject):
         # -----------------------------------------------------
 
         # Peupler les ComboBox de la vue AVANT de mettre à jour avec les prefs
-        self._populate_view_combos() # Utilise les listes jacmar chargées
+        if self.view:
+            self._populate_view_combos() # Utilise les listes jacmar chargées
 
         # Connecter les signaux
-        self._connect_standard_signals()
-        self._connect_modification_signals() # Pour les boutons reset
+        if self.view:
+            self._connect_standard_signals()
+            self._connect_modification_signals() # Pour les boutons reset
 
         # Mettre à jour la vue avec l'état du Singleton Preference
-        self._update_view_from_prefs(self.prefs_singleton) # Passer le singleton à mettre à jour
+        if self.view:
+            self._update_view_from_prefs(self.prefs_singleton) # Passer le singleton à mettre à jour
         
         # Comparer l'état de la vue avec la COPIE INITIALE pour les boutons reset
-        self._check_all_fields_initial()
+        if self.view:
+            self._check_all_fields_initial()
+
+    @property
+    def current_preferences(self) -> Preference:
+        """Retourne l'instance actuelle du singleton de préférences."""
+        return self.prefs_singleton
 
     # --- MODIFICATION: Charger options Jacmar depuis ConfigData --- 
     def _load_jacmar_options(self):
@@ -137,6 +146,7 @@ class PreferencesController(QObject):
     def _populate_view_combos(self):
         """Appelle la méthode de la vue pour remplir les ComboBox Jacmar."""
         try:
+            if not self.view: return # ADDED: Do nothing if no view
             if hasattr(self.view, 'populate_jacmar_combos'):
                 self.view.populate_jacmar_combos(
                     emplacements=self.jacmar_emplacements,
@@ -153,6 +163,7 @@ class PreferencesController(QObject):
 
     def _connect_standard_signals(self):
         """Connecte les signaux généraux de la vue."""
+        if not self.view: return # ADDED: Do nothing if no view
         self.view.select_signature_requested.connect(self.select_signature_image)
         self.view.export_prefs_requested.connect(self.export_preferences)
         self.view.import_prefs_requested.connect(self.import_preferences)
@@ -172,6 +183,7 @@ class PreferencesController(QObject):
 
     def _connect_modification_signals(self):
         """Connecte les signaux de changement et les clics refresh."""
+        if not self.view: return # ADDED: Do nothing if no view
         for pref_path in self.view.get_all_pref_paths():
             input_widget = self.view.get_input_widget(pref_path)
             refresh_button = self.view.get_refresh_button(pref_path)
@@ -205,6 +217,7 @@ class PreferencesController(QObject):
     def _check_all_fields_initial(self):
         """Vérifie l'état de tous les champs au démarrage pour afficher/cacher les boutons refresh."""
         logger.debug("Vérification initiale des champs...") # Mis à jour
+        if not self.view: return # ADDED: Do nothing if no view
         for pref_path in self.view.get_all_pref_paths():
             input_widget = self.view.get_input_widget(pref_path)
             if input_widget:
@@ -212,6 +225,7 @@ class PreferencesController(QObject):
 
     def _check_field_modification(self, input_widget, pref_path):
         """Compare la valeur actuelle avec la valeur de la COPIE INITIALE et gère l'opacité du bouton."""
+        if not self.view: return # ADDED: Do nothing if no view
         opacity_effect = self.view.get_refresh_effect(pref_path)
         if not opacity_effect:
             # Essayer de récupérer le bouton pour être sûr (au cas où l'effet n'existe pas)
@@ -258,6 +272,7 @@ class PreferencesController(QObject):
     def _revert_field_value(self, input_widget, pref_path):
         """Réinitialise la valeur du widget à la valeur de la COPIE INITIALE."""
         logger.debug(f"Réinitialisation du champ: {pref_path}") # Mis à jour
+        if not self.view: return # ADDED: Do nothing if no view
         # Lire depuis la copie faite dans __init__
         saved_value = _get_nested_attr(self.initial_prefs_copy, pref_path) 
         opacity_effect = self.view.get_refresh_effect(pref_path)
@@ -288,6 +303,7 @@ class PreferencesController(QObject):
     def _update_view_from_prefs(self, prefs: Preference): # Prend l'instance en argument
         """Met à jour les widgets de la vue avec les valeurs du Singleton Preference."""
         logger.debug("PreferencesController: Mise à jour vue depuis Singleton Preference...") # Mis à jour
+        if not self.view: return # ADDED: Do nothing if no view
         # Section Profile
         self.view.le_nom.setText(prefs.profile.nom)
         self.view.le_prenom.setText(prefs.profile.prenom)
@@ -328,6 +344,7 @@ class PreferencesController(QObject):
     @pyqtSlot()
     def select_signature_image(self):
         """ Ouvre une boîte de dialogue pour sélectionner une image et met à jour la vue. """
+        if not self.view: return # ADDED: Do nothing if no view
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getOpenFileName(self.view, # Parent est la vue
                                                   "Sélectionner une image de signature",
@@ -354,6 +371,7 @@ class PreferencesController(QObject):
     def export_preferences(self):
         """ Exporte les préférences ACTUELLES du Singleton Preference."""
         logger.info("Préférences Contrôleur: Exportation demandée...") # Mis à jour
+        if not self.view: return # ADDED: Do nothing if no view
         options = QFileDialog.Options()
         suggested_filename = "preference.json"
         file_path, _ = QFileDialog.getSaveFileName(self.view, 
@@ -378,6 +396,7 @@ class PreferencesController(QObject):
     @pyqtSlot()
     def import_preferences(self):
         """ Importe un fichier, met à jour le Singleton Preference et la vue (sans sauvegarder)."""
+        if not self.view: return # ADDED: Do nothing if no view
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getOpenFileName(self.view,
                                                   "Importer un fichier de préférences", "",
@@ -422,6 +441,21 @@ class PreferencesController(QObject):
     def save_preferences(self):
         """ Met à jour le Singleton Preference depuis la vue et appelle sa méthode save. """
         logger.info("Préférences Contrôleur: Sauvegarde demandée...") # Mis à jour
+        if not self.view: 
+            logger.warning("Sauvegarde des préférences appelée sans vue. Seules les modifications programmatiques seront sauvegardées.")
+            # Si la vue n'existe pas, on sauvegarde juste l'état actuel du singleton.
+            # Aucune mise à jour depuis la vue n'est possible.
+            try:
+                self.prefs_singleton.save()
+                # Mettre à jour la copie locale pour refléter le nouvel état sauvegardé
+                self.initial_prefs_copy = copy.deepcopy(self.prefs_singleton)
+                # Pas besoin d'appeler _check_all_fields_initial() car pas de vue
+                # QMessageBox n'est pas approprié ici sans vue.
+                logger.info("Préférences (état actuel du singleton) sauvegardées.")
+            except Exception as e:
+                logger.error(f"Erreur lors de la sauvegarde des préférences (sans vue): {e}", exc_info=True)
+            return
+
         try:
             # --- Mettre à jour le Singleton Preference depuis la vue --- 
             prefs = self.prefs_singleton # Raccourci

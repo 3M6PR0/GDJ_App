@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFileDialog, QWidget
 from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSlot, QCoreApplication
 # --- AJOUT DE L'IMPORT QIcon ---
 from PyQt5.QtGui import QIcon
@@ -15,6 +15,7 @@ from config import CONFIG
 from updater.update_checker import check_for_updates
 from utils.stylesheet_loader import load_stylesheet
 import logging
+import functools # <<< AJOUT IMPORT
 logger = logging.getLogger('GDJ_App')
 
 # --- Import de la fonction utilitaire --- 
@@ -31,6 +32,9 @@ from controllers.about.about_controller import AboutController
 from windows.document_window import DocumentWindow
 # --- AJOUT IMPORT SettingsWindow ---
 from windows.settings_window import SettingsWindow
+# --- AJOUT IMPORT PreferencesController ---
+from controllers.preferences.preferences_controller import PreferencesController
+# ------------------------------------------
 
 # --- Classe pour la boîte de dialogue des notes de version ---
 class ReleaseNotesDialog(QDialog):
@@ -67,21 +71,23 @@ class MainController(QObject):
         self.documents = {}
         self.about_page = None
         self.about_controller_instance = None
-        # --- SUPPRESSION: Instanciation PreferencesController --- 
-        # try:
-        #     from controllers.preferences.preferences_controller import PreferencesController
-        #     self.preferences_controller = PreferencesController(main_controller=self) 
-        #     logger.info("MainController: PreferencesController instance created.")
-        # except ImportError as e_imp:
-        #     logger.critical(f"CRITICAL ERROR: Cannot import PreferencesController: {e_imp}")
-        #     self.preferences_controller = None
-        # except Exception as e_prefs_init:
-        #     logger.critical(f"CRITICAL ERROR: Cannot initialize PreferencesController: {e_prefs_init}")
-        #     self.preferences_controller = None
+        # --- Initialisation PreferencesController ---
+        try:
+            self.preferences_controller = PreferencesController(main_controller=self)
+            logger.info("MainController: PreferencesController instance created.")
+        except ImportError as e_imp:
+            logger.critical(f"CRITICAL ERROR: Cannot import PreferencesController: {e_imp}")
+            self.preferences_controller = None
+        except Exception as e_prefs_init:
+            logger.critical(f"CRITICAL ERROR: Cannot initialize PreferencesController: {e_prefs_init}")
+            self.preferences_controller = None
         # ------------------------------------------------------
         self.navigate_to_notes_after_welcome = False 
         self._startup_update_check_done = False
-        self.new_doc_window = None # Garder une référence si DocumentWindow est unique
+        # --- MODIFICATION: Utiliser une liste pour les fenêtres de documents --- 
+        # self.new_doc_window = None # ANCIEN
+        self.open_document_windows = [] # NOUVEAU: Liste pour stocker les fenêtres ouvertes
+        # --------------------------------------------------------------------
         self.settings_window = None # <<< AJOUT: Référence à SettingsWindow
 
         # --- Corrected Logic AGAIN (Focus on Version Comparison) --- 
@@ -584,54 +590,77 @@ class MainController(QObject):
 
     # --- NOUVELLE MÉTHODE pour afficher la DocumentWindow --- 
     def show_new_document_window(self, doc_type: str, data: dict):
-        """Crée et affiche une nouvelle instance de DocumentWindow avec les données spécifiées."""
+        """Crée et affiche une nouvelle instance de DocumentWindow, l'ajoute à la liste gérée."""
         logger.info(f"MainController: Création et affichage de DocumentWindow pour type='{doc_type}'...")
         
-        # --- Fermer la fenêtre de bienvenue si elle est ouverte --- 
         if self.welcome_window and self.welcome_window.isVisible():
             logger.debug("MainController: Fermeture de WelcomeWindow avant d'ouvrir DocumentWindow.")
             self.welcome_window.close()
-        # --------------------------------------------------------
         
         try:
-            # Créer une nouvelle instance avec les données fournies
-            # Utiliser une variable locale pour éviter d'écraser une éventuelle instance précédente immédiatement
-            # --- MODIFICATION: Passer les arguments à DocumentWindow --- 
             new_window = DocumentWindow(main_controller=self, initial_doc_type=doc_type, initial_doc_data=data)
-            # --- Stocker la référence (optionnel, si on ne veut qu'une seule DocumentWindow) --- 
-            self.new_doc_window = new_window # Mettre à jour la référence
-            # ----------------------------------------------------------------------------------
             
+            # --- MODIFICATION: Ajouter à la liste --- 
+            self.open_document_windows.append(new_window)
+            logger.debug(f"Nouvelle DocumentWindow ajoutée à la liste. Nombre total: {len(self.open_document_windows)}")
+            # --------------------------------------
+            
+            # --- Connexion du signal destroyed pour le nettoyage --- 
+            # Utiliser functools.partial pour passer la référence de la fenêtre au slot
+            new_window.destroyed.connect(functools.partial(self._handle_document_window_closed, new_window))
+            logger.debug(f"Signal 'destroyed' de la nouvelle DocumentWindow connecté à _handle_document_window_closed.")
+            # ------------------------------------------------------
+
             # Afficher la fenêtre maximisée
             new_window.showMaximized()
-            # Optionnel: la rendre active
             new_window.activateWindow()
             new_window.raise_()
             logger.info("MainController: DocumentWindow affichée.")
             
-            # --- Connexion des signaux (reste pareil, utilise self.new_doc_window) --- 
+            # --- Connexion des autres signaux (utilise new_window) --- 
             try:
-                # --- RÉINTRODUIRE LA CONNEXION DU SIGNAL --- 
-                if hasattr(self.new_doc_window, 'request_main_action'):
-                    self.new_doc_window.request_main_action.connect(self.handle_main_action_request)
-                    logger.info("MainController: Connecté new_doc_window.request_main_action -> handle_main_action_request")
+                if hasattr(new_window, 'request_main_action'):
+                    new_window.request_main_action.connect(self.handle_main_action_request)
+                    logger.info("MainController: Connecté new_window.request_main_action -> handle_main_action_request")
                 else:
-                    logger.warning("MainController: new_doc_window n'a pas le signal 'request_main_action'.")
-                # ---------------------------------------------
-                # --- Connecter le signal des paramètres (inchangé) --- 
-                if hasattr(self.new_doc_window.title_bar, 'settings_requested'):
-                    self.new_doc_window.title_bar.settings_requested.connect(self.show_settings_window)
+                    logger.warning("MainController: new_window n'a pas le signal 'request_main_action'.")
+                
+                if hasattr(new_window.title_bar, 'settings_requested'):
+                    new_window.title_bar.settings_requested.connect(self.show_settings_window)
                     logger.info("MainController: Signal settings_requested connecté.")
                 else:
                      logger.warning("MainController: title_bar n'a pas le signal 'settings_requested'.")
             except AttributeError as e_connect:
                  logger.error(f"ERREUR connexion signal(s) DocumentWindow: {e_connect}")
-            # ----------------------------------------------------------------------
+            # ----------------------------------------------------------
         except Exception as e:
-            logger.error(f"ERREUR lors de la création/affichage de DocumentWindow: {e}")
+            logger.error(f"ERREUR lors de la création/affichage de DocumentWindow: {e}", exc_info=True)
             import traceback
             traceback.print_exc()
+            # --- AJOUT: Essayer de retirer de la liste si l'ajout a eu lieu mais que l'affichage échoue --- 
+            if 'new_window' in locals() and new_window in self.open_document_windows:
+                 try:
+                      self.open_document_windows.remove(new_window)
+                      logger.debug("Fenêtre retirée de la liste suite à une erreur d'affichage.")
+                 except ValueError:
+                      pass # Ignore si déjà retirée (par exemple par le slot destroyed)
+            # --------------------------------------------------------------------------------------------
     # --------------------------------------------------------
+
+    # --- AJOUT: Slot pour gérer la fermeture d'une DocumentWindow --- 
+    @pyqtSlot(QWidget)
+    def _handle_document_window_closed(self, closed_window: QWidget):
+        """Slot appelé quand une DocumentWindow est détruite (fermée). Retire la fenêtre de la liste."""
+        # Utiliser l'objet fenêtre passé par le signal (via functools.partial)
+        if closed_window in self.open_document_windows:
+            try:
+                self.open_document_windows.remove(closed_window)
+                logger.info(f"DocumentWindow fermée et retirée de la liste. Restantes: {len(self.open_document_windows)}")
+            except ValueError:
+                 logger.warning(f"Tentative de retrait d'une DocumentWindow déjà retirée?")
+        else:
+             logger.warning(f"Signal 'destroyed' reçu pour une DocumentWindow non trouvée dans la liste.")
+    # ----------------------------------------------------------------
 
     # --- AJOUT: Méthode pour afficher la fenêtre des paramètres ---
     def show_settings_window(self):
@@ -718,15 +747,52 @@ class MainController(QObject):
     @pyqtSlot(str, dict)
     def _handle_creation_from_selection_window(self, doc_type: str, data: dict):
         logger.info(f"MainController: Reçu demande de création depuis TypeSelectionWindow: Type='{doc_type}'")
-        # Fermer la fenêtre de sélection AVANT d'ouvrir la nouvelle DocumentWindow
+        # Fermer la fenêtre de sélection
         if hasattr(self, 'type_selection_window_instance') and self.type_selection_window_instance:
-             logger.info("Fermeture de TypeSelectionWindow...")
-             self.type_selection_window_instance.close()
-             # Optionnel: Supprimer la référence pour permettre une nouvelle instance plus tard
-             # del self.type_selection_window_instance 
-             
-        # Appeler la méthode qui crée et affiche DocumentWindow
-        self.show_new_document_window(doc_type, data)
+            logger.info("Fermeture de TypeSelectionWindow...")
+            self.type_selection_window_instance.close()
+            # del self.type_selection_window_instance # Optionnel
+
+        # Vérifier si une DocumentWindow existe déjà et est visible
+        # Utiliser la dernière fenêtre de la liste comme référence potentielle
+        active_doc_window = self.open_document_windows[-1] if self.open_document_windows else None
+        
+        if active_doc_window and active_doc_window.isVisible():
+            logger.info("DocumentWindow existante détectée. Demande à l'utilisateur...")
+            msg_box = QMessageBox(active_doc_window) # Parent pour centrage
+            msg_box.setWindowTitle("Nouveau Document")
+            msg_box.setText("Une fenêtre de document est déjà ouverte.")
+            msg_box.setInformativeText("Où souhaitez-vous ouvrir le nouveau document ?")
+            btn_new_tab = msg_box.addButton("Nouvel Onglet", QMessageBox.AcceptRole)
+            btn_new_window = msg_box.addButton("Nouvelle Fenêtre", QMessageBox.DestructiveRole) 
+            btn_cancel = msg_box.addButton("Annuler", QMessageBox.RejectRole)
+            msg_box.setDefaultButton(btn_new_tab)
+            
+            msg_box.exec_()
+
+            if msg_box.clickedButton() == btn_new_tab:
+                logger.info("Utilisateur a choisi d'ouvrir dans un NOUVEL ONGLET.")
+                # Appeler la méthode sur la fenêtre active/dernière
+                if hasattr(active_doc_window, 'add_document_in_new_tab'):
+                    active_doc_window.add_document_in_new_tab(doc_type, data)
+                    active_doc_window.activateWindow() 
+                    active_doc_window.raise_()
+                else:
+                    logger.error("L'instance active DocumentWindow n'a pas de méthode 'add_document_in_new_tab'. Création d'une nouvelle fenêtre par défaut.")
+                    self.show_new_document_window(doc_type, data) # Fallback
+            elif msg_box.clickedButton() == btn_new_window:
+                logger.info("Utilisateur a choisi d'ouvrir une NOUVELLE FENÊTRE de document.")
+                # show_new_document_window ajoute maintenant à la liste
+                self.show_new_document_window(doc_type, data)
+            elif msg_box.clickedButton() == btn_cancel:
+                logger.info("Création de document annulée par l'utilisateur.")
+            else:
+                logger.info("Dialogue de choix fermé sans sélection, annulation.")
+        else:
+            # Pas de DocumentWindow existante ou visible, en créer une nouvelle
+            logger.info("Aucune DocumentWindow existante ou visible. Création d'une nouvelle.")
+            # show_new_document_window ajoute maintenant à la liste
+            self.show_new_document_window(doc_type, data)
     # -------------------------------------------------------------------
 
 # --- SECTION PRINCIPALE (FIN DU FICHIER) --- 

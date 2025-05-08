@@ -101,15 +101,11 @@ class TypeSelectionWindow(QWidget):
             logger.debug("-"*60)
             # -------------------------------------------------------------
             
-            # --- MODIFICATION: Passer les données préparées au contrôleur --- 
+            # --- MODIFICATION: Simplifier l'appel au constructeur --- 
             self.selection_controller = DocumentsTypeSelectionController(
-                view=self.selection_page, 
-                document_types=self.document_types,          # <- Config chargée
-                document_fields_map=self.document_fields_map, # <- Config chargée
-                default_profile_values=default_values,      # <- Données extraites
-                jacmar_options=jacmar_options               # <- Données extraites
+                view=self.selection_page
             )
-            logger.info("Contrôleur DocumentsTypeSelectionController instancié avec les données préparées.")
+            logger.info("Contrôleur DocumentsTypeSelectionController instancié.")
             # ------------------------------------------------------
             
             # --- Connecter les signaux du CONTROLEUR --- 

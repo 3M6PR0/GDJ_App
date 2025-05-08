@@ -1238,9 +1238,8 @@ class RapportDepensePage(QWidget):
             else:
                 # print(f"Format non supporté: {file_path}") # MODIFICATION
                 logger.warning(f"Format de fichier non supporté pour la miniature: {file_path}") # MODIFICATION
-                # Créer un pixmap placeholder?
-                pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE)
-                pixmap.fill(Qt.lightGray)
+                pixmap = QPixmap(ThumbnailWidget.THUMBNAIL_SIZE, ThumbnailWidget.THUMBNAIL_SIZE) # CORRECTION: Alignement
+                pixmap.fill(Qt.lightGray) # CORRECTION: Alignement
 
             # --- Création et ajout du widget --- 
             if pixmap:

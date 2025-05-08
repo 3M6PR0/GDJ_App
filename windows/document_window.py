@@ -16,6 +16,7 @@ class DocumentWindow(QWidget):
 
         self.initial_doc_type = initial_doc_type
         self.initial_doc_data = initial_doc_data if initial_doc_data is not None else {}
+        self.documents_open_page = None
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -57,6 +58,20 @@ class DocumentWindow(QWidget):
 
         self.installEventFilter(self)
 
+    def add_document_in_new_tab(self, doc_type: str, data: dict):
+        """Relaye la demande d'ajout d'un nouvel onglet à la DocumentsOpenPage contenue."""
+        if hasattr(self, 'documents_open_page') and self.documents_open_page and \
+           hasattr(self.documents_open_page, 'add_new_document_to_tabs'):
+            logger.info(f"DocumentWindow: Demande d'ajout d'onglet relayée à DocumentsOpenPage pour type='{doc_type}'.")
+            self.documents_open_page.add_new_document_to_tabs(doc_type, data)
+        else:
+            if not hasattr(self, 'documents_open_page') or not self.documents_open_page:
+                 logger.error("DocumentWindow: Référence interne à documents_open_page non trouvée.")
+            elif not hasattr(self.documents_open_page, 'add_new_document_to_tabs'):
+                 logger.error("DocumentWindow: La page documents_open_page n'a pas la méthode add_new_document_to_tabs.")
+            else:
+                 logger.error("DocumentWindow: Erreur inconnue lors de la tentative d'appel de add_new_document_to_tabs sur documents_open_page.")
+
     @pyqtSlot()
     def _handle_new_document_request(self):
         logger.info("DocumentWindow: Reçu new_document_requested de title_bar, émission de request_main_action('new_document').")
@@ -74,8 +89,14 @@ class DocumentWindow(QWidget):
 if __name__ == '__main__':
     import sys
     from PyQt5.QtWidgets import QApplication
-    app = QApplication(sys.argv)
-    window = DocumentWindow()
-    window.resize(800, 600)
-    window.show()
-    sys.exit(app.exec_()) 
+    # Le test seul ne fonctionnera plus directement sans MainController pour passer en argument
+    # Mais le code de la classe est là.
+    # app = QApplication(sys.argv)
+    # # Besoin de simuler un main_controller pour le constructeur
+    # class MockMainController: pass
+    # controller = MockMainController()
+    # window = DocumentWindow(main_controller=controller, initial_doc_type="Test Type", initial_doc_data={})
+    # window.resize(800, 600)
+    # window.show()
+    # sys.exit(app.exec_())
+    pass 
