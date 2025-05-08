@@ -389,6 +389,23 @@ class DocumentsOpenPage(QWidget):
             widget.deleteLater() # Supprimer le widget de la page template
             self.tab_widget.removeTab(index)
 
+    def close_current_tab(self):
+        """Ferme l'onglet actuellement sélectionné."""
+        current_index = self.tab_widget.currentIndex()
+        if current_index != -1: # S'assurer qu'un onglet est bien sélectionné
+            logger.info(f"DocumentsOpenPage: Demande de fermeture de l'onglet courant (index {current_index}).")
+            self.close_tab(current_index) # Réutiliser la logique existante
+        else:
+            logger.info("DocumentsOpenPage: Aucun onglet sélectionné à fermer.")
+
+    def close_all_tabs(self):
+        """Ferme tous les onglets ouverts."""
+        logger.info("DocumentsOpenPage: Demande de fermeture de tous les onglets.")
+        # Boucler à l'envers pour éviter les problèmes d'indexation pendant la suppression
+        for i in range(self.tab_widget.count() - 1, -1, -1):
+            self.close_tab(i) # Réutiliser la logique existante
+        logger.info("DocumentsOpenPage: Tous les onglets ont été fermés.")
+
 # Bloc de test
 if __name__ == '__main__':
     # Le test existant fonctionne toujours mais n'utilise pas le nouveau constructeur

@@ -32,8 +32,21 @@ class DocumentWindow(QWidget):
                  logger.info("DocumentWindow: Connecté title_bar.new_document_requested -> _handle_new_document_request")
             else:
                  logger.warning("DocumentWindow: title_bar n'a pas le signal 'new_document_requested'.")
+            
+            if hasattr(self.title_bar, 'close_active_document_requested'):
+                self.title_bar.close_active_document_requested.connect(self.close_active_document_tab)
+                logger.info("DocumentWindow: Connecté title_bar.close_active_document_requested -> close_active_document_tab")
+            else:
+                logger.warning("DocumentWindow: title_bar n'a pas le signal 'close_active_document_requested'.")
+
+            if hasattr(self.title_bar, 'close_all_documents_requested'):
+                self.title_bar.close_all_documents_requested.connect(self.close_all_document_tabs)
+                logger.info("DocumentWindow: Connecté title_bar.close_all_documents_requested -> close_all_document_tabs")
+            else:
+                logger.warning("DocumentWindow: title_bar n'a pas le signal 'close_all_documents_requested'.")
+
         except Exception as e_connect:
-             logger.error(f"DocumentWindow: Erreur connexion new_document_requested: {e_connect}")
+             logger.error(f"DocumentWindow: Erreur connexion signaux title_bar: {e_connect}")
 
         separator_line = QFrame(self)
         separator_line.setObjectName("TitleSeparatorLine")
@@ -76,6 +89,24 @@ class DocumentWindow(QWidget):
     def _handle_new_document_request(self):
         logger.info("DocumentWindow: Reçu new_document_requested de title_bar, émission de request_main_action('new_document', self).")
         self.request_main_action.emit('new_document', self)
+
+    @pyqtSlot()
+    def close_active_document_tab(self):
+        """Ferme l'onglet de document actif dans cette fenêtre."""
+        if hasattr(self, 'documents_open_page') and self.documents_open_page:
+            logger.info("DocumentWindow: Demande de fermeture de l'onglet actif.")
+            self.documents_open_page.close_current_tab()
+        else:
+            logger.warning("DocumentWindow: documents_open_page non disponible pour fermer l'onglet actif.")
+
+    @pyqtSlot()
+    def close_all_document_tabs(self):
+        """Ferme tous les onglets de document dans cette fenêtre."""
+        if hasattr(self, 'documents_open_page') and self.documents_open_page:
+            logger.info("DocumentWindow: Demande de fermeture de tous les onglets.")
+            self.documents_open_page.close_all_tabs()
+        else:
+            logger.warning("DocumentWindow: documents_open_page non disponible pour fermer tous les onglets.")
 
     def eventFilter(self, obj, event):
         if obj == self and event.type() == QEvent.MouseButtonPress:

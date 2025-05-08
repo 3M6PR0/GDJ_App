@@ -33,7 +33,10 @@ class CustomTitleBar(QWidget):
     new_document_requested = pyqtSignal() # <<< RENOMMÉ
     # --- AJOUT: Signal pour demander l'ouverture des paramètres ---
     settings_requested = pyqtSignal()
-    # ---------------------------------------------------------------------
+    # --- AJOUT SIGNAUX FERMETURE ONGLETS --- 
+    close_active_document_requested = pyqtSignal()
+    close_all_documents_requested = pyqtSignal()
+    # ---------------------------------------
 
     def __init__(self, parent=None, title="Application", icon_base_name=None, show_menu_button_initially=False):
         super().__init__(parent)
@@ -437,7 +440,9 @@ class CustomTitleBar(QWidget):
         action_save_as = self._file_menu.addAction("Enregistrer sous...")
         action_close_doc = self._file_menu.addAction("Fermer")
         action_print_doc = self._file_menu.addAction("Imprimer") # Renommé ici
-        # TODO: Connecter ces actions
+        # --- AJOUT CONNEXION pour Fermer --- 
+        action_close_doc.triggered.connect(self.close_active_document_requested.emit)
+        # -----------------------------------
         
         # --- Titre "Tous les documents" --- 
         # Assurer la suppression de l'ancien séparateur si présent
@@ -459,7 +464,9 @@ class CustomTitleBar(QWidget):
         action_save_all = self._file_menu.addAction("Enregistrer Tout") # Nom plus précis ?
         action_close_all = self._file_menu.addAction("Fermer Tout") # Nom plus précis ?
         action_print_all = self._file_menu.addAction("Imprimer Tout") # Renommé ici
-        # TODO: Connecter ces actions
+        # --- AJOUT CONNEXION pour Fermer Tout --- 
+        action_close_all.triggered.connect(self.close_all_documents_requested.emit)
+        # ----------------------------------------
 
         # self._file_menu.addSeparator() # <<< SUPPRESSION DE CETTE LIGNE
         # --- Utilisation du widget séparateur + titre ---
