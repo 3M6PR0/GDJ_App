@@ -6,10 +6,10 @@ remplaçant QDateEdit pour permettre un style QSS complet.
 from PyQt5.QtWidgets import (
     QWidget, QLineEdit, QPushButton, QHBoxLayout, QCalendarWidget, 
     QApplication, QStyle, QSizePolicy, QToolButton, QComboBox, QSpinBox, QLabel, QSpacerItem,
-    QTableView # AJOUT: QTableView
+    QTableView, QFrame, QVBoxLayout # AJOUT: QTableView, QFrame, QVBoxLayout
 )
-from PyQt5.QtCore import QDate, pyqtSignal, Qt, QPoint, QMargins, QSize
-from PyQt5.QtGui import QIcon, QPalette, QColor, QTextCharFormat, QBrush # AJOUT: QTextCharFormat, QBrush
+from PyQt5.QtCore import QDate, pyqtSignal, Qt, QPoint, QMargins, QSize, QRectF
+from PyQt5.QtGui import QIcon, QPalette, QColor, QTextCharFormat, QBrush, QPainter, QPen # AJOUT: QTextCharFormat, QBrush, QPainter, QPen, QRectF
 
 # --- Import du loader d'icônes du projet --- 
 from utils import icon_loader
@@ -40,6 +40,7 @@ class CustomDateEdit(QWidget):
         self.month_label = QLabel(self)
         self.year_label = QLabel(self)
         # ---------------------------------------
+        self.calendar_frame = None
 
         self._init_ui()
         self.setDate(self._date) # Met à jour le LineEdit initial
@@ -78,17 +79,27 @@ class CustomDateEdit(QWidget):
         self.main_layout.addWidget(self.line_edit)
         self.main_layout.addWidget(self.calendar_button)
 
-        # --- Calendrier Popup ---
-        self.calendar_widget = QCalendarWidget(self)
+        # --- Conteneur QWidget pour le Popup Calendrier ---
+        self.calendar_frame = QWidget(self) # <<< CHANGÉ QFrame EN QWidget
+        self.calendar_frame.setObjectName("CalendarFrame") # Garder le nom pour QSS
+        self.calendar_frame.setWindowFlags(Qt.Window | Qt.FramelessWindowHint) # <<< CHANGÉ LES FLAGS
+        # self.calendar_frame.setAttribute(Qt.WA_TranslucentBackground, True) # <<< RETIRÉ POUR TEST
+
+        frame_layout = QVBoxLayout(self.calendar_frame)
+        frame_layout.setContentsMargins(1,1,1,1) # <<< REMETTRE MARGE ICI
+
+        # --- Calendrier (enfant du QWidget conteneur) ---
+        self.calendar_widget = QCalendarWidget(self.calendar_frame)
         self.calendar_widget.setObjectName("CustomDateEditCalendar")
-        # Utiliser Qt.ToolTip pour un comportement Popup plus robuste
-        self.calendar_widget.setWindowFlags(Qt.ToolTip) 
+        self.calendar_widget.setAttribute(Qt.WA_StyledBackground, True)
         self.calendar_widget.setFirstDayOfWeek(Qt.Sunday)
         self.calendar_widget.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
         self.calendar_widget.setSelectedDate(self._date)
         self.calendar_widget.clicked[QDate].connect(self._on_calendar_date_selected)
         
-        # --- MODIFICATION: Remplacer ComboBox/SpinBox par des QLabel personnalisés ---
+        frame_layout.addWidget(self.calendar_widget)
+
+        # --- MODIFICATION: Remplacer ComboBox/SpinBox par des QLabel personnalisés (dans le calendrier) ---
         navigation_bar = self.calendar_widget.findChild(QWidget, "qt_calendar_navigationbar")
         if navigation_bar:
             nav_layout = navigation_bar.layout() # Obtenir le layout de la barre de navigation
@@ -282,17 +293,18 @@ class CustomDateEdit(QWidget):
         """)
 
     def _show_calendar(self):
-        """ Affiche le QCalendarWidget sous le bouton. """
+        """ Affiche le QFrame contenant le QCalendarWidget sous le bouton. """
         button_pos = self.calendar_button.mapToGlobal(QPoint(0, 0))
-        # Positionner sous le bouton
-        self.calendar_widget.move(button_pos.x(), button_pos.y() + self.calendar_button.height())
+        # Positionner le frame sous le bouton
+        self.calendar_frame.move(button_pos.x(), button_pos.y() + self.calendar_button.height())
         self.calendar_widget.setSelectedDate(self._date) # S'assurer que la date actuelle est sélectionnée
-        self.calendar_widget.show()
-        self.calendar_widget.setFocus() # Mettre le focus pour la navigation clavier
+        self.calendar_frame.show()
+        self.calendar_widget.setFocus() # Mettre le focus sur le calendrier pour la navigation clavier
 
     def _on_calendar_date_selected(self, date):
         """ Met à jour la date lorsque sélectionnée dans le calendrier. """
-        self.calendar_widget.hide()
+        if self.calendar_frame:
+            self.calendar_frame.hide()
         self.setDate(date)
 
     def _on_text_changed(self, text):
@@ -411,123 +423,33 @@ class CustomDateEdit(QWidget):
 
         # logger.debug(f"[Calendar Styles Update] COLOR_PRIMARY_MEDIUM: {COLOR_PRIMARY_MEDIUM}, COLOR_TEXT_SECONDARY: {COLOR_TEXT_SECONDARY}, COLOR_BORDER: {COLOR_BORDER}")
 
-        # Styles QSS de base pour le calendrier (sans les règles spécifiques aux headers qui seront gérées par QTextCharFormat)
-        calendar_base_qss = f"""
-            QCalendarWidget {{
-                background-color: {COLOR_BACKGROUND_LIGHT};
-                color: {COLOR_TEXT_PRIMARY};
-                border: 1px solid {COLOR_BORDER};
-                alternate-background-color: {COLOR_BACKGROUND_DARK};
-                border-radius: {RADIUS_DEFAULT};
-                background-clip: border-box;
-            }}
-
-            QWidget#qt_calendar_navigationbar {{
-                background-color: {COLOR_PRIMARY_MEDIUM}; /* Barre Mois/Année */
-                border: none; 
-                border-bottom: 1px solid {COLOR_BORDER};
-                min-height: 30px;
-                padding: 2px;
-            }}
-            QWidget#qt_calendar_navigationbar QToolButton {{
-                background-color: transparent;
-                border: none;
-                color: {COLOR_TEXT_PRIMARY};
-                padding: 5px;
-                min-width: 25px;
-                icon-size: 16px;
-                border-radius: {RADIUS_DEFAULT};
-            }}
-            QWidget#qt_calendar_navigationbar QToolButton:hover {{
-                background-color: {COLOR_ITEM_HOVER};
-            }}
-            QWidget#qt_calendar_navigationbar QToolButton:pressed {{
-                background-color: {COLOR_ACCENT_PRESSED};
-            }}
-
-            /* Enlever les styles QSS spécifiques pour les QHeaderView ici */
-            /* Ils seront gérés par setHeaderTextFormat */
-
-            /* Le coin est difficile à cibler, on peut le laisser hériter ou tenter un QSS minimaliste */
-            QWidget#qt_calendar_cornerwidget {{ /* Utiliser QWidget car on n'est pas sûr du type exact */ \
-                background-color: {COLOR_PRIMARY_MEDIUM};\
-                border: none;\
-                border-right: 1px solid {COLOR_BORDER};\
-                border-bottom: 1px solid {COLOR_BORDER};\
-            }}\
-            QAbstractItemView#qt_calendar_calendarview {{\
-                background-color: {COLOR_BACKGROUND_LIGHT};\
-                selection-background-color: {COLOR_ACCENT};\
-                selection-color: {COLOR_TEXT_ON_ACCENT};\
-                outline: 0;\
-                border: none; \
-            }}\
-            QAbstractItemView#qt_calendar_calendarview:enabled {{\
-                color: {COLOR_TEXT_PRIMARY};\
-            }}\
-            QAbstractItemView#qt_calendar_calendarview:disabled {{\
-                color: {COLOR_TEXT_DISABLED};\
-            }}\
-            QTableView#qt_calendar_calendarview {{\
-                 gridline-color: {COLOR_BORDER};\
-            }}\
-            QAbstractItemView#qt_calendar_calendarview::item {{\
-                border-radius: {RADIUS_DEFAULT};\
-                border: 1px solid transparent;\
-                padding: 2px;\
-            }}\
-            QAbstractItemView#qt_calendar_calendarview::item:selected {{\
-                 background-color: {COLOR_ACCENT};\
-                 color: {COLOR_TEXT_ON_ACCENT};\
-                 border: 1px solid {COLOR_ACCENT};\
-            }}\
-            QAbstractItemView#qt_calendar_calendarview::item:today {{\
-                 outline: 1px solid {COLOR_ACCENT_LIGHT};\
-                 outline-offset: -1px; \
-                 background-color: transparent; \
-                 color: {COLOR_TEXT_PRIMARY};\
-            }}\
-            QAbstractItemView#qt_calendar_calendarview::item:today:selected {{\
-                 background-color: {COLOR_ACCENT};\
-                 color: {COLOR_TEXT_ON_ACCENT};\
-                 outline: 1px solid {COLOR_ACCENT_LIGHT}; \
-                 outline-offset: -1px;\
-                 border: 1px solid {COLOR_ACCENT}; \
-            }}\
-            QAbstractItemView#qt_calendar_calendarview::item:hover:!selected {{\
-                background-color: {COLOR_ITEM_HOVER};\
-                border: 1px solid {COLOR_ITEM_HOVER};\
-                color: {COLOR_TEXT_PRIMARY};\
-            }}\
-        """
-        self.calendar_widget.setStyleSheet(calendar_base_qss)
-
-        # --- Nouvelle approche: Utiliser setHeaderTextFormat --- \
+        # Appliquer le style des en-têtes via QTextCharFormat (garder ceci)
         logger.debug("Tentative de style des en-têtes via setHeaderTextFormat.")
         header_format = QTextCharFormat()
         try:
-            # Définir le fond
             header_format.setBackground(QBrush(QColor(COLOR_PRIMARY_MEDIUM)))
-            # Définir la couleur du texte
             header_format.setForeground(QBrush(QColor(COLOR_TEXT_SECONDARY)))
-            # Optionnel: Mettre en gras
             font = header_format.font()
             font.setBold(True)
             header_format.setFont(font)
-            
-            # Appliquer le format à tous les en-têtes (jours semaine, numéros semaine)
             self.calendar_widget.setHeaderTextFormat(header_format)
             logger.debug(f"setHeaderTextFormat appliqué avec fond {COLOR_PRIMARY_MEDIUM} et texte {COLOR_TEXT_SECONDARY}")
-            
-            # Optionnel: On pourrait vouloir différencier Samedi/Dimanche
-            # weekend_format = QTextCharFormat()
-            # weekend_format.setForeground(QBrush(QColor("red")))
-            # self.calendar_widget.setWeekdayTextFormat(Qt.Saturday, weekend_format)
-            # self.calendar_widget.setWeekdayTextFormat(Qt.Sunday, weekend_format)
-
         except Exception as e:
             logger.error(f"Erreur lors de l'application de setHeaderTextFormat: {e}", exc_info=True)
-        # --- Fin de la nouvelle approche ---
+            
+        # MAINTENANT: Appliquer un style COMPLET et direct au CONTENEUR (calendar_frame)
+        logger.debug("Application directe de QSS COMPLET au conteneur QWidget#CalendarFrame")
+        container_direct_qss = f"""\
+            QWidget#CalendarFrame {{ /* Cibler spécifiquement par ID */
+                background-color: {COLOR_BACKGROUND_LIGHT}; 
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 10px; /* <<< VALEUR AUGMENTÉE */
+                background-clip: border-box; /* Important */
+            }}
+        """ 
+        self.calendar_frame.setStyleSheet(container_direct_qss)
+        logger.debug(f"Style complet appliqué directement au frame: {container_direct_qss}")
+
     # ------------------------------------------------------------------
 
     # On pourrait ajouter setMinimumDate, setMaximumDate, etc. si nécessaire
