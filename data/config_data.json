@@ -1,45 +1,52 @@
 {
-    "jacmar": {
-        "emplacements": [
-          "Mascouche",
-          "Quebec"
-        ],
-        "departements": [
-          "Bureau",
-          "Entrepôt",
-          "Ventes Interne",
-          "Représentant",
-          "Service"
-        ],
-        "titres": [
-          "President",
-          "Directeur",
-          "Receptionniste",
-          "Conseiller technique",
-          "Représentant externe",
-          "Expedition",
-          "Dessinateur",
-          "Estimateur",
-          "Technicien",
-          "Ingenieur",
-          "Charge de projet",
-          "Superviseur"
-        ],
-        "superviseurs": [
-          "Jean-Pierre Godin",
-          "Simon Desrosiers",
-          "Gabriel Jacques",
-          "Martin Gagnon",
-          "Pascal Tremblay",
-          "Jean-Pierre Godin",
-          "Héloïse Ouimet"
-        ],
-        "plafond_deplacement":[
-          {
-            "Cap 0": 0.0,
-            "Cap 1": 1200.0,
-            "Cap 2": 3000.0
-          }
-        ]
-    }
+  "jacmar": {
+    "emplacements": [
+      "Mascouche",
+      "Quebec"
+    ],
+    "departements": [
+      "Bureau",
+      "Entrepôt",
+      "Ventes Interne",
+      "Représentant",
+      "Service"
+    ],
+    "titres": [
+      "President",
+      "Directeur",
+      "Receptionniste",
+      "Conseiller technique",
+      "Représentant externe",
+      "Expedition",
+      "Dessinateur",
+      "Estimateur",
+      "Technicien",
+      "Ingenieur",
+      "Charge de projet",
+      "Superviseur"
+    ],
+    "superviseurs": [
+      "Jean-Pierre Godin",
+      "Simon Desrosiers",
+      "Gabriel Jacques",
+      "Martin Gagnon",
+      "Pascal Tremblay",
+      "Jean-Pierre Godin",
+      "Héloïse Ouimet"
+    ],
+    "plafond_deplacement":[
+      {
+        "Cap 0": 0.0,
+        "Cap 1": 1200.0,
+        "Cap 2": 3000.0
+      }
+    ]
+  },
+  "documents": {
+    "rapport_depense": [
+      {
+        "Taux_remboursement": 0.64
+      }
+    ]
+  }
 }

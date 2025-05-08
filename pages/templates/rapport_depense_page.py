@@ -33,6 +33,10 @@ import functools # <--- AJOUT
 import copy       # <--- AJOUT pour deepcopy
 import logging
 
+# --- AJOUT IMPORT CONFIGDATA ---
+# from data.config_data import ConfigData # COMMENTED OUT
+# -----------------------------
+
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
 
@@ -97,6 +101,7 @@ class RapportDepensePage(QWidget):
 
         self._setup_ui()
         # self._load_data() # Pas besoin avec le QLabel simple
+        # self._update_deplacement_info_display() # Appel initial pour peupler le cadre déplacement # COMMENTED OUT
 
     def _setup_ui(self):
         # Layout vertical principal pour la page
@@ -134,13 +139,14 @@ class RapportDepensePage(QWidget):
         totals_content_layout.addStretch() # Pousser les totaux vers le haut
         # Pas de largeur fixe ici
 
-        # content_layout.addWidget(self.totals_frame) # <-- SUPPRIMER ICI
+        # content_layout.addWidget(self.totals_frame) # <-- SUPPRIMER ICI SI PRÉSENT, OU S'ASSURER QU'IL N'Y EST PAS
 
-        # --- Section Inférieure: Ajout (Gauche) + Liste (Droite) ---
-        bottom_section_layout = QHBoxLayout()
-        bottom_section_layout.setSpacing(15)
+        # --- Section Milieu: Ajout (Gauche) + Liste (Droite) ---
+        # (Anciennement 'bottom_section_layout', renommé pour clarté)
+        middle_section_layout = QHBoxLayout()
+        middle_section_layout.setSpacing(15)
 
-        # --- Frame Gauche (Section Inférieure): Ajouter une Entrée ---
+        # --- Frame Gauche (Section Milieu): Ajouter une Entrée ---
         # 1. Créer le contenu de l'en-tête (Label + ComboBox)
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(5, 2, 5, 2) # Marges harmonisées
@@ -232,10 +238,10 @@ class RapportDepensePage(QWidget):
         add_entry_content_layout.addLayout(buttons_layout) 
         # ----------------------------------------
         
-        # --- AJOUT DU FRAME D'AJOUT À LA SECTION INFÉRIEURE (GAUCHE) ---
-        bottom_section_layout.addWidget(self.add_entry_frame, 1) # Retour à l'alignement par défaut
+        # --- AJOUT DU FRAME D'AJOUT À LA SECTION MILIEU (GAUCHE) ---\
+        middle_section_layout.addWidget(self.add_entry_frame, 1)
 
-        # --- Frame Droite (Section Inférieure): Affichage des Entrées --- 
+        # --- Frame Droite (Section Milieu): Affichage des Entrées --- 
         # --- NOUVEAU: Création de l'en-tête personnalisé ---
         entries_header_widget = QWidget()
         entries_header_widget.setObjectName("FrameHeaderContainer")
@@ -369,30 +375,97 @@ class RapportDepensePage(QWidget):
         entries_display_frame_content_layout.addWidget(self.entries_scroll_area)
 
         # --- AJOUT DU FRAME D'AFFICHAGE À LA SECTION INFÉRIEURE (DROITE) ---
-        bottom_section_layout.addWidget(self.entries_display_frame, 4) # Retour à l'alignement par défaut
+        middle_section_layout.addWidget(self.entries_display_frame, 4) # Retour à l'alignement par défaut
 
         # --- AJOUT DE LA SECTION INFÉRIEURE AU LAYOUT PRINCIPAL ---
-        content_layout.addLayout(bottom_section_layout)
+        content_layout.addLayout(middle_section_layout, 1) # MODIFIÉ: Ajout du facteur d'étirement 1
 
-        # --- AJOUT: Ajouter le frame des totaux EN BAS --- 
-        content_layout.addWidget(self.totals_frame)
-        # --------------------------------------------------
+        # --- NOUVELLE SECTION BASSE: Totaux (Gauche) + Déplacement (Droite) ---
+        bottom_frames_layout = QHBoxLayout()
+        bottom_frames_layout.setSpacing(15)
 
-        # --- Ajuster les stretchs verticaux du layout principal ---
-        # content_layout.setStretchFactor(self.totals_frame, 0) # Ancien
-        # content_layout.setStretchFactor(bottom_section_layout, 1) # Ancien
-        content_layout.setStretchFactor(bottom_section_layout, 1) # La section du milieu prend l'espace
-        content_layout.setStretchFactor(self.totals_frame, 0) # Les totaux en bas prennent leur hauteur naturelle
-        # ---------------------------------------------------------
+        # Cadre Totaux (déjà initialisé plus haut)
+        bottom_frames_layout.addWidget(self.totals_frame, 1) # Stretch factor 1
 
-        # --- Initialiser le formulaire pour le premier type ---
+        # --- Nouveau Cadre: Déplacement ---
+        self.deplacement_frame = Frame("Déplacement", self)
+        deplacement_content_layout = self.deplacement_frame.get_content_layout()
+        
+        deplacement_form_layout = QFormLayout()
+        deplacement_form_layout.setSpacing(8)
+        deplacement_form_layout.setLabelAlignment(Qt.AlignRight)
+        deplacement_content_layout.addLayout(deplacement_form_layout)
+
+        # Labels statiques comme demandé par l'utilisateur
+        deplacement_form_layout.addRow("Plafond:", QLabel("Valeur Plafond Placeholder"))
+        deplacement_form_layout.addRow("Taux de Remboursement:", QLabel("Valeur Taux Placeholder"))
+        
+        deplacement_content_layout.addStretch() # Pousser les infos vers le haut
+
+        bottom_frames_layout.addWidget(self.deplacement_frame, 1) # Stretch factor 1 pour équilibrer avec Totaux
+
+        # --- AJOUT DE LA SECTION BASSE (TOTAUX + DÉPLACEMENT) AU LAYOUT PRINCIPAL ---
+        # content_layout.addStretch(1) # SUPPRIMÉ: L'étirement est géré par middle_section_layout
+        content_layout.addLayout(bottom_frames_layout)
+        
+        # Initialisation du formulaire dynamique (appel original)
         self._update_entry_form()
 
-        # --- Initialiser la liste des entrées via la méthode centrale ---
-        self._populate_entries_list() # Appelle _apply_sorting_and_filtering
-        # --- Initialiser les options du tri secondaire ---
-        self._update_secondary_sort_options() 
-        # ------------------------------------------------------------
+    # --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT ---
+    # def _update_deplacement_info_display(self):
+    #     logger.debug("Mise à jour des informations du cadre Déplacement.")
+    #     config_data = ConfigData.get_instance()
+    #     
+    #     # Taux de remboursement
+    #     try:
+    #         taux_remboursement_str = config_data.get_valeur_config('taux_remboursement_deplacement', '0.0')
+    #         taux_remboursement = float(taux_remboursement_str)
+    #         self.taux_remboursement_deplacement_label.setText(f"{taux_remboursement*100:.0f} %")
+    #     except ValueError:
+    #         taux_remboursement = 0.0
+    #         self.taux_remboursement_deplacement_label.setText("Erreur (taux)")
+    #         logger.error("Valeur invalide pour taux_remboursement_deplacement dans ConfigData.")
+    #     
+    #     # Plafond spécifique au document
+    #     try:
+    #         # Assumant que self.document (RapportDepense) a une méthode get() ou un accès dict-like
+    #         # et que 'plafond_deplacement' est la clé pour le plafond DANS les données du document.
+    #         plafond_document = self.document.get_data().get('plafond_deplacement') 
+    #         if plafond_document is None:
+    #             # Si non défini dans le document, chercher une valeur par défaut dans ConfigData
+    #             plafond_document_str = config_data.get_valeur_config('plafond_deplacement_par_defaut', '0.0') # Clé exemple
+    #             plafond_document = float(plafond_document_str)
+    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $ (défaut)")
+    #         else:
+    #             plafond_document = float(plafond_document) # Assurer que c'est un float
+    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $")
+    #
+    #     except ValueError:
+    #         plafond_document = 0.0
+    #         self.plafond_deplacement_document_label.setText("Erreur (plafond)")
+    #         logger.error("Valeur invalide pour plafond_deplacement dans les données du document ou ConfigData.")
+    #     except AttributeError:
+    #          plafond_document = 0.0
+    #          self.plafond_deplacement_document_label.setText("Erreur (doc data)")
+    #          logger.error("Impossible d'accéder à get_data() ou 'plafond_deplacement' sur self.document.")
+    #
+    #
+    #     # Calcul du Montant Remboursable
+    #     total_depenses_deplacement = 0.0
+    #     if hasattr(self.document, 'entries') and isinstance(self.document.entries, list):
+    #         for entry_proxy in self.document.entries: # entries sont des ObjectProxy
+    #             entry_data = entry_proxy.get_data() # Obtenir le dict de données
+    #             if entry_data.get('type') == 'Deplacement': # Utiliser 'type' comme dans RapportDepense class
+    #                 total_depenses_deplacement += float(entry_data.get('montant', 0.0))
+    #     
+    #     montant_brut_remboursable = total_depenses_deplacement * taux_remboursement
+    #     montant_net_remboursable = min(montant_brut_remboursable, plafond_document)
+    #     
+    #     self.montant_remboursable_deplacement_label.setText(f"{montant_net_remboursable:.2f} $")
+    #
+    #     logger.debug(f"Déplacement - Taux: {taux_remboursement}, Plafond Doc: {plafond_document}, Total Dép: {total_depenses_deplacement}, Brut Remb: {montant_brut_remboursable}, Net Remb: {montant_net_remboursable}")
+
+    # --- FIN NOUVELLE MÉTHODE --- # COMMENTED OUT
 
     def _create_vertical_separator(self):
         """ Crée un QFrame configuré comme séparateur vertical. """
@@ -800,20 +873,70 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.addWidget(payeur_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(payeur_container, current_row, 1)
             current_row += 1
+            # ----------------------------------------------------------------------
 
-            # Total avant Tx
+            # --- Refacturer (avec QGridLayout interne inchangé, ajouté à la colonne 1) ---
+            refacturer_container = QWidget()
+            refacturer_grid = QGridLayout(refacturer_container)
+            refacturer_grid.setContentsMargins(0,0,0,0)
+            refacturer_grid.setSpacing(10)
+            self.refacturer_group = QButtonGroup(self.dynamic_form_widget) # Parent = le widget du formulaire
+            self.form_fields['refacturer_non'] = QRadioButton("Non")
+            self.form_fields['refacturer_non'].setObjectName("FormRadioButton")
+            self.form_fields['refacturer_oui'] = QRadioButton("Oui")
+            self.form_fields['refacturer_oui'].setObjectName("FormRadioButton")
+            self.refacturer_group.addButton(self.form_fields['refacturer_non'])
+            self.refacturer_group.addButton(self.form_fields['refacturer_oui'])
+            self.form_fields['refacturer_non'].setChecked(True)
+            self.form_fields['refacturer_oui'].toggled.connect(self._toggle_num_commande_row_visibility) 
+            refacturer_grid.addWidget(self.form_fields['refacturer_non'], 0, 0)
+            refacturer_grid.addWidget(self.form_fields['refacturer_oui'], 0, 1)
+            refacturer_grid.setColumnStretch(0, 1)
+            refacturer_grid.setColumnStretch(1, 1)
+            # Ajouter le label et le conteneur au grid principal
+            refacturer_label = QLabel("Refacturer:")
+            self.dynamic_form_layout.addWidget(refacturer_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(refacturer_container, current_row, 1)
+            current_row += 1
+            # --------------------------------------------------------------------------
+
+            # --- N° Commande (label colonne 0, champ colonne 1) --- 
+            self.num_commande_repas_field = QLineEdit()
+            self.form_fields['numero_commande_repas'] = self.num_commande_repas_field
+            self.num_commande_repas_label = QLabel("N° Commande:") # Le label existe déjà comme variable membre
+            # Ajouter le label et le champ au grid principal
+            self.dynamic_form_layout.addWidget(self.num_commande_repas_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.num_commande_repas_field, current_row, 1)
+            # La ligne suivante est enregistrée pour _toggle_num_commande_row_visibility
+            self.num_commande_row_index = current_row 
+            current_row += 1
+            # Appeler la méthode de visibilité pour la ligne
+            self._toggle_num_commande_row_visibility(self.form_fields['refacturer_oui'].isChecked()) 
+            # ------------------------------------------------------
+            
+            # --- Montants (label colonne 0, champ colonne 1) ---
             total_avtx_widget = QLineEdit("0.00")
             validator_avtx = QDoubleValidator(0.0, 99999.99, 2); validator_avtx.setNotation(QDoubleValidator.StandardNotation)
             total_avtx_widget.setValidator(validator_avtx)
             total_avtx_widget.setAlignment(Qt.AlignRight)
-            self.form_fields['total_avant_taxes_dep'] = total_avtx_widget
+            self.form_fields['total_avant_taxes'] = total_avtx_widget
             total_avtx_label = QLabel("Total avant Tx:")
             self.dynamic_form_layout.addWidget(total_avtx_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes_dep'], current_row, 1)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes'], current_row, 1)
+            current_row += 1
+            
+            pourboire_widget = QLineEdit("0.00")
+            validator_pb = QDoubleValidator(0.0, 99999.99, 2); validator_pb.setNotation(QDoubleValidator.StandardNotation)
+            pourboire_widget.setValidator(validator_pb)
+            pourboire_widget.setAlignment(Qt.AlignRight)
+            self.form_fields['pourboire'] = pourboire_widget
+            pourboire_label = QLabel("Pourboire:")
+            self.dynamic_form_layout.addWidget(pourboire_label, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['pourboire'], current_row, 1)
             current_row += 1
 
-            # Taxes (Similaire à Repas, avec _dep suffix)
-            tax_field_keys = ['tps_dep', 'tvq_dep', 'tvh_dep']
+            # --- Taxes (label colonne 0, champ colonne 1) ---
+            tax_field_keys = ['tps', 'tvq', 'tvh']
             tax_labels = ["TPS:", "TVQ:", "TVH:"]
             for i, key in enumerate(tax_field_keys):
                 widget = QLineEdit("0.00")
@@ -825,21 +948,117 @@ class RapportDepensePage(QWidget):
                 self.dynamic_form_layout.addWidget(label_widget, current_row, 0, Qt.AlignLeft)
                 self.dynamic_form_layout.addWidget(self.form_fields[key], current_row, 1)
                 current_row += 1
+            # --------------------------------------------------
 
             # Total après taxe
-            self.form_fields['total_apres_taxes_dep'] = QLineEdit("0.00")
+            self.form_fields['total_apres_taxes'] = QLineEdit("0.00")
             validator_aptx = QDoubleValidator(0.0, 99999.99, 2); validator_aptx.setNotation(QDoubleValidator.StandardNotation)
-            self.form_fields['total_apres_taxes_dep'].setValidator(validator_aptx)
-            self.form_fields['total_apres_taxes_dep'].setAlignment(Qt.AlignRight)
+            self.form_fields['total_apres_taxes'].setValidator(validator_aptx)
+            self.form_fields['total_apres_taxes'].setAlignment(Qt.AlignRight)
             total_aptx_label = QLabel("Total après Tx:")
             self.dynamic_form_layout.addWidget(total_aptx_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes_dep'], current_row, 1)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes'], current_row, 1)
             current_row += 1
-
-            # Lier Total après Tx au display montant
-            self.total_apres_taxes_field = self.form_fields['total_apres_taxes_dep'] 
+            # --- Le reste (connexion signal) est inchangé ---
+            self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
             self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
 
+            # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
+            self.form_fields['facture_frame'] = QFrame()
+            self.form_fields['facture_frame'].setObjectName("FactureFrame") # <-- AJOUT objectName
+            self.form_fields['facture_frame'].setAutoFillBackground(True) # <-- AJOUT
+            self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel)
+            # --- SUPPRIMER le setStyleSheet direct --- 
+            # try:
+            #     theme = get_theme_vars()
+            #     frame_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#3c3f41") # Utiliser MEDIUM
+            #     radius = theme.get("RADIUS_BOX", "6px")
+            #     self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {radius}; border: none;")
+            # except Exception as e:
+            #     print(f"WARN: Erreur application style au frame facture: {e}")
+            # -----------------------------------------
+            
+            # Layout interne du frame
+            frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
+            frame_content_layout.setContentsMargins(5, 5, 5, 5)
+            frame_content_layout.setSpacing(8)
+
+            # Layout horizontal pour Label + Bouton Icône
+            label_button_layout = QHBoxLayout()
+            label_button_layout.setContentsMargins(0,0,0,0)
+            label_button_layout.setSpacing(5)
+
+            facture_label_in_frame = QLabel("Facture(s):")
+            label_button_layout.addWidget(facture_label_in_frame)
+            label_button_layout.addStretch(1) # Pousse le bouton vers la droite
+            
+            # NOUVEAU Bouton remplacé par icône
+            self.add_facture_button = QPushButton() # Créer sans texte
+            add_icon_path = get_icon_path("round_add_circle.png")
+            if add_icon_path:
+                self.add_facture_button.setIcon(QIcon(add_icon_path))
+                self.add_facture_button.setIconSize(QSize(22, 22)) # Taille icône (ajustable)
+            else:
+                self.add_facture_button.setText("+") # Fallback texte si icône non trouvée
+            self.add_facture_button.setFixedSize(30, 30)
+            self.add_facture_button.setToolTip("Ajouter une facture (Image ou PDF)")
+            self.add_facture_button.setObjectName("TopNavButton") # <-- Nouveau nom, comme Effacer/Ajouter
+            # --- Appliquer le style :hover directement --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#ffffff")
+                # Récupérer le style de base et forcer les dimensions
+                base_style = "QPushButton#TopNavButton { background-color: transparent; border: none; padding: 0px; border-radius: {{RADIUS_DEFAULT}}; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }" 
+                hover_style = f"QPushButton#TopNavButton:hover {{ background-color: {accent_color}; color: {text_on_accent}; }}"
+                pressed_style = f"QPushButton#TopNavButton:pressed {{ background-color: {theme.get('COLOR_ACCENT_PRESSED', '#003d82')}; color: {text_on_accent}; }}"
+                # Combiner les styles
+                combined_style = f"{base_style}\n{hover_style}\n{pressed_style}"
+                # Remplacer les placeholders si présents dans base_style
+                combined_style = combined_style.replace("{{RADIUS_DEFAULT}}", theme.get("RADIUS_DEFAULT", "4px")) 
+                self.add_facture_button.setStyleSheet(combined_style)
+            except Exception as e:
+                # print(f"WARN: Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}") # MODIFICATION
+                logger.warning(f"Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}") # MODIFICATION
+                # Fallback : appliquer juste le :hover rouge pour voir si ça marche
+                # self.add_facture_button.setStyleSheet("QPushButton#TopNavButton:hover { background-color: red; }")
+            # -----------------------------------------
+            self.add_facture_button.clicked.connect(self._select_factures)
+            label_button_layout.addWidget(self.add_facture_button) # Ajouter le nouveau bouton
+            
+            # Ajouter le HBox (Label + Bouton) au VBox du frame
+            frame_content_layout.addLayout(label_button_layout)
+
+            # ScrollArea pour les miniatures (ajoutée SOUS le label+bouton)
+            self.facture_scroll_area = QScrollArea()
+            self.facture_scroll_area.setWidgetResizable(True)
+            self.facture_scroll_area.setFrameShape(QFrame.NoFrame)
+            # --- RESTAURATION: Hauteur MINIMALE pour miniature + scrollbar --- 
+            self.facture_scroll_area.setMinimumHeight(ThumbnailWidget.THUMBNAIL_SIZE + 45)
+            # ----------------------------------------------------------------
+            self.facture_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            self.facture_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff) 
+
+            # Widget conteneur interne pour la scroll area
+            self.facture_container_widget = QWidget()
+            self.facture_thumbnails_layout = QHBoxLayout(self.facture_container_widget)
+            self.facture_thumbnails_layout.setContentsMargins(5, 0, 5, 0)
+            self.facture_thumbnails_layout.setSpacing(10) 
+            self.facture_thumbnails_layout.setAlignment(Qt.AlignLeft) 
+            self.facture_scroll_area.setWidget(self.facture_container_widget)
+            
+            # Ajouter la ScrollArea au layout du frame
+            frame_content_layout.addWidget(self.facture_scroll_area) 
+            # frame_content_layout.addStretch(1) # Pousse le contenu vers le haut si besoin
+
+            # Ajouter le frame ENTIER au grid principal, sur 2 colonnes
+            self.dynamic_form_layout.addWidget(self.form_fields['facture_frame'], current_row, 0, 1, 2)
+            current_row += 1
+            # ----------------------------------------------------------------
+
+            # Ajouter un stretch à la fin pour pousser les champs vers le haut
+            self.dynamic_form_layout.setRowStretch(current_row, 1)
+            
         # --- Réinitialiser la liste des miniatures --- 
         self.current_facture_thumbnails = {}
         # self.current_facture_paths = [] # <-- SUPPRESSION
@@ -2132,6 +2351,62 @@ class RapportDepensePage(QWidget):
     def _update_totals_display(self):
         # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
         pass 
+
+# --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT ---
+    # def _update_deplacement_info_display(self): # COMMENTED OUT
+    #     logger.debug("Mise à jour des informations du cadre Déplacement.")
+    #     config_data = ConfigData.get_instance()
+    #     
+    #     # Taux de remboursement
+    #     try:
+    #         taux_remboursement_str = config_data.get_valeur_config('taux_remboursement_deplacement', '0.0')
+    #         taux_remboursement = float(taux_remboursement_str)
+    #         self.taux_remboursement_deplacement_label.setText(f"{taux_remboursement*100:.0f} %")
+    #     except ValueError:
+    #         taux_remboursement = 0.0
+    #         self.taux_remboursement_deplacement_label.setText("Erreur (taux)")
+    #         logger.error("Valeur invalide pour taux_remboursement_deplacement dans ConfigData.")
+    #     
+    #     # Plafond spécifique au document
+    #     try:
+    #         # Assumant que self.document (RapportDepense) a une méthode get() ou un accès dict-like
+    #         # et que 'plafond_deplacement' est la clé pour le plafond DANS les données du document.
+    #         plafond_document = self.document.get_data().get('plafond_deplacement') 
+    #         if plafond_document is None:
+    #             # Si non défini dans le document, chercher une valeur par défaut dans ConfigData
+    #             plafond_document_str = config_data.get_valeur_config('plafond_deplacement_par_defaut', '0.0') # Clé exemple
+    #             plafond_document = float(plafond_document_str)
+    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $ (défaut)")
+    #         else:
+    #             plafond_document = float(plafond_document) # Assurer que c'est un float
+    #             self.plafond_deplacement_document_label.setText(f"{plafond_document:.2f} $")
+    #
+    #     except ValueError:
+    #         plafond_document = 0.0
+    #         self.plafond_deplacement_document_label.setText("Erreur (plafond)")
+    #         logger.error("Valeur invalide pour plafond_deplacement dans les données du document ou ConfigData.")
+    #     except AttributeError:
+    #          plafond_document = 0.0
+    #          self.plafond_deplacement_document_label.setText("Erreur (doc data)")
+    #          logger.error("Impossible d'accéder à get_data() ou 'plafond_deplacement' sur self.document.")
+    #
+    #
+    #     # Calcul du Montant Remboursable
+    #     total_depenses_deplacement = 0.0
+    #     if hasattr(self.document, 'entries') and isinstance(self.document.entries, list):
+    #         for entry_proxy in self.document.entries: # entries sont des ObjectProxy
+    #             entry_data = entry_proxy.get_data() # Obtenir le dict de données
+    #             if entry_data.get('type') == 'Deplacement': # Utiliser 'type' comme dans RapportDepense class
+    #                 total_depenses_deplacement += float(entry_data.get('montant', 0.0))
+    #     
+    #     montant_brut_remboursable = total_depenses_deplacement * taux_remboursement
+    #     montant_net_remboursable = min(montant_brut_remboursable, plafond_document)
+    #     
+    #     self.montant_remboursable_deplacement_label.setText(f"{montant_net_remboursable:.2f} $")
+    #
+    #     logger.debug(f"Déplacement - Taux: {taux_remboursement}, Plafond Doc: {plafond_document}, Total Dép: {total_depenses_deplacement}, Brut Remb: {montant_brut_remboursable}, Net Remb: {montant_net_remboursable}")
+
+    # --- FIN NOUVELLE MÉTHODE --- # COMMENTED OUT
 
 # Bloc de test simple
 if __name__ == '__main__':
