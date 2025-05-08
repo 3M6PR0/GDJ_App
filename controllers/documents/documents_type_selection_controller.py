@@ -266,6 +266,10 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
         try:
             if hasattr(self.view, 'get_dynamic_form_data'):
                 form_data = self.view.get_dynamic_form_data()
+                # === AJOUT LOG DATE ===
+                logger.debug(f"[DATE_DEBUG] DTSC._handle_create_request - Form data received: {form_data}")
+                logger.debug(f"[DATE_DEBUG] DTSC._handle_create_request - Date value from form: {form_data.get('date')}")
+                # ========================
                 logger.debug(f"Données récupérées du formulaire: {form_data}")
             else:
                 logger.warning("AVERTISSEMENT: La vue TypeSelectionPage n'a pas de méthode get_dynamic_form_data().")

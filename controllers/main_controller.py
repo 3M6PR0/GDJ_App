@@ -845,8 +845,18 @@ class MainController(QObject):
     # --- AJOUT: Slot pour gérer la création depuis TypeSelectionWindow --- 
     @pyqtSlot(str, dict)
     def _handle_creation_from_selection_window(self, doc_type: str, data: dict):
-        logger.info(f"MainController: Reçu demande de création depuis TypeSelectionWindow: Type='{doc_type}'")
+        """Gère le signal de création provenant de TypeSelectionWindow."""
+        logger.info(f"MainController: Handling creation request from TypeSelectionWindow. Type: '{doc_type}'")
+        # === AJOUT LOG DATE ===
+        logger.debug(f"[DATE_DEBUG] MC._handle_creation - Data received: {data}")
+        logger.debug(f"[DATE_DEBUG] MC._handle_creation - Date value received: {data.get('date')}")
+        # ========================
         
+        # Fermer la fenêtre de sélection, peu importe la suite
+        if self.type_selection_window_instance:
+            logger.info("Fermeture de TypeSelectionWindow...")
+            self.type_selection_window_instance.close()
+
         # Déterminer la fenêtre cible pour un nouvel onglet
         target_window_for_new_tab = None
         if self.doc_creation_source_window and \
@@ -858,11 +868,6 @@ class MainController(QObject):
         elif self.open_document_windows: # Fallback si la source n'est pas une DocumentWindow valide/visible
             target_window_for_new_tab = self.open_document_windows[-1]
             logger.info(f"Fallback: Utilisation de la dernière DocumentWindow ouverte comme cible pour onglet: {target_window_for_new_tab}")
-
-        # Fermer la fenêtre de sélection
-        if hasattr(self, 'type_selection_window_instance') and self.type_selection_window_instance:
-            logger.info("Fermeture de TypeSelectionWindow...")
-            self.type_selection_window_instance.close()
 
         if target_window_for_new_tab and target_window_for_new_tab.isVisible(): # Vérifier si une cible pour onglet existe
             logger.info(f"DocumentWindow cible ({target_window_for_new_tab}) détectée. Demande à l'utilisateur...")

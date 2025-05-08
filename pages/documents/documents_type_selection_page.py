@@ -537,7 +537,7 @@ class DocumentsTypeSelectionPage(QWidget):
         Parcourt les widgets dynamiques stockés (hors labels et boutons reset) 
         et retourne un dictionnaire où les clés sont les noms des champs 
         (dérivés des objectName) et les valeurs sont les données saisies.
-        Pour le champ date, retourne une chaîne "Mois Année".
+        Pour le champ date, retourne une chaîne "Mois-Année".
 
         Returns:
             Un dictionnaire contenant les données du formulaire dynamique.
@@ -584,9 +584,12 @@ class DocumentsTypeSelectionPage(QWidget):
 
         # Gérer le champ date combiné à la fin
         if month_value is not None and year_value is not None:
-            data["date"] = f"{month_value} {year_value}"
+            data["date"] = f"{month_value}-{year_value}"
             
         logger.debug(f"Données extraites du formulaire dynamique: {data}")
+        # === AJOUT LOG DATE ===
+        logger.debug(f"[DATE_DEBUG] DTSP.get_dynamic_form_data - Date string created: {data.get('date')}")
+        # ========================
         return data
 
     @Slot(str)

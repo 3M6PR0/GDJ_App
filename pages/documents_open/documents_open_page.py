@@ -194,13 +194,24 @@ class DocumentsOpenPage(QWidget):
 
         # --- Mettre à jour les labels d'information spécifiques --- 
         if is_rapport_depense and active_document:
-            # Formater la date
-            date_text = active_document.date_rapport.strftime('%B %Y')
+            # Formater la date manuellement en français
+            try:
+                month_name_fr = MONTHS[active_document.date_rapport.month - 1] # Les mois de datetime.date sont 1-12
+                year_str = str(active_document.date_rapport.year)
+                date_text = f"{month_name_fr} {year_str}"
+                logger.debug(f"[DATE_DEBUG] Sidebar date formatted as: {date_text}") # Log ajouté pour confirmation
+            except IndexError:
+                # Fallback si le mois est hors limites (ne devrait pas arriver avec un objet date valide)
+                date_text = active_document.date_rapport.strftime('%d/%m/%Y') # Format numérique sûr
+                logger.error(f"Mois invalide ({active_document.date_rapport.month}) pour la date du rapport. Utilisation du format numérique.")
+            except AttributeError:
+                date_text = "Erreur date"
+                logger.error("Erreur: active_document.date_rapport n'existe pas ou n'est pas un objet date.")
             
             # Mettre à jour chaque label
             self.sidebar_labels.get("nom_employe").setText(active_document.nom_employe or "-")
             self.sidebar_labels.get("prenom_employe").setText(active_document.prenom_employe or "-")
-            self.sidebar_labels.get("date_rapport").setText(date_text or "-")
+            self.sidebar_labels.get("date_rapport").setText(date_text or "-") # Utilise le date_text formaté
             self.sidebar_labels.get("emplacement").setText(active_document.emplacement or "-")
             self.sidebar_labels.get("departement").setText(active_document.departement or "-")
             self.sidebar_labels.get("superviseur").setText(active_document.superviseur or "-")
@@ -235,6 +246,9 @@ class DocumentsOpenPage(QWidget):
                     
                     # Date: convertir "Mois-Année" en objet date (1er du mois)
                     date_str = doc_data.get("date", "")
+                    # === AJOUT LOG DATE ===
+                    logger.debug(f"[DATE_DEBUG] DOP._create_tab - Date string received: '{date_str}' (type: {type(date_str)})")
+                    # ========================
                     date_rapport = None
                     if date_str:
                         try:
@@ -242,11 +256,21 @@ class DocumentsOpenPage(QWidget):
                             month_name_fr = date_str.split('-')[0]
                             month_number = MONTHS.index(month_name_fr) + 1
                             year = int(date_str.split('-')[1])
-                            date_rapport = date(year, month_number, 1) 
+                            date_rapport = date(year, month_number, 1)
+                            # === AJOUT LOG DATE ===
+                            logger.debug(f"[DATE_DEBUG] DOP._create_tab - Parsed date successfully: {date_rapport}")
+                            # ========================
                         except (ValueError, IndexError) as e_date:
                              logger.warning(f"Erreur conversion date '{date_str}': {e_date}. Utilisation date actuelle.")
+                             # === AJOUT LOG DATE ===
+                             logger.error(f"[DATE_DEBUG] DOP._create_tab - Date parsing FAILED for '{date_str}'. Error: {e_date}")
+                             # ========================
                              date_rapport = date.today().replace(day=1)
                     else:
+                         logger.warning(f"[_create_tab] date_str était vide ou None. Utilisation date actuelle.")
+                         # === AJOUT LOG DATE ===
+                         logger.warning(f"[DATE_DEBUG] DOP._create_tab - date_str is empty. Using current date.")
+                         # ========================
                          date_rapport = date.today().replace(day=1) # Date par défaut
                          
                     # Autres champs (vérifiés dans le contrôleur, mais récupérer ici)
@@ -269,6 +293,9 @@ class DocumentsOpenPage(QWidget):
                         plafond_deplacement=plafond_deplacement
                         # title sera généré automatiquement dans __init__
                     )
+                    # === AJOUT LOG DATE ===
+                    logger.debug(f"[DATE_DEBUG] DOP._create_tab - Final date_rapport passed to RapportDepense: {new_doc_model.date_rapport}")
+                    # ========================
                     logger.info(f"Modèle {type(new_doc_model).__name__} créé: {new_doc_model}")
                     page_widget = RapportDepensePage(document=new_doc_model) 
                     tab_title = new_doc_model.title # Utiliser le titre généré par le modèle
