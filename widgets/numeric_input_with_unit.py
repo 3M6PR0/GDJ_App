@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QHBoxLayout, QSizePolicy, QApplication, QStyleOption, QStyle
-from PyQt5.QtCore import pyqtSignal, Qt, QEvent, QObject, pyqtSlot
+from PyQt5.QtCore import pyqtSignal, Qt, QEvent, QObject, pyqtSlot, QTimer
 from PyQt5.QtGui import QDoubleValidator, QPainter, QColor, QPen, QPaintEvent
 
 import logging
@@ -98,6 +98,7 @@ class NumericInputWithUnit(QWidget):
         # QLineEdit pour la valeur numérique
         self.line_edit = QLineEdit(self)
         self.line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.line_edit.setAlignment(Qt.AlignRight)
         # Validateur pour n'accepter que les nombres (flottants pour l'instant)
         self.validator = QDoubleValidator()
         # Configurer le validateur avec max_decimals si fourni et valide
@@ -144,6 +145,8 @@ class NumericInputWithUnit(QWidget):
             if event.type() == QEvent.FocusIn:
                 self._is_focused = True
                 self.repaint()
+                # AJOUT: Sélectionner tout le contenu lors du focus
+                QTimer.singleShot(0, self.line_edit.selectAll) # Utiliser QTimer.singleShot pour s'assurer que la sélection se produit après le traitement de l'événement de focus initial
             elif event.type() == QEvent.FocusOut:
                 self._is_focused = False
                 self.repaint()
