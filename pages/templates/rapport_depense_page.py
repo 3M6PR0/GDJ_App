@@ -227,16 +227,16 @@ class RapportDepensePage(QWidget):
         # --- RECREATION: Section Montant (en bas du formulaire) ---
         montant_section_layout = QHBoxLayout()
         montant_section_layout.setContentsMargins(0, 10, 0, 5) # Ajouter un peu d'espace au-dessus
-        montant_section_layout.addStretch(1) # Centrer
+        # montant_section_layout.addStretch(1) # SUPPRIMÉ pour occuper toute la largeur
         montant_label = QLabel("Montant:")
-        montant_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        montant_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) # MODIFIÉ: AlignLeft
         self.montant_display_label = QLabel("0.00 $") 
         self.montant_display_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) 
         self.montant_display_label.setStyleSheet("font-weight: bold;") 
         montant_section_layout.addWidget(montant_label)
         montant_section_layout.addSpacing(10) # Espace entre label et valeur
         montant_section_layout.addWidget(self.montant_display_label)
-        montant_section_layout.addStretch(1) # Centrer
+        montant_section_layout.addStretch(1) # CONSERVÉ: Pousse le label et la valeur vers la gauche
         # Ajouter cette section au layout principal du frame d'ajout
         add_entry_content_layout.addLayout(montant_section_layout) 
         # ---------------------------------------------------------
@@ -244,16 +244,18 @@ class RapportDepensePage(QWidget):
         # --- RECREATION: Boutons (tout en bas) ---
         buttons_layout = QHBoxLayout()
         buttons_layout.setContentsMargins(0, 5, 0, 0) # Ajouter un peu d'espace au-dessus
-        buttons_layout.addStretch(1) # Centrer les boutons
         self.clear_button = QPushButton("Effacer")
         self.add_button = QPushButton("Ajouter")
         self.clear_button.setObjectName("TopNavButton")
         self.add_button.setObjectName("TopNavButton")
         self.clear_button.clicked.connect(self._clear_entry_form)
         self.add_button.clicked.connect(self._add_entry)
-        buttons_layout.addWidget(self.clear_button)
-        buttons_layout.addWidget(self.add_button)
-        buttons_layout.addStretch(1) # Centrer les boutons
+        
+        buttons_layout.addWidget(self.clear_button) # Effacer à gauche
+        # Le bouton Annuler sera inséré ici en mode édition (index 1)
+        buttons_layout.addStretch(1) # Stretch pour pousser Ajouter/Appliquer à droite
+        buttons_layout.addWidget(self.add_button)   # Ajouter/Appliquer à droite
+
         # Ajouter les boutons au layout principal du frame d'ajout
         add_entry_content_layout.addLayout(buttons_layout) 
         # ----------------------------------------
@@ -2263,7 +2265,8 @@ class RapportDepensePage(QWidget):
             
             if buttons_layout:
                 # Insérer Annuler entre Effacer et Appliquer/Ajouter
-                buttons_layout.insertWidget(2, self.cancel_button) # Index 2 si stretch, effacer, [ici], ajouter, stretch
+                # buttons_layout.insertWidget(2, self.cancel_button) # Index 2 si stretch, effacer, [ici], ajouter, stretch # ANCIENNE LOGIQUE
+                buttons_layout.insertWidget(1, self.cancel_button) # NOUVELLE LOGIQUE: Effacer (0), Annuler (1), Stretch (2), Appliquer (3)
             else:
                  # print("ERROR: Impossible de trouver le layout des boutons pour insérer Annuler.") # MODIFICATION
                  logger.error("Impossible de trouver le layout des boutons pour insérer Annuler.") # MODIFICATION
