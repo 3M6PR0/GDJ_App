@@ -48,8 +48,9 @@ class CustomDateEdit(QWidget):
         self._init_ui()
         self.setDate(self._date) # Met à jour le LineEdit initial
 
-        # Installer le filtre d'événements pour gérer les clics en dehors
-        QApplication.instance().installEventFilter(self)
+        # Installer les filtres d'événements
+        self.line_edit.installEventFilter(self) # Pour les frappes dans le QLineEdit
+        QApplication.instance().installEventFilter(self) # Pour les clics en dehors du popup
 
     def _init_ui(self):
         # logger.critical("!!!!!!!!!! CUSTOM_DATE_EDIT _init_ui COMMENCE ICI !!!!!!!!!!") # Log de test très visible
@@ -250,63 +251,44 @@ class CustomDateEdit(QWidget):
         # ne sera plus appelée directement par le calendrier pour l'instant.
         # Il faudra un nouveau signal depuis notre Calendar personnalisé.
 
-    def _handle_input_validation(self): # Anciennement _on_text_changed
-        text = self.line_edit.text() # Lire le texte actuel du QLineEdit
+    def _handle_input_validation(self): 
+        text = self.line_edit.text()
         ref_year = self._date.year()
         ref_month = self._date.month()
-        original_day = self._date.day()
+        original_day = self._date.day() # Le jour avant cette session d'édition
 
-        day_to_set = -1
-        temp_date = QDate.fromString(text, self._format)
+        expected_prefix = f"{ref_year:04d}-{ref_month:02d}-"
 
-        if temp_date.isValid():
-            # Si le texte est une date valide, on vérifie si l'année et le mois
-            # correspondent à notre date de référence. Si oui, on prend le jour.
-            if temp_date.year() == ref_year and temp_date.month() == ref_month:
-                day_to_set = temp_date.day()
+        day_to_use = original_day # Par défaut, si l'extraction du jour échoue
+
+        if text.startswith(expected_prefix):
+            day_str = text[len(expected_prefix):]
+            if not day_str: # L'utilisateur a effacé le jour
+                # On garde original_day, donc la date sera réinitialisée à son état précédent
+                pass 
             else:
-                # Année/mois ont été modifiés dans le QLineEdit pour former une date valide
-                # mais différente de notre référence. On réinitialise à self._date.
-                self.setDate(self._date) # Ceci reformatera le QLineEdit
-                return
-        else:
-            # Le parsing complet a échoué. Tentons d'extraire juste le jour.
-            parts = text.split('-')
-            if len(parts) == 3:
                 try:
-                    # On s'attend à ce que l'année et le mois dans le texte soient ceux de référence.
-                    # Si ce n'est pas le cas, l'entrée est considérée comme trop invalide pour une correction ciblée du jour.
-                    if int(parts[0]) == ref_year and int(parts[1]) == ref_month:
-                        if parts[2]: # S'assurer qu'il y a une chaîne pour le jour
-                            day_to_set = int(parts[2])
-                        else: # Jour effacé (chaîne vide)
-                            day_to_set = original_day # Rétablir l'ancien jour
+                    day_typed = int(day_str)
+                    # Validation du jour tapé
+                    if day_typed < 1:
+                        day_to_use = 1
                     else:
-                        self.setDate(self._date)
-                        return
-                except ValueError: # Jour ou autre partie n'est pas un entier valide
-                    self.setDate(self._date) # Réinitialiser
-                    return
-            else:
-                # Le format n'est plus yyyy-MM-dd
-                self.setDate(self._date) # Réinitialiser
-                return
-
-        if day_to_set != -1:
-            if day_to_set < 1:
-                final_day = 1
-            else:
-                days_in_ref_month = QDate(ref_year, ref_month, 1).daysInMonth()
-                if day_to_set > days_in_ref_month:
-                    final_day = days_in_ref_month
-                else:
-                    final_day = day_to_set
-            
-            new_date = QDate(ref_year, ref_month, final_day)
-            self.setDate(new_date)
+                        max_day_in_month = QDate(ref_year, ref_month, 1).daysInMonth()
+                        if day_typed > max_day_in_month:
+                            day_to_use = max_day_in_month
+                        else:
+                            day_to_use = day_typed
+                except ValueError: # Le jour n'est pas un entier valide
+                    # On garde original_day, la date sera réinitialisée
+                    pass 
         else:
-            # Si aucun jour n'a pu être déterminé, réinitialiser (devrait être couvert par les cas ci-dessus)
-            self.setDate(self._date)
+            # L'utilisateur a modifié l'année/mois ou le format est incorrect
+            # On réinitialise à la date self._date qui contient l'année/mois corrects et le jour original.
+            # day_to_use est déjà original_day, donc c'est bon.
+            pass
+            
+        new_date = QDate(ref_year, ref_month, day_to_use)
+        self.setDate(new_date) # setDate s'occupe de mettre à jour le QLineEdit et le calendrier enfant
 
     # --- Méthodes publiques simulant QDateEdit ---
     
@@ -452,21 +434,13 @@ class CustomDateEdit(QWidget):
         self.calendar_frame.setStyleSheet(container_direct_qss)
         logger.debug(f"Style complet appliqué directement au frame: {container_direct_qss}")
 
-    def eventFilter(self, watched, event):
+    def eventFilter(self, watched, event: QEvent) -> bool:
+        # Filtre pour les clics en dehors du calendrier (installé sur QApplication)
         if event.type() == QEvent.MouseButtonPress:
             if self.calendar_frame and self.calendar_frame.isVisible():
-                # Vérifier si le clic est en dehors du calendar_frame et non sur le bouton pour l'ouvrir
-                # Le QWidget qui a reçu le clic est event.widget() si c'est un MouseEvent sur un QWidget,
-                # mais pour les filtres installés sur l'application, `watched` peut être plus pertinent.
-                # `QApplication.widgetAt(event.globalPos())` est le plus fiable pour obtenir le widget sous le curseur.
-                
                 clicked_widget = QApplication.widgetAt(event.globalPos())
-                
-                # Ne pas fermer si on clique sur le bouton qui ouvre le calendrier
                 if clicked_widget == self.calendar_button:
-                    return super().eventFilter(watched, event)
-
-                # Vérifier si le clic est à l'intérieur du calendar_frame ou de ses enfants
+                    return False 
                 is_inside_calendar_popup = False
                 temp_widget = clicked_widget
                 while temp_widget:
@@ -474,11 +448,61 @@ class CustomDateEdit(QWidget):
                         is_inside_calendar_popup = True
                         break
                     temp_widget = temp_widget.parentWidget()
-                
                 if not is_inside_calendar_popup:
                     self.calendar_frame.hide()
-                    # Ne pas changer la date, juste cacher.
-                    return True # Événement géré, ne pas le propager davantage pour ce cas.
+                    return True 
+
+        # Filtre pour les touches dans le QLineEdit (installé sur self.line_edit)
+        if watched == self.line_edit and event.type() == QEvent.KeyPress:
+            key_event = event 
+            cursor_pos = self.line_edit.cursorPosition()
+            selection_start = self.line_edit.selectionStart()
+            has_selection = self.line_edit.hasSelectedText()
+            
+            day_part_start_index = 8 # "yyyy-MM-" a une longueur de 8
+
+            # Cas spécial: Empêcher la suppression du dernier tiret "-" avec Backspace
+            if key_event.key() == Qt.Key_Backspace and not has_selection and cursor_pos == day_part_start_index:
+                key_event.ignore()
+                return True # Événement géré et bloqué
+            
+            # Cas spécial: Empêcher la suppression du premier tiret "-" avec Delete
+            # Le premier tiret est à l'index 4 (après "AAAA")
+            first_dash_index = 4
+            if key_event.key() == Qt.Key_Delete and not has_selection and cursor_pos == first_dash_index:
+                key_event.ignore()
+                return True # Événement géré et bloqué
+
+            is_in_read_only_part = False
+            if has_selection:
+                # Si la sélection commence dans la partie protégée (avant l'index du début du jour)
+                # ou si la sélection commence avant le premier tiret (pour protéger le format)
+                if selection_start < day_part_start_index: 
+                    is_in_read_only_part = True
+            elif cursor_pos < day_part_start_index: # Si le curseur simple est avant la partie jour
+                is_in_read_only_part = True
+            
+            if is_in_read_only_part:
+                allowed_keys_in_readonly = [
+                    Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down,
+                    Qt.Key_Home, Qt.Key_End, Qt.Key_PageUp, Qt.Key_PageDown,
+                    Qt.Key_Tab, Qt.Key_Backtab, 
+                    Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_Meta,
+                    Qt.Key_CapsLock, Qt.Key_Insert # Key_Insert ne produit pas de texte
+                    # On n'inclut pas Qt.Key_Delete ou Qt.Key_Backspace ici car leur effet dépendra
+                    # de la position exacte du curseur ou de la sélection, gérée ci-dessus/ci-dessous.
+                ]
+                # Autoriser la navigation, la sélection, mais pas l'effacement ou l'écriture directement
+                if key_event.key() in allowed_keys_in_readonly or not key_event.text():
+                    return False 
+                else:
+                    # Bloquer toutes les autres touches (alphanumériques, etc.)
+                    # La suppression (Delete/Backspace) dans la zone read-only est gérée si la sélection s'y étend
+                    # ou par les cas spécifiques des tirets.
+                    key_event.ignore()
+                    return True 
+            # else: (curseur et sélection sont entièrement dans la partie jour)
+                # Laisser la frappe se faire. La validation sur editingFinished corrigera.
 
         return super().eventFilter(watched, event)
 
