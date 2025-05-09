@@ -536,9 +536,12 @@ NumericInputWithUnit,
     background-color: {{COLOR_SEARCH_BACKGROUND}};
     /* border: 1px solid {{COLOR_PRIMARY_LIGHTEST}}; -- Géré par paintEvent */
     /* border-radius: {{RADIUS_DEFAULT}}; -- Géré par paintEvent */
-    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}}; 
+    padding-top: {{PADDING_SMALL}};
+    padding-bottom: {{PADDING_SMALL}};
+    padding-right: {{PADDING_MEDIUM}};
+    padding-left: 0px; /* MODIFIÉ: Le parent n'a pas de padding gauche */
     color: {{COLOR_TEXT_PRIMARY}};
-    min-height: 22px; 
+    min-height: 20px; /* Alignée sur la hauteur de QLineEdit (20px) */
     background-clip: padding-box; 
 }
 
@@ -551,7 +554,10 @@ NumericInputWithUnit QLineEdit,
 #MyNumericInputWithUnit QLineEdit {
     background-color: transparent; 
     border: none;                  
-    padding: 0px; /* Le QLineEdit interne n'a pas besoin de padding propre, le parent gère */                 
+    padding-left: {{PADDING_MEDIUM}}; /* MODIFIÉ: Le QLineEdit enfant gère son padding gauche */
+    padding-top: 0px;
+    padding-bottom: 0px;
+    padding-right: 0px;
     color: {{COLOR_TEXT_PRIMARY}};            
 }
 

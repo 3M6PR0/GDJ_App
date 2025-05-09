@@ -97,8 +97,8 @@ class NumericInputWithUnit(QWidget):
         self.unit_label = QLabel(self._unit_text, self)
         self.unit_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
-        # MODIFIÉ: Rendre la suppression de la bordure du QLineEdit interne plus explicite
-        self.line_edit.setStyleSheet("border: 0px solid transparent; background-color: transparent; padding: 0px;")
+        # MODIFIÉ: Retirer padding:0px pour laisser le QSS global gérer.
+        self.line_edit.setStyleSheet("border: 0px solid transparent; background-color: transparent;")
         # Le QLabel pour l'unité aura besoin d'un peu de padding pour l'alignement visuel
         # et pour correspondre au padding du QLineEdit parent.
         # La couleur du texte devrait hériter ou être définie via le thème.
