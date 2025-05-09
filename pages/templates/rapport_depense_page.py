@@ -761,7 +761,7 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.addWidget(self.form_fields['numero_commande'], current_row, 1)
             current_row += 1
 
-            self.form_fields['kilometrage'] = NumericInputWithUnit(unit_text="km", initial_value=0.0)
+            self.form_fields['kilometrage'] = NumericInputWithUnit(unit_text="km", initial_value=0.0, max_decimals=1)
             # --- AJOUT LOGS DE DÉBOGAGE --- 
             km_widget = self.form_fields['kilometrage']
             logger.debug(f"DEBUG STYLE: Kilometrage widget objectName: {km_widget.objectName()}")

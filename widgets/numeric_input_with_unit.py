@@ -17,13 +17,14 @@ class NumericInputWithUnit(QWidget):
     """
     valueChanged = pyqtSignal(float) # Signal émis lorsque la valeur numérique change
 
-    def __init__(self, unit_text="km", initial_value=0.0, parent=None):
+    def __init__(self, unit_text="km", initial_value=0.0, max_decimals: int = None, parent=None):
         super().__init__(parent)
         self.setObjectName("MyNumericInputWithUnit")
         # self.setAttribute(Qt.WA_StyledBackground, True) # Peut être nécessaire si le QSS doit dessiner le fond
         # self.setAttribute(Qt.WA_OpaquePaintEvent, True) # COMMENTÉ POUR TEST
         self._unit_text = unit_text
         self._value = initial_value
+        self._max_decimals = max_decimals # Nouveau paramètre
         self._is_focused = False # Nouveau drapeau pour le focus du line_edit
 
         # Utiliser directement les constantes globales du module theme.py
@@ -87,8 +88,13 @@ class NumericInputWithUnit(QWidget):
         self.line_edit = QLineEdit(self)
         self.line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         # Validateur pour n'accepter que les nombres (flottants pour l'instant)
-        # Vous pouvez ajuster la plage et le nombre de décimales si nécessaire
-        self.validator = QDoubleValidator() 
+        self.validator = QDoubleValidator()
+        if self._max_decimals is not None and isinstance(self._max_decimals, int) and self._max_decimals >= 0:
+            self.validator.setDecimals(self._max_decimals)
+            logger.debug(f"NumericInputWithUnit: Validateur configuré avec {self._max_decimals} décimales.")
+        else:
+            logger.debug(f"NumericInputWithUnit: Validateur configuré avec le nombre de décimales par défaut.")
+
         self.line_edit.setValidator(self.validator)
         self.line_edit.textChanged.connect(self._on_text_changed)
         self.line_edit.editingFinished.connect(self._on_editing_finished)
