@@ -1025,9 +1025,33 @@ class RapportDepensePage(QWidget):
 
             # Type (ComboBox)
             self.form_fields['type_depense'] = QComboBox()
-            # TODO: Charger ces options depuis une config ou un modèle ?
-            self.form_fields['type_depense'].addItems(["Bureau", "Matériel", "Logiciel", "Voyage", "Représentation", "Formation", "Autre"])
-            type_label = QLabel("Type:")
+            type_label = QLabel("Type:") # Conserver ceci
+            
+            # --- AJOUT: Peupler le ComboBox des types de dépense depuis ConfigData ---
+            try:
+                config = ConfigData.get_instance()
+                # Chemin exact vers les codes GL de dépense dans config_data.json
+                # documents -> Global (liste, prendre premier élément) -> codes_gl -> depenses (liste de dictionnaires)
+                codes_gl_depenses = config.get_top_level_key("documents", {}).get("Global", [{}])[0].get("codes_gl", {}).get("depenses", [])
+                
+                self.form_fields['type_depense'].clear() # Vider les items précédents
+                if codes_gl_depenses:
+                    for gl_code_info in codes_gl_depenses:
+                        description = gl_code_info.get("description")
+                        code = gl_code_info.get("code")
+                        if description: # S'assurer qu'il y a une description
+                            self.form_fields['type_depense'].addItem(description, userData=code) # Stocker le code GL comme userData
+                        else:
+                            logger.warning(f"Code GL de dépense trouvé sans description: {gl_code_info}")
+                else:
+                    logger.warning("Aucun code GL de dépense trouvé dans ConfigData pour peupler le ComboBox.")
+                    self.form_fields['type_depense'].addItem("Erreur: Aucun code GL", userData=None) # Fallback
+            except Exception as e:
+                logger.error(f"Erreur lors du peuplement du ComboBox des types de dépense: {e}", exc_info=True)
+                self.form_fields['type_depense'].clear()
+                self.form_fields['type_depense'].addItem("Erreur chargement codes", userData=None) # Fallback
+            # --- FIN AJOUT ---
+            
             self.dynamic_form_layout.addWidget(type_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['type_depense'], current_row, 1)
             current_row += 1
@@ -1281,6 +1305,20 @@ class RapportDepensePage(QWidget):
         """ Ajoute l'entrée en lisant les champs du formulaire. """
         entry_type = self.entry_type_combo.currentText()
         
+        # --- DÉFINITION DE LA FONCTION HELPER get_float_from_field ICI ---
+        def get_float_from_field(key):
+            try:
+                widget = self.form_fields[key]
+                if isinstance(widget, NumericInputWithUnit):
+                    return widget.value()
+                else: # Fallback for other types, e.g. QLineEdit
+                    return float(widget.text().replace(',', '.'))
+            except (KeyError, ValueError, AttributeError): # Added AttributeError
+                # Si clé non trouvée ou conversion impossible, retourner 0.0
+                logger.warning(f"Clé '{key}' non trouvée dans form_fields ou valeur invalide lors de la conversion en float.")
+                return 0.0
+        # --- FIN DÉFINITION HELPER ---
+
         # --- AJOUT: Appel de la validation --- 
         if not self._validate_form_data(entry_type):
             return # Stopper si la validation échoue
@@ -1320,17 +1358,6 @@ class RapportDepensePage(QWidget):
                  # ------------------------------------
                  num_commande_repas_val = self.form_fields['numero_commande_repas'].text()
                  # --- Lire et convertir les QLineEdit monétaires --- 
-                 def get_float_from_field(key):
-                     try:
-                         widget = self.form_fields[key]
-                         if isinstance(widget, NumericInputWithUnit):
-                             return widget.value()
-                         else: # Fallback for other types, e.g. QLineEdit
-                             return float(widget.text().replace(',', '.'))
-                     except (KeyError, ValueError, AttributeError): # Added AttributeError
-                         # Si clé non trouvée ou conversion impossible, retourner 0.0
-                         return 0.0
-                 
                  total_avant_taxes_val = get_float_from_field('total_avant_taxes')
                  pourboire_val = get_float_from_field('pourboire')
                  tps_val = get_float_from_field('tps')
@@ -1425,21 +1452,30 @@ class RapportDepensePage(QWidget):
                               facture_obj_dep = None 
                  # -------------------------------------------
 
+                 # --- AJOUT: Déterminer les montants employe et jacmar pour Dépense ---
+                 employe_val_dep = 0.0
+                 jacmar_val_dep = 0.0
+                 if payeur_val: # True si Employé a payé
+                     employe_val_dep = total_apres_taxes_val
+                 else: # Jacmar a payé
+                     jacmar_val_dep = total_apres_taxes_val
+                 # ---------------------------------------------------------------------
+
                  new_entry = Depense(
                      date_depense=date_val, 
                      type_depense=type_val, 
                      description=description_val, 
                      fournisseur=fournisseur_val, 
-                     payeur_employe=payeur_val, # Ajuster le nom du paramètre du constructeur si nécessaire
-                     # Si le constructeur attend 'payeur_is_employe' ou similaire:
-                     # payeur_is_employe=payeur_val, 
-                     refacturer=False, # Non applicable pour Dépense
-                     numero_commande="", # Non applicable
+                     payeur=payeur_val, 
+                     # refacturer=False, # RETIRÉ: Non applicable pour Dépense
+                     # numero_commande="", # RETIRÉ: Non applicable
                      totale_avant_taxes=total_avant_taxes_val,
                      tps=tps_val, 
                      tvq=tvq_val, 
                      tvh=tvh_val,
                      totale_apres_taxes=total_apres_taxes_val,
+                     employe=employe_val_dep, # AJOUTÉ
+                     jacmar=jacmar_val_dep,   # AJOUTÉ
                      facture=facture_obj_dep 
                  )
                  self.document.ajouter_depense(new_entry)

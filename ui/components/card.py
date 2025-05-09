@@ -369,6 +369,129 @@ class CardWidget(QFrame):
                 details_layout.addWidget(no_facture_label, 2, 4, len(attrs_col1)-1, 1, Qt.AlignLeft | Qt.AlignTop)
             # ------------------------------------------------------
 
+        elif self.entry_type == "Dépense":
+            details_layout = QGridLayout(self.details_widget) # MODIFIÉ: QGridLayout
+            details_layout.setContentsMargins(10, 5, 10, 10)
+            details_layout.setVerticalSpacing(5)
+            details_layout.setHorizontalSpacing(15) # Espacement horizontal comme pour Repas
+
+            # Définir les largeurs relatives des colonnes
+            details_layout.setColumnStretch(0, 1) # Label Col 1
+            details_layout.setColumnStretch(1, 2) # Value Col 1
+            details_layout.setColumnStretch(2, 1) # Label Col 2
+            details_layout.setColumnStretch(3, 2) # Value Col 2
+            details_layout.setColumnStretch(4, 2) # Factures Col 3
+
+            details_separator = QFrame()
+            details_separator.setFrameShape(QFrame.HLine)
+            details_separator.setFrameShadow(QFrame.Sunken)
+            details_separator.setMinimumHeight(1)
+            separator_color = get_theme_vars().get("COLOR_TEXT_SECONDARY", "#888888")
+            details_separator.setStyleSheet(f"border: none; border-top: 1px solid {separator_color}; background-color: transparent;")
+            details_layout.addWidget(details_separator, 0, 0, 1, 5) # Span sur 5 colonnes
+
+            depense_attrs_col1 = [
+                ('date', 'Date'),
+                ('type_depense', 'Type'),
+                ('description', 'Description'),
+                ('fournisseur', 'Fournisseur'),
+                ('payeur', 'Payeur')
+            ]
+            depense_attrs_col2 = [
+                ('totale_avant_taxes', 'Total avant taxes'),
+                ('tps', 'TPS'),
+                ('tvq', 'TVQ'),
+                ('tvh', 'TVH'),
+                ('totale_apres_taxes', 'Total après taxes')
+            ]
+            facture_attr_depense = 'facture'
+
+            current_row = 1 # Commence à la ligne 1 après le séparateur
+
+            # Remplir Colonnes 0 & 1
+            for i, (attr_name, display_name) in enumerate(depense_attrs_col1):
+                if not hasattr(self.entry_data, attr_name):
+                    logger.warning(f"CardWidget Dépense: Attribut '{attr_name}' non trouvé.")
+                    continue
+                value = getattr(self.entry_data, attr_name)
+                value_str = str(value)
+                if attr_name == 'payeur':
+                    value_str = "Employé" if value else "Jacmar"
+                elif isinstance(value, date):
+                    try: value_str = value.strftime("%Y-%m-%d")
+                    except: pass
+                
+                label_widget = QLabel(f"{display_name}:")
+                value_widget = QLabel(value_str)
+                label_widget.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
+                value_widget.setStyleSheet("background-color: transparent; border: none;")
+                value_widget.setWordWrap(True)
+                details_layout.addWidget(label_widget, current_row + i, 0)
+                details_layout.addWidget(value_widget, current_row + i, 1)
+
+            # Remplir Colonnes 2 & 3
+            for i, (attr_name, display_name) in enumerate(depense_attrs_col2):
+                if not hasattr(self.entry_data, attr_name):
+                    logger.warning(f"CardWidget Dépense: Attribut '{attr_name}' non trouvé.")
+                    continue
+                value = getattr(self.entry_data, attr_name)
+                value_str = str(value)
+                if isinstance(value, (int, float)):
+                    try:
+                        if attr_name in ['tps', 'tvq', 'tvh'] and abs(float(value)) < 0.001:
+                            # Cacher label et valeur si taxe à zéro
+                            label_widget_temp = QLabel(f"{display_name}:")
+                            value_widget_temp = QLabel(f"{float(value):.2f}")
+                            label_widget_temp.hide()
+                            value_widget_temp.hide()
+                            details_layout.addWidget(label_widget_temp, current_row + i, 2)
+                            details_layout.addWidget(value_widget_temp, current_row + i, 3)
+                            continue
+                        value_str = f"{float(value):.2f}"
+                    except: pass
+                
+                label_widget = QLabel(f"{display_name}:")
+                value_widget = QLabel(value_str)
+                value_widget.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
+                value_widget.setStyleSheet("background-color: transparent; border: none;")
+                value_widget.setWordWrap(True)
+                details_layout.addWidget(label_widget, current_row + i, 2)
+                details_layout.addWidget(value_widget, current_row + i, 3)
+
+            # Section Facture Colonne 4
+            facture_label_dep = QLabel("Facture(s):")
+            facture_label_dep.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
+            # Aligner en haut de la colonne, à la première ligne de données (current_row)
+            details_layout.addWidget(facture_label_dep, current_row, 4, Qt.AlignLeft | Qt.AlignTop)
+
+            facture_obj_dep = getattr(self.entry_data, facture_attr_depense, None)
+            has_factures_dep = False
+            if facture_obj_dep and isinstance(facture_obj_dep, Facture):
+                all_files_dep = facture_obj_dep.get_full_paths()
+                if all_files_dep:
+                    has_factures_dep = True
+                    facture_thumbs_widget_dep = QWidget()
+                    facture_thumbs_layout_dep = QHBoxLayout(facture_thumbs_widget_dep)
+                    facture_thumbs_layout_dep.setContentsMargins(0,0,0,0)
+                    facture_thumbs_layout_dep.setSpacing(4)
+                    facture_thumbs_layout_dep.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+
+                    for idx, file_path in enumerate(all_files_dep):
+                        thumb_pixmap = self._generate_thumbnail_pixmap(file_path)
+                        if not thumb_pixmap.isNull():
+                            thumbnail_widget_dep = ThumbnailWidget(file_path, thumb_pixmap, show_delete_button=False)
+                            thumbnail_widget_dep.clicked.connect(functools.partial(self._on_thumbnail_button_clicked, all_files=all_files_dep, index=idx))
+                            facture_thumbs_layout_dep.addWidget(thumbnail_widget_dep)
+                    facture_thumbs_layout_dep.addStretch()
+                    # Ajouter sous le label Facture(s), span sur plusieurs lignes si nécessaire
+                    details_layout.addWidget(facture_thumbs_widget_dep, current_row + 1, 4, len(depense_attrs_col1) -1 , 1, Qt.AlignLeft | Qt.AlignTop)
+            
+            if not has_factures_dep:
+                facture_label_dep.show() # Assurer que le label est visible même si pas de facture
+                no_facture_label_dep = QLabel("Aucune")
+                no_facture_label_dep.setStyleSheet("background-color: transparent; border: none; font-style: italic;")
+                details_layout.addWidget(no_facture_label_dep, current_row + 1, 4, Qt.AlignLeft | Qt.AlignTop)
+
         else:
             # --- Layout par défaut (QFormLayout) pour les autres types ---
             details_layout = QFormLayout(self.details_widget)
@@ -387,7 +510,8 @@ class CardWidget(QFrame):
 
             # Exclure les attributs non pertinents ou déjà dans le résumé (ou internes)
             excluded_attrs = ['date', 'total', 'montant', 'totale_apres_taxes', '_sa_instance_state',
-                              'date_repas', 'date_deplacement', 'date_depense']
+                              'date_repas', 'date_deplacement', 'date_depense',
+                              'employe', 'jacmar'] # AJOUT: Exclure employe et jacmar ici aussi par défaut
             try:
                  attributes = vars(self.entry_data)
             except TypeError:
