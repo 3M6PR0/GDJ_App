@@ -660,6 +660,11 @@ class RapportDepensePage(QWidget):
 
     def _update_entry_form(self):
         """ Met à jour le formulaire dynamique (partie gauche) selon le type d'entrée. """
+        # --- RÉINITIALISER LE MONTANT AFFICHÉ EN BAS DU FORMULAIRE ---
+        if hasattr(self, 'montant_display_label') and self.montant_display_label:
+            self.montant_display_label.setText("0.00 $")
+        # --------------------------------------------------------------
+
         # --- Réinitialiser la référence --- 
         self.total_apres_taxes_field = None
         self.num_commande_repas_label = None
@@ -746,18 +751,24 @@ class RapportDepensePage(QWidget):
 
         if entry_type == "Déplacement":
             self.form_fields['client'] = QLineEdit()
+            self.form_fields['client'].setPlaceholderText("\"Jacmar\"") # GUILLEMETS LITTÉRAUX
+            self.form_fields['client'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") 
             client_label = QLabel("Client:")
             self.dynamic_form_layout.addWidget(client_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['client'], current_row, 1)
             current_row += 1
             
             self.form_fields['ville'] = QLineEdit()
+            self.form_fields['ville'].setPlaceholderText("\"Mascouche\"") # GUILLEMETS LITTÉRAUX
+            self.form_fields['ville'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") 
             ville_label = QLabel("Ville:")
             self.dynamic_form_layout.addWidget(ville_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['ville'], current_row, 1)
             current_row += 1
 
             self.form_fields['numero_commande'] = QLineEdit()
+            self.form_fields['numero_commande'].setPlaceholderText("\"123456\"") # GUILLEMETS LITTÉRAUX
+            self.form_fields['numero_commande'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") 
             num_cmd_label = QLabel("N° Commande:")
             self.dynamic_form_layout.addWidget(num_cmd_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['numero_commande'], current_row, 1)
@@ -778,12 +789,16 @@ class RapportDepensePage(QWidget):
 
         elif entry_type == "Repas":
             self.form_fields['restaurant'] = QLineEdit()
+            self.form_fields['restaurant'].setPlaceholderText("\"McDonald's\"") # AJOUT PLACEHOLDER
+            self.form_fields['restaurant'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
             resto_label = QLabel("Restaurant:")
             self.dynamic_form_layout.addWidget(resto_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['restaurant'], current_row, 1)
             current_row += 1
             
             self.form_fields['client_repas'] = QLineEdit()
+            self.form_fields['client_repas'].setPlaceholderText("\"Jacmar\"") # AJOUT PLACEHOLDER
+            self.form_fields['client_repas'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
             client_repas_label = QLabel("Client:")
             self.dynamic_form_layout.addWidget(client_repas_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['client_repas'], current_row, 1)
@@ -1005,227 +1020,189 @@ class RapportDepensePage(QWidget):
             
         elif entry_type == "Dépense":
             # --- Champs pour Dépense --- 
+            # Type (ComboBox) - Déjà géré par les champs communs si on le déplace plus haut
+            # Date: est déjà ajouté en premier comme champ commun.
+
             # Type (ComboBox)
             self.form_fields['type_depense'] = QComboBox()
-            self.form_fields['type_depense'].addItems(["Bureau", "Matériel", "Logiciel", "Voyage", "Représentation", "Autre"])
+            # TODO: Charger ces options depuis une config ou un modèle ?
+            self.form_fields['type_depense'].addItems(["Bureau", "Matériel", "Logiciel", "Voyage", "Représentation", "Formation", "Autre"])
             type_label = QLabel("Type:")
             self.dynamic_form_layout.addWidget(type_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['type_depense'], current_row, 1)
             current_row += 1
 
             # Description
-            self.form_fields['description'] = QLineEdit()
+            self.form_fields['description_dep'] = QLineEdit() # Clé unique: description_dep
+            self.form_fields['description_dep'].setPlaceholderText("\"Cafe, Batterie, etc\"") # AJOUT PLACEHOLDER
+            self.form_fields['description_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
             desc_label = QLabel("Description:")
             self.dynamic_form_layout.addWidget(desc_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['description'], current_row, 1)
+            self.dynamic_form_layout.addWidget(self.form_fields['description_dep'], current_row, 1)
             current_row += 1
             
             # Fournisseur
-            self.form_fields['fournisseur'] = QLineEdit()
+            self.form_fields['fournisseur_dep'] = QLineEdit() # Clé unique: fournisseur_dep
+            self.form_fields['fournisseur_dep'].setPlaceholderText("\"Amazon, Bell, etc\"") # AJOUT PLACEHOLDER
+            self.form_fields['fournisseur_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
             fourn_label = QLabel("Fournisseur:")
             self.dynamic_form_layout.addWidget(fourn_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['fournisseur'], current_row, 1)
+            self.dynamic_form_layout.addWidget(self.form_fields['fournisseur_dep'], current_row, 1)
             current_row += 1
 
-            # Payeur (Similaire à Repas)
-            payeur_container = QWidget()
-            payeur_grid = QGridLayout(payeur_container)
-            payeur_grid.setContentsMargins(0,0,0,0)
-            payeur_grid.setSpacing(10)
-            # Utiliser un nouveau ButtonGroup si self.payeur_group est déjà utilisé par Repas
+            # Payeur (Radio)
+            self.payeur_frame_dep = QFrame() 
+            self.payeur_frame_dep.setObjectName("RadioGroupFrame")
+            payeur_frame_layout_dep = QVBoxLayout(self.payeur_frame_dep)
+            payeur_frame_layout_dep.setContentsMargins(0,0,0,0)
+            
+            payeur_container_dep = QWidget()
+            payeur_container_dep.setStyleSheet("background-color: transparent;")
+            payeur_grid_dep = QGridLayout(payeur_container_dep)
+            payeur_grid_dep.setContentsMargins(0,0,0,0)
+            payeur_grid_dep.setSpacing(10)
+            
             self.depense_payeur_group = QButtonGroup(self.dynamic_form_widget) 
             self.form_fields['payeur_employe_dep'] = QRadioButton("Employé")
             self.form_fields['payeur_employe_dep'].setObjectName("FormRadioButton")
+            self.form_fields['payeur_employe_dep'].setStyleSheet("background-color: transparent;")
             self.form_fields['payeur_jacmar_dep'] = QRadioButton("Jacmar")
             self.form_fields['payeur_jacmar_dep'].setObjectName("FormRadioButton")
+            self.form_fields['payeur_jacmar_dep'].setStyleSheet("background-color: transparent;")
+            
             self.form_fields['payeur_employe_dep'].setChecked(True)
             self.depense_payeur_group.addButton(self.form_fields['payeur_employe_dep'])
             self.depense_payeur_group.addButton(self.form_fields['payeur_jacmar_dep'])
-            payeur_grid.addWidget(self.form_fields['payeur_employe_dep'], 0, 0)
-            payeur_grid.addWidget(self.form_fields['payeur_jacmar_dep'], 0, 1)
-            payeur_grid.setColumnStretch(0, 1)
-            payeur_grid.setColumnStretch(1, 1)
-            payeur_label = QLabel("Payeur:")
-            self.dynamic_form_layout.addWidget(payeur_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(payeur_container, current_row, 1)
-            current_row += 1
-            # ----------------------------------------------------------------------
-
-            # --- Refacturer (avec QGridLayout interne inchangé, ajouté à la colonne 1) ---
-            refacturer_container = QWidget()
-            refacturer_grid = QGridLayout(refacturer_container)
-            refacturer_grid.setContentsMargins(0,0,0,0)
-            refacturer_grid.setSpacing(10)
-            self.refacturer_group = QButtonGroup(self.dynamic_form_widget) # Parent = le widget du formulaire
-            self.form_fields['refacturer_non'] = QRadioButton("Non")
-            self.form_fields['refacturer_non'].setObjectName("FormRadioButton")
-            self.form_fields['refacturer_oui'] = QRadioButton("Oui")
-            self.form_fields['refacturer_oui'].setObjectName("FormRadioButton")
-            self.refacturer_group.addButton(self.form_fields['refacturer_non'])
-            self.refacturer_group.addButton(self.form_fields['refacturer_oui'])
-            self.form_fields['refacturer_non'].setChecked(True)
-            self.form_fields['refacturer_oui'].toggled.connect(self._toggle_num_commande_row_visibility) 
-            refacturer_grid.addWidget(self.form_fields['refacturer_non'], 0, 0)
-            refacturer_grid.addWidget(self.form_fields['refacturer_oui'], 0, 1)
-            refacturer_grid.setColumnStretch(0, 1)
-            refacturer_grid.setColumnStretch(1, 1)
-            # Ajouter le label et le conteneur au grid principal
-            refacturer_label = QLabel("Refacturer:")
-            self.dynamic_form_layout.addWidget(refacturer_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(refacturer_container, current_row, 1)
-            current_row += 1
-            # --------------------------------------------------------------------------
-
-            # --- N° Commande (label colonne 0, champ colonne 1) --- 
-            self.num_commande_repas_field = QLineEdit()
-            self.form_fields['numero_commande_repas'] = self.num_commande_repas_field
-            self.num_commande_repas_label = QLabel("N° Commande:") # Le label existe déjà comme variable membre
-            # Ajouter le label et le champ au grid principal
-            self.dynamic_form_layout.addWidget(self.num_commande_repas_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.num_commande_repas_field, current_row, 1)
-            # La ligne suivante est enregistrée pour _toggle_num_commande_row_visibility
-            self.num_commande_row_index = current_row 
-            current_row += 1
-            # Appeler la méthode de visibilité pour la ligne
-            self._toggle_num_commande_row_visibility(self.form_fields['refacturer_oui'].isChecked()) 
-            # ------------------------------------------------------
             
-            # --- Montants (label colonne 0, champ colonne 1) --- 
-            # Remplacer les QLineEdit par NumericInputWithUnit
-            self.form_fields['total_avant_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
-            total_avtx_label = QLabel("Total avant Tx:")
-            self.dynamic_form_layout.addWidget(total_avtx_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes'], current_row, 1)
+            payeur_grid_dep.addWidget(self.form_fields['payeur_employe_dep'], 0, 0)
+            payeur_grid_dep.addWidget(self.form_fields['payeur_jacmar_dep'], 0, 1)
+            payeur_grid_dep.setColumnStretch(0, 1)
+            payeur_grid_dep.setColumnStretch(1, 1)
+            payeur_frame_layout_dep.addWidget(payeur_container_dep)
+            
+            payeur_label_dep = QLabel("Payeur:")
+            self.dynamic_form_layout.addWidget(payeur_label_dep, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.payeur_frame_dep, current_row, 1)
             current_row += 1
             
-            self.form_fields['pourboire'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
-            pourboire_label = QLabel("Pourboire:")
-            self.dynamic_form_layout.addWidget(pourboire_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['pourboire'], current_row, 1)
+            # Total avant taxe
+            self.form_fields['total_avant_taxes_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
+            total_avtx_label_dep = QLabel("Total avant Tx:")
+            self.dynamic_form_layout.addWidget(total_avtx_label_dep, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes_dep'], current_row, 1)
             current_row += 1
 
-            # --- Taxes (label colonne 0, champ colonne 1) --- 
-            tax_field_keys = ['tps', 'tvq', 'tvh']
-            tax_labels = ["TPS:", "TVQ:", "TVH:"]
-            for i, key in enumerate(tax_field_keys):
-                self.form_fields[key] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
-                label_widget = QLabel(tax_labels[i])
-                self.dynamic_form_layout.addWidget(label_widget, current_row, 0, Qt.AlignLeft)
-                self.dynamic_form_layout.addWidget(self.form_fields[key], current_row, 1)
-                current_row += 1
-            # --------------------------------------------------
-
-            # Total après taxe
-            self.form_fields['total_apres_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
-            total_aptx_label = QLabel("Total après Tx:")
-            self.dynamic_form_layout.addWidget(total_aptx_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes'], current_row, 1)
+            # TPS
+            self.form_fields['tps_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
+            tps_label_dep = QLabel("TPS:")
+            self.dynamic_form_layout.addWidget(tps_label_dep, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['tps_dep'], current_row, 1)
             current_row += 1
-            # --- Le reste (connexion signal) est inchangé --- 
-            self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
-            # MODIFIÉ: Connecter valueChanged au lieu de textChanged
-            self.total_apres_taxes_field.valueChanged.connect(self._update_montant_display) 
 
-            # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
-            self.form_fields['facture_frame'] = QFrame()
-            self.form_fields['facture_frame'].setObjectName("FactureFrame") # <-- AJOUT objectName
-            self.form_fields['facture_frame'].setAutoFillBackground(True) # <-- AJOUT
-            self.form_fields['facture_frame'].setFrameShape(QFrame.StyledPanel)
-            # --- SUPPRIMER le setStyleSheet direct --- 
-            # try:
-            #     theme = get_theme_vars()
-            #     frame_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#3c3f41") # Utiliser MEDIUM
-            #     radius = theme.get("RADIUS_BOX", "6px")
-            #     self.form_fields['facture_frame'].setStyleSheet(f"background-color: {frame_bg_color}; border-radius: {radius}; border: none;")
-            # except Exception as e:
-            #     print(f"WARN: Erreur application style au frame facture: {e}")
-            # -----------------------------------------
+            # TVQ
+            self.form_fields['tvq_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
+            tvq_label_dep = QLabel("TVQ:")
+            self.dynamic_form_layout.addWidget(tvq_label_dep, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['tvq_dep'], current_row, 1)
+            current_row += 1
+
+            # TVH
+            self.form_fields['tvh_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
+            tvh_label_dep = QLabel("TVH:")
+            self.dynamic_form_layout.addWidget(tvh_label_dep, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['tvh_dep'], current_row, 1)
+            current_row += 1
+
+            # Total apres taxe
+            self.form_fields['total_apres_taxes_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
+            total_aptx_label_dep = QLabel("Total après Tx:")
+            self.dynamic_form_layout.addWidget(total_aptx_label_dep, current_row, 0, Qt.AlignLeft)
+            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes_dep'], current_row, 1)
+            # Connecter le signal valueChanged pour mettre à jour le montant affiché en bas
+            self.total_apres_taxes_field = self.form_fields['total_apres_taxes_dep'] # Réassigner le champ à connecter
+            self.total_apres_taxes_field.valueChanged.connect(self._update_montant_display)
+            current_row += 1
+
+            # Section Facture (similaire à Repas)
+            self.form_fields['facture_frame_dep'] = QFrame() # Clé unique: facture_frame_dep
+            self.form_fields['facture_frame_dep'].setObjectName("FactureFrame") 
+            self.form_fields['facture_frame_dep'].setAutoFillBackground(True)
+            self.form_fields['facture_frame_dep'].setFrameShape(QFrame.StyledPanel)
             
-            # Layout interne du frame
-            frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
-            frame_content_layout.setContentsMargins(0, 0, 0, 0) # MODIFIÉ: Le padding est géré par QSS
-            frame_content_layout.setSpacing(8)
+            frame_content_layout_dep = QVBoxLayout(self.form_fields['facture_frame_dep'])
+            frame_content_layout_dep.setContentsMargins(0, 0, 0, 0) 
+            frame_content_layout_dep.setSpacing(8)
 
-            # Layout horizontal pour Label + Bouton Icône
-            label_button_layout = QHBoxLayout()
-            label_button_layout.setContentsMargins(0,0,0,0)
-            label_button_layout.setSpacing(5)
+            label_button_layout_dep = QHBoxLayout()
+            label_button_layout_dep.setContentsMargins(0,0,0,0)
+            label_button_layout_dep.setSpacing(5)
 
-            facture_label_in_frame = QLabel("Facture(s):")
-            label_button_layout.addWidget(facture_label_in_frame)
-            label_button_layout.addStretch(1) # Pousse le bouton vers la droite
+            facture_label_in_frame_dep = QLabel("Facture(s):")
+            label_button_layout_dep.addWidget(facture_label_in_frame_dep)
+            label_button_layout_dep.addStretch(1)
             
-            # NOUVEAU Bouton remplacé par icône
-            self.add_facture_button = QPushButton() # Créer sans texte
+            self.add_facture_button_dep = QPushButton() # Bouton unique: add_facture_button_dep
             add_icon_path = get_icon_path("round_add_circle.png")
             if add_icon_path:
-                self.add_facture_button.setIcon(QIcon(add_icon_path))
-                self.add_facture_button.setIconSize(QSize(22, 22)) # Taille icône (ajustable)
+                self.add_facture_button_dep.setIcon(QIcon(add_icon_path))
+                self.add_facture_button_dep.setIconSize(QSize(22, 22))
             else:
-                self.add_facture_button.setText("+") # Fallback texte si icône non trouvée
-            self.add_facture_button.setFixedSize(30, 30)
-            self.add_facture_button.setToolTip("Ajouter une facture (Image ou PDF)")
-            self.add_facture_button.setObjectName("TopNavButton") # <-- Nouveau nom, comme Effacer/Ajouter
-            # --- Appliquer le style :hover directement --- 
-            try:
+                self.add_facture_button_dep.setText("+")
+            self.add_facture_button_dep.setFixedSize(30, 30)
+            self.add_facture_button_dep.setToolTip("Ajouter une facture (Image ou PDF)")
+            self.add_facture_button_dep.setObjectName("TopNavButton")
+            try: # Style du bouton
                 theme = get_theme_vars()
                 accent_color = theme.get("COLOR_ACCENT", "#007ACC")
                 text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#ffffff")
-                # Récupérer le style de base et forcer les dimensions
                 base_style = "QPushButton#TopNavButton { background-color: transparent; border: none; padding: 0px; border-radius: {{RADIUS_DEFAULT}}; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; }" 
                 hover_style = f"QPushButton#TopNavButton:hover {{ background-color: {accent_color}; color: {text_on_accent}; }}"
                 pressed_style = f"QPushButton#TopNavButton:pressed {{ background-color: {theme.get('COLOR_ACCENT_PRESSED', '#003d82')}; color: {text_on_accent}; }}"
-                # Combiner les styles
                 combined_style = f"{base_style}\n{hover_style}\n{pressed_style}"
-                # Remplacer les placeholders si présents dans base_style
                 combined_style = combined_style.replace("{{RADIUS_DEFAULT}}", theme.get("RADIUS_DEFAULT", "4px")) 
-                self.add_facture_button.setStyleSheet(combined_style)
+                self.add_facture_button_dep.setStyleSheet(combined_style)
             except Exception as e:
-                # print(f"WARN: Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}") # MODIFICATION
-                logger.warning(f"Impossible d'appliquer le style hover/pressed direct au bouton facture: {e}") # MODIFICATION
-                # Fallback : appliquer juste le :hover rouge pour voir si ça marche
-                # self.add_facture_button.setStyleSheet("QPushButton#TopNavButton:hover { background-color: red; }")
-            # -----------------------------------------
-            self.add_facture_button.clicked.connect(self._select_factures)
-            label_button_layout.addWidget(self.add_facture_button) # Ajouter le nouveau bouton
+                logger.warning(f"Impossible d'appliquer le style au bouton facture (dépense): {e}")
+            self.add_facture_button_dep.clicked.connect(self._select_factures) # Réutilise la même méthode pour sélectionner
+            label_button_layout_dep.addWidget(self.add_facture_button_dep)
             
-            # Ajouter le HBox (Label + Bouton) au VBox du frame
-            frame_content_layout.addLayout(label_button_layout)
+            frame_content_layout_dep.addLayout(label_button_layout_dep)
 
-            # ScrollArea pour les miniatures (ajoutée SOUS le label+bouton)
-            self.facture_scroll_area = QScrollArea()
+            # ScrollArea pour les miniatures
+            # On réutilise les mêmes membres self.facture_scroll_area etc. car ils sont nettoyés
+            # et reconstruits à chaque _update_entry_form, y compris les miniatures via self.current_facture_thumbnails
+            self.facture_scroll_area = QScrollArea() 
             self.facture_scroll_area.setWidgetResizable(True)
             self.facture_scroll_area.setFrameShape(QFrame.NoFrame)
-            # --- RESTAURATION: Hauteur MINIMALE pour miniature + scrollbar --- 
             self.facture_scroll_area.setMinimumHeight(ThumbnailWidget.THUMBNAIL_SIZE + 45)
-            # ----------------------------------------------------------------
             self.facture_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             self.facture_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff) 
 
-            # Widget conteneur interne pour la scroll area
-            self.facture_container_widget = QWidget()
-            self.facture_thumbnails_layout = QHBoxLayout(self.facture_container_widget)
+            self.facture_container_widget = QWidget() # Nouveau conteneur pour cette instance
+            self.facture_thumbnails_layout = QHBoxLayout(self.facture_container_widget) # Nouveau layout pour cette instance
             self.facture_thumbnails_layout.setContentsMargins(5, 0, 5, 0)
             self.facture_thumbnails_layout.setSpacing(10) 
             self.facture_thumbnails_layout.setAlignment(Qt.AlignLeft) 
             self.facture_scroll_area.setWidget(self.facture_container_widget)
             
-            # Ajouter la ScrollArea au layout du frame
-            frame_content_layout.addWidget(self.facture_scroll_area) 
-            # frame_content_layout.addStretch(1) # Pousse le contenu vers le haut si besoin
-
-            # Ajouter le frame ENTIER au grid principal, sur 2 colonnes
-            self.dynamic_form_layout.addWidget(self.form_fields['facture_frame'], current_row, 0, 1, 2)
+            frame_content_layout_dep.addWidget(self.facture_scroll_area)
+            
+            self.dynamic_form_layout.addWidget(self.form_fields['facture_frame_dep'], current_row, 0, 1, 2)
             current_row += 1
-            # ----------------------------------------------------------------
+            # Fin Section Facture
+
+            # Retrait des champs "Refacturer" et "N° Commande" qui étaient précédemment copiés de Repas
+            # Les champs suivants sont retirés de la version Dépense :
+            # self.form_fields['refacturer_non'] / self.form_fields['refacturer_oui']
+            # self.num_commande_repas_field / self.form_fields['numero_commande_repas']
+            # La logique _toggle_num_commande_row_visibility n'est plus nécessaire ici.
+            # L'ancien code pour "Pourboire" est aussi omis car non demandé pour Dépense.
 
             # Ajouter un stretch à la fin pour pousser les champs vers le haut
             self.dynamic_form_layout.setRowStretch(current_row, 1)
             
         # --- Réinitialiser la liste des miniatures --- 
-        self.current_facture_thumbnails = {}
-        # self.current_facture_paths = [] # <-- SUPPRESSION
-        # -------------------------------------------
+        # Ceci est déjà fait à la fin de _update_entry_form, pas besoin de le répéter ici.
 
         # Ajouter un espace vertical avant le montant total
         self.dynamic_form_layout.addItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Expanding), current_row, 0, 1, 2)
@@ -1413,21 +1390,11 @@ class RapportDepensePage(QWidget):
             elif entry_type == "Dépense":
                  # --- Lire les valeurs du formulaire Dépense --- 
                  type_val = self.form_fields['type_depense'].currentText()
-                 description_val = self.form_fields['description'].text()
-                 fournisseur_val = self.form_fields['fournisseur'].text()
+                 description_val = self.form_fields['description_dep'].text() # MODIFIÉ: _dep
+                 fournisseur_val = self.form_fields['fournisseur_dep'].text() # MODIFIÉ: _dep
                  payeur_val = self.form_fields['payeur_employe_dep'].isChecked() # True si Employé
                  
-                 # Utiliser le helper pour les montants
-                 def get_float_from_field(key):
-                     try:
-                         widget = self.form_fields[key]
-                         if isinstance(widget, NumericInputWithUnit):
-                             return widget.value()
-                         else: # Fallback for other types, e.g. QLineEdit
-                             return float(widget.text().replace(',', '.'))
-                     except (KeyError, ValueError, AttributeError): # Added AttributeError
-                         return 0.0
-
+                 # Utiliser le helper pour les montants avec les clés _dep
                  total_avant_taxes_val = get_float_from_field('total_avant_taxes_dep')
                  tps_val = get_float_from_field('tps_dep')
                  tvq_val = get_float_from_field('tvq_dep')
@@ -1435,38 +1402,47 @@ class RapportDepensePage(QWidget):
                  total_apres_taxes_val = get_float_from_field('total_apres_taxes_dep')
                  
                  # Validation (exemple simple)
-                 if not description_val:
+                 if not description_val: # Validation pour la nouvelle clé
                      QMessageBox.warning(self, "Champ manquant", "La description est requise.")
                      return
-                 if total_apres_taxes_val <= 0:
+                 if total_apres_taxes_val <= 0: # Validation pour la nouvelle clé
                      QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                 return
+                     return # MODIFIÉ: Retourner ici pour stopper
 
-                 # --- Créer l'objet Depense (Adapter selon le modèle réel) --- 
-                 # Supposons que le constructeur de Depense ressemble à ça:
+                 # --- AJOUT: Création de l'objet Facture pour Dépense --- 
+                 facture_obj_dep = None
+                 if self.current_facture_thumbnails: 
+                     all_paths = list(self.current_facture_thumbnails.keys())
+                     if all_paths:
+                         first_path = all_paths[0]
+                         folder_path = os.path.dirname(first_path)
+                         filenames = [os.path.basename(p) for p in all_paths]
+                         try:
+                              facture_obj_dep = Facture(folder_path=folder_path, filenames=filenames)
+                              logger.debug(f"Objet Facture (Dépense) créé: {facture_obj_dep}")
+                         except (TypeError, ValueError) as fact_err:
+                              QMessageBox.warning(self, "Erreur Facture", f"Impossible de créer l'objet Facture (Dépense):\n{fact_err}")
+                              facture_obj_dep = None 
+                 # -------------------------------------------
+
                  new_entry = Depense(
                      date_depense=date_val, 
                      type_depense=type_val, 
                      description=description_val, 
                      fournisseur=fournisseur_val, 
-                     payeur=payeur_val, # Passer le booléen directement (True=Employé)
+                     payeur_employe=payeur_val, # Ajuster le nom du paramètre du constructeur si nécessaire
+                     # Si le constructeur attend 'payeur_is_employe' ou similaire:
+                     # payeur_is_employe=payeur_val, 
+                     refacturer=False, # Non applicable pour Dépense
+                     numero_commande="", # Non applicable
                      totale_avant_taxes=total_avant_taxes_val,
                      tps=tps_val, 
                      tvq=tvq_val, 
                      tvh=tvh_val,
                      totale_apres_taxes=total_apres_taxes_val,
-                     facture=None # Ajouter si nécessaire
+                     facture=facture_obj_dep 
                  )
-                 # -----------------------------------------------------------
-                 
-                 # QMessageBox.warning(self, "Type non géré", "L'ajout de 'Dépense simple' nécessite un champ Montant.")
-                 # return
-                 # montant_val = float(self.montant_display_label.text().replace(' $','')) # Risqué
-                 # new_entry = Depense(date=date_val, description=description_val, montant=montant_val)
-                 # self.document.entries.append(new_entry)
-                 self.document.ajouter_depense(new_entry) # Utiliser la méthode dédiée
-                 # print(f"Ajout Dépense: {new_entry}") # Garder pour info # MODIFICATION
-                 logger.info(f"Ajout Dépense: {new_entry}") # MODIFICATION
+                 self.document.ajouter_depense(new_entry)
 
             if new_entry: # Si une entrée a été créée
                 # print(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
@@ -2194,11 +2170,15 @@ class RapportDepensePage(QWidget):
 
             elif isinstance(entry, Depense):
                 if 'type_depense' in self.form_fields: self.form_fields['type_depense'].setCurrentText(getattr(entry, 'type_depense', 'Autre'))
-                if 'description' in self.form_fields: self.form_fields['description'].setText(getattr(entry, 'description', ''))
-                if 'fournisseur' in self.form_fields: self.form_fields['fournisseur'].setText(getattr(entry, 'fournisseur', ''))
+                if 'description_dep' in self.form_fields: self.form_fields['description_dep'].setText(getattr(entry, 'description', '')) # MODIFIÉ: _dep
+                if 'fournisseur_dep' in self.form_fields: self.form_fields['fournisseur_dep'].setText(getattr(entry, 'fournisseur', '')) # MODIFIÉ: _dep
                 
                 # Payeur (True = Employé)
-                is_payeur_employe = getattr(entry, 'payeur', True)
+                # Le constructeur de Depense attend 'payeur_employe' (bool) ou 'payeur' (str) ?
+                # Supposons que le modèle Depense a un attribut comme 'payeur_is_employe' (bool)
+                # ou que 'payeur' est un str "Employé" / "Jacmar"
+                # Pour l'instant, on suppose que le modèle Depense stocke un booléen pour 'payeur_employe'
+                is_payeur_employe = getattr(entry, 'payeur_employe', True) # Ajuster l'attribut du modèle si besoin
                 if 'payeur_employe_dep' in self.form_fields: self.form_fields['payeur_employe_dep'].setChecked(is_payeur_employe)
                 if 'payeur_jacmar_dep' in self.form_fields: self.form_fields['payeur_jacmar_dep'].setChecked(not is_payeur_employe)
 
@@ -2208,13 +2188,12 @@ class RapportDepensePage(QWidget):
                         widget = self.form_fields[key]
                         raw_value = getattr(entry, attribute_name, 0.0)
                         try:
-                            numeric_value = float(raw_value) # Ensure it's a float
+                            numeric_value = float(raw_value) 
                             if isinstance(widget, NumericInputWithUnit):
                                 widget.setValue(numeric_value)
-                            elif hasattr(widget, 'setText'): # For QLineEdit or similar
+                            elif hasattr(widget, 'setText'):
                                 widget.setText(f"{numeric_value:.2f}".replace('.', ','))
-                            # else: widget is of an unknown type for this operation
-                        except (ValueError, TypeError): # Error converting raw_value to float
+                        except (ValueError, TypeError):
                              if isinstance(widget, NumericInputWithUnit):
                                  widget.setValue(0.0)
                              elif hasattr(widget, 'setText'):
@@ -2226,14 +2205,21 @@ class RapportDepensePage(QWidget):
                 set_float_field_dep('tvh_dep', 'tvh')
                 set_float_field_dep('total_apres_taxes_dep', 'totale_apres_taxes')
 
-                # Factures (Si Depense peut avoir des factures)
-                # Copier/Adapter la logique de Repas si nécessaire ici
-
-                # Mettre à jour l'affichage du montant
-                # self._update_montant_display(self.form_fields['total_apres_taxes_dep'].text()) # ANCIENNE LIGNE ERRONÉE
+                # Factures pour Dépense
+                for path in list(self.current_facture_thumbnails.keys()):
+                    self._remove_facture_thumbnail(path, update_model=False)
+                
+                facture_obj_dep = getattr(entry, 'facture', None)
+                if isinstance(facture_obj_dep, Facture) and facture_obj_dep.folder_path and facture_obj_dep.filenames:
+                    for filename in facture_obj_dep.filenames:
+                        full_path = os.path.join(facture_obj_dep.folder_path, filename)
+                        if os.path.exists(full_path):
+                            self._create_and_add_thumbnail(full_path)
+                        else:
+                            logger.warning(f"Fichier facture (dépense édit.) non trouvé: {full_path}")
+                
                 if 'total_apres_taxes_dep' in self.form_fields and isinstance(self.form_fields['total_apres_taxes_dep'], NumericInputWithUnit):
                     self._update_montant_display(self.form_fields['total_apres_taxes_dep'].value())
-                # else: Gérer le cas où le champ n'est pas un NumericInputWithUnit si nécessaire
 
         except Exception as e:
             # print(f"Erreur lors du peuplement du formulaire: {e}") # MODIFICATION
@@ -2448,25 +2434,37 @@ class RapportDepensePage(QWidget):
             
             elif current_entry_type is Depense:
                 self.editing_entry.type_depense = self.form_fields['type_depense'].currentText()
-                self.editing_entry.description = self.form_fields['description'].text()
-                self.editing_entry.fournisseur = self.form_fields['fournisseur'].text()
-                self.editing_entry.payeur = self.form_fields['payeur_employe_dep'].isChecked()
+                self.editing_entry.description = self.form_fields['description_dep'].text() # MODIFIÉ: _dep
+                self.editing_entry.fournisseur = self.form_fields['fournisseur_dep'].text() # MODIFIÉ: _dep
+                self.editing_entry.payeur_employe = self.form_fields['payeur_employe_dep'].isChecked() # Ajuster attribut modèle si besoin
                 
-                def get_float_from_field_apply_dep(key):
-                    try:
-                        widget = self.form_fields[key]
-                        if isinstance(widget, NumericInputWithUnit):
-                            return widget.value()
-                        else:
-                            return float(widget.text().replace(',', '.'))
-                    except (KeyError, ValueError, AttributeError): return 0.0
+                # Pas de refacturer ou num_commande pour Depense
+                self.editing_entry.refacturer = False
+                self.editing_entry.numero_commande = ""
+                                
+                self.editing_entry.totale_avant_taxes = get_float_from_field_apply('total_avant_taxes_dep') # MODIFIÉ: _dep
+                self.editing_entry.tps = get_float_from_field_apply('tps_dep') # MODIFIÉ: _dep
+                self.editing_entry.tvq = get_float_from_field_apply('tvq_dep') # MODIFIÉ: _dep
+                self.editing_entry.tvh = get_float_from_field_apply('tvh_dep') # MODIFIÉ: _dep
+                self.editing_entry.totale_apres_taxes = get_float_from_field_apply('total_apres_taxes_dep') # MODIFIÉ: _dep
                 
-                self.editing_entry.totale_avant_taxes = get_float_from_field_apply_dep('total_avant_taxes_dep')
-                self.editing_entry.tps = get_float_from_field_apply_dep('tps_dep')
-                self.editing_entry.tvq = get_float_from_field_apply_dep('tvq_dep')
-                self.editing_entry.tvh = get_float_from_field_apply_dep('tvh_dep')
-                self.editing_entry.totale_apres_taxes = get_float_from_field_apply_dep('total_apres_taxes_dep')
-                # self.editing_entry.facture = ... # Si Depense a une facture
+                # Mise à jour Facture pour Dépense
+                all_paths_dep = list(self.current_facture_thumbnails.keys())
+                if not all_paths_dep:
+                    self.editing_entry.facture = None
+                else:
+                    first_path_dep = all_paths_dep[0]
+                    folder_path_dep = os.path.dirname(first_path_dep)
+                    filenames_dep = [os.path.basename(p) for p in all_paths_dep]
+                    if isinstance(self.editing_entry.facture, Facture):
+                        self.editing_entry.facture.folder_path = folder_path_dep
+                        self.editing_entry.facture.filenames = filenames_dep
+                    else:
+                        try:
+                            self.editing_entry.facture = Facture(folder_path=folder_path_dep, filenames=filenames_dep)
+                        except Exception as fact_err:
+                            logger.error(f"Impossible de màj Facture (Dépense édit.): {fact_err}")
+                            self.editing_entry.facture = None
 
             # Validation (ajouter si nécessaire)
             # ...
@@ -2541,12 +2539,12 @@ class RapportDepensePage(QWidget):
             #     return False
 
         elif entry_type == "Dépense":
-            description_val = self.form_fields['description'].text()
+            description_val = self.form_fields['description_dep'].text() # MODIFIÉ: _dep
             if not description_val:
                 QMessageBox.warning(self, "Champ manquant", "La description est requise.")
                 return False
             
-            total_apres_taxes_val = get_float_from_form('total_apres_taxes_dep')
+            total_apres_taxes_val = get_float_from_form('total_apres_taxes_dep') # MODIFIÉ: _dep
             if total_apres_taxes_val <= 0:
                  QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
                  return False

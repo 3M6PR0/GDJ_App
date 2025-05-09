@@ -45,9 +45,163 @@
   "documents": {
     "rapport_depense": [
       {
-        "Taux_remboursement": 0.64,
+        "Taux_remboursement": 0.64
+      }
+    ],
+    "Global": [
+      {
         "TPS": 0.05,
-        "TVQ": 0.095
+        "TVQ": 0.095,
+        "codes_gl": {
+          "deplacements":[
+            {
+              "code": "621003",
+              "description": "KILOMÉTRAGE - REPRÉSENTANT",
+              "department": "Représentant"
+            },
+            {
+              "code": "621004",
+              "description": "KILOMÉTRAGE - VENTES INTERNES",
+              "department": "Ventes Interne"
+            },
+            {
+              "code": "621005",
+              "description": "KILOMÉTRAGE - ENTREPÔT",
+              "department": "Entrepôt"
+            },
+            {
+              "code": "621006",
+              "description": "KILOMÉTRAGE - SERVICE",
+              "department": "Service"
+            },
+            {
+              "code": "621007",
+              "description": "KILOMÉTRAGE - BUREAU",
+              "department": "Bureau"
+            }
+          ],
+          "repas":[
+            {
+              "code": "641003",
+              "description": "FRAIS DE REPAS - REPRÉSENTANT",
+              "department": "Représentant"
+            },
+            {
+              "code": "641004",
+              "description": "FRAIS DE REPAS - VENTES INTERNES",
+              "department": "Ventes Interne"
+            },
+            {
+              "code": "641005",
+              "description": "FRAIS DE REPAS - ENTREPÔT",
+              "department": "Entrepôt"
+            },
+            {
+              "code": "641006",
+              "description": "FRAIS DE REPAS - SERVICE",
+              "department": "Service"
+            },
+            {
+              "code": "641007",
+              "description": "FRAIS DE REPAS - BUREAU",
+              "department": "Bureau"
+            }
+          ],
+          "depenses":[
+            {
+              "code": "635000",
+              "description": "Stationnement et frais de voyage"
+            },
+            {
+              "code": "455600",
+              "description": "Achats - Magasin projet (MAG.006)"
+            },
+            {
+              "code": "400710",
+              "description": "Achats (fabrication)"
+            },
+            {
+              "code": "690000",
+              "description": "Activités - Club social"
+            },
+            {
+              "code": "481000",
+              "description": "Dépenses à refacturer"
+            },
+            {
+              "code": "730400",
+              "description": "CELLULAIRE"
+            },
+            {
+              "code": "710600",
+              "description": "Dépense de bureau, café-eau"
+            },
+            {
+              "code": "710100",
+              "description": "Dépense de bureau, papeterie"
+            },
+            {
+              "code": "710800",
+              "description": "Dépense de bureau, produits sanitaires"
+            },
+            {
+              "code": "710500",
+              "description": "Dépense de bureau, timbres"
+            },
+            {
+              "code": "610000",
+              "description": "Dépenses entrepôt"
+            },
+            {
+              "code": "710000",
+              "description": "Dépenses de bureau"
+            },
+            {
+              "code": "721200",
+              "description": "Dépenses ordinateurs - achat"
+            },
+            {
+              "code": "400730",
+              "description": "Frais de douanes et courtage"
+            },
+            {
+              "code": "600000",
+              "description": "Frais de livraison"
+            },
+            {
+              "code": "400720",
+              "description": "Transport achat"
+            },
+            {
+              "code": "529000",
+              "description": "OIQ - avantages sociaux"
+            },
+            {
+              "code": "680200",
+              "description": "Promotion - matériel promotionnel"
+            },
+            {
+              "code": "680700",
+              "description": "Promotion site web (Google)"
+            },
+            {
+              "code": "150000",
+              "description": "Payé d'avance"
+            },
+            {
+              "code": "730600",
+              "description": "Télécommunication - Centre d'appels"
+            },
+            {
+              "code": "700730",
+              "description": "Frais courtage et douane"
+            },
+            {
+              "code": "XXXXXX",
+              "description": "Autre"
+            }
+          ]
+        }
       }
     ]
   }
