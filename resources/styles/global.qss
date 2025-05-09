@@ -541,7 +541,7 @@ NumericInputWithUnit,
     padding-right: {{PADDING_MEDIUM}};
     padding-left: 0px; /* MODIFIÉ: Le parent n'a pas de padding gauche */
     color: {{COLOR_TEXT_PRIMARY}};
-    min-height: 20px; /* Alignée sur la hauteur de QLineEdit (20px) */
+    min-height: 23px; /* Alignée sur la hauteur de QLineEdit (20px) */
     background-clip: padding-box; 
 }
 
