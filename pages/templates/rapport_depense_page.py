@@ -1343,9 +1343,12 @@ class RapportDepensePage(QWidget):
                  # --- Lire et convertir les QLineEdit monétaires --- 
                  def get_float_from_field(key):
                      try:
-                         # Remplacer la virgule par un point si nécessaire
-                         return float(self.form_fields[key].text().replace(',', '.'))
-                     except (KeyError, ValueError):
+                         widget = self.form_fields[key]
+                         if isinstance(widget, NumericInputWithUnit):
+                             return widget.value()
+                         else: # Fallback for other types, e.g. QLineEdit
+                             return float(widget.text().replace(',', '.'))
+                     except (KeyError, ValueError, AttributeError): # Added AttributeError
                          # Si clé non trouvée ou conversion impossible, retourner 0.0
                          return 0.0
                  
@@ -1415,8 +1418,12 @@ class RapportDepensePage(QWidget):
                  # Utiliser le helper pour les montants
                  def get_float_from_field(key):
                      try:
-                         return float(self.form_fields[key].text().replace(',', '.'))
-                     except (KeyError, ValueError):
+                         widget = self.form_fields[key]
+                         if isinstance(widget, NumericInputWithUnit):
+                             return widget.value()
+                         else: # Fallback for other types, e.g. QLineEdit
+                             return float(widget.text().replace(',', '.'))
+                     except (KeyError, ValueError, AttributeError): # Added AttributeError
                          return 0.0
 
                  total_avant_taxes_val = get_float_from_field('total_avant_taxes_dep')
@@ -2141,11 +2148,20 @@ class RapportDepensePage(QWidget):
                 # Montants et Taxes
                 def set_float_field(key, attribute_name):
                     if key in self.form_fields:
-                        value = getattr(entry, attribute_name, 0.0)
+                        widget = self.form_fields[key]
+                        raw_value = getattr(entry, attribute_name, 0.0)
                         try:
-                            self.form_fields[key].setText(f"{float(value):.2f}".replace('.', ',') if isinstance(value, (int, float)) else str(value))
-                        except (ValueError, TypeError):
-                             self.form_fields[key].setText("0,00") # Ou laisser vide?
+                            numeric_value = float(raw_value) # Ensure it's a float
+                            if isinstance(widget, NumericInputWithUnit):
+                                widget.setValue(numeric_value)
+                            elif hasattr(widget, 'setText'): # For QLineEdit or similar
+                                widget.setText(f"{numeric_value:.2f}".replace('.', ','))
+                            # else: widget is of an unknown type for this operation
+                        except (ValueError, TypeError): # Error converting raw_value to float
+                             if isinstance(widget, NumericInputWithUnit):
+                                 widget.setValue(0.0)
+                             elif hasattr(widget, 'setText'):
+                                 widget.setText("0,00")
                 
                 set_float_field('total_avant_taxes', 'totale_avant_taxes')
                 set_float_field('pourboire', 'pourboire')
@@ -2184,11 +2200,20 @@ class RapportDepensePage(QWidget):
                 # Montants et Taxes (avec suffixe _dep)
                 def set_float_field_dep(key, attribute_name):
                     if key in self.form_fields:
-                        value = getattr(entry, attribute_name, 0.0)
+                        widget = self.form_fields[key]
+                        raw_value = getattr(entry, attribute_name, 0.0)
                         try:
-                            self.form_fields[key].setText(f"{float(value):.2f}".replace('.', ',') if isinstance(value, (int, float)) else str(value))
-                        except (ValueError, TypeError):
-                            self.form_fields[key].setText("0,00")
+                            numeric_value = float(raw_value) # Ensure it's a float
+                            if isinstance(widget, NumericInputWithUnit):
+                                widget.setValue(numeric_value)
+                            elif hasattr(widget, 'setText'): # For QLineEdit or similar
+                                widget.setText(f"{numeric_value:.2f}".replace('.', ','))
+                            # else: widget is of an unknown type for this operation
+                        except (ValueError, TypeError): # Error converting raw_value to float
+                             if isinstance(widget, NumericInputWithUnit):
+                                 widget.setValue(0.0)
+                             elif hasattr(widget, 'setText'):
+                                 widget.setText("0,00")
 
                 set_float_field_dep('total_avant_taxes_dep', 'totale_avant_taxes')
                 set_float_field_dep('tps_dep', 'tps')
@@ -2375,8 +2400,13 @@ class RapportDepensePage(QWidget):
                 self.editing_entry.numero_commande = self.form_fields['numero_commande_repas'].text() if self.editing_entry.refacturer else ""
                 
                 def get_float_from_field_apply(key):
-                    try: return float(self.form_fields[key].text().replace(',', '.'))
-                    except (KeyError, ValueError): return 0.0
+                    try:
+                        widget = self.form_fields[key]
+                        if isinstance(widget, NumericInputWithUnit):
+                            return widget.value()
+                        else:
+                            return float(widget.text().replace(',', '.'))
+                    except (KeyError, ValueError, AttributeError): return 0.0
                 
                 self.editing_entry.totale_avant_taxes = get_float_from_field_apply('total_avant_taxes')
                 self.editing_entry.pourboire = get_float_from_field_apply('pourboire')
@@ -2414,8 +2444,13 @@ class RapportDepensePage(QWidget):
                 self.editing_entry.payeur = self.form_fields['payeur_employe_dep'].isChecked()
                 
                 def get_float_from_field_apply_dep(key):
-                    try: return float(self.form_fields[key].text().replace(',', '.'))
-                    except (KeyError, ValueError): return 0.0
+                    try:
+                        widget = self.form_fields[key]
+                        if isinstance(widget, NumericInputWithUnit):
+                            return widget.value()
+                        else:
+                            return float(widget.text().replace(',', '.'))
+                    except (KeyError, ValueError, AttributeError): return 0.0
                 
                 self.editing_entry.totale_avant_taxes = get_float_from_field_apply_dep('total_avant_taxes_dep')
                 self.editing_entry.tps = get_float_from_field_apply_dep('tps_dep')
@@ -2462,8 +2497,12 @@ class RapportDepensePage(QWidget):
         # Helper pour récupérer un float ou 0.0
         def get_float_from_form(key):
             try:
-                return float(self.form_fields[key].text().replace(',', '.'))
-            except (KeyError, ValueError):
+                widget = self.form_fields[key]
+                if isinstance(widget, NumericInputWithUnit):
+                    return widget.value()
+                else: # Fallback for other types, e.g. QLineEdit
+                    return float(widget.text().replace(',', '.'))
+            except (KeyError, ValueError, AttributeError): # Added AttributeError
                 return 0.0
 
         if entry_type == "Déplacement":
