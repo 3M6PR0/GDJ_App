@@ -570,3 +570,11 @@ NumericInputWithUnit QLabel,
     /* Le padding-right est géré par le padding-right: {{PADDING_MEDIUM}} du NumericInputWithUnit parent */
     padding-right: 0px; 
 } 
+
+QFrame#RadioGroupFrame {
+    background-color: {{COLOR_SEARCH_BACKGROUND}};
+    border: 1px solid {{COLOR_PRIMARY_LIGHTEST}};
+    border-radius: {{RADIUS_DEFAULT}};
+    min-height: 22px;
+    padding: {{PADDING_SMALL}};
+} 

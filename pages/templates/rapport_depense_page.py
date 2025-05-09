@@ -787,16 +787,24 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.addWidget(self.form_fields['client_repas'], current_row, 1)
             current_row += 1
             
-            # --- Payeur (avec QGridLayout interne inchangé, ajouté à la colonne 1) --- 
-            payeur_container = QWidget()
+            # --- Payeur --- 
+            self.payeur_frame = QFrame() # NOUVEAU QFrame parent
+            self.payeur_frame.setObjectName("RadioGroupFrame")
+            payeur_frame_layout = QVBoxLayout(self.payeur_frame) # Layout pour le QFrame
+            payeur_frame_layout.setContentsMargins(0,0,0,0) # Le padding sera sur le QFrame via QSS
+
+            payeur_container = QWidget() # L'ancien conteneur, maintenant enfant du QFrame
+            payeur_container.setStyleSheet("background-color: transparent;") # Assurer la transparence
             payeur_grid = QGridLayout(payeur_container)
             payeur_grid.setContentsMargins(0,0,0,0)
-            payeur_grid.setSpacing(10) # Espacement entre les boutons
-            self.payeur_group = QButtonGroup(self.dynamic_form_widget) # Parent = le widget du formulaire
+            payeur_grid.setSpacing(10)
+            self.payeur_group = QButtonGroup(self.dynamic_form_widget)
             self.form_fields['payeur_employe'] = QRadioButton("Employé")
             self.form_fields['payeur_employe'].setObjectName("FormRadioButton")
+            self.form_fields['payeur_employe'].setStyleSheet("background-color: transparent;")
             self.form_fields['payeur_jacmar'] = QRadioButton("Jacmar")
             self.form_fields['payeur_jacmar'].setObjectName("FormRadioButton")
+            self.form_fields['payeur_jacmar'].setStyleSheet("background-color: transparent;")
             self.form_fields['payeur_employe'].setChecked(True)
             self.payeur_group.addButton(self.form_fields['payeur_employe'])
             self.payeur_group.addButton(self.form_fields['payeur_jacmar'])
@@ -804,35 +812,46 @@ class RapportDepensePage(QWidget):
             payeur_grid.addWidget(self.form_fields['payeur_jacmar'], 0, 1)
             payeur_grid.setColumnStretch(0, 1)
             payeur_grid.setColumnStretch(1, 1)
-            # Ajouter le label et le conteneur au grid principal
+            
+            payeur_frame_layout.addWidget(payeur_container) # Ajouter l'ancien conteneur au layout du QFrame
+
             payeur_label = QLabel("Payeur:")
             self.dynamic_form_layout.addWidget(payeur_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(payeur_container, current_row, 1)
+            self.dynamic_form_layout.addWidget(self.payeur_frame, current_row, 1) # Ajouter le QFrame au layout principal
             current_row += 1
-            # ----------------------------------------------------------------------
 
-            # --- Refacturer (avec QGridLayout interne inchangé, ajouté à la colonne 1) ---
-            refacturer_container = QWidget()
+            # --- Refacturer --- 
+            self.refacturer_frame = QFrame() # NOUVEAU QFrame parent
+            self.refacturer_frame.setObjectName("RadioGroupFrame")
+            refacturer_frame_layout = QVBoxLayout(self.refacturer_frame) # Layout pour le QFrame
+            refacturer_frame_layout.setContentsMargins(0,0,0,0)
+
+            refacturer_container = QWidget() # L'ancien conteneur
+            refacturer_container.setStyleSheet("background-color: transparent;")
             refacturer_grid = QGridLayout(refacturer_container)
             refacturer_grid.setContentsMargins(0,0,0,0)
             refacturer_grid.setSpacing(10)
-            self.refacturer_group = QButtonGroup(self.dynamic_form_widget) # Parent = le widget du formulaire
+            self.refacturer_group = QButtonGroup(self.dynamic_form_widget)
             self.form_fields['refacturer_non'] = QRadioButton("Non")
             self.form_fields['refacturer_non'].setObjectName("FormRadioButton")
+            self.form_fields['refacturer_non'].setStyleSheet("background-color: transparent;")
             self.form_fields['refacturer_oui'] = QRadioButton("Oui")
             self.form_fields['refacturer_oui'].setObjectName("FormRadioButton")
+            self.form_fields['refacturer_oui'].setStyleSheet("background-color: transparent;")
             self.refacturer_group.addButton(self.form_fields['refacturer_non'])
             self.refacturer_group.addButton(self.form_fields['refacturer_oui'])
             self.form_fields['refacturer_non'].setChecked(True)
-            self.form_fields['refacturer_oui'].toggled.connect(self._toggle_num_commande_row_visibility) 
+            self.form_fields['refacturer_oui'].toggled.connect(self._toggle_num_commande_row_visibility)
             refacturer_grid.addWidget(self.form_fields['refacturer_non'], 0, 0)
             refacturer_grid.addWidget(self.form_fields['refacturer_oui'], 0, 1)
             refacturer_grid.setColumnStretch(0, 1)
             refacturer_grid.setColumnStretch(1, 1)
-            # Ajouter le label et le conteneur au grid principal
+
+            refacturer_frame_layout.addWidget(refacturer_container)
+
             refacturer_label = QLabel("Refacturer:")
             self.dynamic_form_layout.addWidget(refacturer_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(refacturer_container, current_row, 1)
+            self.dynamic_form_layout.addWidget(self.refacturer_frame, current_row, 1)
             current_row += 1
             # --------------------------------------------------------------------------
 
