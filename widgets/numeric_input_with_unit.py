@@ -23,8 +23,18 @@ class NumericInputWithUnit(QWidget):
         # self.setAttribute(Qt.WA_StyledBackground, True) # Peut être nécessaire si le QSS doit dessiner le fond
         # self.setAttribute(Qt.WA_OpaquePaintEvent, True) # COMMENTÉ POUR TEST
         self._unit_text = unit_text
-        self._value = initial_value
-        self._max_decimals = max_decimals # Nouveau paramètre
+        # Stocker la valeur numérique brute
+        self._value = float(initial_value) 
+        self._max_decimals = max_decimals 
+        
+        # Déterminer le nombre de décimales pour l'affichage.
+        # Si max_decimals est un entier valide >= 0, l'utiliser pour l'affichage.
+        # Sinon, utiliser 2 par défaut (utile pour montants monétaires).
+        if isinstance(self._max_decimals, int) and self._max_decimals >= 0:
+            self._display_decimals = self._max_decimals
+        else:
+            self._display_decimals = 2 # Défaut pour l'affichage (ex: $10.00)
+        logger.debug(f"NumericInputWithUnit: max_decimals (pour validateur) = {self._max_decimals}, _display_decimals (pour affichage) = {self._display_decimals}")
         self._is_focused = False # Nouveau drapeau pour le focus du line_edit
 
         # Utiliser directement les constantes globales du module theme.py
@@ -44,7 +54,8 @@ class NumericInputWithUnit(QWidget):
         self._input_background_color_str = None
 
         self._init_ui()
-        self.setValue(self._value) # Met à jour l'affichage initial
+        # L'appel à setValue ici formatera aussi l'affichage initial
+        self.setValue(self._value) 
 
         # Charger les couleurs initiales basées sur le thème sombre par défaut et se connecter au signal
         self._update_theme_specific_colors('Sombre') # Thème par défaut de l'application
@@ -89,11 +100,14 @@ class NumericInputWithUnit(QWidget):
         self.line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         # Validateur pour n'accepter que les nombres (flottants pour l'instant)
         self.validator = QDoubleValidator()
-        if self._max_decimals is not None and isinstance(self._max_decimals, int) and self._max_decimals >= 0:
+        # Configurer le validateur avec max_decimals si fourni et valide
+        if isinstance(self._max_decimals, int) and self._max_decimals >= 0:
             self.validator.setDecimals(self._max_decimals)
-            logger.debug(f"NumericInputWithUnit: Validateur configuré avec {self._max_decimals} décimales.")
+            logger.debug(f"NumericInputWithUnit: Validateur QDoubleValidator configuré avec {self._max_decimals} décimales.")
         else:
-            logger.debug(f"NumericInputWithUnit: Validateur configuré avec le nombre de décimales par défaut.")
+            # Pas de restriction explicite sur les décimales via le validateur si max_decimals n'est pas défini.
+            # QDoubleValidator par défaut accepte un nombre raisonnable de décimales.
+            logger.debug(f"NumericInputWithUnit: Validateur QDoubleValidator configuré avec le nombre de décimales par défaut.")
 
         self.line_edit.setValidator(self.validator)
         self.line_edit.textChanged.connect(self._on_text_changed)
@@ -133,6 +147,9 @@ class NumericInputWithUnit(QWidget):
             elif event.type() == QEvent.FocusOut:
                 self._is_focused = False
                 self.repaint()
+                # Appeler _on_editing_finished aussi quand le focus est perdu, 
+                # pour assurer le reformatage même si l'utilisateur n'a pas appuyé sur Entrée.
+                self._on_editing_finished()
         return super().eventFilter(watched, event)
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -175,36 +192,80 @@ class NumericInputWithUnit(QWidget):
 
     def _on_editing_finished(self):
         current_text = self.line_edit.text()
+        current_value_success = True
         try:
-            # Utiliser la locale pour la conversion peut être important (virgule vs point)
-            # Pour l'instant, on suppose un format standard que QDoubleValidator gère bien.
-            val = float(current_text) # Ou self.validator.locale().toDouble(current_text)[0]
-            if self._value != val:
-                self._value = val
+            # Essayer de convertir le texte actuel en float.
+            # Remplacer la virgule par un point pour float()
+            val_from_text = float(current_text.replace(',', '.'))
+            
+            # Appliquer l'arrondi selon _max_decimals si défini, avant de comparer/stocker
+            # Ceci est important si l'utilisateur a réussi à entrer plus de décimales que self._max_decimals
+            # (ce qui ne devrait pas arriver avec QDoubleValidator.setDecimals, mais par sécurité)
+            if isinstance(self._max_decimals, int) and self._max_decimals >= 0:
+                factor = 10 ** self._max_decimals
+                val_from_text = round(val_from_text * factor) / factor
+
+            if self._value != val_from_text:
+                self._value = val_from_text
                 self.valueChanged.emit(self._value)
+        
         except ValueError:
-            # Si la valeur n'est pas valide (ne devrait pas arriver avec QDoubleValidator seul),
-            # réinitialiser au dernier _value connu.
-            logger.warning(f"NumericInputWithUnit: Valeur invalide '{current_text}', réinitialisation à {self._value}")
-            self.line_edit.setText(str(self._value))
+            # Si la conversion échoue, current_text n'est pas un nombre valide.
+            # Ne pas changer self._value. Le formatage ci-dessous réaffichera self._value.
+            logger.warning(f"NumericInputWithUnit: Texte '{current_text}' invalide lors de editingFinished. self._value ({self._value}) sera réaffiché.")
+            current_value_success = False # Indique que le texte n'était pas valide
+            # On pourrait réinitialiser le texte du line_edit à self._value ici, mais _format_value_for_display le fera.
+
+        # Toujours reformater l'affichage du QLineEdit à la fin de l'édition,
+        # en utilisant la valeur interne self._value (qui est soit la nouvelle valeur validée,
+        # soit l'ancienne si la saisie était invalide).
+        self.line_edit.blockSignals(True)
+        self.line_edit.setText(self._format_value_for_display(self._value))
+        self.line_edit.blockSignals(False)
+        # Si le texte n'était pas valide et a été réinitialisé, déplacer le curseur à la fin.
+        if not current_value_success:
+            self.line_edit.end(False)
+
+    def _format_value_for_display(self, value: float) -> str:
+        """Formate la valeur float pour l'affichage avec le nombre de décimales défini par self._display_decimals."""
+        try:
+            # S'assurer que value est bien un float avant de formater
+            f_value = float(value)
+            return f"{f_value:.{self._display_decimals}f}"
+        except (ValueError, TypeError):
+            logger.warning(f"NumericInputWithUnit: Impossible de formater la valeur '{value}' (type: {type(value)}) pour l'affichage. Retour d'une chaîne vide ou d'un fallback.")
+            # Retourner une chaîne formatée avec 0.0 et le bon nombre de décimales comme fallback plus sûr
+            return f"{0.0:.{self._display_decimals}f}"
 
     def value(self) -> float:
-        """Retourne la valeur numérique actuelle."""
+        """Retourne la valeur numérique actuelle (brute, float)."""
         return self._value
 
     def setValue(self, value: float):
-        """Définit la valeur numérique."""
+        """Définit la valeur numérique et met à jour l'affichage formaté."""
         try:
-            val = float(value)
-            self._value = val
-            # Mettre à jour le QLineEdit. Bloquer les signaux pour éviter une boucle.
+            f_value = float(value) # S'assurer que c'est un float
+            
+            # Optionnel: arrondir ici aussi selon _max_decimals si la valeur source peut avoir trop de précision
+            if isinstance(self._max_decimals, int) and self._max_decimals >= 0:
+                 factor = 10 ** self._max_decimals
+                 f_value = round(f_value * factor) / factor
+
+            if self._value != f_value: # Comparer après l'arrondi potentiel
+                self._value = f_value
+                # Émettre le signal seulement si la valeur interne a réellement changé.
+                # Cela évite les émissions en cascade si setValue est appelé avec la même valeur effective.
+                # self.valueChanged.emit(self._value) # DÉCOMMENTER SI BESOIN D'ÉMETTRE SUR SETVALUE
+
+            # Mettre à jour le QLineEdit avec la valeur formatée.
             self.line_edit.blockSignals(True)
-            self.line_edit.setText(str(self._value))
+            self.line_edit.setText(self._format_value_for_display(self._value))
             self.line_edit.blockSignals(False)
-            # Émettre le signal si la valeur a effectivement changé via cet appel externe.
-            # self.valueChanged.emit(self._value) # Discutable: émettre ici ou seulement sur interaction user?
+            
         except ValueError:
-            logger.error(f"NumericInputWithUnit: Impossible de définir la valeur sur '{value}'")
+            logger.error(f"NumericInputWithUnit: Impossible de définir la valeur sur '{value}' (non convertible en float).")
+        except Exception as e:
+            logger.error(f"NumericInputWithUnit: Erreur inattendue dans setValue avec '{value}': {e}")
 
     def unitText(self) -> str:
         """Retourne le texte de l'unité actuelle."""

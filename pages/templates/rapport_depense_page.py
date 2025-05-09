@@ -850,36 +850,25 @@ class RapportDepensePage(QWidget):
             self._toggle_num_commande_row_visibility(self.form_fields['refacturer_oui'].isChecked()) 
             # ------------------------------------------------------
             
-            # --- Montants (label colonne 0, champ colonne 1) ---
-            total_avtx_widget = QLineEdit("0.00")
-            validator_avtx = QDoubleValidator(0.0, 99999.99, 2); validator_avtx.setNotation(QDoubleValidator.StandardNotation)
-            total_avtx_widget.setValidator(validator_avtx)
-            total_avtx_widget.setAlignment(Qt.AlignRight)
-            self.form_fields['total_avant_taxes'] = total_avtx_widget
+            # --- Montants (label colonne 0, champ colonne 1) --- 
+            # Remplacer les QLineEdit par NumericInputWithUnit
+            self.form_fields['total_avant_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_avtx_label = QLabel("Total avant Tx:")
             self.dynamic_form_layout.addWidget(total_avtx_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes'], current_row, 1)
             current_row += 1
             
-            pourboire_widget = QLineEdit("0.00")
-            validator_pb = QDoubleValidator(0.0, 99999.99, 2); validator_pb.setNotation(QDoubleValidator.StandardNotation)
-            pourboire_widget.setValidator(validator_pb)
-            pourboire_widget.setAlignment(Qt.AlignRight)
-            self.form_fields['pourboire'] = pourboire_widget
+            self.form_fields['pourboire'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             pourboire_label = QLabel("Pourboire:")
             self.dynamic_form_layout.addWidget(pourboire_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['pourboire'], current_row, 1)
             current_row += 1
 
-            # --- Taxes (label colonne 0, champ colonne 1) ---
+            # --- Taxes (label colonne 0, champ colonne 1) --- 
             tax_field_keys = ['tps', 'tvq', 'tvh']
             tax_labels = ["TPS:", "TVQ:", "TVH:"]
             for i, key in enumerate(tax_field_keys):
-                widget = QLineEdit("0.00")
-                validator = QDoubleValidator(0.0, 99999.99, 2); validator.setNotation(QDoubleValidator.StandardNotation)
-                widget.setValidator(validator)
-                widget.setAlignment(Qt.AlignRight)
-                self.form_fields[key] = widget
+                self.form_fields[key] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
                 label_widget = QLabel(tax_labels[i])
                 self.dynamic_form_layout.addWidget(label_widget, current_row, 0, Qt.AlignLeft)
                 self.dynamic_form_layout.addWidget(self.form_fields[key], current_row, 1)
@@ -887,17 +876,15 @@ class RapportDepensePage(QWidget):
             # --------------------------------------------------
 
             # Total après taxe
-            self.form_fields['total_apres_taxes'] = QLineEdit("0.00")
-            validator_aptx = QDoubleValidator(0.0, 99999.99, 2); validator_aptx.setNotation(QDoubleValidator.StandardNotation)
-            self.form_fields['total_apres_taxes'].setValidator(validator_aptx)
-            self.form_fields['total_apres_taxes'].setAlignment(Qt.AlignRight)
+            self.form_fields['total_apres_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_aptx_label = QLabel("Total après Tx:")
             self.dynamic_form_layout.addWidget(total_aptx_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes'], current_row, 1)
             current_row += 1
-            # --- Le reste (connexion signal) est inchangé ---
+            # --- Le reste (connexion signal) est inchangé --- 
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
-            self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
+            # MODIFIÉ: Connecter valueChanged au lieu de textChanged
+            self.total_apres_taxes_field.valueChanged.connect(self._update_montant_display) 
 
             # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
             self.form_fields['facture_frame'] = QFrame()
@@ -1082,36 +1069,25 @@ class RapportDepensePage(QWidget):
             self._toggle_num_commande_row_visibility(self.form_fields['refacturer_oui'].isChecked()) 
             # ------------------------------------------------------
             
-            # --- Montants (label colonne 0, champ colonne 1) ---
-            total_avtx_widget = QLineEdit("0.00")
-            validator_avtx = QDoubleValidator(0.0, 99999.99, 2); validator_avtx.setNotation(QDoubleValidator.StandardNotation)
-            total_avtx_widget.setValidator(validator_avtx)
-            total_avtx_widget.setAlignment(Qt.AlignRight)
-            self.form_fields['total_avant_taxes'] = total_avtx_widget
+            # --- Montants (label colonne 0, champ colonne 1) --- 
+            # Remplacer les QLineEdit par NumericInputWithUnit
+            self.form_fields['total_avant_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_avtx_label = QLabel("Total avant Tx:")
             self.dynamic_form_layout.addWidget(total_avtx_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes'], current_row, 1)
             current_row += 1
             
-            pourboire_widget = QLineEdit("0.00")
-            validator_pb = QDoubleValidator(0.0, 99999.99, 2); validator_pb.setNotation(QDoubleValidator.StandardNotation)
-            pourboire_widget.setValidator(validator_pb)
-            pourboire_widget.setAlignment(Qt.AlignRight)
-            self.form_fields['pourboire'] = pourboire_widget
+            self.form_fields['pourboire'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             pourboire_label = QLabel("Pourboire:")
             self.dynamic_form_layout.addWidget(pourboire_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['pourboire'], current_row, 1)
             current_row += 1
 
-            # --- Taxes (label colonne 0, champ colonne 1) ---
+            # --- Taxes (label colonne 0, champ colonne 1) --- 
             tax_field_keys = ['tps', 'tvq', 'tvh']
             tax_labels = ["TPS:", "TVQ:", "TVH:"]
             for i, key in enumerate(tax_field_keys):
-                widget = QLineEdit("0.00")
-                validator = QDoubleValidator(0.0, 99999.99, 2); validator.setNotation(QDoubleValidator.StandardNotation)
-                widget.setValidator(validator)
-                widget.setAlignment(Qt.AlignRight)
-                self.form_fields[key] = widget
+                self.form_fields[key] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
                 label_widget = QLabel(tax_labels[i])
                 self.dynamic_form_layout.addWidget(label_widget, current_row, 0, Qt.AlignLeft)
                 self.dynamic_form_layout.addWidget(self.form_fields[key], current_row, 1)
@@ -1119,17 +1095,15 @@ class RapportDepensePage(QWidget):
             # --------------------------------------------------
 
             # Total après taxe
-            self.form_fields['total_apres_taxes'] = QLineEdit("0.00")
-            validator_aptx = QDoubleValidator(0.0, 99999.99, 2); validator_aptx.setNotation(QDoubleValidator.StandardNotation)
-            self.form_fields['total_apres_taxes'].setValidator(validator_aptx)
-            self.form_fields['total_apres_taxes'].setAlignment(Qt.AlignRight)
+            self.form_fields['total_apres_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_aptx_label = QLabel("Total après Tx:")
             self.dynamic_form_layout.addWidget(total_aptx_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes'], current_row, 1)
             current_row += 1
-            # --- Le reste (connexion signal) est inchangé ---
+            # --- Le reste (connexion signal) est inchangé --- 
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
-            self.total_apres_taxes_field.textChanged.connect(self._update_montant_display)
+            # MODIFIÉ: Connecter valueChanged au lieu de textChanged
+            self.total_apres_taxes_field.valueChanged.connect(self._update_montant_display) 
 
             # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
             self.form_fields['facture_frame'] = QFrame()
