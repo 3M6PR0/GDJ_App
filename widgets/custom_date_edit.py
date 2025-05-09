@@ -297,32 +297,30 @@ class CustomDateEdit(QWidget):
         return self._date
 
     def setDate(self, date: QDate):
-        """ Définit la QDate et met à jour l'affichage. """
-        if isinstance(date, QDate) and date.isValid():
-            date_has_changed = (date != self._date)
-            
-            self._date = date 
+        """ Définit la date actuelle du widget et met à jour le QLineEdit. """
+        if not isinstance(date, QDate) or not date.isValid():
+            logger.warning(f"CustomDateEdit - Tentative de définir une date invalide: {date}. Utilisation de la date actuelle.")
+            date = QDate.currentDate()
+        
+        self._date = date
+        self.line_edit.setText(self._date.toString(self._format))
+        # Émettre le signal uniquement si la date a réellement changé
+        # Cela évite les émissions en boucle si setDate est appelé avec la même date.
+        # Pour ce faire, il faudrait comparer avec une ancienne valeur, ou supposer que si setDate est appelé,
+        # c'est intentionnel.
+        # if self._date != old_date: # Nécessiterait de stocker old_date
+        self.dateChanged.emit(self._date)
 
-            current_text_in_line_edit = self.line_edit.text()
-            expected_text = self._date.toString(self._format)
-            if current_text_in_line_edit != expected_text:
-                self.line_edit.blockSignals(True)
-                self.line_edit.setText(expected_text)
-                # Placer le curseur à la fin de la partie jour pour faciliter l'édition suivante
-                day_str_len = len(str(self._date.day()))
-                # Format "yyyy-MM-dd" -> jour à la fin
-                cursor_pos = len(expected_text) 
-                if self._format == "yyyy-MM-dd": # Si c'est notre format standard
-                    pass # len(expected_text) est déjà bon
-                # Si on avait un format comme "dd/MM/yyyy", il faudrait calculer autrement
-                self.line_edit.setCursorPosition(cursor_pos)
-                self.line_edit.blockSignals(False)
-            
-            if hasattr(self.calendar_widget, 'setDate'):
+        # Mettre à jour le calendrier si visible et s'il a une méthode pour cela
+        if self.calendar_frame and self.calendar_frame.isVisible():
+            if hasattr(self.calendar_widget, 'setDate'): # Vérifier si notre Calendar a setDate
                 self.calendar_widget.setDate(self._date)
-            
-            if date_has_changed:
-                self.dateChanged.emit(self._date)
+            elif hasattr(self.calendar_widget, 'setSelectedDate'): # Fallback pour QCalendarWidget standard
+                self.calendar_widget.setSelectedDate(self._date)
+            # S'assurer qu'il navigue aussi à cette date
+            if hasattr(self.calendar_widget, 'setCurrentPage'): # Pour QCalendarWidget standard
+                self.calendar_widget.setCurrentPage(self._date.year(), self._date.month())
+            # Pour notre Calendar, il pourrait avoir une méthode dédiée ou le faire via setDate
 
     def setDateFormat(self, format_str):
         """ Définit le format d'affichage de la date. """
@@ -509,8 +507,8 @@ class CustomDateEdit(QWidget):
                 border-color: {COLOR_BORDER};
             }}
             QAbstractItemView#qt_calendar_calendarview::item:selected {{
-                background-color: {COLOR_ACCENT};
-                color: {COLOR_TEXT_ON_ACCENT};
+                 background-color: {COLOR_ACCENT};
+                 color: {COLOR_TEXT_ON_ACCENT};
                 border-radius: {RADIUS_DEFAULT}; /* Maintient l'arrondi */
                 border-color: transparent; /* Ou une bordure d'accentuation si désiré */
             }}

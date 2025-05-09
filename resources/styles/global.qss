@@ -534,23 +534,24 @@ QMenu::item:selected {
 NumericInputWithUnit,
 #MyNumericInputWithUnit {
     background-color: {{COLOR_SEARCH_BACKGROUND}};
-    border: 1px solid {{COLOR_PRIMARY_LIGHTEST}};
-    border-radius: {{RADIUS_DEFAULT}};
-    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}} {{PADDING_SMALL}} 0px; /* Haut, Droite, Bas, Gauche (Gauche est 0px maintenant) */
+    /* border: 1px solid {{COLOR_PRIMARY_LIGHTEST}}; -- Géré par paintEvent */
+    /* border-radius: {{RADIUS_DEFAULT}}; -- Géré par paintEvent */
+    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}}; 
     color: {{COLOR_TEXT_PRIMARY}};
     min-height: 22px; 
+    background-clip: padding-box; 
 }
 
 NumericInputWithUnit:focus,
 #MyNumericInputWithUnit:focus {
-    border: 1px solid {{COLOR_ACCENT}};
+    /* border: 1px solid {{COLOR_ACCENT}}; -- Géré par paintEvent */
 }
 
 NumericInputWithUnit QLineEdit,
 #MyNumericInputWithUnit QLineEdit {
     background-color: transparent; 
     border: none;                  
-    padding: 0px 0px 0px {{PADDING_MEDIUM}}; /* Rétablissement de PADDING_MEDIUM */                 
+    padding: 0px; /* Le QLineEdit interne n'a pas besoin de padding propre, le parent gère */                 
     color: {{COLOR_TEXT_PRIMARY}};            
 }
 
@@ -560,5 +561,6 @@ NumericInputWithUnit QLabel,
     border: none;                  
     color: {{COLOR_TEXT_PRIMARY}};       
     padding-left: 5px;  /* Espace fixe entre le nombre (QLineEdit) et l'unité (QLabel) */         
-    padding-right: 0px; /* Le parent NumericInputWithUnit gère le padding droit global */
+    /* Le padding-right est géré par le padding-right: {{PADDING_MEDIUM}} du NumericInputWithUnit parent */
+    padding-right: 0px; 
 } 

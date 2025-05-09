@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QHBoxLayout, QSizePolicy, QApplication
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QDoubleValidator # Pour la validation des nombres décimaux
+from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QHBoxLayout, QSizePolicy, QApplication, QStyleOption
+from PyQt5.QtCore import pyqtSignal, Qt, QEvent, QObject
+from PyQt5.QtGui import QDoubleValidator, QPainter, QColor, QPen, QPaintEvent
 
 import logging
 logger = logging.getLogger('GDJ_App')
@@ -16,9 +16,27 @@ class NumericInputWithUnit(QWidget):
     def __init__(self, unit_text="km", initial_value=0.0, parent=None):
         super().__init__(parent)
         self.setObjectName("MyNumericInputWithUnit")
-        self.setAttribute(Qt.WA_StyledBackground, True)
+        # self.setAttribute(Qt.WA_StyledBackground, True) # Peut être nécessaire si le QSS doit dessiner le fond
+        # self.setAttribute(Qt.WA_OpaquePaintEvent, True) # COMMENTÉ POUR TEST
         self._unit_text = unit_text
         self._value = initial_value
+        self._is_focused = False # Nouveau drapeau pour le focus du line_edit
+
+        # Récupérer les propriétés du thème une seule fois
+        app = QApplication.instance()
+        if app: # S'assurer que QApplication existe (utile pour les tests unitaires headless)
+            self._border_color_normal_str = app.property("COLOR_PRIMARY_LIGHTEST") or "#CCCCCC"
+            self._border_color_focus_str = app.property("COLOR_ACCENT") or "#0078D7"
+            radius_str = app.property("RADIUS_DEFAULT") or "4px"
+        else: # Fallback si pas d'instance d'application (rare en usage normal)
+            self._border_color_normal_str = "#CCCCCC"
+            self._border_color_focus_str = "#0078D7"
+            radius_str = "4px"
+        
+        try:
+            self._radius = int(radius_str.replace('px', ''))
+        except ValueError:
+            self._radius = 4 # Fallback si la conversion échoue
 
         self._init_ui()
         self.setValue(self._value) # Met à jour l'affichage initial
@@ -42,10 +60,8 @@ class NumericInputWithUnit(QWidget):
         self.unit_label = QLabel(self._unit_text, self)
         self.unit_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
-        # Style interne pour que le QLineEdit et le QLabel s'intègrent bien
-        # Le QLineEdit interne ne devrait pas avoir de bordure propre ni de fond,
-        # car c'est le widget NumericInputWithUnit (parent) qui sera stylé.
-        self.line_edit.setStyleSheet("border: none; background-color: transparent;")
+        # MODIFIÉ: Rendre la suppression de la bordure du QLineEdit interne plus explicite
+        self.line_edit.setStyleSheet("border: 0px solid transparent; background-color: transparent; padding: 0px;")
         # Le QLabel pour l'unité aura besoin d'un peu de padding pour l'alignement visuel
         # et pour correspondre au padding du QLineEdit parent.
         # La couleur du texte devrait hériter ou être définie via le thème.
@@ -54,6 +70,9 @@ class NumericInputWithUnit(QWidget):
         self.main_layout.addWidget(self.line_edit)
         self.main_layout.addWidget(self.unit_label)
         
+        # Installer le filtre d'événements sur le line_edit
+        self.line_edit.installEventFilter(self)
+
         # Assurer la focus policy
         self.setFocusPolicy(Qt.StrongFocus) # Pour que le widget parent puisse recevoir le focus
         self.setFocusProxy(self.line_edit) # Transférer le focus au QLineEdit interne
@@ -62,6 +81,52 @@ class NumericInputWithUnit(QWidget):
         # Cela aide à obtenir une taille par défaut raisonnable.
         # La hauteur réelle sera déterminée par le style QSS appliqué au NumericInputWithUnit.
         self.setMinimumHeight(self.line_edit.sizeHint().height())
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.line_edit:
+            if event.type() == QEvent.FocusIn:
+                self._is_focused = True
+                self.repaint()
+            elif event.type() == QEvent.FocusOut:
+                self._is_focused = False
+                self.repaint()
+        return super().eventFilter(watched, event)
+
+    def paintEvent(self, event: QPaintEvent) -> None: # Correction de la signature pour QPaintEvent
+        # super().paintEvent(event) # Commenté pour isoler le dessin de la bordure
+
+        opt = QStyleOption() # opt n'est pas utilisé actuellement, mais gardé si besoin futur pour style().drawControl
+        opt.initFrom(self)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing) # Réactivé pour des bords lisses
+
+        # Remplir le fond manuellement si super().paintEvent est commenté
+        # Pour l'instant, laissons le fond tel quel pour se concentrer sur la bordure.
+        # Si le fond devient transparent, nous pourrons ajouter :
+        # painter.fillRect(self.rect(), self.palette().window().color()) 
+        # ou une couleur spécifique du thème si self.palette().window().color() ne convient pas.
+
+        # Utiliser les couleurs et le rayon stockés
+        current_border_color_str = self._border_color_focus_str if self._is_focused else self._border_color_normal_str
+        border_color = QColor(current_border_color_str)
+        
+        pen = QPen(border_color) # Créer le stylo avec la couleur
+        pen.setWidth(0)          # Définir la largeur à 0 pour le rendre cosmétique (toujours 1 pixel physique)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush) 
+
+        # Dessiner un rectangle arrondi
+        # Essayons sans ajustement pour voir l'effet avec un stylo cosmétique
+        rect_border = self.rect() 
+        # Pour un stylo cosmétique, il est souvent préférable de dessiner légèrement à l'intérieur pour éviter que la moitié du pixel ne soit coupée.
+        # Si self.rect() ne fonctionne pas bien, nous pourrions essayer:
+        # rect_border = self.rect().adjusted(0, 0, -1, -1) # Ce que nous avions avant
+        # Ou pour un stylo centré, on ajuste de la moitié de la largeur perçue (0.5 px pour un stylo de 1px)
+        # painter.translate(0.5, 0.5) 
+        # rect_border = self.rect().adjusted(0,0,-1,-1) # puis dessiner dans ce rectangle après translation
+        # painter.translate(-0.5, -0.5) # et revenir
+
+        painter.drawRoundedRect(rect_border, self._radius, self._radius)
 
     def _on_text_changed(self, text):
         # Tentative de conversion en float pendant la frappe pour une validation "douce"
