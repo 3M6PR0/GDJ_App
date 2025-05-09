@@ -20,6 +20,9 @@ import logging
 logger = logging.getLogger('GDJ_App') # MODIFIÉ pour utiliser le logger GDJ_App
 # -----------------------------
 
+# Import du nouveau calendrier
+from .calendar import Calendar 
+
 class CustomDateEdit(QWidget):
     """
     Un widget simulant QDateEdit avec un LineEdit stylisable et un bouton calendrier.
@@ -80,138 +83,68 @@ class CustomDateEdit(QWidget):
         self.main_layout.addWidget(self.calendar_button)
 
         # --- Conteneur QWidget pour le Popup Calendrier ---
-        self.calendar_frame = QWidget(self) # <<< CHANGÉ QFrame EN QWidget
-        self.calendar_frame.setObjectName("CalendarFrame") # Garder le nom pour QSS
-        self.calendar_frame.setWindowFlags(Qt.Window | Qt.FramelessWindowHint) # <<< CHANGÉ LES FLAGS
-        # self.calendar_frame.setAttribute(Qt.WA_TranslucentBackground, True) # <<< RETIRÉ POUR TEST
-
+        self.calendar_frame = QWidget(self)
+        self.calendar_frame.setObjectName("CalendarFrame")
+        self.calendar_frame.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         frame_layout = QVBoxLayout(self.calendar_frame)
-        frame_layout.setContentsMargins(1,1,1,1) # <<< REMETTRE MARGE ICI
-
-        # --- Calendrier (enfant du QWidget conteneur) ---
-        self.calendar_widget = QCalendarWidget(self.calendar_frame)
+        frame_layout.setContentsMargins(1,1,1,1)
+        
+        self.calendar_widget = Calendar(initial_date=self._date, parent=self.calendar_frame) 
         self.calendar_widget.setObjectName("CustomDateEditCalendar")
-        self.calendar_widget.setAttribute(Qt.WA_StyledBackground, True)
-        self.calendar_widget.setFirstDayOfWeek(Qt.Sunday)
-        self.calendar_widget.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
-        self.calendar_widget.setSelectedDate(self._date)
-        self.calendar_widget.clicked[QDate].connect(self._on_calendar_date_selected)
+        
+        # Décommenter et s'assurer que setFirstDayOfWeek est appelé
+        if hasattr(self.calendar_widget, 'setFirstDayOfWeek'):
+            self.calendar_widget.setFirstDayOfWeek(Qt.Sunday) 
+        
+        # Les autres appels aux méthodes de QCalendarWidget restent commentés
+        # if hasattr(self.calendar_widget, 'setVerticalHeaderFormat'): self.calendar_widget.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+        # if hasattr(self.calendar_widget, 'clicked'): self.calendar_widget.clicked[QDate].connect(self._on_calendar_date_selected)
         
         frame_layout.addWidget(self.calendar_widget)
 
-        # --- MODIFICATION: Remplacer ComboBox/SpinBox par des QLabel personnalisés (dans le calendrier) ---
-        navigation_bar = self.calendar_widget.findChild(QWidget, "qt_calendar_navigationbar")
-        if navigation_bar:
-            nav_layout = navigation_bar.layout() # Obtenir le layout de la barre de navigation
-            if not nav_layout:
-                nav_layout = QHBoxLayout(navigation_bar)
-                navigation_bar.setLayout(nav_layout)
-                nav_layout.setContentsMargins(2,2,2,2)
-                nav_layout.setSpacing(5) # Augmenter l'espacement par défaut si on le crée
-            else:
-                # Si le layout existe déjà, on ajuste son espacement
-                nav_layout.setSpacing(5) # AJOUT: Définir l'espacement
-
-            # Masquer les boutons Précédent/Suivant
-            nav_buttons = navigation_bar.findChildren(QToolButton)
-            for btn in nav_buttons:
-                btn.setVisible(False)
-            
-            # Masquer le ComboBox du mois et le SpinBox de l'année originaux
-            month_combo_orig = navigation_bar.findChild(QComboBox)
-            if month_combo_orig:
-                month_combo_orig.setVisible(False)
-                # Supprimer du layout si possible pour éviter qu'il prenne de la place cachée
-                # nav_layout.removeWidget(month_combo_orig) 
-                
-            year_spin_orig = navigation_bar.findChild(QSpinBox)
-            if year_spin_orig:
-                year_spin_orig.setVisible(False)
-                # nav_layout.removeWidget(year_spin_orig)
-
-            # Configurer et ajouter nos labels personnalisés
-            # Il faudra peut-être ajuster l'ordre ou ajouter des spacers
-            # pour un bon alignement. Pour l'instant, on les ajoute simplement.
-            
-            # Supprimer tous les widgets existants du layout pour le reconstruire proprement
-            # (plus sûr que de tenter d'insérer au bon endroit)
-            while nav_layout.count():
-                child = nav_layout.takeAt(0)
-                if child.widget():
-                    child.widget().setVisible(False) # Masquer au lieu de supprimer pour éviter crash si Qt y réfère encore
-                    # child.widget().deleteLater() # Alternativement, si on est sûr
-            
-            # Style pour les labels (peut être dans _apply_calendar_widget_styles aussi)
-            text_color_primary = QApplication.instance().property("COLOR_TEXT_PRIMARY") or "#FFFFFF"
-            label_font_weight = "bold" # ou normal
-            self.month_label.setStyleSheet(f"color: {text_color_primary}; font-weight: {label_font_weight};")
-            self.year_label.setStyleSheet(f"color: {text_color_primary}; font-weight: {label_font_weight};")
-
-            # Ajouter les éléments dans l'ordre souhaité: Spacer, Mois, Année, Spacer
-            nav_layout.addItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Minimum))
-            nav_layout.addWidget(self.month_label)
-            nav_layout.addWidget(self.year_label)
-            nav_layout.addItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Minimum))
-
-            self._update_month_year_labels() # Initialiser le texte
-            self.calendar_widget.currentPageChanged.connect(self._update_month_year_labels)
-
-        # --- MODIFIÉ: Appliquer setStyleSheet directement au QHeaderView horizontal --- (SECTION À COMMENTER)
-        # calendar_view = self.calendar_widget.findChild(QTableView, "qt_calendar_calendarview")
-        # if calendar_view:
-        #     horizontal_header = calendar_view.horizontalHeader()
-        #     if horizontal_header:
-        #         logger.debug("Trouvé horizontalHeader du QTableView. Tentative d'application de setStyleSheet direct.")
-        #         
-        #         # Récupérer les couleurs nécessaires (assurez-vous que ces propriétés sont disponibles)
-        #         app = QApplication.instance()
-        #         color_bg_dark_str = app.property("COLOR_BACKGROUND_DARK") or "#2C2C2C"
-        #         color_text_secondary_str = app.property("COLOR_TEXT_SECONDARY") or "#B0B0B0"
-        #         color_border_str = app.property("COLOR_BORDER") or "#505050"
-
-        #         header_qss = f"""
-        #             QHeaderView::section:horizontal {{
-        #                 background-color: {color_bg_dark_str};
-        #                 color: {color_text_secondary_str};
-        #                 border: none; /* Empêche les bordures individuelles de section */
-        #                 border-bottom: 1px solid {color_border_str}; /* Bordure sous les jours */
-        #                 font-weight: bold;
-        #                 padding: 4px 2px; /* padding vertical, padding horizontal réduit */
-        #             }}
-        #         """
-        #         # horizontal_header.setVisible(True) # Supprimé car créait un nouveau header
-        #         horizontal_header.setStyleSheet(header_qss)
-        #         # horizontal_header.update() # Peut être nécessaire si le style ne s'applique pas immédiatement
+        # --- La barre de navigation personnalisée devra être recréée DANS notre Calendar widget ---
+        # Pour l'instant, on commente tout ce qui concerne l'ancienne barre de navigation
+        # navigation_bar = self.calendar_widget.findChild(QWidget, "qt_calendar_navigationbar")
+        # if navigation_bar:
+        #     nav_layout = navigation_bar.layout()
+        #     if not nav_layout:
+        #         nav_layout = QHBoxLayout(navigation_bar)
+        #         navigation_bar.setLayout(nav_layout)
+        #         nav_layout.setContentsMargins(2,2,2,2)
+        #         nav_layout.setSpacing(5)
         #     else:
-        #          logger.warning("horizontalHeader non trouvé pour qt_calendar_calendarview lors de l'application directe de QSS.")
-        # else:
-        #     logger.warning("QTableView qt_calendar_calendarview non trouvé lors de l'application directe de QSS au header.")
-        # --- FIN DE LA SECTION COMMENTÉE ---
+        #         nav_layout.setSpacing(5)
 
-        # --- DÉBUT DU CODE DE DIAGNOSTIC (COMMENTÉ) ---
-        # logger.debug("--- Début de l'inspection des enfants du QCalendarWidget ---")
-        # La fonction inspect_children n'est plus utilisée, findChildren(QWidget) est déjà récursif.
-        
-        # all_child_widgets = self.calendar_widget.findChildren(QWidget) # Trouve tous les QWidget enfants, récursivement
+        #     nav_buttons = navigation_bar.findChildren(QToolButton)
+        #     for btn in nav_buttons:
+        #         btn.setVisible(False)
+            
+        #     month_combo_orig = navigation_bar.findChild(QComboBox)
+        #     if month_combo_orig:
+        #         month_combo_orig.setVisible(False)
+                
+        #     year_spin_orig = navigation_bar.findChild(QSpinBox)
+        #     if year_spin_orig:
+        #         year_spin_orig.setVisible(False)
 
-        # logger.debug("Liste de tous les QWidget enfants (récursif via findChildren):")
-        # for i, child in enumerate(all_child_widgets):
-        #     try:
-        #         class_name = child.metaObject().className()
-        #         object_name = child.objectName()
-        #         parent_widget = child.parentWidget()
-        #         parent_class_name = parent_widget.metaObject().className() if parent_widget else 'None'
-        #         parent_object_name = parent_widget.objectName() if parent_widget and parent_widget.objectName() else '-'
-        #         logger.debug(f"  Widget {i}: {class_name}, NomObjet: '{object_name if object_name else '-'}', Visible: {child.isVisible()}, Parent: {parent_class_name} ('{parent_object_name}')")
-        #     except Exception as e:
-        #         logger.debug(f"  Erreur lors de l'inspection du widget {i}: {e}")
+        #     while nav_layout.count():
+        #         child = nav_layout.takeAt(0)
+        #         if child.widget():
+        #             child.widget().setVisible(False)
+            
+        #     text_color_primary = QApplication.instance().property("COLOR_TEXT_PRIMARY") or "#FFFFFF"
+        #     label_font_weight = "bold"
+        #     self.month_label.setStyleSheet(f"color: {text_color_primary}; font-weight: {label_font_weight};")
+        #     self.year_label.setStyleSheet(f"color: {text_color_primary}; font-weight: {label_font_weight};")
 
-        # logger.debug("--- Fin de l'inspection des enfants du QCalendarWidget ---")
-        # --- FIN DU CODE DE DIAGNOSTIC ---
+        #     nav_layout.addItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        #     nav_layout.addWidget(self.month_label)
+        #     nav_layout.addWidget(self.year_label)
+        #     nav_layout.addItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Minimum))
 
-        # Commenter les logs CRITICAL superflus
-        # logger.critical("!!!!!!!!!! CUSTOM_DATE_EDIT _init_ui COMMENCE ICI !!!!!!!!!!")
-        # logger.critical("!!!!!!!!!! CUSTOM_DATE_EDIT _init_ui JUSTE AVANT apply_internal_styles !!!!!!!!!!") 
+        #     self._update_month_year_labels() 
+        #     self.calendar_widget.currentPageChanged.connect(self._update_month_year_labels) # Ce signal n'existe pas encore
+
         self._apply_internal_styles()
         self._apply_calendar_widget_styles() # AJOUT: Appliquer les styles au QCalendarWidget
 
@@ -295,36 +228,33 @@ class CustomDateEdit(QWidget):
     def _show_calendar(self):
         """ Affiche le QFrame contenant le QCalendarWidget sous le bouton. """
         button_pos = self.calendar_button.mapToGlobal(QPoint(0, 0))
-        # Positionner le frame sous le bouton
         self.calendar_frame.move(button_pos.x(), button_pos.y() + self.calendar_button.height())
-        self.calendar_widget.setSelectedDate(self._date) # S'assurer que la date actuelle est sélectionnée
+        # self.calendar_widget.setSelectedDate(self._date) # COMMENTÉ CAR Calendar n'a pas cette méthode
         self.calendar_frame.show()
-        self.calendar_widget.setFocus() # Mettre le focus sur le calendrier pour la navigation clavier
+        # if hasattr(self.calendar_widget, 'setFocus'): self.calendar_widget.setFocus() # Commenté pour l'instant
 
     def _on_calendar_date_selected(self, date):
         """ Met à jour la date lorsque sélectionnée dans le calendrier. """
         if self.calendar_frame:
             self.calendar_frame.hide()
         self.setDate(date)
+        # Le signal self.calendar_widget.clicked[QDate] est commenté, donc cette méthode
+        # ne sera plus appelée directement par le calendrier pour l'instant.
+        # Il faudra un nouveau signal depuis notre Calendar personnalisé.
 
     def _on_text_changed(self, text):
         """ (Optionnel) Valide la date si modifiée manuellement dans QLineEdit. """
-        # Tenter de parser la date selon le format
         parsed_date = QDate.fromString(text, self._format)
         if parsed_date.isValid():
-            # Vérifier si la date interne est différente pour éviter boucle de signaux
             if parsed_date != self._date:
                 self._date = parsed_date
-                # Mettre à jour la sélection du calendrier pour la prochaine ouverture
-                self.calendar_widget.setSelectedDate(self._date) 
+                # if hasattr(self.calendar_widget, 'setSelectedDate'): # Vérifier si la méthode existe avant d'appeler
+                #     self.calendar_widget.setSelectedDate(self._date) 
                 self.dateChanged.emit(self._date)
         else:
-            # Gérer l'erreur de format (ex: remettre l'ancienne date, indiquer erreur)
-            # Pour l'instant, on remet l'ancienne date valide
             self.line_edit.blockSignals(True)
             self.line_edit.setText(self._date.toString(self._format))
             self.line_edit.blockSignals(False)
-            # Peut-être ajouter un tooltip ou changer la couleur de bordure temporairement
 
     # --- Méthodes publiques simulant QDateEdit ---
     
@@ -337,11 +267,12 @@ class CustomDateEdit(QWidget):
         if isinstance(date, QDate) and date.isValid():
             if date != self._date:
                 self._date = date
-                self.line_edit.blockSignals(True) # Éviter déclenchement de _on_text_changed
+                self.line_edit.blockSignals(True) 
                 self.line_edit.setText(self._date.toString(self._format))
                 self.line_edit.blockSignals(False)
-                self.calendar_widget.setSelectedDate(self._date) # Pour la prochaine ouverture
-                self.dateChanged.emit(self._date) # Émettre le signal
+                # if hasattr(self.calendar_widget, 'setSelectedDate'): # Vérifier si la méthode existe
+                #    self.calendar_widget.setSelectedDate(self._date) 
+                self.dateChanged.emit(self._date) 
 
     def setDateFormat(self, format_str):
         """ Définit le format d'affichage de la date. """
@@ -383,70 +314,73 @@ class CustomDateEdit(QWidget):
 
     # --- AJOUT: Méthode pour mettre à jour les labels Mois/Année ---
     def _update_month_year_labels(self, year=None, month=None):
-        # Liste des mois en français (peut être déplacée ou rendue configurable)
-        MONTHS_FR = [
-            "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", 
-            "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
-        ]
+        # Cette méthode dépendait de self.calendar_widget.yearShown() et monthShown()
+        # qui n'existent pas encore sur notre Calendar.
+        # Pour l'instant, nous allons la désactiver ou la faire retourner des valeurs par défaut.
+        # if hasattr(self.calendar_widget, 'yearShown') and hasattr(self.calendar_widget, 'monthShown'):
+        #     year = self.calendar_widget.yearShown()
+        #     month = self.calendar_widget.monthShown()
+        # else:
+        #     current_dt = QDate.currentDate()
+        #     year = current_dt.year()
+        #     month = current_dt.month()
+        pass # Temporairement, ne fait rien
 
-        if year is None or month is None:
-            year = self.calendar_widget.yearShown()
-            month = self.calendar_widget.monthShown() # monthShown() est 1-indexé
-        
-        month_name = MONTHS_FR[month - 1] if 1 <= month <= 12 else "Mois?"
-        
-        self.month_label.setText(month_name)
-        self.year_label.setText(str(year))
-    # ------------------------------------------------------------
-
-    # --- AJOUT: Méthode pour styler QCalendarWidget directement en Python ---
+        # MONTHS_FR = [
+        #     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", 
+        #     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+        # ]
+        # month_name = MONTHS_FR[month - 1] if 1 <= month <= 12 else "Mois?"
+        # self.month_label.setText(month_name)
+        # self.year_label.setText(str(year))
+    
     def _apply_calendar_widget_styles(self):
         app = QApplication.instance()
 
-        # Récupérer les couleurs du thème avec des valeurs de secours
         COLOR_BACKGROUND_LIGHT = app.property("COLOR_BACKGROUND_LIGHT") or "#3F3F3F"
         COLOR_TEXT_PRIMARY = app.property("COLOR_TEXT_PRIMARY") or "#FFFFFF"
         COLOR_BORDER = app.property("COLOR_BORDER") or "#505050"
-        COLOR_BACKGROUND_DARK = app.property("COLOR_BACKGROUND_DARK") or "#2C2C2C"
-        COLOR_PRIMARY_MEDIUM = app.property("COLOR_PRIMARY_MEDIUM") or "#353535" # Pour le fond des headers
-        COLOR_ITEM_HOVER = app.property("COLOR_ITEM_HOVER") or "#4A4A4A"
-        COLOR_ACCENT_PRESSED = app.property("COLOR_ACCENT_PRESSED") or "#005A9E"
-        COLOR_TEXT_SECONDARY = app.property("COLOR_TEXT_SECONDARY") or "#B0B0B0" # Pour le texte des headers
-        COLOR_ACCENT = app.property("COLOR_ACCENT") or "#0078D4"
-        COLOR_TEXT_ON_ACCENT = app.property("COLOR_TEXT_ON_ACCENT") or "#FFFFFF"
-        COLOR_TEXT_DISABLED = app.property("COLOR_TEXT_DISABLED") or "#808080"
-        COLOR_ACCENT_LIGHT = app.property("COLOR_ACCENT_LIGHT") or "#50A6F0"
+        COLOR_PRIMARY_MEDIUM = app.property("COLOR_PRIMARY_MEDIUM") or "#353535" 
+        # ... (autres couleurs) ...
         RADIUS_DEFAULT = app.property("RADIUS_DEFAULT") or "3px"
-        
         if not isinstance(RADIUS_DEFAULT, str):
             RADIUS_DEFAULT = f"{RADIUS_DEFAULT}px"
 
-        # logger.debug(f"[Calendar Styles Update] COLOR_PRIMARY_MEDIUM: {COLOR_PRIMARY_MEDIUM}, COLOR_TEXT_SECONDARY: {COLOR_TEXT_SECONDARY}, COLOR_BORDER: {COLOR_BORDER}")
+        # 1. Styles QSS pour les éléments INTERNES du calendrier
+        # Cette section entière cible les sous-éléments de QCalendarWidget, elle n'est plus pertinente
+        # pour notre Calendar personnalisé. Nous la commenterons. Le style du Calendar lui-même (s'il est simple)
+        # peut être fait via son `paintEvent` ou un style QSS simple sur `CustomCalendarView` (son objectName).
 
-        # Appliquer le style des en-têtes via QTextCharFormat (garder ceci)
-        logger.debug("Tentative de style des en-têtes via setHeaderTextFormat.")
-        header_format = QTextCharFormat()
-        try:
-            header_format.setBackground(QBrush(QColor(COLOR_PRIMARY_MEDIUM)))
-            header_format.setForeground(QBrush(QColor(COLOR_TEXT_SECONDARY)))
-            font = header_format.font()
-            font.setBold(True)
-            header_format.setFont(font)
-            self.calendar_widget.setHeaderTextFormat(header_format)
-            logger.debug(f"setHeaderTextFormat appliqué avec fond {COLOR_PRIMARY_MEDIUM} et texte {COLOR_TEXT_SECONDARY}")
-        except Exception as e:
-            logger.error(f"Erreur lors de l'application de setHeaderTextFormat: {e}", exc_info=True)
+        # calendar_internals_qss = f""" ... """ # TOUT CE BLOC EST COMMENTÉ
+        # self.calendar_widget.setStyleSheet(calendar_internals_qss) # COMMENTÉ
+
+        # Notre nouveau widget Calendar a son propre paintEvent pour le fond.
+        # Si on veut un fond via QSS sur le widget lui-même (qui a objectName "CustomCalendarView"):
+        # self.calendar_widget.setStyleSheet(f"QWidget#CustomCalendarView {{ background-color: {COLOR_PRIMARY_MEDIUM}; border: none; }}")
+        # Mais pour l'instant, la couleur est dans le paintEvent de Calendar.
+
+        # 2. Appliquer le style des en-têtes via QTextCharFormat
+        # Ceci est spécifique à QCalendarWidget et n'est plus applicable.
+        # logger.debug("Application de setHeaderTextFormat pour les en-têtes.")
+        # header_format = QTextCharFormat()
+        # try:
+        #     header_format.setBackground(QBrush(QColor(COLOR_PRIMARY_MEDIUM)))
+        # ... (reste de setHeaderTextFormat) ...
+        #     self.calendar_widget.setHeaderTextFormat(header_format)
+        # except Exception as e:
+        #     logger.error(f"Erreur lors de l'application de setHeaderTextFormat: {e}", exc_info=True)
             
-        # MAINTENANT: Appliquer un style COMPLET et direct au CONTENEUR (calendar_frame)
-        logger.debug("Application directe de QSS COMPLET au conteneur QWidget#CalendarFrame")
-        container_direct_qss = f"""\
-            QWidget#CalendarFrame {{ /* Cibler spécifiquement par ID */
-                background-color: {COLOR_BACKGROUND_LIGHT}; 
-                border: 1px solid {COLOR_BORDER};
-                border-radius: 10px; /* <<< VALEUR AUGMENTÉE */
-                background-clip: border-box; /* Important */
-            }}
-        """ 
+        # 3. Appliquer un style direct au CONTENEUR (QWidget#CalendarFrame)
+        # CECI RESTE VALIDE ET IMPORTANT pour les coins arrondis globaux du popup.
+        logger.debug("Application directe de QSS au conteneur QWidget#CalendarFrame")
+        container_direct_qss = (
+            f"QWidget#CalendarFrame {{"
+            f"    background-color: {COLOR_BACKGROUND_LIGHT}; "
+            f"    border: 1px solid {COLOR_BORDER}; "
+            f"    border-radius: 10px; "
+            f"    background-clip: border-box; "
+            f"}}"
+        )
         self.calendar_frame.setStyleSheet(container_direct_qss)
         logger.debug(f"Style complet appliqué directement au frame: {container_direct_qss}")
 
