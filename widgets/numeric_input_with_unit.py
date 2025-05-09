@@ -1,9 +1,13 @@
-from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QHBoxLayout, QSizePolicy, QApplication, QStyleOption
-from PyQt5.QtCore import pyqtSignal, Qt, QEvent, QObject
+from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QHBoxLayout, QSizePolicy, QApplication, QStyleOption, QStyle
+from PyQt5.QtCore import pyqtSignal, Qt, QEvent, QObject, pyqtSlot
 from PyQt5.QtGui import QDoubleValidator, QPainter, QColor, QPen, QPaintEvent
 
 import logging
 logger = logging.getLogger('GDJ_App')
+
+# Import direct du module de thème et des signaux
+from utils import theme as theme_module
+from utils.signals import signals
 
 class NumericInputWithUnit(QWidget):
     """
@@ -22,24 +26,57 @@ class NumericInputWithUnit(QWidget):
         self._value = initial_value
         self._is_focused = False # Nouveau drapeau pour le focus du line_edit
 
-        # Récupérer les propriétés du thème une seule fois
-        app = QApplication.instance()
-        if app: # S'assurer que QApplication existe (utile pour les tests unitaires headless)
-            self._border_color_normal_str = app.property("COLOR_PRIMARY_LIGHTEST") or "#CCCCCC"
-            self._border_color_focus_str = app.property("COLOR_ACCENT") or "#0078D7"
-            radius_str = app.property("RADIUS_DEFAULT") or "4px"
-        else: # Fallback si pas d'instance d'application (rare en usage normal)
-            self._border_color_normal_str = "#CCCCCC"
-            self._border_color_focus_str = "#0078D7"
-            radius_str = "4px"
-        
+        # Utiliser directement les constantes globales du module theme.py
+        self._border_color_focus_str = theme_module.COLOR_ACCENT
+        raw_radius_str = theme_module.RADIUS_DEFAULT
+
         try:
-            self._radius = int(radius_str.replace('px', ''))
+            self._radius = int(str(raw_radius_str).replace('px', ''))
         except ValueError:
-            self._radius = 4 # Fallback si la conversion échoue
+            logger.warning(
+                f"NumericInputWithUnit: Valeur RADIUS_DEFAULT ('{raw_radius_str}') invalide depuis theme.py. Utilisation de 4px."
+            )
+            self._radius = 4
+
+        # Les couleurs spécifiques au thème seront chargées par _update_theme_specific_colors
+        self._border_color_normal_str = None
+        self._input_background_color_str = None
 
         self._init_ui()
         self.setValue(self._value) # Met à jour l'affichage initial
+
+        # Charger les couleurs initiales basées sur le thème sombre par défaut et se connecter au signal
+        self._update_theme_specific_colors('Sombre') # Thème par défaut de l'application
+        try:
+            signals.theme_changed_signal.connect(self._update_theme_specific_colors)
+        except AttributeError:
+            logger.error("NumericInputWithUnit: Impossible de se connecter à signals.theme_changed_signal. L'objet 'signals' est-il initialisé ?")
+        except Exception as e:
+            logger.error(f"NumericInputWithUnit: Erreur lors de la connexion à theme_changed_signal: {e}")
+
+    @pyqtSlot(str)
+    def _update_theme_specific_colors(self, theme_name: str):
+        logger.debug(f"NumericInputWithUnit: Réception du signal de changement de thème ou appel initial. Application du thème: {theme_name}")
+        current_theme_dict = theme_module.get_theme_vars(theme_name)
+        
+        self._border_color_normal_str = current_theme_dict.get("COLOR_PRIMARY_LIGHTEST")
+        self._input_background_color_str = current_theme_dict.get("COLOR_SEARCH_BACKGROUND")
+
+        if self._border_color_normal_str is None:
+            logger.warning(f"NumericInputWithUnit: 'COLOR_PRIMARY_LIGHTEST' non trouvée dans theme_module pour le thème '{theme_name}'. Utilisation de #CCCCCC.")
+            self._border_color_normal_str = "#CCCCCC" # Fallback absolu
+        
+        if self._input_background_color_str is None:
+            logger.warning(f"NumericInputWithUnit: 'COLOR_SEARCH_BACKGROUND' non trouvée dans theme_module pour le thème '{theme_name}'. Utilisation de #3A3A3A.")
+            self._input_background_color_str = "#3A3A3A" # Fallback absolu
+
+        logger.debug(f"NumericInputWithUnit - Couleurs après _update_theme_specific_colors ('{theme_name}') :")
+        logger.debug(f"  _border_color_normal_str: {self._border_color_normal_str}")
+        logger.debug(f"  _input_background_color_str: {self._input_background_color_str}")
+        logger.debug(f"  _border_color_focus_str (constant): {self._border_color_focus_str}")
+        logger.debug(f"  _radius (constant from theme): {self._radius}")
+
+        self.update() # Déclencher un repaint
 
     def _init_ui(self):
         self.main_layout = QHBoxLayout(self)
@@ -92,41 +129,37 @@ class NumericInputWithUnit(QWidget):
                 self.repaint()
         return super().eventFilter(watched, event)
 
-    def paintEvent(self, event: QPaintEvent) -> None: # Correction de la signature pour QPaintEvent
-        # super().paintEvent(event) # Commenté pour isoler le dessin de la bordure
-
-        opt = QStyleOption() # opt n'est pas utilisé actuellement, mais gardé si besoin futur pour style().drawControl
+    def paintEvent(self, event: QPaintEvent) -> None:
+        opt = QStyleOption()
         opt.initFrom(self)
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing) # Réactivé pour des bords lisses
+        painter.setRenderHint(QPainter.Antialiasing, True) # Garder l'anti-aliasing pour les coins lisses
 
-        # Remplir le fond manuellement si super().paintEvent est commenté
-        # Pour l'instant, laissons le fond tel quel pour se concentrer sur la bordure.
-        # Si le fond devient transparent, nous pourrons ajouter :
-        # painter.fillRect(self.rect(), self.palette().window().color()) 
-        # ou une couleur spécifique du thème si self.palette().window().color() ne convient pas.
+        # Sauvegarder l'état du painter avant la translation
+        painter.save()
+        # Appliquer une translation de 0.5px pour potentiellement améliorer la netteté des lignes de 1px
+        painter.translate(0.5, 0.5)
 
-        # Utiliser les couleurs et le rayon stockés
+        # 1. Fond transparent (rien à dessiner pour le fond ici)
+
+        # 2. Dessiner la bordure
         current_border_color_str = self._border_color_focus_str if self._is_focused else self._border_color_normal_str
         border_color = QColor(current_border_color_str)
+
+        pen = QPen(border_color)
+        pen.setWidth(0) # Revenir au stylo cosmétique pour une ligne de 1 pixel physique
         
-        pen = QPen(border_color) # Créer le stylo avec la couleur
-        pen.setWidth(0)          # Définir la largeur à 0 pour le rendre cosmétique (toujours 1 pixel physique)
         painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush) 
+        painter.setBrush(Qt.NoBrush)
 
-        # Dessiner un rectangle arrondi
-        # Essayons sans ajustement pour voir l'effet avec un stylo cosmétique
-        rect_border = self.rect() 
-        # Pour un stylo cosmétique, il est souvent préférable de dessiner légèrement à l'intérieur pour éviter que la moitié du pixel ne soit coupée.
-        # Si self.rect() ne fonctionne pas bien, nous pourrions essayer:
-        # rect_border = self.rect().adjusted(0, 0, -1, -1) # Ce que nous avions avant
-        # Ou pour un stylo centré, on ajuste de la moitié de la largeur perçue (0.5 px pour un stylo de 1px)
-        # painter.translate(0.5, 0.5) 
-        # rect_border = self.rect().adjusted(0,0,-1,-1) # puis dessiner dans ce rectangle après translation
-        # painter.translate(-0.5, -0.5) # et revenir
-
+        # Le rectangle est ajusté pour que la ligne soit dessinée à l'intérieur.
+        # Avec la translation de 0.5, les coordonnées (0,0) du rect_border 
+        # correspondent maintenant au centre du pixel (0,0) du widget.
+        rect_border = self.rect().adjusted(0, 0, -1, -1) 
         painter.drawRoundedRect(rect_border, self._radius, self._radius)
+
+        # Restaurer l'état du painter (annule la translation)
+        painter.restore()
 
     def _on_text_changed(self, text):
         # Tentative de conversion en float pendant la frappe pour une validation "douce"
