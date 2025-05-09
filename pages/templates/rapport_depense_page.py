@@ -1998,11 +1998,15 @@ class RapportDepensePage(QWidget):
                 removed = True
                 # print(f"Repas supprimé: {entry_to_delete}") # Log de débogage # MODIFICATION
                 logger.info(f"Repas supprimé: {entry_to_delete}") # MODIFICATION
-            elif entry_type is Depense and entry_to_delete in self.document.depenses:
+            elif entry_type is Depense and hasattr(self.document, 'depenses_diverses') and entry_to_delete in self.document.depenses_diverses:
+                self.document.depenses_diverses.remove(entry_to_delete) # MODIFIÉ: Utilise depenses_diverses
+                removed = True
+                logger.info(f"Dépense (diverse) supprimée: {entry_to_delete}")
+            elif entry_type is Depense and hasattr(self.document, 'depenses') and entry_to_delete in self.document.depenses:
+                # Fallback si 'depenses' existe et 'depenses_diverses' n'a pas fonctionné
                 self.document.depenses.remove(entry_to_delete)
                 removed = True
-                # print(f"Dépense supprimée: {entry_to_delete}") # Log de débogage # MODIFICATION
-                logger.info(f"Dépense supprimée: {entry_to_delete}") # MODIFICATION
+                logger.info(f"Dépense (fallback 'depenses') supprimée: {entry_to_delete}")
             else:
                 # print(f"WARN: Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}") # MODIFICATION
                 logger.warning(f"Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}") # MODIFICATION
@@ -2383,13 +2387,24 @@ class RapportDepensePage(QWidget):
     def _apply_edit(self):
         """Sauvegarde les modifications de l'entrée en cours et quitte le mode édition."""
         if not self.editing_entry:
-            # print("ERROR: _apply_edit appelé sans entrée en cours d'édition.") # MODIFICATION
-            logger.error("_apply_edit appelé sans entrée en cours d'édition.") # MODIFICATION
+            logger.error("_apply_edit appelé sans entrée en cours d'édition.")
             self._exit_edit_mode_ui() # Quitter proprement quand même
             return
         
-        # print(f"Application des modifications pour: {self.editing_entry}") # MODIFICATION
-        logger.debug(f"Application des modifications pour: {self.editing_entry}") # MODIFICATION
+        # --- DÉFINITION DE LA FONCTION HELPER get_float_from_field_apply ICI ---
+        def get_float_from_field_apply(key):
+            try:
+                widget = self.form_fields[key]
+                if isinstance(widget, NumericInputWithUnit):
+                    return widget.value()
+                else:
+                    return float(widget.text().replace(',', '.'))
+            except (KeyError, ValueError, AttributeError): 
+                logger.warning(f"Clé '{key}' non trouvée ou valeur invalide dans _apply_edit.")
+                return 0.0
+        # --- FIN DÉFINITION HELPER ---
+
+        logger.debug(f"Application des modifications pour: {self.editing_entry}")
         original_entry = self.editing_entry # Garder référence pour la fin
 
         try:
@@ -2430,14 +2445,7 @@ class RapportDepensePage(QWidget):
                 self.editing_entry.refacturer = self.form_fields['refacturer_oui'].isChecked()
                 self.editing_entry.numero_commande = self.form_fields['numero_commande_repas'].text() if self.editing_entry.refacturer else ""
                 
-                def get_float_from_field_apply(key):
-                    try:
-                        widget = self.form_fields[key]
-                        if isinstance(widget, NumericInputWithUnit):
-                            return widget.value()
-                        else:
-                            return float(widget.text().replace(',', '.'))
-                    except (KeyError, ValueError, AttributeError): return 0.0
+                # RETRAIT DE LA DÉFINITION DE get_float_from_field_apply D'ICI
                 
                 self.editing_entry.totale_avant_taxes = get_float_from_field_apply('total_avant_taxes')
                 self.editing_entry.pourboire = get_float_from_field_apply('pourboire')
