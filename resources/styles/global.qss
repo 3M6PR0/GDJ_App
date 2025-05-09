@@ -529,3 +529,36 @@ QMenu::item:selected {
     padding: 5px 20px;
     background-color: transparent;
 } 
+
+/* Style pour le nouveau NumericInputWithUnit */
+NumericInputWithUnit,
+#MyNumericInputWithUnit {
+    background-color: {{COLOR_SEARCH_BACKGROUND}};
+    border: 1px solid {{COLOR_PRIMARY_LIGHTEST}};
+    border-radius: {{RADIUS_DEFAULT}};
+    padding: {{PADDING_SMALL}} {{PADDING_MEDIUM}} {{PADDING_SMALL}} 0px; /* Haut, Droite, Bas, Gauche (Gauche est 0px maintenant) */
+    color: {{COLOR_TEXT_PRIMARY}};
+    min-height: 22px; 
+}
+
+NumericInputWithUnit:focus,
+#MyNumericInputWithUnit:focus {
+    border: 1px solid {{COLOR_ACCENT}};
+}
+
+NumericInputWithUnit QLineEdit,
+#MyNumericInputWithUnit QLineEdit {
+    background-color: transparent; 
+    border: none;                  
+    padding: 0px 0px 0px {{PADDING_MEDIUM}}; /* Rétablissement de PADDING_MEDIUM */                 
+    color: {{COLOR_TEXT_PRIMARY}};            
+}
+
+NumericInputWithUnit QLabel,
+#MyNumericInputWithUnit QLabel { 
+    background-color: transparent; 
+    border: none;                  
+    color: {{COLOR_TEXT_PRIMARY}};       
+    padding-left: 5px;  /* Espace fixe entre le nombre (QLineEdit) et l'unité (QLabel) */         
+    padding-right: 0px; /* Le parent NumericInputWithUnit gère le padding droit global */
+} 

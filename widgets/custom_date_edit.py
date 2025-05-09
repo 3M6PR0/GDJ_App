@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QApplication, QStyle, QSizePolicy, QToolButton, QComboBox, QSpinBox, QLabel, QSpacerItem,
     QTableView, QFrame, QVBoxLayout # AJOUT: QTableView, QFrame, QVBoxLayout
 )
-from PyQt5.QtCore import QDate, pyqtSignal, Qt, QPoint, QMargins, QSize, QRectF, QEvent # AJOUTER QEvent
+from PyQt5.QtCore import QDate, pyqtSignal, Qt, QPoint, QMargins, QSize, QRectF, QEvent, QTimer # AJOUT QTimer
 from PyQt5.QtGui import QIcon, QPalette, QColor, QTextCharFormat, QBrush, QPainter, QPen # AJOUT: QTextCharFormat, QBrush, QPainter, QPen, QRectF
 
 # --- Import du loader d'icônes du projet --- 
@@ -387,122 +387,256 @@ class CustomDateEdit(QWidget):
     def _apply_calendar_widget_styles(self):
         app = QApplication.instance()
 
+        # --- Récupération des couleurs et constantes du thème avec fallback ---\
         COLOR_BACKGROUND_LIGHT = app.property("COLOR_BACKGROUND_LIGHT") or "#3F3F3F"
+        COLOR_BACKGROUND_MEDIUM = app.property("COLOR_BACKGROUND_MEDIUM") or "#2F2F2F" # Pour les jours désactivés
         COLOR_TEXT_PRIMARY = app.property("COLOR_TEXT_PRIMARY") or "#FFFFFF"
+        COLOR_TEXT_SECONDARY = app.property("COLOR_TEXT_SECONDARY") or "#B0B0B0" # Pour en-têtes jours semaine
+        COLOR_TEXT_DISABLED = app.property("COLOR_TEXT_DISABLED") or "#707070" # Pour jours désactivés
+        COLOR_TEXT_PRIMARY_INVERTED = app.property("COLOR_TEXT_PRIMARY_INVERTED") or "#1E1E1E" # Texte sur fond clair/primaire
+        COLOR_TEXT_ON_ACCENT = app.property("COLOR_TEXT_ON_ACCENT") or "#FFFFFF" # Texte sur fond accent
         COLOR_BORDER = app.property("COLOR_BORDER") or "#505050"
-        COLOR_PRIMARY_MEDIUM = app.property("COLOR_PRIMARY_MEDIUM") or "#353535" 
-        # ... (autres couleurs) ...
-        RADIUS_DEFAULT = app.property("RADIUS_DEFAULT") or "3px"
-        if not isinstance(RADIUS_DEFAULT, str):
-            RADIUS_DEFAULT = f"{RADIUS_DEFAULT}px"
+        COLOR_PRIMARY_LIGHT = app.property("COLOR_PRIMARY_LIGHT") or "#4A4A4A" # Pour fond des jours normaux
+        COLOR_PRIMARY_MEDIUM = app.property("COLOR_PRIMARY_MEDIUM") or "#353535" # Pour barre nav & en-têtes
+        COLOR_PRIMARY_DARK = app.property("COLOR_PRIMARY_DARK") or "#2A2A2A" # Pour hover sur boutons nav
+        COLOR_ACCENT = app.property("COLOR_ACCENT") or "#007ACC" # Pour jour sélectionné
+        
+        RADIUS_DEFAULT = app.property("RADIUS_DEFAULT") or "4px" # Pour les cellules de jour
+        if not isinstance(RADIUS_DEFAULT, str) or not RADIUS_DEFAULT.endswith("px"):
+            RADIUS_DEFAULT = f"{RADIUS_DEFAULT}px" if isinstance(RADIUS_DEFAULT, (int, float)) else "4px"
 
-        # 1. Styles QSS pour les éléments INTERNES du calendrier
-        # Cette section entière cible les sous-éléments de QCalendarWidget, elle n'est plus pertinente
-        # pour notre Calendar personnalisé. Nous la commenterons. Le style du Calendar lui-même (s'il est simple)
-        # peut être fait via son `paintEvent` ou un style QSS simple sur `CustomCalendarView` (son objectName).
+        RADIUS_LARGE = "10px" # Pour le conteneur global et les coins de la vue calendrier
+        RADIUS_SMALL_BUTTON = "3px" # Pour les boutons de navigation
 
-        # calendar_internals_qss = f""" ... """ # TOUT CE BLOC EST COMMENTÉ
-        # self.calendar_widget.setStyleSheet(calendar_internals_qss) # COMMENTÉ
-
-        # Notre nouveau widget Calendar a son propre paintEvent pour le fond.
-        # Si on veut un fond via QSS sur le widget lui-même (qui a objectName "CustomCalendarView"):
-        # self.calendar_widget.setStyleSheet(f"QWidget#CustomCalendarView {{ background-color: {COLOR_PRIMARY_MEDIUM}; border: none; }}")
-        # Mais pour l'instant, la couleur est dans le paintEvent de Calendar.
-
-        # 2. Appliquer le style des en-têtes via QTextCharFormat
-        # Ceci est spécifique à QCalendarWidget et n'est plus applicable.
-        # logger.debug("Application de setHeaderTextFormat pour les en-têtes.")
-        # header_format = QTextCharFormat()
-        # try:
-        #     header_format.setBackground(QBrush(QColor(COLOR_PRIMARY_MEDIUM)))
-        # ... (reste de setHeaderTextFormat) ...
-        #     self.calendar_widget.setHeaderTextFormat(header_format)
-        # except Exception as e:
-        #     logger.error(f"Erreur lors de l'application de setHeaderTextFormat: {e}", exc_info=True)
-            
-        # 3. Appliquer un style direct au CONTENEUR (QWidget#CalendarFrame)
-        # CECI RESTE VALIDE ET IMPORTANT pour les coins arrondis globaux du popup.
-        logger.debug("Application directe de QSS au conteneur QWidget#CalendarFrame")
-        container_direct_qss = (
-            f"QWidget#CalendarFrame {{"
-            f"    background-color: {COLOR_BACKGROUND_LIGHT}; "
-            f"    border: 1px solid {COLOR_BORDER}; "
-            f"    border-radius: 10px; "
-            f"    background-clip: border-box; "
-            f"}}"
-        )
+        # 1. Style pour le conteneur QWidget#CalendarFrame (le popup lui-même)
+        container_direct_qss = f"""
+            QWidget#CalendarFrame {{
+                background-color: {COLOR_BACKGROUND_LIGHT};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_LARGE};
+                background-clip: border-box; /* Important pour que le fond respecte border-radius */
+            }}
+        """
         self.calendar_frame.setStyleSheet(container_direct_qss)
-        logger.debug(f"Style complet appliqué directement au frame: {container_direct_qss}")
+        logger.debug(f"Style appliqué au QWidget#CalendarFrame: {container_direct_qss}")
+
+        # 2. Styles pour les éléments internes du QCalendarWidget (maintenant notre Calendar personnalisé)
+        # Assurez-vous que self.calendar_widget (votre classe Calendar) et ses enfants ont les bons objectName
+        # si vous utilisez des sélecteurs d'ID comme #CustomDateEditCalendar.
+        # Pour l'instant, nous ciblons les types de widgets internes standards (QCalendarWidget, QWidget, etc.)
+        # que votre Calendar personnalisé devrait exposer ou qui sont accessibles.
+        calendar_internals_qss = f"""
+            /* Style de base pour le widget calendrier lui-même, pour assurer la transparence */
+            QCalendarWidget#CustomDateEditCalendar {{
+                background-color: transparent;
+                border: none;
+            }}
+
+            /* Barre de navigation (mois/année, flèches) */
+            QWidget#qt_calendar_navigationbar {{
+                background-color: {COLOR_PRIMARY_MEDIUM};
+                color: {COLOR_TEXT_PRIMARY_INVERTED};
+                border-top-left-radius: {RADIUS_LARGE};
+                border-top-right-radius: {RADIUS_LARGE};
+                border-bottom-left-radius: 0px; /* Important pour la jonction avec la vue des jours */
+                border-bottom-right-radius: 0px; /* Important pour la jonction avec la vue des jours */
+                padding: 5px;
+                margin-bottom: 0px; /* Évite un espace entre la nav et l'en-tête des jours */
+            }}
+
+            QWidget#qt_calendar_navigationbar QToolButton {{
+                color: {COLOR_TEXT_PRIMARY_INVERTED};
+                background-color: transparent;
+                border: 1px solid transparent; /* Pour maintenir la taille au survol */
+                border-radius: {RADIUS_SMALL_BUTTON};
+                padding: 3px;
+                margin: 0px 1px;
+                qproperty-iconSize: 16px 16px; /* Ajustez si nécessaire */
+            }}
+            QWidget#qt_calendar_navigationbar QToolButton:hover {{
+                background-color: {COLOR_PRIMARY_DARK};
+                border-color: {COLOR_BORDER};
+            }}
+            QWidget#qt_calendar_navigationbar QToolButton:pressed {{
+                background-color: {COLOR_PRIMARY_LIGHT};
+            }}
+            /* Cible spécifique pour le label mois/année si besoin (ex: #qt_calendar_monthyearlabel) */
+            /* Sinon, un QLabel général dans la barre de navigation */
+            QWidget#qt_calendar_navigationbar QLabel {{
+                color: {COLOR_TEXT_PRIMARY_INVERTED};
+                padding: 0px 5px;
+                font-weight: bold;
+            }}
+
+            /* En-tête des jours de la semaine (Lun, Mar, ...) */
+            QHeaderView#qt_calendar_horizontalheader::section:horizontal {{
+                background-color: {COLOR_PRIMARY_MEDIUM}; /* Même fond que la barre de navigation */
+                color: {COLOR_TEXT_SECONDARY};
+                border: none; /* Pas de bordure pour les sections */
+                padding: 4px 0px;
+                margin-top: 0px; /* S'assurer qu'il n'y a pas d'espace avec la barre de nav */
+            }}
+
+            /* Vue principale des jours (la grille) */
+            QAbstractItemView#qt_calendar_calendarview {{
+                background-color: {COLOR_BACKGROUND_LIGHT}; /* Même fond que le conteneur principal */
+                alternate-background-color: {COLOR_BACKGROUND_LIGHT}; /* Si utilisé */
+                selection-background-color: transparent; /* La cellule ::item gère son fond de sélection */
+                selection-color: transparent; /* La cellule ::item gère sa couleur de texte de sélection */
+                border-bottom-left-radius: {RADIUS_LARGE}; /* Arrondi pour correspondre au conteneur */
+                border-bottom-right-radius: {RADIUS_LARGE}; /* Arrondi pour correspondre au conteneur */
+                border-top-left-radius: 0px; /* Haut plat pour joindre l'en-tête */
+                border-top-right-radius: 0px; /* Haut plat pour joindre l'en-tête */
+                outline: 0px; /* Pas de contour de focus sur la vue elle-même */
+                padding: 5px; /* Espace entre le bord de la vue et les cellules */
+                margin: 0px;
+                border: none; /* Pas de bordure propre, le conteneur gère la bordure globale */
+                background-clip: padding-box; /* Le fond s'étend jusqu'au padding */
+            }}
+
+            /* Cellules de jour individuelles */
+            QAbstractItemView#qt_calendar_calendarview::item {{
+                background-color: {COLOR_PRIMARY_LIGHT}; /* Fond pour les jours normaux */
+                color: {COLOR_TEXT_PRIMARY};
+                border-radius: {RADIUS_DEFAULT}; /* Coins arrondis pour chaque cellule */
+                padding: 5px; /* Padding interne à la cellule */
+                margin: 2px; /* Espacement entre les cellules pour voir l'arrondi et le fond de la vue */
+                border: 1px solid transparent; /* Pour la cohérence de taille avec :today */
+            }}
+            QAbstractItemView#qt_calendar_calendarview::item:hover {{
+                background-color: {COLOR_PRIMARY_MEDIUM};
+                color: {COLOR_TEXT_PRIMARY_INVERTED};
+                border-color: {COLOR_BORDER};
+            }}
+            QAbstractItemView#qt_calendar_calendarview::item:selected {{
+                background-color: {COLOR_ACCENT};
+                color: {COLOR_TEXT_ON_ACCENT};
+                border-radius: {RADIUS_DEFAULT}; /* Maintient l'arrondi */
+                border-color: transparent; /* Ou une bordure d'accentuation si désiré */
+            }}
+            QAbstractItemView#qt_calendar_calendarview::item:disabled {{
+                background-color: {COLOR_BACKGROUND_MEDIUM};
+                color: {COLOR_TEXT_DISABLED};
+                border-radius: {RADIUS_DEFAULT};
+            }}
+            /* Style pour le jour actuel (today) */
+            QAbstractItemView#qt_calendar_calendarview::item:today {{
+                /* Garde le fond normal/hover/selected, mais ajoute une indication */
+                /* font-weight: bold;  Alternative: texte en gras */ 
+                border: 1px solid {COLOR_ACCENT}; /* Bordure pour indiquer "today" */
+                /* Le padding pourrait nécessiter un ajustement si la bordure change la taille */
+            }}
+            QAbstractItemView#qt_calendar_calendarview::item:today:selected {{
+                /* Peut être combiné avec item:selected, ou spécifique ici */
+                /* Par exemple, si on veut une bordure différente pour today ET selected */
+                border: 1px solid {COLOR_PRIMARY_DARK}; /* Ou autre indicateur */
+            }}
+        """
+        # Appliquer au widget calendrier personnalisé
+        # Note: Votre widget Calendar doit être un QCalendarWidget ou exposer des enfants
+        # avec les objectNames standards (qt_calendar_navigationbar, qt_calendar_calendarview, etc.)
+        # pour que ces styles QSS s'appliquent correctement.
+        # Si votre Calendar personnalisé utilise des noms d'objets différents pour ses composants internes,
+        # vous devrez ajuster les sélecteurs QSS en conséquence.
+        self.calendar_widget.setStyleSheet(calendar_internals_qss)
+        logger.debug(f"Style appliqué au QCalendarWidget#CustomDateEditCalendar et ses enfants: {calendar_internals_qss}")
+
+    def _check_cursor_position(self):
+        if self.line_edit.hasFocus(): # Agir seulement si le QLineEdit a le focus
+            day_part_start_index = 8 # "yyyy-MM-"
+            current_pos = self.line_edit.cursorPosition()
+            if current_pos < day_part_start_index:
+                self.line_edit.setCursorPosition(day_part_start_index)
 
     def eventFilter(self, watched, event: QEvent) -> bool:
-        # Filtre pour les clics en dehors du calendrier (installé sur QApplication)
-        if event.type() == QEvent.MouseButtonPress:
+        # Filtre pour les clics en dehors du calendrier
+        if event.type() == QEvent.MouseButtonPress and watched != self.line_edit: 
             if self.calendar_frame and self.calendar_frame.isVisible():
                 clicked_widget = QApplication.widgetAt(event.globalPos())
-                if clicked_widget == self.calendar_button:
-                    return False 
+                if clicked_widget == self.calendar_button: return False 
                 is_inside_calendar_popup = False
                 temp_widget = clicked_widget
                 while temp_widget:
-                    if temp_widget == self.calendar_frame:
-                        is_inside_calendar_popup = True
-                        break
+                    if temp_widget == self.calendar_frame: is_inside_calendar_popup = True; break
                     temp_widget = temp_widget.parentWidget()
-                if not is_inside_calendar_popup:
-                    self.calendar_frame.hide()
-                    return True 
+                if not is_inside_calendar_popup: self.calendar_frame.hide(); return True 
 
-        # Filtre pour les touches dans le QLineEdit (installé sur self.line_edit)
-        if watched == self.line_edit and event.type() == QEvent.KeyPress:
-            key_event = event 
-            cursor_pos = self.line_edit.cursorPosition()
-            selection_start = self.line_edit.selectionStart()
-            has_selection = self.line_edit.hasSelectedText()
-            
-            day_part_start_index = 8 # "yyyy-MM-" a une longueur de 8
+        # Filtre pour les événements sur self.line_edit
+        if watched == self.line_edit:
+            if event.type() == QEvent.KeyPress:
+                key_event = event 
+                cursor_pos = self.line_edit.cursorPosition()
+                selection_start = self.line_edit.selectionStart()
+                selection_end = self.line_edit.selectionEnd()
+                has_selection = self.line_edit.hasSelectedText()
+                day_part_start_index = 8 # "yyyy-MM-"
+                current_text = self.line_edit.text()
 
-            # Cas spécial: Empêcher la suppression du dernier tiret "-" avec Backspace
-            if key_event.key() == Qt.Key_Backspace and not has_selection and cursor_pos == day_part_start_index:
-                key_event.ignore()
-                return True # Événement géré et bloqué
-            
-            # Cas spécial: Empêcher la suppression du premier tiret "-" avec Delete
-            # Le premier tiret est à l'index 4 (après "AAAA")
-            first_dash_index = 4
-            if key_event.key() == Qt.Key_Delete and not has_selection and cursor_pos == first_dash_index:
-                key_event.ignore()
-                return True # Événement géré et bloqué
+                if key_event.key() == Qt.Key_Backspace and not has_selection and cursor_pos == day_part_start_index:
+                    key_event.ignore(); return True
+                first_dash_index = 4
+                if key_event.key() == Qt.Key_Delete and not has_selection and cursor_pos == first_dash_index:
+                    key_event.ignore(); return True
 
-            is_in_read_only_part = False
-            if has_selection:
-                # Si la sélection commence dans la partie protégée (avant l'index du début du jour)
-                # ou si la sélection commence avant le premier tiret (pour protéger le format)
-                if selection_start < day_part_start_index: 
-                    is_in_read_only_part = True
-            elif cursor_pos < day_part_start_index: # Si le curseur simple est avant la partie jour
-                is_in_read_only_part = True
+                is_in_read_only_part = False
+                if has_selection:
+                    if selection_start < day_part_start_index: is_in_read_only_part = True
+                elif cursor_pos < day_part_start_index: is_in_read_only_part = True
+                
+                if is_in_read_only_part:
+                    allowed_keys = [
+                        Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down,
+                        Qt.Key_Home, Qt.Key_End, Qt.Key_PageUp, Qt.Key_PageDown,
+                        Qt.Key_Tab, Qt.Key_Backtab, 
+                        Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_Meta,
+                        Qt.Key_CapsLock, Qt.Key_Insert
+                    ]
+                    if key_event.key() in allowed_keys or not key_event.text():
+                        QTimer.singleShot(0, self._check_cursor_position)
+                        return False 
+                    else:
+                        key_event.ignore(); return True 
+                else: # Dans la partie jour (curseur >= day_part_start_index)
+                    # Limiter à 2 chiffres pour le jour
+                    day_str_part = current_text[day_part_start_index:]
+                    typed_char = key_event.text()
+                    
+                    # Si on a une sélection qui inclut la fin de la partie jour, ou si elle est entièrement dans la partie jour
+                    # on autorise la frappe car elle va remplacer du texte.
+                    is_selection_in_day_part = False
+                    if has_selection and selection_start >= day_part_start_index:
+                        is_selection_in_day_part = True 
+                    elif has_selection and selection_start < day_part_start_index and selection_end > day_part_start_index:
+                        # Sélection à cheval, mais qui pourrait remplacer la partie jour
+                        # Pour simplifier, on pourrait autoriser si la sélection existe et n'est pas purement read-only
+                        is_selection_in_day_part = True # Simplification: si sélection, on laisse faire pour l'instant
+
+                    if typed_char.isdigit():
+                        # Longueur de la partie jour après la potentielle insertion/remplacement
+                        # Cette logique est un peu complexe à faire parfaitement ici sans simuler l'édition.
+                        # Une approche plus simple: si 2 chiffres sont déjà là et pas de sélection dans la partie jour,
+                        # on n'ajoute pas un autre chiffre.
+                        
+                        # On compte les chiffres déjà présents dans la partie jour qui ne seraient pas remplacés
+                        effective_day_str_len = 0
+                        if has_selection and is_selection_in_day_part:
+                            # Si la sélection est dans la partie jour, la frappe la remplace, donc la longueur ne s'ajoute pas directement
+                            # On laisse passer, la validation sur editingFinished s'en chargera.
+                            pass 
+                        else: # Pas de sélection, ou sélection en dehors de la partie jour (déjà géré par is_in_read_only_part)
+                            current_day_digits = "".join(filter(str.isdigit, day_str_part))
+                            effective_day_str_len = len(current_day_digits)
+
+                        if effective_day_str_len >= 2 and not (has_selection and is_selection_in_day_part) :
+                            key_event.ignore() # Ignorer la frappe du 3ème chiffre si pas de sélection qui le remplacerait
+                            return True
+                    
+                    QTimer.singleShot(0, self._check_cursor_position)
+                    return False # Laisser la touche être traitée si elle n'est pas bloquée
             
-            if is_in_read_only_part:
-                allowed_keys_in_readonly = [
-                    Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down,
-                    Qt.Key_Home, Qt.Key_End, Qt.Key_PageUp, Qt.Key_PageDown,
-                    Qt.Key_Tab, Qt.Key_Backtab, 
-                    Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_Meta,
-                    Qt.Key_CapsLock, Qt.Key_Insert # Key_Insert ne produit pas de texte
-                    # On n'inclut pas Qt.Key_Delete ou Qt.Key_Backspace ici car leur effet dépendra
-                    # de la position exacte du curseur ou de la sélection, gérée ci-dessus/ci-dessous.
-                ]
-                # Autoriser la navigation, la sélection, mais pas l'effacement ou l'écriture directement
-                if key_event.key() in allowed_keys_in_readonly or not key_event.text():
-                    return False 
-                else:
-                    # Bloquer toutes les autres touches (alphanumériques, etc.)
-                    # La suppression (Delete/Backspace) dans la zone read-only est gérée si la sélection s'y étend
-                    # ou par les cas spécifiques des tirets.
-                    key_event.ignore()
-                    return True 
-            # else: (curseur et sélection sont entièrement dans la partie jour)
-                # Laisser la frappe se faire. La validation sur editingFinished corrigera.
+            elif event.type() == QEvent.MouseButtonRelease:
+                QTimer.singleShot(0, self._check_cursor_position)
+                return False
 
         return super().eventFilter(watched, event)
 

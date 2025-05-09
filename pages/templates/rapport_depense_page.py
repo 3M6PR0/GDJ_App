@@ -13,6 +13,7 @@ from utils.theme import get_theme_vars, RADIUS_BOX # Importer les variables de t
 from utils.icon_loader import get_icon_path # Importer la fonction pour obtenir le chemin de l'icône
 from utils.signals import signals
 from widgets.custom_date_edit import CustomDateEdit
+from widgets.numeric_input_with_unit import NumericInputWithUnit # <<< S'ASSURER QUE CET IMPORT EST PRÉSENT ET CORRECT
 from ui.components.card import CardWidget # Importer le widget card renommé
 from widgets.thumbnail_widget import ThumbnailWidget
 import traceback # Importer traceback pour débogage
@@ -760,10 +761,12 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.addWidget(self.form_fields['numero_commande'], current_row, 1)
             current_row += 1
 
-            self.form_fields['kilometrage'] = QDoubleSpinBox()
-            self.form_fields['kilometrage'].setRange(0.0, 9999.9)
-            self.form_fields['kilometrage'].setSuffix(" km")
-            self.form_fields['kilometrage'].setAlignment(Qt.AlignRight)
+            self.form_fields['kilometrage'] = NumericInputWithUnit(unit_text="km", initial_value=0.0)
+            # --- AJOUT LOGS DE DÉBOGAGE --- 
+            km_widget = self.form_fields['kilometrage']
+            logger.debug(f"DEBUG STYLE: Kilometrage widget objectName: {km_widget.objectName()}")
+            logger.debug(f"DEBUG STYLE: Kilometrage widget styleSheet: {km_widget.styleSheet()}")
+            # --- FIN AJOUT LOGS ---
             km_label = QLabel("Kilométrage:")
             self.dynamic_form_layout.addWidget(km_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['kilometrage'], current_row, 1)
@@ -1266,6 +1269,9 @@ class RapportDepensePage(QWidget):
             # --- Vérifier si c'est notre CustomDateEdit --- 
             elif isinstance(widget, CustomDateEdit):
                 widget.setDate(QDate.currentDate())
+            # --- AJOUT POUR NumericInputWithUnit ---
+            elif isinstance(widget, NumericInputWithUnit):
+                widget.setValue(0.0) # Ou la valeur par défaut/minimale souhaitée
             # --- AJOUT POUR CHECKBOX --- 
             elif isinstance(widget, QCheckBox):
                 widget.setChecked(False)

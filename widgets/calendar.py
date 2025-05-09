@@ -116,6 +116,8 @@ class Calendar(QWidget):
         self._displayed_month = self._selected_date.month()
         self._displayed_year = self._selected_date.year()
         self._first_day_of_week = Qt.Monday # Défaut Qt, sera écrasé par setFirstDayOfWeek si appelé
+        self._minimum_date = QDate() # Date invalide par défaut (pas de minimum)
+        self._maximum_date = QDate() # Date invalide par défaut (pas de maximum)
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._day_cells = []
@@ -251,6 +253,30 @@ class Calendar(QWidget):
                 self._update_display() # Pour que populate_days_grid utilise le nouvel offset
         else:
             print(f"Warning: Invalid day_of_week passed to setFirstDayOfWeek: {day_of_week}")
+
+    # --- AJOUT: Méthodes pour compatibilité avec QCalendarWidget ---
+    def setMinimumDate(self, date: QDate):
+        if isinstance(date, QDate) and date.isValid():
+            self._minimum_date = date
+            # Potentiellement appeler _update_display() si la date affichée est affectée
+            # ou si cela doit désactiver des cellules immédiatement.
+            # self._update_display() 
+        elif not date.isValid(): # Permettre de désactiver le minimum
+            self._minimum_date = QDate() 
+
+    def minimumDate(self) -> QDate:
+        return self._minimum_date
+
+    def setMaximumDate(self, date: QDate):
+        if isinstance(date, QDate) and date.isValid():
+            self._maximum_date = date
+            # self._update_display()
+        elif not date.isValid(): # Permettre de désactiver le maximum
+            self._maximum_date = QDate()
+
+    def maximumDate(self) -> QDate:
+        return self._maximum_date
+    # --- FIN AJOUT ---
 
     # def setMinimumDate(self, date):
     #     # Logique à ajouter si besoin
