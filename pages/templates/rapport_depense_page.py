@@ -922,7 +922,7 @@ class RapportDepensePage(QWidget):
             
             # Layout interne du frame
             frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
-            frame_content_layout.setContentsMargins(5, 5, 5, 5)
+            frame_content_layout.setContentsMargins(0, 0, 0, 0) # MODIFIÉ: Le padding est géré par QSS
             frame_content_layout.setSpacing(8)
 
             # Layout horizontal pour Label + Bouton Icône
@@ -1141,7 +1141,7 @@ class RapportDepensePage(QWidget):
             
             # Layout interne du frame
             frame_content_layout = QVBoxLayout(self.form_fields['facture_frame'])
-            frame_content_layout.setContentsMargins(5, 5, 5, 5)
+            frame_content_layout.setContentsMargins(0, 0, 0, 0) # MODIFIÉ: Le padding est géré par QSS
             frame_content_layout.setSpacing(8)
 
             # Layout horizontal pour Label + Bouton Icône
@@ -2185,7 +2185,10 @@ class RapportDepensePage(QWidget):
                             print(f"WARN: Fichier facture non trouvé pour l'édition: {full_path}")
                 
                 # Mettre à jour l'affichage du montant (devrait être déjà fait par total_apres_taxes)
-                self._update_montant_display(self.form_fields['total_apres_taxes'].text())
+                # self._update_montant_display(self.form_fields['total_apres_taxes'].text()) # ANCIENNE LIGNE ERRONÉE
+                if 'total_apres_taxes' in self.form_fields and isinstance(self.form_fields['total_apres_taxes'], NumericInputWithUnit):
+                    self._update_montant_display(self.form_fields['total_apres_taxes'].value())
+                # else: Gérer le cas où le champ n'est pas un NumericInputWithUnit si nécessaire
 
             elif isinstance(entry, Depense):
                 if 'type_depense' in self.form_fields: self.form_fields['type_depense'].setCurrentText(getattr(entry, 'type_depense', 'Autre'))
@@ -2225,7 +2228,10 @@ class RapportDepensePage(QWidget):
                 # Copier/Adapter la logique de Repas si nécessaire ici
 
                 # Mettre à jour l'affichage du montant
-                self._update_montant_display(self.form_fields['total_apres_taxes_dep'].text())
+                # self._update_montant_display(self.form_fields['total_apres_taxes_dep'].text()) # ANCIENNE LIGNE ERRONÉE
+                if 'total_apres_taxes_dep' in self.form_fields and isinstance(self.form_fields['total_apres_taxes_dep'], NumericInputWithUnit):
+                    self._update_montant_display(self.form_fields['total_apres_taxes_dep'].value())
+                # else: Gérer le cas où le champ n'est pas un NumericInputWithUnit si nécessaire
 
         except Exception as e:
             # print(f"Erreur lors du peuplement du formulaire: {e}") # MODIFICATION
