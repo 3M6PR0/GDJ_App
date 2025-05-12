@@ -1067,8 +1067,9 @@ class RapportDepensePage(QWidget):
             except Exception as e:
                 logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_avant_taxes): {e}")
             # --- FIN AJOUT Style --- 
-            # TODO: Connecter signal self.form_fields['total_avant_taxes_btn'].clicked
-            # -------------------------
+            # --- AJOUT CONNEXION (Repas Av Tx) ---
+            self.form_fields['total_avant_taxes_btn'].clicked.connect(self._calculate_total_avant_taxes)
+            # -------------------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
             total_avtx_layout = QHBoxLayout()
             total_avtx_layout.setContentsMargins(0,0,0,0)
@@ -1236,8 +1237,9 @@ class RapportDepensePage(QWidget):
             except Exception as e:
                 logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_apres_taxes): {e}")
             # --- FIN AJOUT Style --- 
-            # TODO: Connecter signal self.form_fields['total_apres_taxes_btn'].clicked
-            # -------------------------
+            # --- AJOUT CONNEXION (Repas Ap Tx) ---
+            self.form_fields['total_apres_taxes_btn'].clicked.connect(self._calculate_total_apres_taxes)
+            # -------------------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
             total_aptx_layout = QHBoxLayout()
             total_aptx_layout.setContentsMargins(0,0,0,0)
@@ -1491,8 +1493,9 @@ class RapportDepensePage(QWidget):
             except Exception as e:
                 logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_avant_taxes_dep): {e}")
             # --- FIN AJOUT Style --- 
-            # TODO: Connecter signal
-            # -------------------------
+            # --- AJOUT CONNEXION (Dépense Av Tx) ---
+            self.form_fields['total_avant_taxes_dep_btn'].clicked.connect(self._calculate_total_avant_taxes)
+            # -------------------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
             total_avtx_dep_layout = QHBoxLayout()
             total_avtx_dep_layout.setContentsMargins(0,0,0,0)
@@ -1709,8 +1712,9 @@ class RapportDepensePage(QWidget):
             except Exception as e:
                 logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_apres_taxes_dep): {e}")
             # --- FIN AJOUT Style --- 
-            # TODO: Connecter signal
-            # -------------------------
+            # --- AJOUT CONNEXION (Dépense Ap Tx) ---
+            self.form_fields['total_apres_taxes_dep_btn'].clicked.connect(self._calculate_total_apres_taxes)
+            # -------------------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
             total_aptx_dep_layout = QHBoxLayout()
             total_aptx_dep_layout.setContentsMargins(0,0,0,0)
@@ -3286,9 +3290,10 @@ class RapportDepensePage(QWidget):
             total_apres_tx = total_apres_taxes_widget.value()
             tolerance = 1e-6
 
-            # i. Si les deux totaux sont (presque) zéro, ne rien faire
+            # i. Si les deux totaux sont (presque) zéro, mettre la taxe à zéro
             if abs(total_avant_tx) < tolerance and abs(total_apres_tx) < tolerance:
-                logger.debug(f"Calcul de {tax_type}: Total avant et après taxes sont à zéro. Aucune action.")
+                logger.debug(f"Calcul de {tax_type}: Total avant et après taxes sont à zéro. Mise à zéro du champ {tax_type}.")
+                tax_widget.setValue(0.0) # AJOUT: Mettre le champ taxe à 0
                 return
 
             # ii. Si seul Total Avant Taxes est saisi
@@ -3319,14 +3324,67 @@ class RapportDepensePage(QWidget):
                     logger.exception(error_msg)
                     QMessageBox.critical(self, "Erreur Inattendue", error_msg)
 
-            # iii. Si seul Total Après Taxes est saisi (Placeholder)
+            # iii. Si seul Total Après Taxes est saisi (Calcul inverse)
             elif abs(total_avant_tx) < tolerance and abs(total_apres_tx) > tolerance:
-                logger.warning(f"Calcul de {tax_type}: Logique non implémentée pour calcul à partir du Total après taxes seul.")
-                # TODO: Implémenter la logique inverse si nécessaire (moins courant)
-                # Exemple : taxe = total_apres_tx * (taux / (1 + taux)) # Attention aux taux combinés pour TVQ
-                QMessageBox.information(self, "Fonctionnalité non disponible",
-                                        f"Le calcul de la {tax_type.upper()} à partir du total après taxes uniquement n'est pas encore implémenté.")
-                pass
+                logger.debug(f"Calcul inverse de {tax_type}: Utilisation du Total après taxes ({total_apres_tx}).")
+                
+                pourboire_val = 0.0
+                if entry_type == "Repas":
+                    pourboire_widget = self.form_fields.get('pourboire')
+                    if pourboire_widget:
+                        try:
+                            pourboire_val = pourboire_widget.value()
+                            logger.debug(f"  Pourboire récupéré: {pourboire_val}")
+                        except Exception as e:
+                            logger.warning(f"Impossible de lire la valeur du pourboire: {e}")
+                    else:
+                        logger.warning("Champ 'pourboire' non trouvé pour Repas lors du calcul inverse.")
+                
+                base_imposable = total_apres_tx - pourboire_val
+                if base_imposable < 0:
+                     logger.warning(f"Calcul inverse impossible: Base imposable négative ({base_imposable:.2f}) après déduction du pourboire.")
+                     QMessageBox.warning(self, "Calcul Impossible", 
+                                        f"Le total après taxes ({total_apres_tx:.2f}) est inférieur au pourboire ({pourboire_val:.2f}). Impossible de calculer la taxe.")
+                     return
+
+                try:
+                    config_instance = ConfigData.get_instance()
+                    config_data = config_instance.all_data
+                    global_config = config_data.get('documents', {}).get('Global', [{}])[0]
+
+                    # Récupérer les DEUX taux
+                    taux_tps_str = global_config.get('TPS')
+                    taux_tvq_str = global_config.get('TVQ')
+
+                    if taux_tps_str is None or taux_tvq_str is None:
+                         missing = []
+                         if taux_tps_str is None: missing.append('TPS')
+                         if taux_tvq_str is None: missing.append('TVQ')
+                         raise KeyError(f"Le(s) taux suivant(s) ne sont pas définis dans config_data.json: {', '.join(missing)}")
+
+                    taux_tps = float(taux_tps_str)
+                    taux_tvq = float(taux_tvq_str)
+                    
+                    denominateur = 1 + taux_tps + taux_tvq
+                    if abs(denominateur) < tolerance:
+                        raise ZeroDivisionError("Le dénominateur (1 + taux_tps + taux_tvq) est trop proche de zéro.")
+
+                    montant_avant_tout = base_imposable / denominateur
+                    
+                    target_rate = taux_tps if tax_type == 'tps' else taux_tvq
+                    taxe_calculee = montant_avant_tout * target_rate
+
+                    tax_widget.setValue(taxe_calculee)
+                    logger.info(f"{tax_type.upper()} calculée (inverse) ({taxe_calculee:.2f}) à partir du total après taxes ({total_apres_tx:.2f}), pourboire ({pourboire_val:.2f}), et taux (TPS: {taux_tps:.2%}, TVQ: {taux_tvq:.2%})")
+
+                except (KeyError, IndexError, ValueError, TypeError, ZeroDivisionError) as e:
+                    error_msg = f"Erreur lors du calcul inverse de la {tax_type}: {e}\nVérifiez la structure et le contenu de 'data/config_data.json' (chemin: documents.Global[0].TPS/TVQ)"
+                    logger.exception(error_msg) # Utilise logger.exception pour inclure le traceback
+                    QMessageBox.critical(self, f"Erreur de Configuration/Calcul - Taux {tax_type.upper()} (Inverse)", error_msg)
+                except Exception as e:
+                    error_msg = f"Une erreur inattendue est survenue lors du calcul inverse de la {tax_type}: {e}"
+                    logger.exception(error_msg)
+                    QMessageBox.critical(self, "Erreur Inattendue (Inverse)", error_msg)
 
             # iv. Si les deux totaux sont saisis (Placeholder)
             elif abs(total_avant_tx) > tolerance and abs(total_apres_tx) > tolerance:
@@ -3340,6 +3398,131 @@ class RapportDepensePage(QWidget):
             error_msg = f"Une erreur générale est survenue dans _calculate_tax pour {tax_type}: {e}"
             logger.exception(error_msg)
             QMessageBox.critical(self, "Erreur Générale", error_msg)
+
+    def _calculate_total_apres_taxes(self):
+        """Calcule le Total après taxes basé sur les autres champs monétaires."""
+        entry_type = self.entry_type_combo.currentText()
+        prefix = '' if entry_type == "Repas" else '_dep'
+        logger.debug(f"Calcul du Total Après Taxes pour {entry_type}...")
+
+        keys = [
+            f'total_avant_taxes{prefix}',
+            f'tps{prefix}',
+            f'tvq{prefix}',
+            f'tvh{prefix}'
+        ]
+        target_key = f'total_apres_taxes{prefix}'
+        
+        # Ajouter pourboire seulement pour Repas
+        if entry_type == "Repas":
+            keys.append('pourboire') 
+
+        total = 0.0
+        try:
+            target_widget = self.form_fields.get(target_key)
+            if not target_widget:
+                logger.error(f"Widget cible '{target_key}' non trouvé pour le calcul du total après taxes.")
+                QMessageBox.critical(self, "Erreur Widget", f"Impossible de trouver le champ '{target_key}'.")
+                return
+
+            widget_values = {}
+            for key in keys:
+                widget = self.form_fields.get(key)
+                value = 0.0
+                if widget and hasattr(widget, 'value'):
+                    try:
+                        value = widget.value()
+                    except Exception as e:
+                        logger.warning(f"Impossible de lire la valeur du widget '{key}': {e}")
+                else:
+                     # Ne pas logger si c'est TVH car il n'existe pas pour Dépense
+                     if not (key == 'tvh_dep' and entry_type == "Dépense") and key != 'pourboire': # Ne pas logger pourboire absent hors repas
+                          logger.warning(f"Widget '{key}' non trouvé ou sans méthode .value() pour calcul total après taxes.")
+                
+                widget_values[key] = value # Stocke la valeur (peut être 0.0)
+                total += value
+
+            target_widget.setValue(total)
+            log_details = ", ".join([f"{k.replace(prefix, '').replace('_', ' ')}: {v:.2f}" for k, v in widget_values.items()])
+            logger.info(f"Total après taxes calculé ({total:.2f}) basé sur: {log_details}")
+        
+        except Exception as e:
+            error_msg = f"Erreur lors du calcul du total après taxes: {e}"
+            logger.exception(error_msg)
+            QMessageBox.critical(self, "Erreur Calcul Total Après Taxes", error_msg)
+
+    def _calculate_total_avant_taxes(self):
+        """Calcule le Total avant taxes basé sur les autres champs monétaires (inverse)."""
+        entry_type = self.entry_type_combo.currentText()
+        prefix = '' if entry_type == "Repas" else '_dep'
+        logger.debug(f"Calcul du Total Avant Taxes pour {entry_type}...")
+
+        # Clés des champs à soustraire
+        subtract_keys = [
+            f'tps{prefix}',
+            f'tvq{prefix}',
+            f'tvh{prefix}'
+        ]
+        # Clé du champ source (total après taxes)
+        source_key = f'total_apres_taxes{prefix}'
+        # Clé du champ cible (total avant taxes)
+        target_key = f'total_avant_taxes{prefix}'
+
+        # Ajouter pourboire seulement pour Repas
+        if entry_type == "Repas":
+            subtract_keys.append('pourboire')
+
+        total_apres_taxes = 0.0
+        total_to_subtract = 0.0
+        try:
+            target_widget = self.form_fields.get(target_key)
+            source_widget = self.form_fields.get(source_key)
+            
+            if not target_widget or not source_widget:
+                missing = []
+                if not target_widget: missing.append(target_key)
+                if not source_widget: missing.append(source_key)
+                logger.error(f"Widget(s) essentiel(s) non trouvé(s) pour calcul total avant taxes: {', '.join(missing)}")
+                QMessageBox.critical(self, "Erreur Widget", f"Impossible de trouver les champs requis: {', '.join(missing)}")
+                return
+
+            # Lire la valeur source
+            try:
+                total_apres_taxes = source_widget.value()
+            except Exception as e:
+                 logger.error(f"Impossible de lire la valeur du widget source '{source_key}': {e}")
+                 QMessageBox.critical(self, "Erreur Lecture", f"Impossible de lire la valeur de {source_key}.")
+                 return
+
+            # Lire et sommer les valeurs à soustraire
+            subtracted_values = {}
+            for key in subtract_keys:
+                widget = self.form_fields.get(key)
+                value = 0.0
+                if widget and hasattr(widget, 'value'):
+                    try:
+                        value = widget.value()
+                    except Exception as e:
+                        logger.warning(f"Impossible de lire la valeur du widget '{key}' à soustraire: {e}")
+                else:
+                    # Ne pas logger si c'est TVH car il n'existe pas pour Dépense
+                    if not (key == 'tvh_dep' and entry_type == "Dépense") and key != 'pourboire':
+                         logger.warning(f"Widget '{key}' non trouvé ou sans .value() pour soustraction.")
+                
+                subtracted_values[key] = value
+                total_to_subtract += value
+
+            # Calculer la différence
+            resultat = total_apres_taxes - total_to_subtract
+            target_widget.setValue(resultat)
+            
+            log_details_sub = ", ".join([f"{k.replace(prefix, '').replace('_', ' ')}: {v:.2f}" for k, v in subtracted_values.items()])
+            logger.info(f"Total avant taxes calculé ({resultat:.2f}) = {total_apres_taxes:.2f} (Après Tx) - ({log_details_sub})")
+
+        except Exception as e:
+            error_msg = f"Erreur lors du calcul du total avant taxes: {e}"
+            logger.exception(error_msg)
+            QMessageBox.critical(self, "Erreur Calcul Total Avant Taxes", error_msg)
 
 # --- Fin de la classe RapportDepensePage ---
 
