@@ -65,7 +65,7 @@ class RapportDepensePage(QWidget):
         self.total_rembourse_deplacement_label_value = QLabel("0.00 $")
         self.total_rembourse_deplacement_label_value.setStyleSheet("font-weight: bold;") # CORRECTION: Application du style gras
 
-        # AJOUT: Initialisation des labels pour les nouveaux frames Repas et Dépenses Diverses
+        # AJOUT: Initialisation des labels pour les nouveaux frames Repas et Dépenses
         self.total_repas_valeur_label = QLabel("0.00 $")
         self.total_repas_valeur_label.setStyleSheet("font-weight: bold;")
         self.total_depenses_diverses_valeur_label = QLabel("0.00 $")
@@ -552,6 +552,22 @@ class RapportDepensePage(QWidget):
         repas_form_layout.addRow("Total Remboursé:", self.total_repas_valeur_label) # MODIFIÉ: Changement de l'étiquette
         bottom_frames_layout.addWidget(self.repas_frame, 1) # Stretch factor 1
 
+        # --- AJOUT STATS REPAS (CORRIGÉ) ---
+        self.repas_employe_stats_label = QLabel("(0): 0.00 $") # Texte valeur seulement
+        self.repas_jacmar_stats_label = QLabel("(0): 0.00 $")
+        self.repas_missing_facture_label = QLabel("0")
+
+        # Ajout AVANT le stretch/séparateur existant
+        repas_form_layout.insertRow(0, "Employé:", self.repas_employe_stats_label)
+        repas_form_layout.insertRow(1, "Jacmar:", self.repas_jacmar_stats_label)
+        repas_form_layout.insertRow(2, "Factures Manquantes:", self.repas_missing_facture_label)
+        # --- FIN AJOUT STATS REPAS (CORRIGÉ) ---
+
+        stretch_widget_repas = QWidget()
+        stretch_widget_repas.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        stretch_widget_repas.setStyleSheet("background-color: transparent;")
+        repas_form_layout.addRow(stretch_widget_repas)
+
         # --- Nouveau Cadre: Dépenses Diverses ---
         header_container_depdiv = QWidget()
         header_container_depdiv.setObjectName("FrameHeaderContainer")
@@ -600,6 +616,22 @@ class RapportDepensePage(QWidget):
 
         depenses_diverses_form_layout.addRow("Total Remboursé:", self.total_depenses_diverses_valeur_label) # MODIFIÉ: Changement de l'étiquette
         bottom_frames_layout.addWidget(self.depenses_diverses_frame, 1) # Stretch factor 1
+
+        # --- AJOUT STATS DEPENSES DIVERSES (CORRIGÉ) ---
+        self.depense_employe_stats_label = QLabel("(0): 0.00 $") # Texte valeur seulement
+        self.depense_jacmar_stats_label = QLabel("(0): 0.00 $")
+        self.depense_missing_facture_label = QLabel("0")
+
+        # Ajout AVANT le stretch/séparateur existant
+        depenses_diverses_form_layout.insertRow(0, "Employé:", self.depense_employe_stats_label)
+        depenses_diverses_form_layout.insertRow(1, "Jacmar:", self.depense_jacmar_stats_label)
+        depenses_diverses_form_layout.insertRow(2, "Factures Manquantes:", self.depense_missing_facture_label)
+        # --- FIN AJOUT STATS DEPENSES DIVERSES (CORRIGÉ) ---
+
+        stretch_widget_depenses_div = QWidget()
+        stretch_widget_depenses_div.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        stretch_widget_depenses_div.setStyleSheet("background-color: transparent;")
+        depenses_diverses_form_layout.addRow(stretch_widget_depenses_div)
 
         # --- AJOUT DE LA SECTION BASSE (TOTAUX + DÉPLACEMENT + REPAS + DEPENSES DIVERSES) AU LAYOUT PRINCIPAL ---
         content_layout.addLayout(bottom_frames_layout)
@@ -1364,7 +1396,7 @@ class RapportDepensePage(QWidget):
             self.facture_scroll_area.setWidget(self.facture_container_widget)
             
             # Ajouter la ScrollArea au layout du frame
-            frame_content_layout.addWidget(self.facture_scroll_area) 
+            frame_content_layout.addWidget(self.facture_scroll_area)
             # frame_content_layout.addStretch(1) # Pousse le contenu vers le haut si besoin
 
             # Ajouter le frame ENTIER au grid principal, sur 2 colonnes
@@ -3699,6 +3731,100 @@ class RapportDepensePage(QWidget):
             error_msg = f"Erreur lors du calcul du total avant taxes: {e}"
             logger.exception(error_msg)
             QMessageBox.critical(self, "Erreur Calcul Total Avant Taxes", error_msg)
+
+    def _update_totals_display(self):
+        """Calcule et affiche les totaux généraux et les statistiques par catégorie."""
+        try:
+            # Calcul pour Repas
+            repas_employe_count = 0
+            repas_employe_total = 0.0
+            repas_jacmar_count = 0
+            repas_jacmar_total = 0.0
+            repas_factures_manquantes = 0
+            total_repas_global = 0.0
+
+            for repas in getattr(self.document, 'repas', []):
+                montant = float(getattr(repas, 'totale_apres_taxes', 0.0))
+                total_repas_global += montant
+                
+                if getattr(repas, 'payeur', True): # True = Employé par défaut
+                    repas_employe_count += 1
+                    repas_employe_total += montant
+                else:
+                    repas_jacmar_count += 1
+                    repas_jacmar_total += montant
+
+                facture = getattr(repas, 'facture', None)
+                if facture is None or not getattr(facture, 'filenames', []):
+                    repas_factures_manquantes += 1
+            
+            # Calcul pour Dépenses Diverses
+            depense_employe_count = 0
+            depense_employe_total = 0.0
+            depense_jacmar_count = 0
+            depense_jacmar_total = 0.0
+            depense_factures_manquantes = 0
+            total_depenses_diverses_global = 0.0
+
+            for depense in getattr(self.document, 'depenses_diverses', []):
+                montant_dep = float(getattr(depense, 'totale_apres_taxes', 0.0))
+                total_depenses_diverses_global += montant_dep
+                
+                # Supposer que 'payeur_employe' est l'attribut booléen pour Depense
+                if getattr(depense, 'payeur_employe', True):
+                    depense_employe_count += 1
+                    depense_employe_total += montant_dep
+                else:
+                    depense_jacmar_count += 1
+                    depense_jacmar_total += montant_dep
+                
+                facture_dep = getattr(depense, 'facture', None)
+                if facture_dep is None or not getattr(facture_dep, 'filenames', []):
+                    depense_factures_manquantes += 1
+
+            # Calcul pour Déplacements (juste le total)
+            total_deplacement_global = 0.0
+            for deplacement in getattr(self.document, 'deplacements', []):
+                total_deplacement_global += float(getattr(deplacement, 'montant', 0.0))
+
+            # Mise à jour des Labels (Vérifier l'existence avant de setText)
+            # Totaux globaux par catégorie
+            if hasattr(self, 'total_repas_label'):
+                self.total_repas_label.setText(f"{total_repas_global:.2f} $")
+            if hasattr(self, 'total_depense_label'):
+                self.total_depense_label.setText(f"{total_depenses_diverses_global:.2f} $")
+            if hasattr(self, 'total_rembourse_deplacement_label_value'):
+                self.total_rembourse_deplacement_label_value.setText(f"{total_deplacement_global:.2f} $")
+            
+            # Statistiques Repas
+            if hasattr(self, 'repas_employe_stats_label'):
+                # CORRECTION: Ne plus inclure le texte descriptif ici
+                self.repas_employe_stats_label.setText(f"({repas_employe_count}): {repas_employe_total:.2f} $")
+            if hasattr(self, 'repas_jacmar_stats_label'):
+                # CORRECTION: Ne plus inclure le texte descriptif ici
+                self.repas_jacmar_stats_label.setText(f"({repas_jacmar_count}): {repas_jacmar_total:.2f} $")
+            if hasattr(self, 'repas_missing_facture_label'):
+                # CORRECTION: Ne plus inclure le texte descriptif ici
+                self.repas_missing_facture_label.setText(f"{repas_factures_manquantes}")
+
+            # Statistiques Dépenses
+            if hasattr(self, 'depense_employe_stats_label'):
+                # CORRECTION: Ne plus inclure le texte descriptif ici
+                self.depense_employe_stats_label.setText(f"({depense_employe_count}): {depense_employe_total:.2f} $")
+            if hasattr(self, 'depense_jacmar_stats_label'):
+                # CORRECTION: Ne plus inclure le texte descriptif ici
+                self.depense_jacmar_stats_label.setText(f"({depense_jacmar_count}): {depense_jacmar_total:.2f} $")
+            if hasattr(self, 'depense_missing_facture_label'):
+                # CORRECTION: Ne plus inclure le texte descriptif ici
+                self.depense_missing_facture_label.setText(f"{depense_factures_manquantes}")
+
+            # Total Général
+            total_general = total_repas_global + total_depenses_diverses_global + total_deplacement_global
+            if hasattr(self, 'grand_total_valeur_label'):
+                self.grand_total_valeur_label.setText(f"{total_general:.2f} $")
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la mise à jour des totaux: {e}", exc_info=True)
 
 # --- Fin de la classe RapportDepensePage ---
 
