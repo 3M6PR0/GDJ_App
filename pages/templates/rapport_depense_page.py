@@ -254,16 +254,14 @@ class RapportDepensePage(QWidget):
         # --- RECREATION: Section Montant (en bas du formulaire) ---
         montant_section_layout = QHBoxLayout()
         montant_section_layout.setContentsMargins(0, 10, 0, 5) # Ajouter un peu d'espace au-dessus
-        # montant_section_layout.addStretch(1) # SUPPRIMÉ: Ne plus pousser les deux labels
-        montant_label = QLabel("Montant:")
-        montant_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) # REMIS: AlignLeft
-        self.montant_display_label = QLabel("0.00 $") 
-        self.montant_display_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) # CONSERVÉ: AlignRight
-        self.montant_display_label.setStyleSheet("font-weight: bold;") 
-        montant_section_layout.addWidget(montant_label)
-        montant_section_layout.addStretch(1) # AJOUTÉ ICI: Pousse la valeur vers la droite
-        montant_section_layout.addSpacing(10) # Espace entre stretch et valeur (optionnel, mais peut aider visuellement)
-        montant_section_layout.addWidget(self.montant_display_label)
+        self.dynamic_montant_label = QLabel("Montant:") # RENOMMÉ et stocké dans self
+        self.dynamic_montant_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) # AlignLeft
+        self.montant_value_label = QLabel("0.00 $") # RENOMMÉ et stocké dans self
+        self.montant_value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) # AlignRight
+        self.montant_value_label.setStyleSheet("font-weight: bold;") 
+        montant_section_layout.addWidget(self.dynamic_montant_label) # Ajout du label dynamique
+        montant_section_layout.addStretch(1) # Pousse la valeur vers la droite
+        montant_section_layout.addWidget(self.montant_value_label) # Ajout du label valeur
         # Ajouter cette section au layout principal du frame d'ajout
         add_entry_content_layout.addLayout(montant_section_layout) 
         # ---------------------------------------------------------
@@ -915,6 +913,24 @@ class RapportDepensePage(QWidget):
             current_row += 1
             # Ajouter un stretch à la fin pour pousser les champs vers le haut
             self.dynamic_form_layout.setRowStretch(current_row, 1)
+            # --- CONNEXION SPÉCIFIQUE DÉPLACEMENT (AVEC DÉCONNEXION) ---
+            if 'kilometrage' in self.form_fields and self.form_fields['kilometrage']:
+                try: 
+                    self.form_fields['kilometrage'].valueChanged.disconnect(self._update_montant_display)
+                    logger.debug("Ancienne connexion kilometrage.valueChanged déconnectée.")
+                except TypeError: 
+                    logger.debug("Aucune ancienne connexion kilometrage.valueChanged à déconnecter ou déjà déconnectée.")
+                except Exception as e_disconnect:
+                    logger.warning(f"Erreur lors de la déconnexion de kilometrage.valueChanged: {e_disconnect}")
+                
+                try:
+                    self.form_fields['kilometrage'].valueChanged.connect(self._update_montant_display)
+                    logger.debug("Nouvelle connexion kilometrage.valueChanged établie vers _update_montant_display.")
+                except Exception as e_connect:
+                    logger.error(f"Erreur lors de la connexion de kilometrage.valueChanged: {e_connect}")
+            else:
+                logger.warning("Champ 'kilometrage' non trouvé dans form_fields pour connexion du signal.")
+            # -----------------------------------------------------------
 
         elif entry_type == "Repas":
             # --- AJOUT: Ajuster le stretch pour la nouvelle colonne ---
@@ -1831,22 +1847,26 @@ class RapportDepensePage(QWidget):
 
     def _update_montant_display(self, _=None): # L'argument est ignoré, on lit directement les champs
         """ Met à jour le label montant en bas du formulaire selon le type d'entrée et les valeurs. """
-        if not hasattr(self, 'montant_display_label') or not self.montant_display_label:
+        # Vérifier si les nouveaux labels existent
+        if not hasattr(self, 'dynamic_montant_label') or not self.dynamic_montant_label or \
+           not hasattr(self, 'montant_value_label') or not self.montant_value_label:
+            logger.warning("_update_montant_display: Labels non trouvés (dynamic_montant_label ou montant_value_label).")
             return
 
         entry_type = self.entry_type_combo.currentText()
-        prefix_text = ""
+        label_text = "Montant:" # Texte par défaut pour le label
         montant_val = 0.0
         tolerance = 1e-6
 
         try:
             if entry_type == "Déplacement":
-                prefix_text = "Employé"
+                label_text = "Montant (Employé):"
+                logger.debug("Entrée dans _update_montant_display pour type Déplacement.")
                 kilometrage_widget = self.form_fields.get('kilometrage')
                 if kilometrage_widget and hasattr(kilometrage_widget, 'value'):
                     kilometrage = kilometrage_widget.value()
+                    logger.debug(f"  Kilométrage lu depuis widget: {kilometrage}")
                     
-                    # Récupérer le taux de remboursement depuis ConfigData
                     taux_remboursement = 0.0
                     try:
                         config_instance = ConfigData.get_instance()
@@ -1856,12 +1876,16 @@ class RapportDepensePage(QWidget):
                         if rapport_depense_config and isinstance(rapport_depense_config, list) and len(rapport_depense_config) > 0:
                             taux_remboursement_str = str(rapport_depense_config[0].get('Taux_remboursement', '0.0'))
                             taux_remboursement = float(taux_remboursement_str)
+                            logger.debug(f"  Taux de remboursement récupéré: {taux_remboursement} (str: '{taux_remboursement_str}')")
+                        else:
+                            logger.warning("  rapport_depense_config est vide ou non conforme pour Taux_remboursement.")
                     except Exception as e_taux:
-                        logger.error(f"Erreur récupération taux remboursement pour _update_montant_display: {e_taux}")
+                        logger.error(f"  Erreur récupération taux remboursement pour _update_montant_display: {e_taux}", exc_info=True)
                     
                     montant_val = kilometrage * taux_remboursement
+                    logger.debug(f"  Montant calculé (Déplacement): {kilometrage} * {taux_remboursement} = {montant_val}")
                 else:
-                    logger.debug("_update_montant_display (Déplacement): widget kilometrage non trouvé.")
+                    logger.warning("_update_montant_display (Déplacement): widget kilometrage non trouvé ou sans méthode .value().")
 
             elif entry_type == "Repas":
                 total_apres_taxes_widget = self.form_fields.get('total_apres_taxes')
@@ -1872,10 +1896,12 @@ class RapportDepensePage(QWidget):
                 else:
                     logger.debug("_update_montant_display (Repas): widget total_apres_taxes non trouvé.")
                 
+                # Déterminer le texte du label
                 if payeur_employe_widget and hasattr(payeur_employe_widget, 'isChecked'):
-                    prefix_text = "Employé" if payeur_employe_widget.isChecked() else "Jacmar"
+                    payeur = "Employé" if payeur_employe_widget.isChecked() else "Jacmar"
+                    label_text = f"Montant ({payeur}):"
                 else:
-                    prefix_text = "Employé" # Fallback
+                    label_text = "Montant:" # Fallback
                     logger.debug("_update_montant_display (Repas): widget payeur_employe non trouvé.")
 
             elif entry_type == "Dépense":
@@ -1887,21 +1913,28 @@ class RapportDepensePage(QWidget):
                 else:
                     logger.debug("_update_montant_display (Dépense): widget total_apres_taxes_dep non trouvé.")
                 
+                # Déterminer le texte du label
                 if payeur_employe_widget_dep and hasattr(payeur_employe_widget_dep, 'isChecked'):
-                    prefix_text = "Employé" if payeur_employe_widget_dep.isChecked() else "Jacmar"
+                    payeur = "Employé" if payeur_employe_widget_dep.isChecked() else "Jacmar"
+                    label_text = f"Montant ({payeur}):"
                 else:
-                    prefix_text = "Employé" # Fallback
+                    label_text = "Montant:" # Fallback
                     logger.debug("_update_montant_display (Dépense): widget payeur_employe_dep non trouvé.")
             else:
                  # Cas où le formulaire n'est pas encore complètement initialisé ou type inconnu
-                 self.montant_display_label.setText("0.00 $")
+                 self.dynamic_montant_label.setText("Montant:")
+                 self.montant_value_label.setText("0.00 $")
                  return
 
-            self.montant_display_label.setText(f"{prefix_text} {montant_val:.2f} $")
+            # Mettre à jour les deux labels séparément
+            self.dynamic_montant_label.setText(label_text)
+            self.montant_value_label.setText(f"{montant_val:.2f} $")
 
         except Exception as e:
             logger.error(f"Erreur dans _update_montant_display: {e}", exc_info=True)
-            self.montant_display_label.setText("Erreur")
+            # Mettre les deux labels en état d'erreur
+            self.dynamic_montant_label.setText("Montant (Erreur):") 
+            self.montant_value_label.setText("--- $")
 
     def _clear_entry_form(self):
         """ Efface les champs du formulaire actuel (gauche ET reset le label montant). """
@@ -1955,7 +1988,10 @@ class RapportDepensePage(QWidget):
         for path in list(self.current_facture_thumbnails.keys()): 
              self._remove_facture_thumbnail(path, update_model=False)
         self.current_facture_thumbnails = {}
-        # self.current_facture_paths = [] # <-- SUPPRESSION
+        
+        # --- AJOUT: Mettre à jour l'affichage du montant après effacement ---
+        self._update_montant_display()
+        # -----------------------------------------------------------------
 
     def _add_entry(self):
         """ Ajoute l'entrée en lisant les champs du formulaire. """
