@@ -2026,16 +2026,27 @@ class RapportDepensePage(QWidget):
                  ville_val = self.form_fields['ville'].text()
                  num_commande_val = self.form_fields['numero_commande'].text()
                  kilometrage_val = self.form_fields['kilometrage'].value()
-                 # --- Calcul du montant pour Déplacement --- 
-                 TAUX_KM = 0.50 # Exemple de taux - À METTRE DANS CONFIG
-                 montant_deplacement = kilometrage_val * TAUX_KM
-                 self._update_montant_display(montant_deplacement) # Met à jour l'affichage
-                 # -----------------------------------------
+                 # --- Calcul du montant pour Déplacement (réintroduit et corrigé) ---
+                 taux_remboursement = 0.0
+                 try:
+                     config_instance = ConfigData.get_instance()
+                     config = config_instance.all_data
+                     documents_config = config.get("documents", {})
+                     rapport_depense_config = documents_config.get("rapport_depense", [{}])
+                     if rapport_depense_config and isinstance(rapport_depense_config, list) and len(rapport_depense_config) > 0:
+                         taux_remboursement_str = str(rapport_depense_config[0].get('Taux_remboursement', '0.0'))
+                         taux_remboursement = float(taux_remboursement_str)
+                 except Exception as e_taux:
+                     logger.error(f"Erreur récupération taux remboursement dans _add_entry: {e_taux}")
+                     # Optionnel: Afficher une erreur à l'utilisateur?
+                 
+                 montant_calculé = kilometrage_val * taux_remboursement
+                 # -------------------------------------------------------------------
                  new_entry = Deplacement(date_deplacement=date_val, 
                                          client=client_val, ville=ville_val, 
                                          numero_commande=num_commande_val,
                                          kilometrage=kilometrage_val, 
-                                         montant=montant_deplacement)
+                                         montant=montant_calculé) # Utiliser le montant calculé
                  self.document.ajouter_deplacement(new_entry)
                  # print(f"Déplacement ajouté: {new_entry}") # MODIFICATION
                  logger.info(f"Déplacement ajouté: {new_entry}") # MODIFICATION

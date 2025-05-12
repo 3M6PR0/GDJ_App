@@ -46,6 +46,7 @@ class CardWidget(QFrame):
         self.entry_data = entry_data
         self.entry_type = entry_type
         self.options_menu = None # Pour création paresseuse du menu
+        self.payeur_label = QLabel("") # AJOUT: Label pour le payeur
 
         # --- Obtenir les variables de thème POUR le style inline --- 
         theme = get_theme_vars()
@@ -133,6 +134,14 @@ class CardWidget(QFrame):
 
         # --- Résumé personnalisé selon le type ---
         summary_columns = []
+        payeur_text = "" # Vide par défaut (pour Déplacement)
+        if self.entry_type == "Repas" or self.entry_type == "Dépense":
+            # Lire l'attribut 'payeur' (True=Employé, False=Jacmar), fallback à Employé
+            is_employe = getattr(self.entry_data, 'payeur', True)
+            payeur_text = "Employé" if is_employe else "Jacmar"
+            # Mettre à jour le label directement ici (sera ajouté au layout plus bas)
+            # self.payeur_label.setText(payeur_text) # Non, on l'ajoute à summary_columns
+
         if self.entry_type == "Déplacement":
             client = getattr(self.entry_data, 'client', "?")
             kilometrage = getattr(self.entry_data, 'kilometrage', None)
@@ -140,15 +149,16 @@ class CardWidget(QFrame):
                 km_str = f"{float(kilometrage):.1f} km" if kilometrage is not None else "? km"
             except (ValueError, TypeError):
                 km_str = f"{kilometrage} km"
-            summary_columns = [date_str, client, km_str, amount_str]
+            # AJOUT: Colonne "Employé" directement dans le résumé
+            summary_columns = [date_str, client, km_str, "Employé", amount_str]
         elif self.entry_type == "Repas":
             client = getattr(self.entry_data, 'client', "?")
             restaurant = getattr(self.entry_data, 'restaurant', "?")
-            summary_columns = [date_str, client, restaurant, amount_str]
+            summary_columns = [date_str, client, restaurant, payeur_text, amount_str] # AJOUT payeur_text
         elif self.entry_type == "Dépense":
             fournisseur = getattr(self.entry_data, 'fournisseur', "?")
             description = getattr(self.entry_data, 'description', "?")
-            summary_columns = [date_str, fournisseur, description, amount_str]
+            summary_columns = [date_str, fournisseur, description, payeur_text, amount_str] # AJOUT payeur_text
         else:
             summary_columns = [date_str, self.entry_type, amount_str]
 
@@ -536,7 +546,6 @@ class CardWidget(QFrame):
                     value_label.setStyleSheet("background-color: transparent; border: none;") # Forcer transparence
                     value_label.setWordWrap(True)
                     details_layout.addRow(f"{label_text}:", value_label)
-            # --- Fin layout par défaut ---
 
         self.details_widget.setVisible(False) # Caché par défaut
         # Assurer que le widget de détails est transparent
