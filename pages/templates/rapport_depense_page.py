@@ -156,15 +156,22 @@ class RapportDepensePage(QWidget):
         # Utiliser un QFormLayout pour les totaux
         totals_form_layout = QFormLayout()
         totals_form_layout.setSpacing(8)
-        totals_form_layout.setLabelAlignment(Qt.AlignRight)
+        # CORRECTION ALIGNEMENT
+        totals_form_layout.setLabelAlignment(Qt.AlignLeft) 
+        totals_form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        # FIN CORRECTION
         totals_content_layout.addLayout(totals_form_layout)
 
         # Labels Placeholder pour les totaux
         self.total_deplacements_label = QLabel("0.00 $")
+        self.total_deplacements_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.total_repas_label = QLabel("0.00 $")
+        self.total_repas_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.total_depenses_label = QLabel("0.00 $")
+        self.total_depenses_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.total_general_label = QLabel("0.00 $")
         self.total_general_label.setStyleSheet("font-weight: bold;") # Mettre le total général en gras
+        self.total_general_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         
         totals_form_layout.addRow("Déplacements:", self.total_deplacements_label)
         totals_form_layout.addRow("Repas:", self.total_repas_label)
@@ -471,14 +478,20 @@ class RapportDepensePage(QWidget):
         
         deplacement_form_layout = QFormLayout()
         deplacement_form_layout.setSpacing(8)
-        deplacement_form_layout.setLabelAlignment(Qt.AlignRight)
+        # CORRECTION ALIGNEMENT
+        deplacement_form_layout.setLabelAlignment(Qt.AlignLeft)
+        deplacement_form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        # FIN CORRECTION
         deplacement_content_layout.addLayout(deplacement_form_layout)
 
         # Labels dynamiques pour Plafond et Taux
         self.plafond_label_value = QLabel("N/A")
+        self.plafond_label_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.taux_remboursement_label_value = QLabel("N/A")
+        self.taux_remboursement_label_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         # AJOUT: Label pour Kilométrage Total
         self.total_kilometrage_label_value = QLabel("0.0 km")
+        self.total_kilometrage_label_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         deplacement_form_layout.addRow("Plafond:", self.plafond_label_value)
         deplacement_form_layout.addRow("Taux de Remboursement:", self.taux_remboursement_label_value)
@@ -536,7 +549,10 @@ class RapportDepensePage(QWidget):
         repas_content_layout = self.repas_frame.get_content_layout()
         repas_form_layout = QFormLayout()
         repas_form_layout.setSpacing(8)
-        repas_form_layout.setLabelAlignment(Qt.AlignRight)
+        # CORRECTION ALIGNEMENT
+        repas_form_layout.setLabelAlignment(Qt.AlignLeft)
+        repas_form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        # FIN CORRECTION
         repas_content_layout.addLayout(repas_form_layout)
 
         stretch_widget_repas = QWidget()
@@ -554,8 +570,11 @@ class RapportDepensePage(QWidget):
 
         # --- AJOUT STATS REPAS (CORRIGÉ) ---
         self.repas_employe_stats_label = QLabel("(0): 0.00 $") # Texte valeur seulement
+        self.repas_employe_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.repas_jacmar_stats_label = QLabel("(0): 0.00 $")
+        self.repas_jacmar_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.repas_missing_facture_label = QLabel("0")
+        self.repas_missing_facture_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         # Ajout AVANT le stretch/séparateur existant
         repas_form_layout.insertRow(0, "Employé:", self.repas_employe_stats_label)
@@ -601,7 +620,10 @@ class RapportDepensePage(QWidget):
         depenses_diverses_content_layout = self.depenses_diverses_frame.get_content_layout()
         depenses_diverses_form_layout = QFormLayout()
         depenses_diverses_form_layout.setSpacing(8)
-        depenses_diverses_form_layout.setLabelAlignment(Qt.AlignRight)
+        # CORRECTION ALIGNEMENT
+        depenses_diverses_form_layout.setLabelAlignment(Qt.AlignLeft)
+        depenses_diverses_form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        # FIN CORRECTION
         depenses_diverses_content_layout.addLayout(depenses_diverses_form_layout)
 
         stretch_widget_depenses_div = QWidget()
@@ -619,8 +641,11 @@ class RapportDepensePage(QWidget):
 
         # --- AJOUT STATS DEPENSES DIVERSES (CORRIGÉ) ---
         self.depense_employe_stats_label = QLabel("(0): 0.00 $") # Texte valeur seulement
+        self.depense_employe_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.depense_jacmar_stats_label = QLabel("(0): 0.00 $")
+        self.depense_jacmar_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.depense_missing_facture_label = QLabel("0")
+        self.depense_missing_facture_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         # Ajout AVANT le stretch/séparateur existant
         depenses_diverses_form_layout.insertRow(0, "Employé:", self.depense_employe_stats_label)
