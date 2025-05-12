@@ -321,7 +321,7 @@ class RapportDepensePage(QWidget):
         # self.filter_type_combo.addItems(["Tout", "Déplacements", "Repas", "Dépenses"]) # Ancienne méthode
         # --- NOUVEAU: Ajouter items avec icônes ---
         filter_options = {
-            "Tout": "round_list.png",
+            "Tout": "round_all_inclusive.png", # MODIFIÉ: Nouvelle icône pour Tout
             "Déplacements": "round_directions_car.png",
             "Repas": "round_restaurant.png",
             "Dépenses": "round_payments.png"
@@ -429,6 +429,15 @@ class RapportDepensePage(QWidget):
         header_layout_depl = QHBoxLayout(header_container_depl)
         header_layout_depl.setContentsMargins(15, 8, 15, 8)
         header_layout_depl.setSpacing(8)
+        # AJOUT: Icône
+        icon_path_depl = get_icon_path("round_directions_car.png")
+        if icon_path_depl:
+            icon_label_depl = QLabel()
+            pixmap_depl = QPixmap(icon_path_depl).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            icon_label_depl.setPixmap(pixmap_depl)
+            icon_label_depl.setFixedSize(20, 20)
+            header_layout_depl.addWidget(icon_label_depl)
+        # Titre
         title_label_depl = QLabel("Déplacement")
         title_label_depl.setObjectName("CustomFrameTitle")
         self.deplacement_frame_count_label = QLabel("(0)")
@@ -447,11 +456,13 @@ class RapportDepensePage(QWidget):
         # Labels dynamiques pour Plafond et Taux
         self.plafond_label_value = QLabel("N/A")
         self.taux_remboursement_label_value = QLabel("N/A")
-        # La ligne suivante est supprimée car self.total_rembourse_deplacement_label_value est déjà initialisé et stylisé dans __init__
-        # self.total_rembourse_deplacement_label_value = QLabel("0.00 $") 
+        # AJOUT: Label pour Kilométrage Total
+        self.total_kilometrage_label_value = QLabel("0.0 km")
 
         deplacement_form_layout.addRow("Plafond:", self.plafond_label_value)
         deplacement_form_layout.addRow("Taux de Remboursement:", self.taux_remboursement_label_value)
+        # AJOUT: Ligne pour Kilométrage Total
+        deplacement_form_layout.addRow("Distance parcourue:", self.total_kilometrage_label_value) # MODIFIÉ: Texte du label
         
         # AJOUT: Stretch avant le séparateur du total remboursé
         stretch_widget_deplacement = QWidget()
@@ -477,6 +488,15 @@ class RapportDepensePage(QWidget):
         header_layout_repas = QHBoxLayout(header_container_repas)
         header_layout_repas.setContentsMargins(15, 8, 15, 8)
         header_layout_repas.setSpacing(8)
+        # AJOUT: Icône
+        icon_path_repas = get_icon_path("round_restaurant.png")
+        if icon_path_repas:
+            icon_label_repas = QLabel()
+            pixmap_repas = QPixmap(icon_path_repas).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            icon_label_repas.setPixmap(pixmap_repas)
+            icon_label_repas.setFixedSize(20, 20)
+            header_layout_repas.addWidget(icon_label_repas)
+        # Titre
         title_label_repas = QLabel("Repas")
         title_label_repas.setObjectName("CustomFrameTitle")
         self.repas_frame_count_label = QLabel("(0)")
@@ -510,6 +530,15 @@ class RapportDepensePage(QWidget):
         header_layout_depdiv = QHBoxLayout(header_container_depdiv)
         header_layout_depdiv.setContentsMargins(15, 8, 15, 8)
         header_layout_depdiv.setSpacing(8)
+        # AJOUT: Icône
+        icon_path_depdiv = get_icon_path("round_payments.png")
+        if icon_path_depdiv:
+            icon_label_depdiv = QLabel()
+            pixmap_depdiv = QPixmap(icon_path_depdiv).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            icon_label_depdiv.setPixmap(pixmap_depdiv)
+            icon_label_depdiv.setFixedSize(20, 20)
+            header_layout_depdiv.addWidget(icon_label_depdiv)
+        # Titre
         title_label_depdiv = QLabel("Dépenses Diverses")
         title_label_depdiv.setObjectName("CustomFrameTitle")
         self.depenses_diverses_frame_count_label = QLabel("(0)")
@@ -620,6 +649,10 @@ class RapportDepensePage(QWidget):
                         except (ValueError, TypeError):
                             logger.warning(f"Kilométrage invalide pour un déplacement: {deplacement_obj.kilometrage}")
             
+            # AJOUT: Mettre à jour le label du kilométrage total
+            if hasattr(self, 'total_kilometrage_label_value'):
+                self.total_kilometrage_label_value.setText(f"{total_kilometrage:.1f} km")
+
             total_rembourse = total_kilometrage * current_taux_remboursement
             self.total_rembourse_deplacement_label_value.setText(f"{total_rembourse:.2f} $")
             logger.info(f"Total remboursé calculé: {total_rembourse:.2f} $ (Km: {total_kilometrage}, Taux: {current_taux_remboursement})")
@@ -1567,6 +1600,9 @@ class RapportDepensePage(QWidget):
                 # print(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
                 logger.info(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
                 signals.document_modified.emit()
+                # AJOUT: Mettre à jour spécifiquement le cadre déplacement si besoin
+                if isinstance(new_entry, Deplacement):
+                    self._update_deplacement_info_display()
 
         except KeyError as e:
              QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire: {e}. Le formulaire pour '{entry_type}' est peut-être incomplet.")
@@ -2094,6 +2130,9 @@ class RapportDepensePage(QWidget):
                 self._apply_sorting_and_filtering()
                 signals.document_modified.emit()
                 self._update_frame_titles_with_counts()  # MAJ titres après suppression
+                # AJOUT: Mettre à jour spécifiquement le cadre déplacement si besoin
+                if isinstance(entry_to_delete, Deplacement):
+                    self._update_deplacement_info_display()
             else:
                 QMessageBox.warning(self, "Erreur", "L'entrée à supprimer n'a pas été trouvée dans le document.")
 
@@ -2146,6 +2185,9 @@ class RapportDepensePage(QWidget):
                 self._apply_sorting_and_filtering()
                 signals.document_modified.emit()
                 self._update_frame_titles_with_counts() # MAJ titres après duplication
+                # AJOUT: Mettre à jour spécifiquement le cadre déplacement si besoin
+                if isinstance(new_entry, Deplacement):
+                    self._update_deplacement_info_display()
                 # Optionnel: Sélectionner/scroller vers la nouvelle carte?
 
         except Exception as e:
@@ -2608,6 +2650,10 @@ class RapportDepensePage(QWidget):
             self._update_totals_display()
             self._apply_sorting_and_filtering() # Rafraîchit la liste des cartes
             signals.document_modified.emit()
+            self._update_frame_titles_with_counts()  # MAJ titres après édition
+            # AJOUT: Mettre à jour spécifiquement le cadre déplacement si besoin
+            if isinstance(self.editing_entry, Deplacement):
+                self._update_deplacement_info_display()
 
             # Quitter le mode édition
             self._exit_edit_mode_ui()
