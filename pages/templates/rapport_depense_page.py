@@ -751,24 +751,36 @@ class RapportDepensePage(QWidget):
 
         if entry_type == "Déplacement":
             self.form_fields['client'] = QLineEdit()
-            self.form_fields['client'].setPlaceholderText("\"Jacmar\"") # GUILLEMETS LITTÉRAUX
-            self.form_fields['client'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
+            self.form_fields['client'].setPlaceholderText("\"Jacmar\"")
+            self.form_fields['client'].setStyleSheet(
+                "QLineEdit { color: white; }"
+                "QLineEdit:!focus { color: white; }"
+                "QLineEdit::placeholder { color: gray; font-style: italic; }"
+            )
             client_label = QLabel("Client:")
             self.dynamic_form_layout.addWidget(client_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['client'], current_row, 1)
             current_row += 1
             
             self.form_fields['ville'] = QLineEdit()
-            self.form_fields['ville'].setPlaceholderText("\"Mascouche\"") # GUILLEMETS LITTÉRAUX
-            self.form_fields['ville'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
+            self.form_fields['ville'].setPlaceholderText("\"Mascouche\"")
+            self.form_fields['ville'].setStyleSheet(
+                "QLineEdit { color: white; }"
+                "QLineEdit:!focus { color: white; }"
+                "QLineEdit::placeholder { color: gray; font-style: italic; }"
+            )
             ville_label = QLabel("Ville:")
             self.dynamic_form_layout.addWidget(ville_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['ville'], current_row, 1)
             current_row += 1
 
             self.form_fields['numero_commande'] = QLineEdit()
-            self.form_fields['numero_commande'].setPlaceholderText("\"123456\"") # GUILLEMETS LITTÉRAUX
-            self.form_fields['numero_commande'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
+            self.form_fields['numero_commande'].setPlaceholderText("\"123456\"")
+            self.form_fields['numero_commande'].setStyleSheet(
+                "QLineEdit { color: white; }"
+                "QLineEdit:!focus { color: white; }"
+                "QLineEdit::placeholder { color: gray; font-style: italic; }"
+            )
             num_cmd_label = QLabel("N° Commande:")
             self.dynamic_form_layout.addWidget(num_cmd_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['numero_commande'], current_row, 1)
@@ -789,16 +801,24 @@ class RapportDepensePage(QWidget):
 
         elif entry_type == "Repas":
             self.form_fields['restaurant'] = QLineEdit()
-            self.form_fields['restaurant'].setPlaceholderText("\"McDonald's\"") # AJOUT PLACEHOLDER
-            self.form_fields['restaurant'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
+            self.form_fields['restaurant'].setPlaceholderText("\"McDonald's\"")
+            self.form_fields['restaurant'].setStyleSheet(
+                "QLineEdit { color: white; }"
+                "QLineEdit:!focus { color: white; }"
+                "QLineEdit::placeholder { color: gray; font-style: italic; }"
+            )
             resto_label = QLabel("Restaurant:")
             self.dynamic_form_layout.addWidget(resto_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['restaurant'], current_row, 1)
             current_row += 1
             
             self.form_fields['client_repas'] = QLineEdit()
-            self.form_fields['client_repas'].setPlaceholderText("\"Jacmar\"") # AJOUT PLACEHOLDER
-            self.form_fields['client_repas'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
+            self.form_fields['client_repas'].setPlaceholderText("\"Jacmar\"")
+            self.form_fields['client_repas'].setStyleSheet(
+                "QLineEdit { color: white; }"
+                "QLineEdit:!focus { color: white; }"
+                "QLineEdit::placeholder { color: gray; font-style: italic; }"
+            )
             client_repas_label = QLabel("Client:")
             self.dynamic_form_layout.addWidget(client_repas_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['client_repas'], current_row, 1)
@@ -1058,8 +1078,12 @@ class RapportDepensePage(QWidget):
 
             # Description
             self.form_fields['description_dep'] = QLineEdit() # Clé unique: description_dep
-            self.form_fields['description_dep'].setPlaceholderText("\"Cafe, Batterie, etc\"") # AJOUT PLACEHOLDER
-            self.form_fields['description_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
+            self.form_fields['description_dep'].setPlaceholderText("\"Cafe, Batterie, etc\"")
+            self.form_fields['description_dep'].setStyleSheet(
+                "QLineEdit { color: white; }"
+                "QLineEdit:!focus { color: white; }"
+                "QLineEdit::placeholder { color: gray; font-style: italic; }"
+            )
             desc_label = QLabel("Description:")
             self.dynamic_form_layout.addWidget(desc_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['description_dep'], current_row, 1)
@@ -1067,8 +1091,12 @@ class RapportDepensePage(QWidget):
             
             # Fournisseur
             self.form_fields['fournisseur_dep'] = QLineEdit() # Clé unique: fournisseur_dep
-            self.form_fields['fournisseur_dep'].setPlaceholderText("\"Amazon, Bell, etc\"") # AJOUT PLACEHOLDER
-            self.form_fields['fournisseur_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
+            self.form_fields['fournisseur_dep'].setPlaceholderText("\"Amazon, Bell, etc\"")
+            self.form_fields['fournisseur_dep'].setStyleSheet(
+                "QLineEdit { color: white; }"
+                "QLineEdit:!focus { color: white; }"
+                "QLineEdit::placeholder { color: gray; font-style: italic; }"
+            )
             fourn_label = QLabel("Fournisseur:")
             self.dynamic_form_layout.addWidget(fourn_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['fournisseur_dep'], current_row, 1)
@@ -2559,60 +2587,69 @@ class RapportDepensePage(QWidget):
 
     def _validate_form_data(self, entry_type):
         """Valide les données du formulaire pour un type d'entrée donné."""
-        # Helper pour récupérer un float ou 0.0
         def get_float_from_form(key):
             try:
                 widget = self.form_fields[key]
                 if isinstance(widget, NumericInputWithUnit):
                     return widget.value()
-                else: # Fallback for other types, e.g. QLineEdit
+                else:
                     return float(widget.text().replace(',', '.'))
-            except (KeyError, ValueError, AttributeError): # Added AttributeError
+            except (KeyError, ValueError, AttributeError):
                 return 0.0
 
         if entry_type == "Déplacement":
-            # Ajouter des validations si nécessaire (ex: client/ville non vide?)
-            # client_val = self.form_fields['client'].text()
-            # if not client_val:
-            #     QMessageBox.warning(self, "Champ manquant", "Le nom du client est requis pour un déplacement.")
-            #     return False
-            pass # Pas de validation spécifique pour l'instant
+            client_val = self.form_fields['client'].text().strip() if 'client' in self.form_fields else ""
+            ville_val = self.form_fields['ville'].text().strip() if 'ville' in self.form_fields else ""
+            numero_commande_val = self.form_fields['numero_commande'].text().strip() if 'numero_commande' in self.form_fields else ""
+            kilometrage_val = get_float_from_form('kilometrage') if 'kilometrage' in self.form_fields else 0.0
+            if not client_val:
+                QMessageBox.warning(self, "Champ manquant", "Le nom du client est requis pour un déplacement.")
+                return False
+            if not ville_val:
+                QMessageBox.warning(self, "Champ manquant", "La ville est requise pour un déplacement.")
+                return False
+            if not numero_commande_val:
+                QMessageBox.warning(self, "Champ manquant", "Le numéro de commande est requis pour un déplacement.")
+                return False
+            if abs(kilometrage_val) < 1e-6:
+                QMessageBox.warning(self, "Kilométrage invalide", "Le kilométrage doit être différent de zéro.")
+                return False
 
         elif entry_type == "Repas":
-            restaurant_val = self.form_fields['restaurant'].text()
+            restaurant_val = self.form_fields['restaurant'].text().strip() if 'restaurant' in self.form_fields else ""
+            total_avant_taxes_val = get_float_from_form('total_avant_taxes') if 'total_avant_taxes' in self.form_fields else 0.0
+            total_apres_taxes_val = get_float_from_form('total_apres_taxes') if 'total_apres_taxes' in self.form_fields else 0.0
             if not restaurant_val:
                 QMessageBox.warning(self, "Champ manquant", "Le nom du restaurant est requis.")
                 return False
-            
-            total_apres_taxes_val = get_float_from_form('total_apres_taxes')
-            if total_apres_taxes_val <= 0:
-                 QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                 return False
-            
-            # Ajouter d'autres validations si besoin (ex: N° Cmd si refacturer?)
-            # is_refacturer_oui = self.form_fields['refacturer_oui'].isChecked()
-            # num_commande_repas_val = self.form_fields['numero_commande_repas'].text()
-            # if is_refacturer_oui and not num_commande_repas_val:
-            #     QMessageBox.warning(self, "Champ manquant", "Le numéro de commande est requis si 'Refacturer' est coché.")
-            #     return False
+            if abs(total_avant_taxes_val) < 1e-6:
+                QMessageBox.warning(self, "Montant invalide", "Le total avant taxes doit être différent de zéro.")
+                return False
+            if abs(total_apres_taxes_val) < 1e-6:
+                QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être différent de zéro.")
+                return False
 
         elif entry_type == "Dépense":
-            description_val = self.form_fields['description_dep'].text() # MODIFIÉ: _dep
+            description_val = self.form_fields['description_dep'].text().strip() if 'description_dep' in self.form_fields else ""
+            fournisseur_val = self.form_fields['fournisseur_dep'].text().strip() if 'fournisseur_dep' in self.form_fields else ""
+            total_avant_taxes_val = get_float_from_form('total_avant_taxes_dep') if 'total_avant_taxes_dep' in self.form_fields else 0.0
+            total_apres_taxes_val = get_float_from_form('total_apres_taxes_dep') if 'total_apres_taxes_dep' in self.form_fields else 0.0
             if not description_val:
                 QMessageBox.warning(self, "Champ manquant", "La description est requise.")
                 return False
-            
-            total_apres_taxes_val = get_float_from_form('total_apres_taxes_dep') # MODIFIÉ: _dep
-            if total_apres_taxes_val <= 0:
-                 QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                 return False
-        
+            if not fournisseur_val:
+                QMessageBox.warning(self, "Champ manquant", "Le fournisseur est requis.")
+                return False
+            if abs(total_avant_taxes_val) < 1e-6:
+                QMessageBox.warning(self, "Montant invalide", "Le total avant taxes doit être différent de zéro.")
+                return False
+            if abs(total_apres_taxes_val) < 1e-6:
+                QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être différent de zéro.")
+                return False
+
         else:
             logger.warning(f"Validation demandée pour type inconnu: {entry_type}")
-            # Peut-être retourner False par sécurité?
-            # QMessageBox.warning(self, "Erreur interne", "Type d'entrée inconnu pour validation.")
-            # return False 
-            pass # Ou considérer comme valide si type inconnu?
+            pass
 
         return True # Si toutes les validations passent
 

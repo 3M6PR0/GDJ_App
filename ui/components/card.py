@@ -313,21 +313,9 @@ class CardWidget(QFrame):
                 label_widget.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
                 value_widget.setStyleSheet("background-color: transparent; border: none;")
                 value_widget.setWordWrap(True)
-
-                # --- Gérer spécifiquement Taxes (cacher si 0.00) --- 
-                is_tax_field = attr_name in ['tps', 'tvq', 'tvh']
-                try:
-                    # Comparaison plus sûre pour les floats
-                    is_zero_tax = is_tax_field and abs(float(value)) < 0.001 
-                except (ValueError, TypeError):
-                    is_zero_tax = False 
-                    
-                if is_zero_tax:
-                    label_widget.hide()
-                    value_widget.hide()
-                else:
-                    details_layout.addWidget(label_widget, i + 1, 2) # +1 pour ligne 0 (séparateur)
-                    details_layout.addWidget(value_widget, i + 1, 3)
+                # --- Afficher TOUJOURS les taxes, même à zéro ---
+                details_layout.addWidget(label_widget, i + 1, 2) # +1 pour ligne 0 (séparateur)
+                details_layout.addWidget(value_widget, i + 1, 3)
 
             # --- NOUVEAU: Ajouter la section Facture Colonne 5 --- 
             facture_label = QLabel("Facture:")
@@ -388,7 +376,7 @@ class CardWidget(QFrame):
             details_separator.setMinimumHeight(1)
             separator_color = get_theme_vars().get("COLOR_TEXT_SECONDARY", "#888888")
             details_separator.setStyleSheet(f"border: none; border-top: 1px solid {separator_color}; background-color: transparent;")
-            details_layout.addWidget(details_separator, 0, 0, 1, 5) # Span sur 5 colonnes
+            details_layout.addWidget(details_separator, 0, 0, 1, 5)
 
             depense_attrs_col1 = [
                 ('date', 'Date'),
@@ -438,15 +426,6 @@ class CardWidget(QFrame):
                 value_str = str(value)
                 if isinstance(value, (int, float)):
                     try:
-                        if attr_name in ['tps', 'tvq', 'tvh'] and abs(float(value)) < 0.001:
-                            # Cacher label et valeur si taxe à zéro
-                            label_widget_temp = QLabel(f"{display_name}:")
-                            value_widget_temp = QLabel(f"{float(value):.2f}")
-                            label_widget_temp.hide()
-                            value_widget_temp.hide()
-                            details_layout.addWidget(label_widget_temp, current_row + i, 2)
-                            details_layout.addWidget(value_widget_temp, current_row + i, 3)
-                            continue
                         value_str = f"{float(value):.2f}"
                     except: pass
                 
@@ -455,6 +434,7 @@ class CardWidget(QFrame):
                 value_widget.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
                 value_widget.setStyleSheet("background-color: transparent; border: none;")
                 value_widget.setWordWrap(True)
+                # --- Afficher TOUJOURS les taxes, même à zéro ---
                 details_layout.addWidget(label_widget, current_row + i, 2)
                 details_layout.addWidget(value_widget, current_row + i, 3)
 
