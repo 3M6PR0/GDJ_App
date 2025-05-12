@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QFrame, QFormLayout, QGridLayout,
                              QMenu, QAction, QSizePolicy)
 from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize, pyqtSignal, QPoint
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QPainter, QColor, QFont
 from datetime import date
 from utils.icon_loader import get_icon_path # Assumer que utils est accessible depuis widgets
 from utils.theme import get_theme_vars, RADIUS_BOX 
@@ -47,6 +47,19 @@ class CardWidget(QFrame):
         self.entry_type = entry_type
         self.options_menu = None # Pour création paresseuse du menu
         self.payeur_label = QLabel("") # AJOUT: Label pour le payeur
+
+        # --- AJOUT: Indicateur de facture (Label avec icône visible/transparente) ---
+        self.facture_icon_label = QLabel() 
+        self.facture_icon_label.setObjectName("FactureIndicatorLabel")
+        self.facture_icon_label.setFixedSize(18, 18) # Taille fixe
+        # self.facture_icon_label.setVisible(False) # SUPPRIMÉ: Toujours visible
+        self.facture_icon_label.setStyleSheet("background-color: transparent; border: none;") 
+        # Tooltip sera défini dynamiquement dans _setup_ui
+
+        # --- Initialisation des pixmaps (seront créés dans _setup_ui) ---
+        self.pixmap_facture_visible = None
+        self.pixmap_facture_invisible = None 
+        # --- FIN AJOUT Indicateur ---
 
         # --- Obtenir les variables de thème POUR le style inline --- 
         theme = get_theme_vars()
@@ -183,6 +196,11 @@ class CardWidget(QFrame):
         # --- Obtenir les variables de thème POUR le style inline des boutons --- 
         theme = get_theme_vars()
         hover_bg_color = theme.get("COLOR_PRIMARY_MEDIUM", "#5a5d5f") # Couleur pour le survol
+        # --- SUPPRESSION: Style pour le cadre rouge ---
+        # facture_indicator_bg_color = theme.get("COLOR_ERROR", "#E53935")
+        # facture_indicator_radius = "3px" 
+        # self.facture_indicator_frame.setStyleSheet(...) 
+        # --- FIN SUPPRESSION ---
         # --------------------------------------------------------------------
 
         # --- AJOUT: Bouton Options --- 
@@ -250,6 +268,80 @@ class CardWidget(QFrame):
         # ---------------------------------------------------
         self.expand_button.toggled.connect(self._toggle_details)
 
+        # --- CRÉATION DES PIXMAPS ICI --- 
+        icon_size = QSize(16, 16) # Taille de l'icône pour le pixmap
+        
+        # Pixmap visible (icône rouge ou fallback)
+        icon_path = get_icon_path("round_receipt_red.png")
+        if icon_path:
+            try:
+                self.pixmap_facture_visible = QIcon(icon_path).pixmap(icon_size)
+                if self.pixmap_facture_visible.isNull():
+                     raise ValueError("Pixmap créé depuis icône est null") # Forcer fallback si icône invalide
+            except Exception as e_icon:
+                 logger.warning(f"CardWidget: Erreur chargement icône {icon_path}, utilisation fallback: {e_icon}")
+                 self.pixmap_facture_visible = None # Assurer qu'on passe au fallback
+        else:
+            logger.warning(f"CardWidget: Icône round_receipt_red.png non trouvée, utilisation fallback.")
+            self.pixmap_facture_visible = None # Pas d'icône trouvée
+
+        # Fallback si pixmap visible est None (icône non trouvée ou invalide)
+        if self.pixmap_facture_visible is None:
+            self.pixmap_facture_visible = QPixmap(icon_size) 
+            self.pixmap_facture_visible.fill(Qt.transparent)
+            try:
+                painter = QPainter(self.pixmap_facture_visible)
+                painter.setPen(QColor("red"))
+                painter.setFont(QFont("Arial", 10, QFont.Bold))
+                painter.drawText(self.pixmap_facture_visible.rect(), Qt.AlignCenter, "F")
+                painter.end()
+                logger.debug("CardWidget: Pixmap fallback 'F' créé.")
+            except Exception as e_painter:
+                 logger.error(f"CardWidget: Erreur création pixmap fallback avec QPainter: {e_painter}")
+                 # En dernier recours, créer un pixmap rouge uni simple
+                 self.pixmap_facture_visible = QPixmap(icon_size)
+                 self.pixmap_facture_visible.fill(QColor("red"))
+
+        # Pixmap invisible (toujours transparent)
+        self.pixmap_facture_invisible = QPixmap(icon_size)
+        self.pixmap_facture_invisible.fill(Qt.transparent)
+        # --- FIN CRÉATION PIXMAPS ---
+
+        # --- LOGGING VÉRIFICATION FINALE --- 
+        logger.debug(f"CardWidget {self.entry_type} - FINAL Pixmap visible: {self.pixmap_facture_visible}, isNull: {self.pixmap_facture_visible.isNull()}")
+        logger.debug(f"CardWidget {self.entry_type} - FINAL Pixmap invisible: {self.pixmap_facture_invisible}, isNull: {self.pixmap_facture_invisible.isNull()}")
+        # --- FIN LOGGING ---
+
+        # --- Logique pour choisir le pixmap et tooltip ---
+        # Par défaut: placeholder invisible, pas de tooltip spécifique
+        pixmap_to_set = self.pixmap_facture_invisible 
+        tooltip_text = "" # Pas de tooltip pour Déplacement ou si facture présente
+
+        if self.entry_type in ["Repas", "Dépense"]:
+            # Vérifier la facture uniquement pour Repas/Dépense
+            facture_obj = getattr(self.entry_data, 'facture', None)
+            has_facture = False
+            if facture_obj and isinstance(facture_obj, Facture):
+                if facture_obj.get_full_paths():
+                    has_facture = True
+            
+            if not has_facture:
+                # Repas/Dépense SANS facture: Afficher icône rouge
+                pixmap_to_set = self.pixmap_facture_visible
+                tooltip_text = "Aucune facture présente"
+            else:
+                # Repas/Dépense AVEC facture: Garder pixmap invisible (déjà par défaut)
+                tooltip_text = "Facture présente" # Mettre le tooltip ici
+
+        # Appliquer le pixmap et le tooltip décidés
+        logger.debug(f"CardWidget {self.entry_type} - Setting indicator pixmap: {'Visible (Red)' if pixmap_to_set == self.pixmap_facture_visible else 'Invisible (Placeholder)'}")
+        self.facture_icon_label.setPixmap(pixmap_to_set)
+        self.facture_icon_label.setToolTip(tooltip_text)
+        # --- FIN Logique Indicateur ---
+
+        # --- MODIFICATION: Insérer le QLabel avant le bouton options ---
+        summary_layout.addWidget(self.facture_icon_label) # Ajouter le QLabel directement
+        # --- FIN MODIFICATION ---
         summary_layout.addWidget(self.options_button)        # Bouton options à droite
         summary_layout.addWidget(self.expand_button)           # Bouton expand/collapse
         

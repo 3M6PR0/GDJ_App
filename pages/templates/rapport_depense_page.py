@@ -183,10 +183,11 @@ class RapportDepensePage(QWidget):
         totals_form_layout.addRow(separator)
         totals_form_layout.addRow("Total Général:", self.total_general_label)
         
-        # totals_content_layout.addStretch() # SUPPRIMÉ: Le stretch est maintenant interne au QFormLayout
-        # Pas de largeur fixe ici
+        # --- AJOUT: Ajouter le layout des filtres au-dessus du QFormLayout des totaux ---
+        totals_content_layout.addSpacing(10) # Espace entre filtres et totaux
+        # --- FIN AJOUT ---
 
-        # content_layout.addWidget(self.totals_frame) # <-- SUPPRIMER ICI SI PRÉSENT, OU S'ASSURER QU'IL N'Y EST PAS
+        totals_content_layout.addLayout(totals_form_layout)
 
         # --- Section Milieu: Ajout (Gauche) + Liste (Droite) ---
         # (Anciennement 'bottom_section_layout', renommé pour clarté)
@@ -335,7 +336,9 @@ class RapportDepensePage(QWidget):
             "Tout": "round_all_inclusive.png", # MODIFIÉ: Nouvelle icône pour Tout
             "Déplacements": "round_directions_car.png",
             "Repas": "round_restaurant.png",
-            "Dépenses": "round_payments.png"
+            "Dépenses": "round_payments.png",
+            "Employé": "round_badge.png", # MODIFIÉ: Nouvelle icône Employé
+            "Jacmar": "round_corporate_fare.png"   # MODIFIÉ: Nouvelle icône Jacmar
         }
         fallback_icon_name = "round_receipt_long.png" # Même fallback que l'autre combo
 
@@ -2518,22 +2521,44 @@ class RapportDepensePage(QWidget):
             logger.error(f"Erreur récupération entrées: {e}") # MODIFICATION
             all_entries = []
 
-        # 3. Filtrer les entrées
+        # 3. Filtrer les entrées (UNE SEULE ÉTAPE BASÉE SUR LE COMBOBOX)
+        logger.debug(f"Filtrage unifié avec l'option du ComboBox: '{filter_option}'")
         filtered_entries = []
+        
         if filter_option == "Tout":
             filtered_entries = all_entries
-        else:
+        elif filter_option == "Déplacements":
+            filtered_entries = [e for e in all_entries if isinstance(e, Deplacement)]
+        elif filter_option == "Repas":
+            filtered_entries = [e for e in all_entries if isinstance(e, Repas)]
+        elif filter_option == "Dépenses":
+            filtered_entries = [e for e in all_entries if isinstance(e, Depense)]
+        elif filter_option == "Employé":
             for entry in all_entries:
-                entry_type_str = ""
-                if isinstance(entry, Deplacement): entry_type_str = "Déplacements"
-                elif isinstance(entry, Repas): entry_type_str = "Repas"
-                elif isinstance(entry, Depense): entry_type_str = "Dépenses"
-                
-                if entry_type_str == filter_option:
+                if isinstance(entry, Deplacement): # Les déplacements sont toujours payés par l'employé
                     filtered_entries.append(entry)
-        
-        # print(f"  {len(filtered_entries)} entries after filtering.") # MODIFICATION
-        logger.debug(f"  {len(filtered_entries)} entries after filtering.") # MODIFICATION
+                elif isinstance(entry, Repas) or isinstance(entry, Depense):
+                    # Pour Repas/Dépense, 'payeur' est True si Employé
+                    is_employe_payeur = getattr(entry, 'payeur', True)
+                    if is_employe_payeur:
+                        filtered_entries.append(entry)
+        elif filter_option == "Jacmar":
+             for entry in all_entries:
+                 # Seuls Repas et Dépense peuvent être payés par Jacmar
+                 if isinstance(entry, Repas) or isinstance(entry, Depense):
+                     is_employe_payeur = getattr(entry, 'payeur', True)
+                     if not is_employe_payeur: # False signifie Jacmar
+                         filtered_entries.append(entry)
+        else:
+            logger.warning(f"Option de filtre inconnue: '{filter_option}'")
+            filtered_entries = all_entries # Fallback: Tout afficher
+
+        # --- SUPPRESSION: Ancienne Étape 2 de filtrage par payeur ---
+        # payeur_filter_option = self.current_payeur_filter
+        # ... (logique supprimée) ...
+        # --- FIN SUPPRESSION ---
+
+        logger.debug(f"  {len(filtered_entries)} entrées après filtrage.")
 
         # --- 4. Logique de Tri avec functools.cmp_to_key --- 
         
@@ -3377,15 +3402,45 @@ class RapportDepensePage(QWidget):
             logger.error("_set_filter_from_button: filter_type_combo n'existe pas.")
             return
 
+        # Mettre à jour le ComboBox de filtre de type
         index = self.filter_type_combo.findText(filter_text)
         if index != -1:
             if self.filter_type_combo.currentIndex() != index:
-                self.filter_type_combo.setCurrentIndex(index)
-                logger.debug(f"Filtre défini sur '{filter_text}' via bouton compteur.")
+                self.filter_type_combo.setCurrentIndex(index) # Ceci déclenchera _apply_sorting_and_filtering via sa propre connexion
+                logger.debug(f"Filtre de type défini sur '{filter_text}' via bouton compteur.")
             else:
-                logger.debug(f"Filtre déjà sur '{filter_text}', clic ignoré.")
+                logger.debug(f"Filtre de type déjà sur '{filter_text}', clic ignoré pour le combo.")
         else:
             logger.warning(f"Texte de filtre '{filter_text}' non trouvé dans filter_type_combo.")
+        
+        # Gérer l'état visuel des boutons de filtre de type (ceux des cadres)
+        type_filter_buttons = [
+            self.totals_frame_count_button,
+            self.deplacement_frame_count_button,
+            self.repas_frame_count_button,
+            self.depenses_diverses_frame_count_button
+        ]
+        sender_button_text = filter_text # Le "filter_text" correspond au type du bouton cliqué
+        if sender_button_text == "Tout": sender_button_text = self.totals_frame_count_button.toolTip() # Ou une meilleure façon d'identifier le bouton "Tout"
+        elif sender_button_text == "Déplacements": sender_button_text = self.deplacement_frame_count_button.toolTip()
+        elif sender_button_text == "Repas": sender_button_text = self.repas_frame_count_button.toolTip()
+        elif sender_button_text == "Dépenses": sender_button_text = self.depenses_diverses_frame_count_button.toolTip()
+
+        for button in type_filter_buttons:
+            if button: # Vérifier que le bouton existe
+                # Comparer le filter_text avec une propriété du bouton (ex: son texte ou tooltip)
+                # Pour l'instant, on se base sur le fait que filter_text identifie le bouton.
+                # Si le bouton cliqué est celui-ci, son texte/tooltip devrait correspondre à filter_text.
+                # (Cette logique est un peu approximative pour l'état visuel, pourrait être améliorée)
+                is_active = False
+                if filter_text == "Tout" and button == self.totals_frame_count_button: is_active = True
+                elif filter_text == "Déplacements" and button == self.deplacement_frame_count_button: is_active = True
+                elif filter_text == "Repas" and button == self.repas_frame_count_button: is_active = True
+                elif filter_text == "Dépenses" and button == self.depenses_diverses_frame_count_button: is_active = True
+                
+                button.setProperty("activeFilter", is_active)
+                button.style().unpolish(button)
+                button.style().polish(button)
 
     # --- AJOUT: Logique pour boutons Calculatrice --- 
     def _calculate_tax(self, tax_type: str):
