@@ -580,3 +580,24 @@ QFrame#RadioGroupFrame {
     min-height: 22px;
     padding: {{PADDING_SMALL}};
 } 
+
+/* --- Style spécifique pour les boutons compteurs carrés (ex: (0) ) --- */
+QPushButton#FrameCountButton {
+    background-color: transparent;
+    border: none;
+    color: {{COLOR_TEXT_PRIMARY}};
+    padding: 0px; /* Pas de padding pour respecter setFixedSize */
+    border-radius: {{RADIUS_DEFAULT}};
+    text-align: center;
+    /* Ne pas définir min-width/min-height ici */
+}
+
+QPushButton#FrameCountButton:hover {
+    background-color: {{COLOR_ACCENT}}; 
+    color: {{COLOR_TEXT_ON_ACCENT}};
+}
+
+QPushButton#FrameCountButton:pressed {
+    background-color: {{COLOR_ACCENT_PRESSED}};
+    color: {{COLOR_TEXT_ON_ACCENT}};
+} 

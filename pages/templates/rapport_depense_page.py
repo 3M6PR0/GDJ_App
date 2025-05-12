@@ -134,8 +134,10 @@ class RapportDepensePage(QWidget):
         title_label_total.setObjectName("CustomFrameTitle") # Garder le nom pour le style QSS
         # MODIFIÉ: QLabel -> QPushButton
         self.totals_frame_count_button = QPushButton("(0)") # Créer et stocker le bouton compteur
-        self.totals_frame_count_button.setObjectName("FrameCountButton") # Pour style QSS
-        self.totals_frame_count_button.setFlat(True) # Style plat
+        self.totals_frame_count_button.setObjectName("FrameCountButton") # MODIFIÉ: Retour au nom spécifique
+        # self.totals_frame_count_button.setFlat(True) # SUPPRIMÉ: Style géré par QSS
+        self.totals_frame_count_button.setFixedSize(28, 28) # CONSERVÉ: Rendre carré
+        # self.totals_frame_count_button.setStyleSheet("QPushButton#TopNavButton { padding: 0px; }") # SUPPRIMÉ: Forcer padding
         self.totals_frame_count_button.setCursor(Qt.PointingHandCursor) # Curseur main
         self.totals_frame_count_button.setToolTip("Filtrer pour Tout afficher")
         # Connecter le clic
@@ -449,8 +451,10 @@ class RapportDepensePage(QWidget):
         title_label_depl.setObjectName("CustomFrameTitle")
         # MODIFIÉ: QLabel -> QPushButton
         self.deplacement_frame_count_button = QPushButton("(0)")
-        self.deplacement_frame_count_button.setObjectName("FrameCountButton")
-        self.deplacement_frame_count_button.setFlat(True)
+        self.deplacement_frame_count_button.setObjectName("FrameCountButton") # MODIFIÉ: Retour au nom spécifique
+        # self.deplacement_frame_count_button.setFlat(True) # SUPPRIMÉ: Style géré par QSS
+        self.deplacement_frame_count_button.setFixedSize(28, 28) # CONSERVÉ: Rendre carré
+        # self.deplacement_frame_count_button.setStyleSheet("QPushButton#TopNavButton { padding: 0px; }") # SUPPRIMÉ: Forcer padding
         self.deplacement_frame_count_button.setCursor(Qt.PointingHandCursor)
         self.deplacement_frame_count_button.setToolTip("Filtrer par Déplacements")
         self.deplacement_frame_count_button.clicked.connect(functools.partial(self._set_filter_from_button, "Déplacements"))
@@ -513,8 +517,10 @@ class RapportDepensePage(QWidget):
         title_label_repas.setObjectName("CustomFrameTitle")
         # MODIFIÉ: QLabel -> QPushButton
         self.repas_frame_count_button = QPushButton("(0)")
-        self.repas_frame_count_button.setObjectName("FrameCountButton")
-        self.repas_frame_count_button.setFlat(True)
+        self.repas_frame_count_button.setObjectName("FrameCountButton") # MODIFIÉ: Retour au nom spécifique
+        # self.repas_frame_count_button.setFlat(True) # SUPPRIMÉ: Style géré par QSS
+        self.repas_frame_count_button.setFixedSize(28, 28) # CONSERVÉ: Rendre carré
+        # self.repas_frame_count_button.setStyleSheet("QPushButton#TopNavButton { padding: 0px; }") # SUPPRIMÉ: Forcer padding
         self.repas_frame_count_button.setCursor(Qt.PointingHandCursor)
         self.repas_frame_count_button.setToolTip("Filtrer par Repas")
         self.repas_frame_count_button.clicked.connect(functools.partial(self._set_filter_from_button, "Repas"))
@@ -560,8 +566,10 @@ class RapportDepensePage(QWidget):
         title_label_depdiv.setObjectName("CustomFrameTitle")
         # MODIFIÉ: QLabel -> QPushButton
         self.depenses_diverses_frame_count_button = QPushButton("(0)")
-        self.depenses_diverses_frame_count_button.setObjectName("FrameCountButton")
-        self.depenses_diverses_frame_count_button.setFlat(True)
+        self.depenses_diverses_frame_count_button.setObjectName("FrameCountButton") # MODIFIÉ: Retour au nom spécifique
+        # self.depenses_diverses_frame_count_button.setFlat(True) # SUPPRIMÉ: Style géré par QSS
+        self.depenses_diverses_frame_count_button.setFixedSize(28, 28) # CONSERVÉ: Rendre carré
+        # self.depenses_diverses_frame_count_button.setStyleSheet("QPushButton#TopNavButton { padding: 0px; }") # SUPPRIMÉ: Forcer padding
         self.depenses_diverses_frame_count_button.setCursor(Qt.PointingHandCursor)
         self.depenses_diverses_frame_count_button.setToolTip("Filtrer par Dépenses")
         self.depenses_diverses_frame_count_button.clicked.connect(functools.partial(self._set_filter_from_button, "Dépenses"))
@@ -2460,12 +2468,16 @@ class RapportDepensePage(QWidget):
         # Désactiver le choix du type
         self.entry_type_combo.setEnabled(False)
         
-        # --- AJOUT: Désactiver tri/filtre/expand --- 
+        # --- AJOUT: Désactiver tri/filtre/expand ET les boutons compteurs --- 
         self.sort_primary_combo.setEnabled(False)
         self.sort_secondary_combo.setEnabled(False)
         self.filter_type_combo.setEnabled(False)
         self.expand_collapse_button.setEnabled(False)
-        # --------------------------------------------
+        if hasattr(self, 'totals_frame_count_button'): self.totals_frame_count_button.setEnabled(False)
+        if hasattr(self, 'deplacement_frame_count_button'): self.deplacement_frame_count_button.setEnabled(False)
+        if hasattr(self, 'repas_frame_count_button'): self.repas_frame_count_button.setEnabled(False)
+        if hasattr(self, 'depenses_diverses_frame_count_button'): self.depenses_diverses_frame_count_button.setEnabled(False)
+        # ---------------------------------------------------------------------
 
         # Optionnel: Mettre en évidence le frame d'ajout?
         # --- Appliquer la bordure jaune au frame --- 
@@ -2530,12 +2542,16 @@ class RapportDepensePage(QWidget):
                 widget.set_editing_highlight(False)  # Retirer mise en évidence
         # -------------------------------
 
-        # --- AJOUT: Réactiver tri/filtre/expand --- 
+        # --- AJOUT: Réactiver tri/filtre/expand ET les boutons compteurs --- 
         self.sort_primary_combo.setEnabled(True)
         self.sort_secondary_combo.setEnabled(True)
         self.filter_type_combo.setEnabled(True)
         self.expand_collapse_button.setEnabled(True)
-        # ------------------------------------------
+        if hasattr(self, 'totals_frame_count_button'): self.totals_frame_count_button.setEnabled(True)
+        if hasattr(self, 'deplacement_frame_count_button'): self.deplacement_frame_count_button.setEnabled(True)
+        if hasattr(self, 'repas_frame_count_button'): self.repas_frame_count_button.setEnabled(True)
+        if hasattr(self, 'depenses_diverses_frame_count_button'): self.depenses_diverses_frame_count_button.setEnabled(True)
+        # ---------------------------------------------------------------------
 
     def _apply_edit(self):
         """Sauvegarde les modifications de l'entrée en cours et quitte le mode édition."""
