@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QHBoxLayout, QSizePolicy, QApplication, QStyleOption, QStyle
-from PyQt5.QtCore import pyqtSignal, Qt, QEvent, QObject, pyqtSlot, QTimer
-from PyQt5.QtGui import QDoubleValidator, QPainter, QColor, QPen, QPaintEvent
+from PyQt5.QtWidgets import QWidget, QLineEdit, QLabel, QHBoxLayout, QSizePolicy, QApplication, QStyleOption, QStyle, QPushButton
+from PyQt5.QtCore import pyqtSignal, Qt, QEvent, QObject, pyqtSlot, QTimer, QSize
+from PyQt5.QtGui import QDoubleValidator, QPainter, QColor, QPen, QPaintEvent, QIcon
 
 import logging
 logger = logging.getLogger('GDJ_App')
@@ -8,16 +8,19 @@ logger = logging.getLogger('GDJ_App')
 # Import direct du module de thème et des signaux
 from utils import theme as theme_module
 from utils.signals import signals
+from utils.icon_loader import get_icon_path
 
 class NumericInputWithUnit(QWidget):
     """
     Un widget personnalisé combinant un QLineEdit pour une valeur numérique
     et un QLabel pour afficher une unité non modifiable.
     L'ensemble est stylisé pour ressembler à un QLineEdit unique.
+    Peut optionnellement inclure un bouton calculatrice.
     """
     valueChanged = pyqtSignal(float) # Signal émis lorsque la valeur numérique change
 
-    def __init__(self, unit_text="km", initial_value=0.0, max_decimals: int = None, parent=None):
+    def __init__(self, unit_text="km", initial_value=0.0, max_decimals: int = None, 
+                 parent=None):
         super().__init__(parent)
         self.setObjectName("MyNumericInputWithUnit")
         # self.setAttribute(Qt.WA_StyledBackground, True) # Peut être nécessaire si le QSS doit dessiner le fond
@@ -126,6 +129,15 @@ class NumericInputWithUnit(QWidget):
         self.unit_label.setStyleSheet("border: none; background-color: transparent; padding-right: 5px; padding-left: 5px;")
 
         self.main_layout.addWidget(self.line_edit)
+
+        # --- SUPPRIMÉ: Création et ajout de l'action interne --- 
+        # if self._show_calculator_button:
+        #     self.calc_action = QAction(self)
+        #     ...
+        #     self.line_edit.addAction(self.calc_action, QLineEdit.LeadingPosition) 
+        # ---------------------------------------------------------
+
+        # Ajouter le QLabel pour l'unité APRÈS le line_edit
         self.main_layout.addWidget(self.unit_label)
         
         # Installer le filtre d'événements sur le line_edit

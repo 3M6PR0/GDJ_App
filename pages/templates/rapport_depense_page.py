@@ -794,7 +794,7 @@ class RapportDepensePage(QWidget):
         self.dynamic_form_widget = QWidget(parent_container)
         self.dynamic_form_widget.setStyleSheet("background-color: transparent;") 
         self.dynamic_form_layout = QGridLayout(self.dynamic_form_widget) 
-        self.dynamic_form_layout.setColumnStretch(1, 1) # La colonne des champs s'étend
+        self.dynamic_form_layout.setColumnStretch(1, 1) # Colonne 1 (champ) s\'étire de nouveau
         
         # Obtenir les variables du thème actuel
         theme = get_theme_vars() # Utilise le thème par défaut (Sombre)
@@ -913,6 +913,9 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.setRowStretch(current_row, 1)
 
         elif entry_type == "Repas":
+            # --- AJOUT: Ajuster le stretch pour la nouvelle colonne ---
+            self.dynamic_form_layout.setColumnStretch(1, 1) # Colonne 1 (QHBoxLayout) s\'étire
+            # --------------------------------------------------------
             self.form_fields['restaurant'] = QLineEdit()
             self.form_fields['restaurant'].setPlaceholderText("\"McDonald's\"")
             self.form_fields['restaurant'].setStyleSheet(
@@ -1023,14 +1026,50 @@ class RapportDepensePage(QWidget):
             # Remplacer les QLineEdit par NumericInputWithUnit
             self.form_fields['total_avant_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_avtx_label = QLabel("Total avant Tx:")
+            # --- AJOUT BOUTON CALCUL ---
+            self.form_fields['total_avant_taxes_btn'] = QPushButton()
+            calc_icon_path = get_icon_path("round_calculate.png")
+            if calc_icon_path: self.form_fields['total_avant_taxes_btn'].setIcon(QIcon(calc_icon_path))
+            else: self.form_fields['total_avant_taxes_btn'].setText("C") # Fallback
+            self.form_fields['total_avant_taxes_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['total_avant_taxes_btn'].setFixedSize(22, 22)
+            self.form_fields['total_avant_taxes_btn'].setObjectName("CalcButton")
+            self.form_fields['total_avant_taxes_btn'].setToolTip("Calculer le total avant taxes")
+            # TODO: Connecter signal self.form_fields['total_avant_taxes_btn'].clicked
+            # -------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout ---
+            total_avtx_layout = QHBoxLayout()
+            total_avtx_layout.setContentsMargins(0,0,0,0)
+            total_avtx_layout.setSpacing(5) # Espace entre champ et bouton
+            total_avtx_layout.addWidget(self.form_fields['total_avant_taxes'], 1) # Champ s'étire
+            total_avtx_layout.addWidget(self.form_fields['total_avant_taxes_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(total_avtx_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes'], current_row, 1)
+            self.dynamic_form_layout.addLayout(total_avtx_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             current_row += 1
             
             self.form_fields['pourboire'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             pourboire_label = QLabel("Pourboire:")
+            # --- AJOUT BOUTON CALCUL POUR POURBOIRE ---
+            self.form_fields['pourboire_btn'] = QPushButton()
+            calc_icon_path_pb = get_icon_path("round_calculate.png")
+            if calc_icon_path_pb: self.form_fields['pourboire_btn'].setIcon(QIcon(calc_icon_path_pb))
+            else: self.form_fields['pourboire_btn'].setText("C") # Fallback
+            self.form_fields['pourboire_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['pourboire_btn'].setFixedSize(22, 22)
+            self.form_fields['pourboire_btn'].setObjectName("CalcButton")
+            self.form_fields['pourboire_btn'].setToolTip("Calculer le pourboire")
+            # TODO: Connecter signal self.form_fields['pourboire_btn'].clicked
+            # -----------------------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout pour Pourboire ---
+            pourboire_layout = QHBoxLayout()
+            pourboire_layout.setContentsMargins(0,0,0,0)
+            pourboire_layout.setSpacing(5)
+            pourboire_layout.addWidget(self.form_fields['pourboire'], 1) # Champ s'étire
+            pourboire_layout.addWidget(self.form_fields['pourboire_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(pourboire_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['pourboire'], current_row, 1)
+            self.dynamic_form_layout.addLayout(pourboire_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             current_row += 1
 
             # --- Taxes (label colonne 0, champ colonne 1) --- 
@@ -1039,16 +1078,53 @@ class RapportDepensePage(QWidget):
             for i, key in enumerate(tax_field_keys):
                 self.form_fields[key] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
                 label_widget = QLabel(tax_labels[i])
+                # --- AJOUT BOUTON CALCUL ---
+                btn_key = f"{key}_btn"
+                self.form_fields[btn_key] = QPushButton()
+                calc_icon_path = get_icon_path("round_calculate.png")
+                if calc_icon_path: self.form_fields[btn_key].setIcon(QIcon(calc_icon_path))
+                else: self.form_fields[btn_key].setText("C") # Fallback
+                self.form_fields[btn_key].setIconSize(QSize(18, 18))
+                self.form_fields[btn_key].setFixedSize(22, 22)
+                self.form_fields[btn_key].setObjectName("CalcButton")
+                self.form_fields[btn_key].setToolTip(f"Calculer la {tax_labels[i][:-1]}")
+                # TODO: Connecter signal self.form_fields[btn_key].clicked
+                # -------------------------
+                # --- NOUVEAU: Utiliser QHBoxLayout ---
+                tax_layout = QHBoxLayout()
+                tax_layout.setContentsMargins(0,0,0,0)
+                tax_layout.setSpacing(5)
+                tax_layout.addWidget(self.form_fields[key], 1) # Champ s'étire
+                tax_layout.addWidget(self.form_fields[btn_key]) # Bouton à droite
+                # --- FIN NOUVEAU ---
                 self.dynamic_form_layout.addWidget(label_widget, current_row, 0, Qt.AlignLeft)
-                self.dynamic_form_layout.addWidget(self.form_fields[key], current_row, 1)
+                self.dynamic_form_layout.addLayout(tax_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
                 current_row += 1
             # --------------------------------------------------
 
             # Total après taxe
             self.form_fields['total_apres_taxes'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_aptx_label = QLabel("Total après Tx:")
+            # --- AJOUT BOUTON CALCUL ---
+            self.form_fields['total_apres_taxes_btn'] = QPushButton()
+            calc_icon_path = get_icon_path("round_calculate.png")
+            if calc_icon_path: self.form_fields['total_apres_taxes_btn'].setIcon(QIcon(calc_icon_path))
+            else: self.form_fields['total_apres_taxes_btn'].setText("C") # Fallback
+            self.form_fields['total_apres_taxes_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['total_apres_taxes_btn'].setFixedSize(22, 22)
+            self.form_fields['total_apres_taxes_btn'].setObjectName("CalcButton")
+            self.form_fields['total_apres_taxes_btn'].setToolTip("Calculer le total après taxes")
+            # TODO: Connecter signal self.form_fields['total_apres_taxes_btn'].clicked
+            # -------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout ---
+            total_aptx_layout = QHBoxLayout()
+            total_aptx_layout.setContentsMargins(0,0,0,0)
+            total_aptx_layout.setSpacing(5)
+            total_aptx_layout.addWidget(self.form_fields['total_apres_taxes'], 1) # Champ s'étire
+            total_aptx_layout.addWidget(self.form_fields['total_apres_taxes_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(total_aptx_label, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes'], current_row, 1)
+            self.dynamic_form_layout.addLayout(total_aptx_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             current_row += 1
             # --- Le reste (connexion signal) est inchangé --- 
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
@@ -1152,6 +1228,9 @@ class RapportDepensePage(QWidget):
             self.dynamic_form_layout.setRowStretch(current_row, 1)
             
         elif entry_type == "Dépense":
+            # --- AJOUT: Ajuster le stretch pour la nouvelle colonne ---
+            self.dynamic_form_layout.setColumnStretch(1, 1) # Colonne 1 (QHBoxLayout ou champ) s\'étire
+            # --------------------------------------------------------
             # --- Champs pour Dépense --- 
             # Type (ComboBox) - Déjà géré par les champs communs si on le déplace plus haut
             # Date: est déjà ajouté en premier comme champ commun.
@@ -1253,36 +1332,126 @@ class RapportDepensePage(QWidget):
             # Total avant taxe
             self.form_fields['total_avant_taxes_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_avtx_label_dep = QLabel("Total avant Tx:")
+            # --- AJOUT BOUTON CALCUL ---
+            self.form_fields['total_avant_taxes_dep_btn'] = QPushButton()
+            calc_icon_path = get_icon_path("round_calculate.png")
+            if calc_icon_path: self.form_fields['total_avant_taxes_dep_btn'].setIcon(QIcon(calc_icon_path))
+            else: self.form_fields['total_avant_taxes_dep_btn'].setText("C") # Fallback
+            self.form_fields['total_avant_taxes_dep_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['total_avant_taxes_dep_btn'].setFixedSize(22, 22)
+            self.form_fields['total_avant_taxes_dep_btn'].setObjectName("CalcButton")
+            self.form_fields['total_avant_taxes_dep_btn'].setToolTip("Calculer le total avant taxes")
+            # TODO: Connecter signal
+            # -------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout ---
+            total_avtx_dep_layout = QHBoxLayout()
+            total_avtx_dep_layout.setContentsMargins(0,0,0,0)
+            total_avtx_dep_layout.setSpacing(5)
+            total_avtx_dep_layout.addWidget(self.form_fields['total_avant_taxes_dep'], 1) # Champ s'étire
+            total_avtx_dep_layout.addWidget(self.form_fields['total_avant_taxes_dep_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(total_avtx_label_dep, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_avant_taxes_dep'], current_row, 1)
+            self.dynamic_form_layout.addLayout(total_avtx_dep_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             current_row += 1
 
             # TPS
             self.form_fields['tps_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             tps_label_dep = QLabel("TPS:")
+            # --- AJOUT BOUTON CALCUL ---
+            self.form_fields['tps_dep_btn'] = QPushButton()
+            calc_icon_path = get_icon_path("round_calculate.png")
+            if calc_icon_path: self.form_fields['tps_dep_btn'].setIcon(QIcon(calc_icon_path))
+            else: self.form_fields['tps_dep_btn'].setText("C") # Fallback
+            self.form_fields['tps_dep_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['tps_dep_btn'].setFixedSize(22, 22)
+            self.form_fields['tps_dep_btn'].setObjectName("CalcButton")
+            self.form_fields['tps_dep_btn'].setToolTip("Calculer la TPS")
+            # TODO: Connecter signal
+            # -------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout ---
+            tps_dep_layout = QHBoxLayout()
+            tps_dep_layout.setContentsMargins(0,0,0,0)
+            tps_dep_layout.setSpacing(5)
+            tps_dep_layout.addWidget(self.form_fields['tps_dep'], 1) # Champ s'étire
+            tps_dep_layout.addWidget(self.form_fields['tps_dep_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(tps_label_dep, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['tps_dep'], current_row, 1)
+            self.dynamic_form_layout.addLayout(tps_dep_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             current_row += 1
 
             # TVQ
             self.form_fields['tvq_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             tvq_label_dep = QLabel("TVQ:")
+            # --- AJOUT BOUTON CALCUL ---
+            self.form_fields['tvq_dep_btn'] = QPushButton()
+            calc_icon_path = get_icon_path("round_calculate.png")
+            if calc_icon_path: self.form_fields['tvq_dep_btn'].setIcon(QIcon(calc_icon_path))
+            else: self.form_fields['tvq_dep_btn'].setText("C") # Fallback
+            self.form_fields['tvq_dep_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['tvq_dep_btn'].setFixedSize(22, 22)
+            self.form_fields['tvq_dep_btn'].setObjectName("CalcButton")
+            self.form_fields['tvq_dep_btn'].setToolTip("Calculer la TVQ")
+            # TODO: Connecter signal
+            # -------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout ---
+            tvq_dep_layout = QHBoxLayout()
+            tvq_dep_layout.setContentsMargins(0,0,0,0)
+            tvq_dep_layout.setSpacing(5)
+            tvq_dep_layout.addWidget(self.form_fields['tvq_dep'], 1) # Champ s'étire
+            tvq_dep_layout.addWidget(self.form_fields['tvq_dep_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(tvq_label_dep, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['tvq_dep'], current_row, 1)
+            self.dynamic_form_layout.addLayout(tvq_dep_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             current_row += 1
 
             # TVH
             self.form_fields['tvh_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             tvh_label_dep = QLabel("TVH:")
+            # --- AJOUT BOUTON CALCUL ---
+            self.form_fields['tvh_dep_btn'] = QPushButton()
+            calc_icon_path = get_icon_path("round_calculate.png")
+            if calc_icon_path: self.form_fields['tvh_dep_btn'].setIcon(QIcon(calc_icon_path))
+            else: self.form_fields['tvh_dep_btn'].setText("C") # Fallback
+            self.form_fields['tvh_dep_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['tvh_dep_btn'].setFixedSize(22, 22)
+            self.form_fields['tvh_dep_btn'].setObjectName("CalcButton")
+            self.form_fields['tvh_dep_btn'].setToolTip("Calculer la TVH")
+            # TODO: Connecter signal
+            # -------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout ---
+            tvh_dep_layout = QHBoxLayout()
+            tvh_dep_layout.setContentsMargins(0,0,0,0)
+            tvh_dep_layout.setSpacing(5)
+            tvh_dep_layout.addWidget(self.form_fields['tvh_dep'], 1) # Champ s'étire
+            tvh_dep_layout.addWidget(self.form_fields['tvh_dep_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(tvh_label_dep, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['tvh_dep'], current_row, 1)
+            self.dynamic_form_layout.addLayout(tvh_dep_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             current_row += 1
 
             # Total apres taxe
             self.form_fields['total_apres_taxes_dep'] = NumericInputWithUnit(unit_text="$", initial_value=0.0, max_decimals=2)
             total_aptx_label_dep = QLabel("Total après Tx:")
+            # --- AJOUT BOUTON CALCUL ---
+            self.form_fields['total_apres_taxes_dep_btn'] = QPushButton()
+            calc_icon_path = get_icon_path("round_calculate.png")
+            if calc_icon_path: self.form_fields['total_apres_taxes_dep_btn'].setIcon(QIcon(calc_icon_path))
+            else: self.form_fields['total_apres_taxes_dep_btn'].setText("C") # Fallback
+            self.form_fields['total_apres_taxes_dep_btn'].setIconSize(QSize(18, 18))
+            self.form_fields['total_apres_taxes_dep_btn'].setFixedSize(22, 22)
+            self.form_fields['total_apres_taxes_dep_btn'].setObjectName("CalcButton")
+            self.form_fields['total_apres_taxes_dep_btn'].setToolTip("Calculer le total après taxes")
+            # TODO: Connecter signal
+            # -------------------------
+            # --- NOUVEAU: Utiliser QHBoxLayout ---
+            total_aptx_dep_layout = QHBoxLayout()
+            total_aptx_dep_layout.setContentsMargins(0,0,0,0)
+            total_aptx_dep_layout.setSpacing(5)
+            total_aptx_dep_layout.addWidget(self.form_fields['total_apres_taxes_dep'], 1) # Champ s'étire
+            total_aptx_dep_layout.addWidget(self.form_fields['total_apres_taxes_dep_btn']) # Bouton à droite
+            # --- FIN NOUVEAU ---
             self.dynamic_form_layout.addWidget(total_aptx_label_dep, current_row, 0, Qt.AlignLeft)
-            self.dynamic_form_layout.addWidget(self.form_fields['total_apres_taxes_dep'], current_row, 1)
+            self.dynamic_form_layout.addLayout(total_aptx_dep_layout, current_row, 1) # Ajouter le QHBoxLayout en colonne 1
             # Connecter le signal valueChanged pour mettre à jour le montant affiché en bas
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes_dep'] # Réassigner le champ à connecter
             self.total_apres_taxes_field.valueChanged.connect(self._update_montant_display)
