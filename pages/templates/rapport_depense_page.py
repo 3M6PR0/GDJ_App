@@ -752,7 +752,7 @@ class RapportDepensePage(QWidget):
         if entry_type == "Déplacement":
             self.form_fields['client'] = QLineEdit()
             self.form_fields['client'].setPlaceholderText("\"Jacmar\"") # GUILLEMETS LITTÉRAUX
-            self.form_fields['client'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") 
+            self.form_fields['client'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
             client_label = QLabel("Client:")
             self.dynamic_form_layout.addWidget(client_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['client'], current_row, 1)
@@ -760,7 +760,7 @@ class RapportDepensePage(QWidget):
             
             self.form_fields['ville'] = QLineEdit()
             self.form_fields['ville'].setPlaceholderText("\"Mascouche\"") # GUILLEMETS LITTÉRAUX
-            self.form_fields['ville'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") 
+            self.form_fields['ville'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
             ville_label = QLabel("Ville:")
             self.dynamic_form_layout.addWidget(ville_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['ville'], current_row, 1)
@@ -768,7 +768,7 @@ class RapportDepensePage(QWidget):
 
             self.form_fields['numero_commande'] = QLineEdit()
             self.form_fields['numero_commande'].setPlaceholderText("\"123456\"") # GUILLEMETS LITTÉRAUX
-            self.form_fields['numero_commande'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") 
+            self.form_fields['numero_commande'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
             num_cmd_label = QLabel("N° Commande:")
             self.dynamic_form_layout.addWidget(num_cmd_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['numero_commande'], current_row, 1)
@@ -790,7 +790,7 @@ class RapportDepensePage(QWidget):
         elif entry_type == "Repas":
             self.form_fields['restaurant'] = QLineEdit()
             self.form_fields['restaurant'].setPlaceholderText("\"McDonald's\"") # AJOUT PLACEHOLDER
-            self.form_fields['restaurant'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
+            self.form_fields['restaurant'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
             resto_label = QLabel("Restaurant:")
             self.dynamic_form_layout.addWidget(resto_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['restaurant'], current_row, 1)
@@ -798,7 +798,7 @@ class RapportDepensePage(QWidget):
             
             self.form_fields['client_repas'] = QLineEdit()
             self.form_fields['client_repas'].setPlaceholderText("\"Jacmar\"") # AJOUT PLACEHOLDER
-            self.form_fields['client_repas'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
+            self.form_fields['client_repas'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
             client_repas_label = QLabel("Client:")
             self.dynamic_form_layout.addWidget(client_repas_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['client_repas'], current_row, 1)
@@ -1059,7 +1059,7 @@ class RapportDepensePage(QWidget):
             # Description
             self.form_fields['description_dep'] = QLineEdit() # Clé unique: description_dep
             self.form_fields['description_dep'].setPlaceholderText("\"Cafe, Batterie, etc\"") # AJOUT PLACEHOLDER
-            self.form_fields['description_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
+            self.form_fields['description_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
             desc_label = QLabel("Description:")
             self.dynamic_form_layout.addWidget(desc_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['description_dep'], current_row, 1)
@@ -1068,7 +1068,7 @@ class RapportDepensePage(QWidget):
             # Fournisseur
             self.form_fields['fournisseur_dep'] = QLineEdit() # Clé unique: fournisseur_dep
             self.form_fields['fournisseur_dep'].setPlaceholderText("\"Amazon, Bell, etc\"") # AJOUT PLACEHOLDER
-            self.form_fields['fournisseur_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; font-style: italic; }") # AJOUT STYLE
+            self.form_fields['fournisseur_dep'].setStyleSheet("QLineEdit { placeholder-text-color: gray; }") # RETRAIT font-style: italic;
             fourn_label = QLabel("Fournisseur:")
             self.dynamic_form_layout.addWidget(fourn_label, current_row, 0, Qt.AlignLeft)
             self.dynamic_form_layout.addWidget(self.form_fields['fournisseur_dep'], current_row, 1)
@@ -2137,9 +2137,15 @@ class RapportDepensePage(QWidget):
 
             # --- Champs Spécifiques --- 
             if isinstance(entry, Deplacement):
-                if 'client' in self.form_fields: self.form_fields['client'].setText(getattr(entry, 'client', ''))
-                if 'ville' in self.form_fields: self.form_fields['ville'].setText(getattr(entry, 'ville', ''))
-                if 'numero_commande' in self.form_fields: self.form_fields['numero_commande'].setText(getattr(entry, 'numero_commande', ''))
+                if 'client' in self.form_fields: 
+                    self.form_fields['client'].setText(getattr(entry, 'client', ''))
+                    # self.form_fields['client'].setStyleSheet("") # RETRAIT
+                if 'ville' in self.form_fields: 
+                    self.form_fields['ville'].setText(getattr(entry, 'ville', ''))
+                    # self.form_fields['ville'].setStyleSheet("") # RETRAIT
+                if 'numero_commande' in self.form_fields: 
+                    self.form_fields['numero_commande'].setText(getattr(entry, 'numero_commande', ''))
+                    # self.form_fields['numero_commande'].setStyleSheet("") # RETRAIT
                 if 'kilometrage' in self.form_fields: self.form_fields['kilometrage'].setValue(getattr(entry, 'kilometrage', 0.0))
                 # Mettre à jour l'affichage du montant pour déplacement
                 TAUX_KM = 0.50 # TODO: Externaliser
@@ -2147,8 +2153,12 @@ class RapportDepensePage(QWidget):
                 self._update_montant_display(montant_deplacement)
 
             elif isinstance(entry, Repas):
-                if 'restaurant' in self.form_fields: self.form_fields['restaurant'].setText(getattr(entry, 'restaurant', ''))
-                if 'client_repas' in self.form_fields: self.form_fields['client_repas'].setText(getattr(entry, 'client', ''))
+                if 'restaurant' in self.form_fields: 
+                    self.form_fields['restaurant'].setText(getattr(entry, 'restaurant', ''))
+                    # self.form_fields['restaurant'].setStyleSheet("") # RETRAIT
+                if 'client_repas' in self.form_fields: 
+                    self.form_fields['client_repas'].setText(getattr(entry, 'client', ''))
+                    # self.form_fields['client_repas'].setStyleSheet("") # RETRAIT
                 
                 # Payeur (True = Employé)
                 is_payeur_employe = getattr(entry, 'payeur', True) 
@@ -2210,8 +2220,12 @@ class RapportDepensePage(QWidget):
 
             elif isinstance(entry, Depense):
                 if 'type_depense' in self.form_fields: self.form_fields['type_depense'].setCurrentText(getattr(entry, 'type_depense', 'Autre'))
-                if 'description_dep' in self.form_fields: self.form_fields['description_dep'].setText(getattr(entry, 'description', '')) # MODIFIÉ: _dep
-                if 'fournisseur_dep' in self.form_fields: self.form_fields['fournisseur_dep'].setText(getattr(entry, 'fournisseur', '')) # MODIFIÉ: _dep
+                if 'description_dep' in self.form_fields: 
+                    self.form_fields['description_dep'].setText(getattr(entry, 'description', ''))
+                    # self.form_fields['description_dep'].setStyleSheet("") # RETRAIT
+                if 'fournisseur_dep' in self.form_fields: 
+                    self.form_fields['fournisseur_dep'].setText(getattr(entry, 'fournisseur', ''))
+                    # self.form_fields['fournisseur_dep'].setStyleSheet("") # RETRAIT
                 
                 # Payeur (True = Employé)
                 # Le constructeur de Depense attend 'payeur_employe' (bool) ou 'payeur' (str) ?
