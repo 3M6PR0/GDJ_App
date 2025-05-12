@@ -115,6 +115,7 @@ class RapportDepensePage(QWidget):
         self._update_deplacement_info_display() # DÉCOMMENTÉ: Appel initial pour peupler le cadre déplacement
         self._update_repas_info_display() # AJOUT: Appel initial
         self._update_depenses_diverses_info_display() # AJOUT: Appel initial
+        self._update_frame_titles_with_counts()
 
     def _setup_ui(self):
         # Layout vertical principal pour la page
@@ -131,11 +132,17 @@ class RapportDepensePage(QWidget):
         header_layout_total.setSpacing(8)
         title_label_total = QLabel("Totaux")
         title_label_total.setObjectName("CustomFrameTitle") # Garder le nom pour le style QSS
-        self.totals_frame_count_label = QLabel("(0)") # Créer et stocker le label compteur
-        self.totals_frame_count_label.setStyleSheet("font-weight: normal; color: gray;") # Style simple
+        # MODIFIÉ: QLabel -> QPushButton
+        self.totals_frame_count_button = QPushButton("(0)") # Créer et stocker le bouton compteur
+        self.totals_frame_count_button.setObjectName("FrameCountButton") # Pour style QSS
+        self.totals_frame_count_button.setFlat(True) # Style plat
+        self.totals_frame_count_button.setCursor(Qt.PointingHandCursor) # Curseur main
+        self.totals_frame_count_button.setToolTip("Filtrer pour Tout afficher")
+        # Connecter le clic
+        self.totals_frame_count_button.clicked.connect(functools.partial(self._set_filter_from_button, "Tout"))
         header_layout_total.addWidget(title_label_total)
         header_layout_total.addStretch()
-        header_layout_total.addWidget(self.totals_frame_count_label)
+        header_layout_total.addWidget(self.totals_frame_count_button) # MODIFIÉ: Ajouter le bouton
         # Créer le Frame avec le header personnalisé
         self.totals_frame = Frame(header_widget=header_container_total, parent=self)
         totals_content_layout = self.totals_frame.get_content_layout()
@@ -440,11 +447,16 @@ class RapportDepensePage(QWidget):
         # Titre
         title_label_depl = QLabel("Déplacement")
         title_label_depl.setObjectName("CustomFrameTitle")
-        self.deplacement_frame_count_label = QLabel("(0)")
-        self.deplacement_frame_count_label.setStyleSheet("font-weight: normal; color: gray;")
+        # MODIFIÉ: QLabel -> QPushButton
+        self.deplacement_frame_count_button = QPushButton("(0)")
+        self.deplacement_frame_count_button.setObjectName("FrameCountButton")
+        self.deplacement_frame_count_button.setFlat(True)
+        self.deplacement_frame_count_button.setCursor(Qt.PointingHandCursor)
+        self.deplacement_frame_count_button.setToolTip("Filtrer par Déplacements")
+        self.deplacement_frame_count_button.clicked.connect(functools.partial(self._set_filter_from_button, "Déplacements"))
         header_layout_depl.addWidget(title_label_depl)
         header_layout_depl.addStretch()
-        header_layout_depl.addWidget(self.deplacement_frame_count_label)
+        header_layout_depl.addWidget(self.deplacement_frame_count_button) # MODIFIÉ: Ajouter le bouton
         self.deplacement_frame = Frame(header_widget=header_container_depl, parent=self)
         deplacement_content_layout = self.deplacement_frame.get_content_layout()
         
@@ -499,11 +511,16 @@ class RapportDepensePage(QWidget):
         # Titre
         title_label_repas = QLabel("Repas")
         title_label_repas.setObjectName("CustomFrameTitle")
-        self.repas_frame_count_label = QLabel("(0)")
-        self.repas_frame_count_label.setStyleSheet("font-weight: normal; color: gray;")
+        # MODIFIÉ: QLabel -> QPushButton
+        self.repas_frame_count_button = QPushButton("(0)")
+        self.repas_frame_count_button.setObjectName("FrameCountButton")
+        self.repas_frame_count_button.setFlat(True)
+        self.repas_frame_count_button.setCursor(Qt.PointingHandCursor)
+        self.repas_frame_count_button.setToolTip("Filtrer par Repas")
+        self.repas_frame_count_button.clicked.connect(functools.partial(self._set_filter_from_button, "Repas"))
         header_layout_repas.addWidget(title_label_repas)
         header_layout_repas.addStretch()
-        header_layout_repas.addWidget(self.repas_frame_count_label)
+        header_layout_repas.addWidget(self.repas_frame_count_button) # MODIFIÉ: Ajouter le bouton
         self.repas_frame = Frame(header_widget=header_container_repas, parent=self)
         repas_content_layout = self.repas_frame.get_content_layout()
         repas_form_layout = QFormLayout()
@@ -541,11 +558,16 @@ class RapportDepensePage(QWidget):
         # Titre
         title_label_depdiv = QLabel("Dépenses Diverses")
         title_label_depdiv.setObjectName("CustomFrameTitle")
-        self.depenses_diverses_frame_count_label = QLabel("(0)")
-        self.depenses_diverses_frame_count_label.setStyleSheet("font-weight: normal; color: gray;")
+        # MODIFIÉ: QLabel -> QPushButton
+        self.depenses_diverses_frame_count_button = QPushButton("(0)")
+        self.depenses_diverses_frame_count_button.setObjectName("FrameCountButton")
+        self.depenses_diverses_frame_count_button.setFlat(True)
+        self.depenses_diverses_frame_count_button.setCursor(Qt.PointingHandCursor)
+        self.depenses_diverses_frame_count_button.setToolTip("Filtrer par Dépenses")
+        self.depenses_diverses_frame_count_button.clicked.connect(functools.partial(self._set_filter_from_button, "Dépenses"))
         header_layout_depdiv.addWidget(title_label_depdiv)
         header_layout_depdiv.addStretch()
-        header_layout_depdiv.addWidget(self.depenses_diverses_frame_count_label)
+        header_layout_depdiv.addWidget(self.depenses_diverses_frame_count_button) # MODIFIÉ: Ajouter le bouton
         self.depenses_diverses_frame = Frame(header_widget=header_container_depdiv, parent=self)
         depenses_diverses_content_layout = self.depenses_diverses_frame.get_content_layout()
         depenses_diverses_form_layout = QFormLayout()
@@ -2758,17 +2780,34 @@ class RapportDepensePage(QWidget):
             n_depdiv = len(getattr(self.document, 'depenses_diverses', []))
             n_total = n_depl + n_repas + n_depdiv
 
-            # Mettre à jour les labels de compteur (vérification hasattr est bonne)
-            if hasattr(self, 'totals_frame_count_label'):
-                self.totals_frame_count_label.setText(f"({n_total})")
-            if hasattr(self, 'deplacement_frame_count_label'):
-                self.deplacement_frame_count_label.setText(f"({n_depl})")
-            if hasattr(self, 'repas_frame_count_label'):
-                self.repas_frame_count_label.setText(f"({n_repas})")
-            if hasattr(self, 'depenses_diverses_frame_count_label'):
-                self.depenses_diverses_frame_count_label.setText(f"({n_depdiv})")
+            # MODIFIÉ: Mettre à jour le texte des BOUTONS
+            if hasattr(self, 'totals_frame_count_button'):
+                self.totals_frame_count_button.setText(f"({n_total})")
+            if hasattr(self, 'deplacement_frame_count_button'):
+                self.deplacement_frame_count_button.setText(f"({n_depl})")
+            if hasattr(self, 'repas_frame_count_button'):
+                self.repas_frame_count_button.setText(f"({n_repas})")
+            if hasattr(self, 'depenses_diverses_frame_count_button'):
+                self.depenses_diverses_frame_count_button.setText(f"({n_depdiv})")
         except Exception as e:
             logger.error(f"Erreur dans _update_frame_titles_with_counts: {e}", exc_info=True)
+
+    # AJOUT: Nouvelle méthode pour gérer le clic sur les boutons compteurs
+    def _set_filter_from_button(self, filter_text):
+        """Met à jour le ComboBox de filtre en fonction du bouton cliqué."""
+        if not hasattr(self, 'filter_type_combo'):
+            logger.error("_set_filter_from_button: filter_type_combo n'existe pas.")
+            return
+
+        index = self.filter_type_combo.findText(filter_text)
+        if index != -1:
+            if self.filter_type_combo.currentIndex() != index:
+                self.filter_type_combo.setCurrentIndex(index)
+                logger.debug(f"Filtre défini sur '{filter_text}' via bouton compteur.")
+            else:
+                logger.debug(f"Filtre déjà sur '{filter_text}', clic ignoré.")
+        else:
+            logger.warning(f"Texte de filtre '{filter_text}' non trouvé dans filter_type_combo.")
 
 # --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT --- # DÉCOMMENTÉE (la deuxième définition, celle du bas du fichier)
     # def _update_deplacement_info_display(self): # COMMENTED OUT
