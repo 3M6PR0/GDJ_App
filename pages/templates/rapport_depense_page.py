@@ -39,6 +39,10 @@ import logging
 from models.config_data import ConfigData # DÉCOMMENTÉ & CORRIGÉ CHEMIN
 # -----------------------------
 
+# --- AJOUT IMPORT QMESSAGEBOX ---
+from PyQt5.QtWidgets import QMessageBox # AJOUT
+# -------------------------------
+
 # Supposer qu'une classe RapportDepense existe dans vos modèles
 # from models.documents.rapport_depense import RapportDepense
 
@@ -1035,6 +1039,34 @@ class RapportDepensePage(QWidget):
             self.form_fields['total_avant_taxes_btn'].setFixedSize(22, 22)
             self.form_fields['total_avant_taxes_btn'].setObjectName("CalcButton")
             self.form_fields['total_avant_taxes_btn'].setToolTip("Calculer le total avant taxes")
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['total_avant_taxes_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_avant_taxes): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal self.form_fields['total_avant_taxes_btn'].clicked
             # -------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -1059,6 +1091,34 @@ class RapportDepensePage(QWidget):
             self.form_fields['pourboire_btn'].setFixedSize(22, 22)
             self.form_fields['pourboire_btn'].setObjectName("CalcButton")
             self.form_fields['pourboire_btn'].setToolTip("Calculer le pourboire")
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['pourboire_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (pourboire): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal self.form_fields['pourboire_btn'].clicked
             # -----------------------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout pour Pourboire ---
@@ -1088,6 +1148,40 @@ class RapportDepensePage(QWidget):
                 self.form_fields[btn_key].setFixedSize(22, 22)
                 self.form_fields[btn_key].setObjectName("CalcButton")
                 self.form_fields[btn_key].setToolTip(f"Calculer la {tax_labels[i][:-1]}")
+                # --- AJOUT CONNEXION (Repas) ---
+                if key == 'tps':
+                    self.form_fields[btn_key].clicked.connect(functools.partial(self._calculate_tax, 'tps'))
+                elif key == 'tvq':
+                    self.form_fields[btn_key].clicked.connect(functools.partial(self._calculate_tax, 'tvq'))
+                # -------------------------------
+                # --- AJOUT: Style direct Python --- 
+                try:
+                    theme = get_theme_vars()
+                    accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                    accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                    text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                    radius = theme.get("RADIUS_DEFAULT", "4px")
+                    
+                    style_sheet = f"""
+                        QPushButton#CalcButton {{ 
+                            background-color: transparent; 
+                            border: none; 
+                            padding: 0px; 
+                            border-radius: {radius};
+                        }}
+                        QPushButton#CalcButton:hover {{ 
+                            background-color: {accent_color}; 
+                            color: {text_on_accent}; 
+                        }}
+                        QPushButton#CalcButton:pressed {{ 
+                            background-color: {accent_pressed}; 
+                            color: {text_on_accent}; 
+                        }}
+                    """
+                    self.form_fields[btn_key].setStyleSheet(style_sheet)
+                except Exception as e:
+                    logger.warning(f"Impossible d'appliquer le style direct au bouton calcul ({btn_key}): {e}")
+                # --- FIN AJOUT Style --- 
                 # TODO: Connecter signal self.form_fields[btn_key].clicked
                 # -------------------------
                 # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -1114,6 +1208,34 @@ class RapportDepensePage(QWidget):
             self.form_fields['total_apres_taxes_btn'].setFixedSize(22, 22)
             self.form_fields['total_apres_taxes_btn'].setObjectName("CalcButton")
             self.form_fields['total_apres_taxes_btn'].setToolTip("Calculer le total après taxes")
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['total_apres_taxes_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_apres_taxes): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal self.form_fields['total_apres_taxes_btn'].clicked
             # -------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -1341,6 +1463,34 @@ class RapportDepensePage(QWidget):
             self.form_fields['total_avant_taxes_dep_btn'].setFixedSize(22, 22)
             self.form_fields['total_avant_taxes_dep_btn'].setObjectName("CalcButton")
             self.form_fields['total_avant_taxes_dep_btn'].setToolTip("Calculer le total avant taxes")
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['total_avant_taxes_dep_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_avant_taxes_dep): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal
             # -------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -1366,6 +1516,37 @@ class RapportDepensePage(QWidget):
             self.form_fields['tps_dep_btn'].setFixedSize(22, 22)
             self.form_fields['tps_dep_btn'].setObjectName("CalcButton")
             self.form_fields['tps_dep_btn'].setToolTip("Calculer la TPS")
+            # --- AJOUT CONNEXION (Dépense TPS) ---
+            self.form_fields['tps_dep_btn'].clicked.connect(functools.partial(self._calculate_tax, 'tps'))
+            # -------------------------------------
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['tps_dep_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (tps_dep): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal
             # -------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -1391,6 +1572,37 @@ class RapportDepensePage(QWidget):
             self.form_fields['tvq_dep_btn'].setFixedSize(22, 22)
             self.form_fields['tvq_dep_btn'].setObjectName("CalcButton")
             self.form_fields['tvq_dep_btn'].setToolTip("Calculer la TVQ")
+            # --- AJOUT CONNEXION (Dépense TVQ) ---
+            self.form_fields['tvq_dep_btn'].clicked.connect(functools.partial(self._calculate_tax, 'tvq'))
+            # -------------------------------------
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['tvq_dep_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (tvq_dep): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal
             # -------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -1416,6 +1628,34 @@ class RapportDepensePage(QWidget):
             self.form_fields['tvh_dep_btn'].setFixedSize(22, 22)
             self.form_fields['tvh_dep_btn'].setObjectName("CalcButton")
             self.form_fields['tvh_dep_btn'].setToolTip("Calculer la TVH")
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['tvh_dep_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (tvh_dep): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal
             # -------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -1441,6 +1681,34 @@ class RapportDepensePage(QWidget):
             self.form_fields['total_apres_taxes_dep_btn'].setFixedSize(22, 22)
             self.form_fields['total_apres_taxes_dep_btn'].setObjectName("CalcButton")
             self.form_fields['total_apres_taxes_dep_btn'].setToolTip("Calculer le total après taxes")
+            # --- AJOUT: Style direct Python --- 
+            try:
+                theme = get_theme_vars()
+                accent_color = theme.get("COLOR_ACCENT", "#007ACC")
+                accent_pressed = theme.get("COLOR_ACCENT_PRESSED", "#005A9E")
+                text_on_accent = theme.get("COLOR_TEXT_ON_ACCENT", "#FFFFFF")
+                radius = theme.get("RADIUS_DEFAULT", "4px")
+                
+                style_sheet = f"""
+                    QPushButton#CalcButton {{ 
+                        background-color: transparent; 
+                        border: none; 
+                        padding: 0px; 
+                        border-radius: {radius};
+                    }}
+                    QPushButton#CalcButton:hover {{ 
+                        background-color: {accent_color}; 
+                        color: {text_on_accent}; 
+                    }}
+                    QPushButton#CalcButton:pressed {{ 
+                        background-color: {accent_pressed}; 
+                        color: {text_on_accent}; 
+                    }}
+                """
+                self.form_fields['total_apres_taxes_dep_btn'].setStyleSheet(style_sheet)
+            except Exception as e:
+                logger.warning(f"Impossible d'appliquer le style direct au bouton calcul (total_apres_taxes_dep): {e}")
+            # --- FIN AJOUT Style --- 
             # TODO: Connecter signal
             # -------------------------
             # --- NOUVEAU: Utiliser QHBoxLayout ---
@@ -2994,43 +3262,88 @@ class RapportDepensePage(QWidget):
         else:
             logger.warning(f"Texte de filtre '{filter_text}' non trouvé dans filter_type_combo.")
 
-# --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT --- # DÉCOMMENTÉE (la deuxième définition, celle du bas du fichier)
-    # def _update_deplacement_info_display(self): # COMMENTED OUT
-    #     logger.debug("Mise à jour des informations du cadre Déplacement.")
-    #     config_data = ConfigData.get_instance()
-    #     
-    #     # Taux de remboursement
-    #     try:
-    #         taux_remboursement_str = config_data.get_valeur_config('taux_remboursement_deplacement', '0.0')
-    #         taux_remboursement = float(taux_remboursement_str)
-    #         self.taux_remboursement_label_value.setText(f"{taux_remboursement*100:.0f} %") # MODIFIÉ
-    #     except ValueError:
-    #         # taux_remboursement = 0.0 # Inutile si on ne l'utilise pas plus loin
-    #         self.taux_remboursement_label_value.setText("Erreur (taux)") # MODIFIÉ
-    #         logger.error("Valeur invalide pour taux_remboursement_deplacement dans ConfigData.")
-    #     
-    #     # Plafond spécifique au document
-    #     try:
-    #         plafond_document_val = self.document.get_data().get('plafond_deplacement') 
-    #         if plafond_document_val is None:
-    #             plafond_document_str = config_data.get_valeur_config('plafond_deplacement_par_defaut', '0.0')
-    #             plafond_document = float(plafond_document_str)
-    #             self.plafond_label_value.setText(f"{plafond_document:.2f} $ (défaut)") # MODIFIÉ
-    #         else:
-    #             plafond_document = float(plafond_document_val) # Assurer que c'est un float
-    #             self.plafond_label_value.setText(f"{plafond_document:.2f} $") # MODIFIÉ
+    # --- AJOUT: Logique pour boutons Calculatrice --- 
+    def _calculate_tax(self, tax_type: str):
+        """Calcule la taxe (TPS ou TVQ) en fonction des totaux saisis."""
+        entry_type = self.entry_type_combo.currentText()
+        prefix = '' if entry_type == "Repas" else '_dep'
 
-    #     except ValueError:
-    #         # plafond_document = 0.0 # Inutile
-    #         self.plafond_label_value.setText("Erreur (plafond)") # MODIFIÉ
-    #         logger.error("Valeur invalide pour plafond_deplacement dans les données du document ou ConfigData.")
-    #     except AttributeError:
-    #         # plafond_document = 0.0 # Inutile
-    #         self.plafond_label_value.setText("Erreur (doc data)") # MODIFIÉ
-    #         logger.error("Impossible d'accéder à get_data() ou 'plafond_deplacement' sur self.document.")
+        total_avant_taxes_key = f'total_avant_taxes{prefix}'
+        total_apres_taxes_key = f'total_apres_taxes{prefix}'
+        tax_field_key = f'{tax_type}{prefix}'
 
-    # # Calcul du Montant Remboursable - SUPPRIMÉ
-    # --- FIN NOUVELLE MÉTHODE --- # DÉCOMMENTÉE
+        try:
+            total_avant_taxes_widget = self.form_fields.get(total_avant_taxes_key)
+            total_apres_taxes_widget = self.form_fields.get(total_apres_taxes_key)
+            tax_widget = self.form_fields.get(tax_field_key)
+
+            if not all([total_avant_taxes_widget, total_apres_taxes_widget, tax_widget]):
+                logger.error(f"Erreur: Un ou plusieurs widgets n'ont pas été trouvés pour le calcul de la taxe {tax_type} pour {entry_type}.")
+                QMessageBox.critical(self, "Erreur de Widget", "Impossible de trouver les champs nécessaires pour le calcul.")
+                return
+
+            total_avant_tx = total_avant_taxes_widget.value()
+            total_apres_tx = total_apres_taxes_widget.value()
+            tolerance = 1e-6
+
+            # i. Si les deux totaux sont (presque) zéro, ne rien faire
+            if abs(total_avant_tx) < tolerance and abs(total_apres_tx) < tolerance:
+                logger.debug(f"Calcul de {tax_type}: Total avant et après taxes sont à zéro. Aucune action.")
+                return
+
+            # ii. Si seul Total Avant Taxes est saisi
+            if abs(total_apres_tx) < tolerance and abs(total_avant_tx) > tolerance:
+                logger.debug(f"Calcul de {tax_type}: Utilisation du Total avant taxes ({total_avant_tx}).")
+                try:
+                    config_instance = ConfigData.get_instance()
+                    config_data = config_instance.all_data # CORRECTION: Accéder à la propriété all_data sans parenthèses
+                    # Accéder aux taux globaux
+                    # CORRECTION: Utiliser les clés "TPS" et "TVQ" au lieu de "taux_tps"/"taux_tvq"
+                    tax_key = tax_type.upper() # Convertit 'tps' -> 'TPS', 'tvq' -> 'TVQ'
+                    taux_str = config_data['documents']['Global'][0].get(tax_key)
+                    if taux_str is None:
+                        raise KeyError(f"Le taux '{tax_key}' n'est pas défini dans config_data.json")
+
+                    taux = float(taux_str)
+                    taxe_calculee = total_avant_tx * taux
+
+                    tax_widget.setValue(taxe_calculee)
+                    logger.info(f"{tax_type.upper()} calculée ({taxe_calculee:.2f}) à partir du total avant taxes ({total_avant_tx:.2f}) avec un taux de {taux:.2%}")
+
+                except (KeyError, IndexError, ValueError, TypeError) as e:
+                    error_msg = f"Erreur lors de la récupération ou conversion du taux de {tax_type}: {e}\nVérifiez la structure et le contenu de 'data/config_data.json' (chemin: documents.Global[0].taux_{tax_type})"
+                    logger.exception(error_msg) # Utilise logger.exception pour inclure le traceback
+                    QMessageBox.critical(self, f"Erreur de Configuration - Taux {tax_type.upper()}", error_msg)
+                except Exception as e:
+                    error_msg = f"Une erreur inattendue est survenue lors du calcul de la {tax_type}: {e}"
+                    logger.exception(error_msg)
+                    QMessageBox.critical(self, "Erreur Inattendue", error_msg)
+
+            # iii. Si seul Total Après Taxes est saisi (Placeholder)
+            elif abs(total_avant_tx) < tolerance and abs(total_apres_tx) > tolerance:
+                logger.warning(f"Calcul de {tax_type}: Logique non implémentée pour calcul à partir du Total après taxes seul.")
+                # TODO: Implémenter la logique inverse si nécessaire (moins courant)
+                # Exemple : taxe = total_apres_tx * (taux / (1 + taux)) # Attention aux taux combinés pour TVQ
+                QMessageBox.information(self, "Fonctionnalité non disponible",
+                                        f"Le calcul de la {tax_type.upper()} à partir du total après taxes uniquement n'est pas encore implémenté.")
+                pass
+
+            # iv. Si les deux totaux sont saisis (Placeholder)
+            elif abs(total_avant_tx) > tolerance and abs(total_apres_tx) > tolerance:
+                logger.warning(f"Calcul de {tax_type}: Logique non implémentée lorsque les deux totaux sont saisis.")
+                # TODO: Décider quelle logique appliquer (ignorer, valider, recalculer ?)
+                QMessageBox.information(self, "Action non définie",
+                                        f"Le calcul automatique de la {tax_type.upper()} n'est pas effectué lorsque le total avant ET après taxes sont déjà remplis.")
+                pass
+
+        except Exception as e:
+            error_msg = f"Une erreur générale est survenue dans _calculate_tax pour {tax_type}: {e}"
+            logger.exception(error_msg)
+            QMessageBox.critical(self, "Erreur Générale", error_msg)
+
+# --- Fin de la classe RapportDepensePage ---
+
+# --- Section Test (si exécuté comme script principal) --- REMOVED MOCK CLASS DUPLICATE ---
 
 # Bloc de test simple
 if __name__ == '__main__':
