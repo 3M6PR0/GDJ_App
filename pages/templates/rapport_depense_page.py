@@ -254,16 +254,16 @@ class RapportDepensePage(QWidget):
         # --- RECREATION: Section Montant (en bas du formulaire) ---
         montant_section_layout = QHBoxLayout()
         montant_section_layout.setContentsMargins(0, 10, 0, 5) # Ajouter un peu d'espace au-dessus
-        # montant_section_layout.addStretch(1) # SUPPRIMÉ pour occuper toute la largeur
+        # montant_section_layout.addStretch(1) # SUPPRIMÉ: Ne plus pousser les deux labels
         montant_label = QLabel("Montant:")
-        montant_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) # MODIFIÉ: AlignLeft
+        montant_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) # REMIS: AlignLeft
         self.montant_display_label = QLabel("0.00 $") 
-        self.montant_display_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) 
+        self.montant_display_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) # CONSERVÉ: AlignRight
         self.montant_display_label.setStyleSheet("font-weight: bold;") 
         montant_section_layout.addWidget(montant_label)
-        montant_section_layout.addSpacing(10) # Espace entre label et valeur
+        montant_section_layout.addStretch(1) # AJOUTÉ ICI: Pousse la valeur vers la droite
+        montant_section_layout.addSpacing(10) # Espace entre stretch et valeur (optionnel, mais peut aider visuellement)
         montant_section_layout.addWidget(self.montant_display_label)
-        montant_section_layout.addStretch(1) # CONSERVÉ: Pousse le label et la valeur vers la gauche
         # Ajouter cette section au layout principal du frame d'ajout
         add_entry_content_layout.addLayout(montant_section_layout) 
         # ---------------------------------------------------------
@@ -965,6 +965,9 @@ class RapportDepensePage(QWidget):
             self.form_fields['payeur_employe'].setChecked(True)
             self.payeur_group.addButton(self.form_fields['payeur_employe'])
             self.payeur_group.addButton(self.form_fields['payeur_jacmar'])
+            # --- AJOUT CONNEXION PAYEUR (Repas) ---
+            self.form_fields['payeur_employe'].toggled.connect(self._update_montant_display)
+            # -------------------------------------
             payeur_grid.addWidget(self.form_fields['payeur_employe'], 0, 0)
             payeur_grid.addWidget(self.form_fields['payeur_jacmar'], 0, 1)
             payeur_grid.setColumnStretch(0, 1)
@@ -1253,6 +1256,8 @@ class RapportDepensePage(QWidget):
             # --- Le reste (connexion signal) est inchangé --- 
             self.total_apres_taxes_field = self.form_fields['total_apres_taxes']
             # MODIFIÉ: Connecter valueChanged au lieu de textChanged
+            try: self.total_apres_taxes_field.valueChanged.disconnect() # Déconnecter ancien signal d'abord
+            except TypeError: pass
             self.total_apres_taxes_field.valueChanged.connect(self._update_montant_display) 
 
             # --- MODIFICATION: Section Facture UTILISANT le Frame Existant --- 
@@ -1441,6 +1446,9 @@ class RapportDepensePage(QWidget):
             self.form_fields['payeur_employe_dep'].setChecked(True)
             self.depense_payeur_group.addButton(self.form_fields['payeur_employe_dep'])
             self.depense_payeur_group.addButton(self.form_fields['payeur_jacmar_dep'])
+            # --- AJOUT CONNEXION PAYEUR (Dépense) ---
+            self.form_fields['payeur_employe_dep'].toggled.connect(self._update_montant_display)
+            # -------------------------------------
             
             payeur_grid_dep.addWidget(self.form_fields['payeur_employe_dep'], 0, 0)
             payeur_grid_dep.addWidget(self.form_fields['payeur_jacmar_dep'], 0, 1)
@@ -1810,24 +1818,90 @@ class RapportDepensePage(QWidget):
         # --- Réinitialiser la liste des miniatures --- 
         # Ceci est déjà fait à la fin de _update_entry_form, pas besoin de le répéter ici.
 
+        # --- Réinitialiser la liste des miniatures --- 
+        # --- APPEL INITIAL pour mettre à jour le montant après création du formulaire --- 
+        self._update_montant_display()
+        # ----------------------------------------------------------------------------
+        
         # Ajouter un espace vertical avant le montant total
         self.dynamic_form_layout.addItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Expanding), current_row, 0, 1, 2)
         current_row += 1
         
         # ... (reste _update_entry_form: montant, politique taille) ...
 
-    def _update_montant_display(self, value):
-        """ Met à jour le label montant dans la colonne de droite. """
-        if hasattr(self, 'montant_display_label') and self.montant_display_label:
-            # --- Lire depuis le QLineEdit et convertir --- 
-            try:
-                # Remplacer la virgule par un point si nécessaire pour float()
-                numeric_value = float(str(value).replace(',', '.'))
-                self.montant_display_label.setText(f"{numeric_value:.2f} $")
-            except ValueError:
-                # Si la valeur n'est pas un nombre valide (ex: vide ou '-'), afficher 0.00
-                self.montant_display_label.setText("0.00 $")
-            # -------------------------------------------
+    def _update_montant_display(self, _=None): # L'argument est ignoré, on lit directement les champs
+        """ Met à jour le label montant en bas du formulaire selon le type d'entrée et les valeurs. """
+        if not hasattr(self, 'montant_display_label') or not self.montant_display_label:
+            return
+
+        entry_type = self.entry_type_combo.currentText()
+        prefix_text = ""
+        montant_val = 0.0
+        tolerance = 1e-6
+
+        try:
+            if entry_type == "Déplacement":
+                prefix_text = "Employé"
+                kilometrage_widget = self.form_fields.get('kilometrage')
+                if kilometrage_widget and hasattr(kilometrage_widget, 'value'):
+                    kilometrage = kilometrage_widget.value()
+                    
+                    # Récupérer le taux de remboursement depuis ConfigData
+                    taux_remboursement = 0.0
+                    try:
+                        config_instance = ConfigData.get_instance()
+                        config = config_instance.all_data
+                        documents_config = config.get("documents", {})
+                        rapport_depense_config = documents_config.get("rapport_depense", [{}])
+                        if rapport_depense_config and isinstance(rapport_depense_config, list) and len(rapport_depense_config) > 0:
+                            taux_remboursement_str = str(rapport_depense_config[0].get('Taux_remboursement', '0.0'))
+                            taux_remboursement = float(taux_remboursement_str)
+                    except Exception as e_taux:
+                        logger.error(f"Erreur récupération taux remboursement pour _update_montant_display: {e_taux}")
+                    
+                    montant_val = kilometrage * taux_remboursement
+                else:
+                    logger.debug("_update_montant_display (Déplacement): widget kilometrage non trouvé.")
+
+            elif entry_type == "Repas":
+                total_apres_taxes_widget = self.form_fields.get('total_apres_taxes')
+                payeur_employe_widget = self.form_fields.get('payeur_employe')
+
+                if total_apres_taxes_widget and hasattr(total_apres_taxes_widget, 'value'):
+                    montant_val = total_apres_taxes_widget.value()
+                else:
+                    logger.debug("_update_montant_display (Repas): widget total_apres_taxes non trouvé.")
+                
+                if payeur_employe_widget and hasattr(payeur_employe_widget, 'isChecked'):
+                    prefix_text = "Employé" if payeur_employe_widget.isChecked() else "Jacmar"
+                else:
+                    prefix_text = "Employé" # Fallback
+                    logger.debug("_update_montant_display (Repas): widget payeur_employe non trouvé.")
+
+            elif entry_type == "Dépense":
+                total_apres_taxes_widget_dep = self.form_fields.get('total_apres_taxes_dep')
+                payeur_employe_widget_dep = self.form_fields.get('payeur_employe_dep')
+
+                if total_apres_taxes_widget_dep and hasattr(total_apres_taxes_widget_dep, 'value'):
+                    montant_val = total_apres_taxes_widget_dep.value()
+                else:
+                    logger.debug("_update_montant_display (Dépense): widget total_apres_taxes_dep non trouvé.")
+                
+                if payeur_employe_widget_dep and hasattr(payeur_employe_widget_dep, 'isChecked'):
+                    prefix_text = "Employé" if payeur_employe_widget_dep.isChecked() else "Jacmar"
+                else:
+                    prefix_text = "Employé" # Fallback
+                    logger.debug("_update_montant_display (Dépense): widget payeur_employe_dep non trouvé.")
+            else:
+                 # Cas où le formulaire n'est pas encore complètement initialisé ou type inconnu
+                 self.montant_display_label.setText("0.00 $")
+                 return
+
+            self.montant_display_label.setText(f"{prefix_text} {montant_val:.2f} $")
+
+        except Exception as e:
+            logger.error(f"Erreur dans _update_montant_display: {e}", exc_info=True)
+            self.montant_display_label.setText("Erreur")
 
     def _clear_entry_form(self):
         """ Efface les champs du formulaire actuel (gauche ET reset le label montant). """
