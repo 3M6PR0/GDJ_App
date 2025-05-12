@@ -51,7 +51,7 @@ class CardWidget(QFrame):
         # --- AJOUT: Indicateur de facture (Label avec icône visible/transparente) ---
         self.facture_icon_label = QLabel() 
         self.facture_icon_label.setObjectName("FactureIndicatorLabel")
-        self.facture_icon_label.setFixedSize(18, 18) # Taille fixe
+        self.facture_icon_label.setFixedSize(20, 20) # MODIFIÉ: Taille 20x20 (comme l'icône de type)
         # self.facture_icon_label.setVisible(False) # SUPPRIMÉ: Toujours visible
         self.facture_icon_label.setStyleSheet("background-color: transparent; border: none;") 
         # Tooltip sera défini dynamiquement dans _setup_ui
@@ -269,7 +269,7 @@ class CardWidget(QFrame):
         self.expand_button.toggled.connect(self._toggle_details)
 
         # --- CRÉATION DES PIXMAPS ICI --- 
-        icon_size = QSize(16, 16) # Taille de l'icône pour le pixmap
+        icon_size = QSize(18, 18) # MODIFIÉ: Taille 18x18 (comme le pixmap de type)
         
         # Pixmap visible (icône rouge ou fallback)
         icon_path = get_icon_path("round_receipt_red.png")
