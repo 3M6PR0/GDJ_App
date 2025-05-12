@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QFrame, QFormLayout, QGridLayout,
-                             QMenu, QAction)
+                             QMenu, QAction, QSizePolicy)
 from PyQt5.QtCore import Qt, pyqtSlot as Slot, QSize, pyqtSignal, QPoint
 from PyQt5.QtGui import QIcon
 from datetime import date
@@ -121,20 +121,54 @@ class CardWidget(QFrame):
         amount_val = getattr(self.entry_data, 'total', getattr(self.entry_data, 'totale_apres_taxes', getattr(self.entry_data, 'montant', None)))
 
         if date_val:
-            # Tenter de formater la date
             try:
                 date_str = date_val.strftime("%Y-%m-%d")
             except AttributeError:
-                 date_str = str(date_val) # Fallback si pas un objet date
+                 date_str = str(date_val)
         if amount_val is not None:
             try:
                 amount_str = f"{float(amount_val):.2f} $"
             except (ValueError, TypeError):
-                amount_str = str(amount_val) # Fallback
+                amount_str = str(amount_val)
 
-        summary_info = f"{date_str} - {self.entry_type} - {amount_str}"
-        info_label = QLabel(summary_info)
-        info_label.setStyleSheet("font-weight: bold; background-color: transparent; border: none;") # Forcer transparence
+        # --- Résumé personnalisé selon le type ---
+        summary_columns = []
+        if self.entry_type == "Déplacement":
+            client = getattr(self.entry_data, 'client', "?")
+            kilometrage = getattr(self.entry_data, 'kilometrage', None)
+            try:
+                km_str = f"{float(kilometrage):.1f} km" if kilometrage is not None else "? km"
+            except (ValueError, TypeError):
+                km_str = f"{kilometrage} km"
+            summary_columns = [date_str, client, km_str, amount_str]
+        elif self.entry_type == "Repas":
+            client = getattr(self.entry_data, 'client', "?")
+            restaurant = getattr(self.entry_data, 'restaurant', "?")
+            summary_columns = [date_str, client, restaurant, amount_str]
+        elif self.entry_type == "Dépense":
+            fournisseur = getattr(self.entry_data, 'fournisseur', "?")
+            description = getattr(self.entry_data, 'description', "?")
+            summary_columns = [date_str, fournisseur, description, amount_str]
+        else:
+            summary_columns = [date_str, self.entry_type, amount_str]
+
+        # --- Affichage en colonnes de largeur égale ---
+        summary_layout_columns = QHBoxLayout()
+        summary_layout_columns.setContentsMargins(0, 0, 0, 0)
+        summary_layout_columns.setSpacing(10)
+        col_count = len(summary_columns)
+        col_width = 180  # Largeur fixe par colonne (plus large)
+        for col_text in summary_columns:
+            col_label = QLabel(str(col_text))
+            col_label.setStyleSheet("font-weight: bold; background-color: transparent; border: none;")
+            col_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            col_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)  # Expansion horizontale
+            summary_layout_columns.addWidget(col_label)
+        # --- Fin affichage en colonnes ---
+
+        # Remplacer l'ancien info_label par le layout de colonnes
+        # summary_layout.addWidget(info_label)
+        summary_layout.addLayout(summary_layout_columns)
 
         # --- Obtenir les variables de thème POUR le style inline des boutons --- 
         theme = get_theme_vars()
@@ -206,10 +240,8 @@ class CardWidget(QFrame):
         # ---------------------------------------------------
         self.expand_button.toggled.connect(self._toggle_details)
 
-        summary_layout.addWidget(info_label)        # Info à gauche
-        summary_layout.addStretch(1)                # Espace extensible
-        summary_layout.addWidget(self.expand_button) # Bouton expand/collapse d'abord
-        summary_layout.addWidget(self.options_button) # Bouton options ensuite (à droite)
+        summary_layout.addWidget(self.options_button)        # Bouton options à droite
+        summary_layout.addWidget(self.expand_button)           # Bouton expand/collapse
         
         # Assurer que le widget de résumé est transparent
         summary_widget.setStyleSheet("background-color: transparent; border: none;")
