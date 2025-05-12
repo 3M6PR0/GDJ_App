@@ -638,6 +638,12 @@ class CustomDateEdit(QWidget):
 
         return super().eventFilter(watched, event)
 
+    def closeEvent(self, event):
+        app = QApplication.instance()
+        if app:
+            app.removeEventFilter(self)
+        super().closeEvent(event)
+
     # Il serait bon de désinstaller le filtre dans __del__ ou un équivalent,
     # mais pour simplifier, on suppose que CustomDateEdit vit aussi longtemps que l'application
     # ou est correctement géré par son parent.

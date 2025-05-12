@@ -123,7 +123,21 @@ class RapportDepensePage(QWidget):
         content_layout.setSpacing(15)
 
         # --- Section Supérieure: Totaux ---
-        self.totals_frame = Frame("Totaux", self)
+        # Créer le header personnalisé
+        header_container_total = QWidget()
+        header_container_total.setObjectName("FrameHeaderContainer")
+        header_layout_total = QHBoxLayout(header_container_total)
+        header_layout_total.setContentsMargins(15, 8, 15, 8)
+        header_layout_total.setSpacing(8)
+        title_label_total = QLabel("Totaux")
+        title_label_total.setObjectName("CustomFrameTitle") # Garder le nom pour le style QSS
+        self.totals_frame_count_label = QLabel("(0)") # Créer et stocker le label compteur
+        self.totals_frame_count_label.setStyleSheet("font-weight: normal; color: gray;") # Style simple
+        header_layout_total.addWidget(title_label_total)
+        header_layout_total.addStretch()
+        header_layout_total.addWidget(self.totals_frame_count_label)
+        # Créer le Frame avec le header personnalisé
+        self.totals_frame = Frame(header_widget=header_container_total, parent=self)
         totals_content_layout = self.totals_frame.get_content_layout()
         
         # Utiliser un QFormLayout pour les totaux
@@ -410,7 +424,19 @@ class RapportDepensePage(QWidget):
         bottom_frames_layout.addWidget(self.totals_frame, 1) # Stretch factor 1
 
         # --- Nouveau Cadre: Déplacement ---
-        self.deplacement_frame = Frame("Déplacement", self)
+        header_container_depl = QWidget()
+        header_container_depl.setObjectName("FrameHeaderContainer")
+        header_layout_depl = QHBoxLayout(header_container_depl)
+        header_layout_depl.setContentsMargins(15, 8, 15, 8)
+        header_layout_depl.setSpacing(8)
+        title_label_depl = QLabel("Déplacement")
+        title_label_depl.setObjectName("CustomFrameTitle")
+        self.deplacement_frame_count_label = QLabel("(0)")
+        self.deplacement_frame_count_label.setStyleSheet("font-weight: normal; color: gray;")
+        header_layout_depl.addWidget(title_label_depl)
+        header_layout_depl.addStretch()
+        header_layout_depl.addWidget(self.deplacement_frame_count_label)
+        self.deplacement_frame = Frame(header_widget=header_container_depl, parent=self)
         deplacement_content_layout = self.deplacement_frame.get_content_layout()
         
         deplacement_form_layout = QFormLayout()
@@ -446,7 +472,19 @@ class RapportDepensePage(QWidget):
         bottom_frames_layout.addWidget(self.deplacement_frame, 1) # Stretch factor 1 pour équilibrer avec Totaux
 
         # --- Nouveau Cadre: Repas ---
-        self.repas_frame = Frame("Repas", self)
+        header_container_repas = QWidget()
+        header_container_repas.setObjectName("FrameHeaderContainer")
+        header_layout_repas = QHBoxLayout(header_container_repas)
+        header_layout_repas.setContentsMargins(15, 8, 15, 8)
+        header_layout_repas.setSpacing(8)
+        title_label_repas = QLabel("Repas")
+        title_label_repas.setObjectName("CustomFrameTitle")
+        self.repas_frame_count_label = QLabel("(0)")
+        self.repas_frame_count_label.setStyleSheet("font-weight: normal; color: gray;")
+        header_layout_repas.addWidget(title_label_repas)
+        header_layout_repas.addStretch()
+        header_layout_repas.addWidget(self.repas_frame_count_label)
+        self.repas_frame = Frame(header_widget=header_container_repas, parent=self)
         repas_content_layout = self.repas_frame.get_content_layout()
         repas_form_layout = QFormLayout()
         repas_form_layout.setSpacing(8)
@@ -467,7 +505,19 @@ class RapportDepensePage(QWidget):
         bottom_frames_layout.addWidget(self.repas_frame, 1) # Stretch factor 1
 
         # --- Nouveau Cadre: Dépenses Diverses ---
-        self.depenses_diverses_frame = Frame("Dépenses Diverses", self)
+        header_container_depdiv = QWidget()
+        header_container_depdiv.setObjectName("FrameHeaderContainer")
+        header_layout_depdiv = QHBoxLayout(header_container_depdiv)
+        header_layout_depdiv.setContentsMargins(15, 8, 15, 8)
+        header_layout_depdiv.setSpacing(8)
+        title_label_depdiv = QLabel("Dépenses Diverses")
+        title_label_depdiv.setObjectName("CustomFrameTitle")
+        self.depenses_diverses_frame_count_label = QLabel("(0)")
+        self.depenses_diverses_frame_count_label.setStyleSheet("font-weight: normal; color: gray;")
+        header_layout_depdiv.addWidget(title_label_depdiv)
+        header_layout_depdiv.addStretch()
+        header_layout_depdiv.addWidget(self.depenses_diverses_frame_count_label)
+        self.depenses_diverses_frame = Frame(header_widget=header_container_depdiv, parent=self)
         depenses_diverses_content_layout = self.depenses_diverses_frame.get_content_layout()
         depenses_diverses_form_layout = QFormLayout()
         depenses_diverses_form_layout.setSpacing(8)
@@ -1509,14 +1559,14 @@ class RapportDepensePage(QWidget):
                  self.document.ajouter_depense(new_entry)
 
             if new_entry: # Si une entrée a été créée
-                # print(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
-                logger.debug(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
-                self._clear_entry_form() 
-                # --- MODIFICATION: Appeler la méthode de tri/filtrage --- 
+                logger.debug(f"Entrée ajoutée au document: {new_entry}")
+                self._clear_entry_form()
                 self._apply_sorting_and_filtering() # Rafraîchir la liste affichée
-                # ------------------------------------------------------
-                self._update_totals_display() 
-                # QMessageBox.information(self, "Succès", f"{entry_type} ajouté avec succès.") # Commenté
+                self._update_totals_display()
+                self._update_frame_titles_with_counts()  # MAJ titres après ajout
+                # print(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
+                logger.info(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
+                signals.document_modified.emit()
 
         except KeyError as e:
              QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire: {e}. Le formulaire pour '{entry_type}' est peut-être incomplet.")
@@ -2040,12 +2090,10 @@ class RapportDepensePage(QWidget):
                 logger.warning(f"Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}") # MODIFICATION
 
             if removed:
-                # Mettre à jour les totaux affichés
                 self._update_totals_display()
-                # Rafraîchir la liste des cartes (qui inclut maintenant le filtrage/tri)
                 self._apply_sorting_and_filtering()
-                # Émettre un signal si d'autres parties de l'application doivent savoir que les données ont changé
                 signals.document_modified.emit()
+                self._update_frame_titles_with_counts()  # MAJ titres après suppression
             else:
                 QMessageBox.warning(self, "Erreur", "L'entrée à supprimer n'a pas été trouvée dans le document.")
 
@@ -2093,12 +2141,11 @@ class RapportDepensePage(QWidget):
                 QMessageBox.warning(self, "Type Inconnu", f"Impossible de dupliquer l'entrée de type {entry_type}.")
 
             if added:
-                # print(f"Entrée dupliquée ajoutée au document: {new_entry}") # MODIFICATION
-                logger.info(f"Entrée dupliquée ajoutée au document: {new_entry}") # MODIFICATION
-                # Mettre à jour l'affichage
+                logger.info(f"Entrée dupliquée ajoutée au document: {new_entry}")
                 self._update_totals_display()
                 self._apply_sorting_and_filtering()
                 signals.document_modified.emit()
+                self._update_frame_titles_with_counts() # MAJ titres après duplication
                 # Optionnel: Sélectionner/scroller vers la nouvelle carte?
 
         except Exception as e:
@@ -2656,6 +2703,26 @@ class RapportDepensePage(QWidget):
     def _update_totals_display(self):
         # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
         pass 
+
+    def _update_frame_titles_with_counts(self):
+        """Met à jour dynamiquement les labels de compteur des frames du bas."""
+        try:
+            n_depl = len(getattr(self.document, 'deplacements', []))
+            n_repas = len(getattr(self.document, 'repas', []))
+            n_depdiv = len(getattr(self.document, 'depenses_diverses', []))
+            n_total = n_depl + n_repas + n_depdiv
+
+            # Mettre à jour les labels de compteur (vérification hasattr est bonne)
+            if hasattr(self, 'totals_frame_count_label'):
+                self.totals_frame_count_label.setText(f"({n_total})")
+            if hasattr(self, 'deplacement_frame_count_label'):
+                self.deplacement_frame_count_label.setText(f"({n_depl})")
+            if hasattr(self, 'repas_frame_count_label'):
+                self.repas_frame_count_label.setText(f"({n_repas})")
+            if hasattr(self, 'depenses_diverses_frame_count_label'):
+                self.depenses_diverses_frame_count_label.setText(f"({n_depdiv})")
+        except Exception as e:
+            logger.error(f"Erreur dans _update_frame_titles_with_counts: {e}", exc_info=True)
 
 # --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT --- # DÉCOMMENTÉE (la deuxième définition, celle du bas du fichier)
     # def _update_deplacement_info_display(self): # COMMENTED OUT
