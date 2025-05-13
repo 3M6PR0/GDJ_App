@@ -1,424 +1,502 @@
-from fpdf import FPDF
+from weasyprint import HTML, CSS
+# from weasyprint.fonts import FontConfiguration # Ancienne importation incorrecte
+from weasyprint.text.fonts import FontConfiguration # Importation corrigée
 from typing import TYPE_CHECKING, List
-import os # Ajout pour la gestion des chemins
+import os
 
-# --- Importation conditionnelle pour éviter les dépendances circulaires lors de la vérification des types ---
+# --- Importation conditionnelle pour éviter les dépendances circulaires ---
 if TYPE_CHECKING:
     from models.document import Document # Classe de base hypothétique
     from models.documents.rapport_depense.rapport_depense import RapportDepense
     from models.documents.rapport_depense.deplacement import Deplacement
     from models.documents.rapport_depense.repas import Repas
     from models.documents.rapport_depense.depense import Depense
-    # from models.documents.autre_type.autre_type import AutreTypeDocument # Pour le futur
 
 class DocumentPDFPrinter:
-    """Gère la génération de PDF pour différents types de documents."""
+    """Gère la génération de PDF pour différents types de documents en utilisant HTML et WeasyPrint."""
 
-    def __init__(self):
-        self.col_widths = [] # Sera défini dans chaque méthode de section de tableau
+    def _get_base_css(self) -> str:
+        """Retourne les styles CSS de base pour le document."""
+        # Styles CSS pour la facture. Peuvent être étendus.
+        return """
+            @page {
+                size: A4;
+                margin: 1.5cm;
+                @bottom-center {
+                    content: "Page " counter(page) " of " counter(pages);
+                    font-size: 10pt;
+                }
+            }
+            body {
+                font-family: 'Arial', sans-serif; /* Utiliser une police commune */
+                font-size: 10pt;
+                color: #333;
+            }
+            .header-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #007bff; /* Couleur bleue Jacmar */
+                padding-bottom: 10px;
+            }
+            .header-container img.logo {
+                max-height: 70px; /* Ajuster selon la taille du logo */
+                max-width: 250px; /* Ajuster */
+            }
+            .header-container .title {
+                text-align: right;
+            }
+            .header-container h1 {
+                color: #007bff; /* Couleur bleue Jacmar */
+                margin: 0;
+                font-size: 24pt;
+                font-weight: bold;
+            }
+            .header-container .user-info p {
+                margin: 2px 0;
+                font-size: 9pt;
+                text-align: right;
+            }
+            .rapport-info-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 25px;
+            }
+            .rapport-info-table th, .rapport-info-table td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+                font-size: 9pt;
+            }
+            .rapport-info-table th {
+                background-color: #f2f2f2; /* Fond gris clair pour les en-têtes de tableau d'info */
+                width: 30%;
+                font-weight: bold;
+            }
+            .section-title {
+                font-size: 16pt;
+                color: #0056b3; /* Bleu plus foncé */
+                margin-top: 20px;
+                margin-bottom: 10px;
+                padding-bottom: 5px;
+                border-bottom: 1px solid #0056b3;
+            }
+            table.data-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+                font-size: 8pt; /* Taille de police plus petite pour les tableaux de données */
+                table-layout: fixed; /* Force les largeurs de colonnes à être respectées */
+            }
+            table.data-table th, table.data-table td {
+                border: 1px solid #ccc;
+                padding: 4px; /* Léger ajustement du padding */
+                text-align: left;
+                word-wrap: break-word; /* Permet au texte de wrapper */
+                overflow-wrap: break-word; /* Alternative moderne pour word-wrap */
+                vertical-align: top; /* Aligner le texte en haut des cellules */
+            }
+            table.data-table th {
+                background-color: #e9ecef; /* Fond gris très clair pour les en-têtes de tableau de données */
+                font-weight: bold;
+                padding-top: 8px;
+                padding-bottom: 8px;
+            }
+            table.data-table td.montant, table.data-table th.montant {
+                text-align: right;
+            }
+            .totals-section {
+                margin-top: 30px;
+                padding-top: 15px;
+                border-top: 2px solid #007bff;
+            }
+            .totals-section table {
+                width: 40%; /* Tableau des totaux moins large */
+                float: right; /* Aligner à droite */
+                border-collapse: collapse;
+            }
+            .totals-section th, .totals-section td {
+                padding: 8px;
+                text-align: right;
+                font-size: 10pt;
+            }
+            .totals-section th {
+                text-align: right;
+                font-weight: bold;
+                background-color: #f8f9fa;
+            }
+            .totals-section td.grand-total {
+                font-weight: bold;
+                font-size: 12pt;
+                color: #007bff;
+            }
+            .footer {
+                text-align: center;
+                font-size: 8pt;
+                color: #777;
+                margin-top: 30px;
+                padding-top: 10px;
+                border-top: 1px solid #eee;
+            }
+            /* Empêcher la coupure des lignes de tableau au milieu */
+            table.data-table tr {
+                page-break-inside: avoid;
+            }
+        """
 
-    def _set_default_font(self, pdf: FPDF, style="", size=10):
-        # Utiliser Arial. Si FPDF2 la trouve comme police système TTF, support Unicode amélioré.
-        # Sinon, il utilisera la police "core" Helvetica (encodage cp1252 par défaut, qui inclut €).
-        pdf.set_font("Arial", style, size)
-
-    def _add_header_footer(self, pdf: FPDF, rapport: 'RapportDepense'):
-        # En-tête personnalisé (peut être appelé par add_page ou manuellement)
-        # Pour l'instant, nous le construisons directement après add_page
-        pass
-
-    def _add_rapport_info_table(self, pdf: FPDF, rapport: 'RapportDepense'):
-        """Ajoute un tableau avec les informations générales du rapport et de l'employé."""
-        line_height = 7
-        # self._set_default_font(pdf, "B") # La police sera définie ci-dessous avec la taille
+    def _generate_header_html(self, rapport: 'RapportDepense') -> str:
+        """Génère le HTML pour l'en-tête du document (logo, titre, infos utilisateur)."""
+        logo_path = os.path.abspath("resources/images/logo-jacmar.png")
+        # Vérifier si le logo existe, sinon ne pas l'inclure ou mettre un placeholder
+        logo_img_html = f'<img src="file:///{logo_path}" alt="Logo Jacmar" class="logo">' if os.path.exists(logo_path) else '<p>Logo non trouvé</p>'
         
-        # Cadre autour des informations
-        start_x = pdf.get_x()
-        start_y = pdf.get_y()
+        user_info_html = f"""
+            <div class="user-info">
+                <p>{rapport.prenom_employe} {rapport.nom_employe.upper()}</p>
+                <p>Département: {rapport.departement}</p>
+                <p>Emplacement: {rapport.emplacement}</p>
+            </div>
+        """
+        return f"""
+            <div class="header-container">
+                <div>{logo_img_html}</div>
+                <div class="title">
+                    <h1>Remboursement de Dépenses</h1>
+                    {user_info_html}
+                </div>
+            </div>
+        """
 
-        info_data = [
-            ("Employé:", f"{rapport.prenom_employe} {rapport.nom_employe}"),
-            ("Département:", rapport.departement),
-            ("Emplacement:", rapport.emplacement),
-            ("Superviseur:", rapport.superviseur),
-            ("Date du Rapport:", rapport.date_rapport.strftime("%d/%m/%Y")),
-            ("Plafond Déplacement:", rapport.plafond_deplacement),
-        ]
+    def _generate_rapport_info_table_html(self, rapport: 'RapportDepense') -> str:
+        """Génère le HTML pour le tableau d'informations générales du rapport."""
+        # Accès sécurisé aux dates de soumission, qui peuvent être None
+        date_soumission_str = rapport.date_soumission.strftime('%d/%m/%Y') if hasattr(rapport, 'date_soumission') and rapport.date_soumission else 'N/A'
+        statut_str = rapport.statut if hasattr(rapport, 'statut') else 'N/A'
 
-        # Calcul de la largeur des colonnes
-        # Max width for labels to align values
-        # temp_label_widths = [pdf.get_string_width(label) for label, value in info_data]
-        # max_label_width = max(temp_label_widths) + 2 # Add some padding
+        return f"""
+            <table class="rapport-info-table">
+                <tr><th>Mois du Rapport:</th><td>{rapport.date_rapport.strftime('%B %Y')}</td></tr>
+                <tr><th>Soumis le:</th><td>{date_soumission_str}</td></tr>
+                <tr><th>Statut:</th><td>{statut_str}</td></tr>
+            </table>
+        """
 
-        # Pour une disposition en deux colonnes de paires label/valeur
-        # La largeur totale disponible est pdf.w - pdf.l_margin - pdf.r_margin
-        available_width = pdf.w - pdf.l_margin - pdf.r_margin
-        label_col_width = 45 # Fixe pour les étiquettes
-        value_col_width = available_width - label_col_width - 5 # Le reste pour la valeur, avec un petit espace
-
-        for label, value in info_data:
-            current_x = pdf.get_x()
-            current_y = pdf.get_y()
-            pdf.set_font("Arial", "B", 9)
-            pdf.cell(label_col_width, line_height, txt=label, border=0, ln=0, align="L")
-            pdf.set_font("Arial", "", 9)
-            pdf.multi_cell(value_col_width, line_height, txt=str(value), border=0, ln=1, align="L") # Utiliser multi_cell pour les valeurs longues
-            if pdf.get_y() > current_y + line_height : # Si multi_cell a fait un saut de ligne interne
-                 pdf.ln(line_height/2) # Espace supplémentaire
-        
-        # Dessiner un cadre autour du bloc d'informations
-        # end_y = pdf.get_y()
-        # pdf.rect(start_x, start_y, available_width, end_y - start_y)
-        pdf.ln(5)
-
-
-    def _add_table_header(self, pdf: FPDF, headers: List[str], col_widths: List[float]):
-        self._set_default_font(pdf, "B", 9)
-        pdf.set_fill_color(220, 220, 220) # Gris clair pour l'en-tête
-        for i, header in enumerate(headers):
-            pdf.cell(col_widths[i], 7, header, border=1, ln=0, align="C", fill=True)
-        pdf.ln()
-
-    def _add_table_row(self, pdf: FPDF, data: List[str], col_widths: List[float], line_height=6):
-        self._set_default_font(pdf, "", 7) # Police par défaut pour les lignes, taille ajustée
-        
-        # 1. Calculer la hauteur nécessaire pour la ligne
-        num_lines_per_cell = []
-        for i, item_data in enumerate(data):
-            try:
-                lines = pdf.get_num_lines(str(item_data), col_widths[i])
-                num_lines_per_cell.append(lines)
-            except Exception as e:
-                print(f"Avertissement: pdf.get_num_lines a échoué: {e}. Hauteur de ligne fixe.")
-                num_lines_per_cell.append(1)
-
-        max_lines = max(num_lines_per_cell) if num_lines_per_cell else 1
-        calculated_line_height = max_lines * line_height
-
-        # 2. Sauvegarder la position Y actuelle et X de départ de la ligne
-        initial_x = pdf.get_x() # X au début de la ligne (souvent marge gauche)
-        current_y = pdf.get_y()
-
-        # 3. Dessiner le texte de chaque cellule avec multi_cell (sans bordure)
-        # Et en même temps, dessiner les bordures avec pdf.rect()
-        current_x_pos = initial_x
-        for i, item_data in enumerate(data):
-            # Positionner le curseur pour cette cellule
-            pdf.set_xy(current_x_pos, current_y)
+    def _generate_deplacements_html(self, deplacements: List['Deplacement']) -> str:
+        if not deplacements: return ""
+        rows_html = ""
+        for item in deplacements:
+            date_str = item.date.strftime('%d/%m/%Y') if hasattr(item, 'date') and item.date else ''
+            client_str = item.client if hasattr(item, 'client') else ''
+            ville_str = item.ville if hasattr(item, 'ville') else ''
+            num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') else ''
+            km_str = f"{item.kilometrage} km" if hasattr(item, 'kilometrage') and item.kilometrage is not None else '0 km'
             
-            # Dessiner le texte avec multi_cell
-            pdf.multi_cell(w=col_widths[i], 
-                           h=line_height, # Hauteur de chaque ligne DANS la cellule
-                           txt=str(item_data), 
-                           border=0,      # PAS de bordure par multi_cell
-                           align='L', 
-                           ln=0,          # Important: ne pas faire de saut de ligne automatique APRÈS la cellule
-                           max_line_height=line_height,
-                           fill=False)     # S'assurer que le fond n'est pas rempli par multi_cell
+            taux_str = "N/A"
+            if hasattr(item, 'kilometrage') and item.kilometrage and item.kilometrage > 0 and hasattr(item, 'montant'):
+                taux_calcul_val = item.montant / item.kilometrage
+                taux_str = f"{taux_calcul_val:.2f} €"
+            elif hasattr(item, 'taux_par_km') and item.taux_par_km is not None:
+                taux_str = f"{item.taux_par_km:.2f} €"
 
-            # Dessiner la bordure pour CETTE cellule avec la hauteur calculée pour toute la ligne
-            pdf.rect(current_x_pos, current_y, col_widths[i], calculated_line_height)
+            montant_remb_str = f"{item.montant:.2f} €" if hasattr(item, 'montant') and item.montant is not None else '0.00 €'
 
-            # Mettre à jour current_x_pos pour la prochaine cellule
-            current_x_pos += col_widths[i]
-        
-        # 4. Avancer le curseur Y pour la prochaine ligne du tableau
-        # Se positionner au début de la ligne suivante (marge gauche) et à la bonne hauteur
-        pdf.set_xy(initial_x, current_y + calculated_line_height)
+            rows_html += f"""
+                <tr>
+                    <td>{date_str}</td>
+                    <td>{client_str}</td>
+                    <td>{ville_str}</td>
+                    <td>{num_cmd_str}</td>
+                    <td class="montant">{km_str}</td>
+                    <td class="montant">{taux_str}</td>
+                    <td class="montant">{montant_remb_str}</td>
+                </tr>
+            """
+        # Largeurs de colonnes pour les déplacements (7 colonnes)
+        # Total = 100%
+        colgroup_html = """
+            <colgroup>
+                <col style="width: 12%;"> <!-- Date -->
+                <col style="width: 20%;"> <!-- Client -->
+                <col style="width: 20%;"> <!-- Ville -->
+                <col style="width: 15%;"> <!-- N° Commande -->
+                <col style="width: 12%;"> <!-- Kilométrage -->
+                <col style="width: 10%;"> <!-- Taux/km -->
+                <col style="width: 11%;"> <!-- Montant -->
+            </colgroup>
+        """
+        return f"""
+            <h2 class="section-title">Déplacements</h2>
+            <table class="data-table">
+                {colgroup_html}
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Ville</th>
+                        <th>N° Commande</th>
+                        <th class="montant">Kilométrage</th>
+                        <th class="montant">Taux/km</th>
+                        <th class="montant">Montant</th>
+                    </tr>
+                </thead>
+                <tbody>{rows_html}</tbody>
+            </table>
+        """
 
+    def _generate_repas_html(self, repas_list: List['Repas']) -> str:
+        if not repas_list: return ""
+        rows_html = ""
+        for item in repas_list:
+            date_str = item.date.strftime('%d/%m/%Y') if hasattr(item, 'date') and item.date else ''
+            desc_str = item.description if hasattr(item, 'description') else ''
+            resto_str = item.restaurant if hasattr(item, 'restaurant') else ''
+            client_str = item.client if hasattr(item, 'client') else ''
+            num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') else ''
+            
+            refacturer_text = "Oui" if hasattr(item, 'refacturer') and item.refacturer else "Non"
+            payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non"
+            
+            total_fact_str = f"{item.totale_apres_taxes:.2f} €" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 €'
+            pourboire_str = f"{item.pourboire:.2f} €" if hasattr(item, 'pourboire') and item.pourboire is not None else '0.00 €'
+            tps_str = f"{item.tps:.2f} €" if hasattr(item, 'tps') and item.tps is not None else '0.00 €'
+            # Combiner TVQ et TVH si les deux existent, sinon afficher celle qui existe, ou 0.00
+            tvq_val = item.tvq if hasattr(item, 'tvq') and item.tvq is not None else 0
+            tvh_val = item.tvh if hasattr(item, 'tvh') and item.tvh is not None else 0
+            tvq_tvh_val = tvq_val + tvh_val
+            tvq_tvh_str = f"{tvq_tvh_val:.2f} €"
 
-    def _add_section_title(self, pdf: FPDF, title: str):
-        pdf.ln(5) # Espace avant le titre de section
-        self._set_default_font(pdf, "B", 12)
-        pdf.set_fill_color(200, 220, 255) # Couleur de fond pour le titre de section
-        pdf.cell(0, 8, title, border=1, ln=1, align="L", fill=True)
-        pdf.ln(2) # Petit espace après le titre de section
+            montant_remb_str = f"{item.employe:.2f} €" if hasattr(item, 'employe') and item.employe is not None else '0.00 €'
 
-    def _add_deplacements_section(self, pdf: FPDF, deplacements: List['Deplacement']):
-        if not deplacements: return
-        self._add_section_title(pdf, "Déplacements")
-        
-        headers = ["Date", "Client", "Ville", "N° Comm.", "Km", "Montant (€)"]
-        # Définir les largeurs des colonnes (ajuster selon le contenu)
-        # Page width A4 = 210mm. Margins default 10mm left/right. Usable width = 190mm
-        total_width = pdf.w - pdf.l_margin - pdf.r_margin
-        col_widths = [total_width * 0.15, total_width * 0.25, total_width * 0.20, total_width * 0.15, total_width * 0.10, total_width * 0.15]
-        self.col_widths = col_widths # Sauvegarder pour les lignes
+            rows_html += f"""
+                <tr>
+                    <td>{date_str}</td>
+                    <td>{desc_str}</td>
+                    <td>{resto_str}</td>
+                    <td>{client_str}</td>
+                    <td>{num_cmd_str}</td>
+                    <td>{refacturer_text}</td>
+                    <td>{payeur_text}</td>
+                    <td class="montant">{total_fact_str}</td>
+                    <td class="montant">{pourboire_str}</td>
+                    <td class="montant">{tps_str}</td>
+                    <td class="montant">{tvq_tvh_str}</td>
+                    <td class="montant">{montant_remb_str}</td>
+                </tr>
+            """
+        # Largeurs de colonnes pour les repas (12 colonnes)
+        colgroup_html = """
+            <colgroup>
+                <col style="width: 7%;">  <!-- Date -->
+                <col style="width: 15%;"> <!-- Description -->
+                <col style="width: 10%;"> <!-- Restaurant -->
+                <col style="width: 10%;"> <!-- Client -->
+                <col style="width: 7%;">  <!-- N° Cmd -->
+                <col style="width: 6%;">  <!-- Réf.? -->
+                <col style="width: 8%;">  <!-- Payé Empl. -->
+                <col style="width: 8%;">  <!-- Total Fact. -->
+                <col style="width: 8%;">  <!-- Pourboire -->
+                <col style="width: 7%;">  <!-- TPS -->
+                <col style="width: 7%;">  <!-- TVQ/TVH -->
+                <col style="width: 7%;">  <!-- Montant Remb. -->
+            </colgroup>
+        """
+        return f"""
+            <h2 class="section-title">Repas</h2>
+            <table class="data-table">
+                {colgroup_html}
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Restaurant</th>
+                        <th>Client</th>
+                        <th>N° Cmd</th>
+                        <th>Réf.?</th>
+                        <th>Payé Empl.</th>
+                        <th class="montant">Total Fact.</th>
+                        <th class="montant">Pourboire</th>
+                        <th class="montant">TPS</th>
+                        <th class="montant">TVQ/TVH</th>
+                        <th class="montant">Montant Remb.</th>
+                    </tr>
+                </thead>
+                <tbody>{rows_html}</tbody>
+            </table>
+        """
 
-        self._add_table_header(pdf, headers, self.col_widths)
+    def _generate_depenses_diverses_html(self, depenses_list: List['Depense']) -> str:
+        if not depenses_list: return ""
+        rows_html = ""
+        for item in depenses_list:
+            date_str = item.date.strftime('%d/%m/%Y') if hasattr(item, 'date') and item.date else ''
+            type_depense_str = item.type_depense if hasattr(item, 'type_depense') else ''
+            desc_str = item.description if hasattr(item, 'description') else ''
+            fournisseur_str = item.fournisseur if hasattr(item, 'fournisseur') else ''
+            payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non"
+            
+            total_fact_str = f"{item.totale_apres_taxes:.2f} €" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 €'
+            tps_str = f"{item.tps:.2f} €" if hasattr(item, 'tps') and item.tps is not None else '0.00 €'
+            
+            tvq_val = item.tvq if hasattr(item, 'tvq') and item.tvq is not None else 0
+            tvh_val = item.tvh if hasattr(item, 'tvh') and item.tvh is not None else 0
+            tvq_tvh_val = tvq_val + tvh_val
+            tvq_tvh_str = f"{tvq_tvh_val:.2f} €"
+
+            montant_remb_str = f"{item.employe:.2f} €" if hasattr(item, 'employe') and item.employe is not None else '0.00 €'
+
+            rows_html += f"""
+                <tr>
+                    <td>{date_str}</td>
+                    <td>{type_depense_str}</td>
+                    <td>{desc_str}</td>
+                    <td>{fournisseur_str}</td>
+                    <td>{payeur_text}</td>
+                    <td class="montant">{total_fact_str}</td>
+                    <td class="montant">{tps_str}</td>
+                    <td class="montant">{tvq_tvh_str}</td>
+                    <td class="montant">{montant_remb_str}</td>
+                </tr>
+            """
+        # Largeurs de colonnes pour les dépenses diverses (9 colonnes)
+        colgroup_html = """
+            <colgroup>
+                <col style="width: 10%;"> <!-- Date -->
+                <col style="width: 15%;"> <!-- Type -->
+                <col style="width: 25%;"> <!-- Description -->
+                <col style="width: 15%;"> <!-- Fournisseur -->
+                <col style="width: 10%;"> <!-- Payé Empl.? -->
+                <col style="width: 8%;">  <!-- Total Fact. -->
+                <col style="width: 7%;">  <!-- TPS -->
+                <col style="width: 7%;">  <!-- TVQ/TVH -->
+                <col style="width: 8%;">  <!-- Montant Remb. -->
+            </colgroup>
+        """
+        return f"""
+            <h2 class="section-title">Dépenses Diverses</h2>
+            <table class="data-table">
+                {colgroup_html}
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Fournisseur</th>
+                        <th>Payé Empl.?</th>
+                        <th class="montant">Total Fact.</th>
+                        <th class="montant">TPS</th>
+                        <th class="montant">TVQ/TVH</th>
+                        <th class="montant">Montant Remb.</th>
+                    </tr>
+                </thead>
+                <tbody>{rows_html}</tbody>
+            </table>
+        """
+
+    def _generate_totaux_html(self, rapport: 'RapportDepense') -> str:
         total_deplacements = 0.0
-        pdf.set_font("Arial", "", 8)
-        for dep in deplacements:
-            data = [
-                dep.date.strftime("%d/%m/%Y"),
-                dep.client,
-                dep.ville,
-                dep.numero_commande,
-                f"{dep.kilometrage:.2f}",
-                f"{dep.montant:.2f}"
-            ]
-            self._add_table_row(pdf, data, self.col_widths)
-            total_deplacements += dep.montant
+        if hasattr(rapport, 'deplacements') and rapport.deplacements:
+            for deplacement in rapport.deplacements:
+                if hasattr(deplacement, 'montant') and deplacement.montant is not None:
+                    total_deplacements += deplacement.montant
+
+        total_repas = 0.0
+        if hasattr(rapport, 'repas') and rapport.repas:
+            for repas_item in rapport.repas:
+                if hasattr(repas_item, 'employe') and repas_item.employe is not None:
+                    total_repas += repas_item.employe
         
-        # Ligne de total pour la section
-        pdf.set_font("Arial", "B", 8)
-        pdf.cell(sum(col_widths[:-1]), 6, "Total Déplacements", border=1, align="R")
-        pdf.cell(col_widths[-1], 6, f"{total_deplacements:.2f} €", border=1, ln=1, align="R")
-        return total_deplacements
+        total_depenses_diverses = 0.0
+        if hasattr(rapport, 'depenses_diverses') and rapport.depenses_diverses:
+            for depense_item in rapport.depenses_diverses:
+                if hasattr(depense_item, 'employe') and depense_item.employe is not None:
+                    total_depenses_diverses += depense_item.employe
 
-    def _add_repas_section(self, pdf: FPDF, repas_list: List['Repas']):
-        if not repas_list: return
-        self._add_section_title(pdf, "Repas")
-        
-        headers = [
-            "Date", "Description", "Restaurant", "Client", "N° Cmd", 
-            "Réf.?", "Payé Empl.",
-            "Total Fact.(€)", "Pourboire(€)", "TPS(€)", "TVQ/TVH(€)", "Montant Remb.(€)"
-        ]
-        
-        total_width = pdf.w - pdf.l_margin - pdf.r_margin
-        # Ajustement des largeurs pour 12 colonnes - cela sera serré
-        col_widths = [
-            total_width * 0.07, # Date
-            total_width * 0.15, # Description
-            total_width * 0.10, # Restaurant
-            total_width * 0.10, # Client
-            total_width * 0.07, # N° Cmd
-            total_width * 0.05, # Réf.?
-            total_width * 0.07, # Payé Empl. (payeur)
-            total_width * 0.09, # Total Fact.
-            total_width * 0.08, # Pourboire
-            total_width * 0.07, # TPS
-            total_width * 0.08, # TVQ/TVH
-            total_width * 0.07  # Montant Remb. (employe)
-        ]
-        # Recalculer pour s'assurer que la somme est proche de total_width si nécessaire, ou ajuster manuellement.
-        # Pour l'instant, on fait confiance à cette répartition.
+        grand_total_remboursement = total_deplacements + total_repas + total_depenses_diverses
 
-        self.col_widths = col_widths
-
-        self._add_table_header(pdf, headers, self.col_widths)
-        total_repas_employe_rembourser = 0.0
-        pdf.set_font("Arial", "", 7) # Taille de police plus petite pour plus de colonnes
-
-        for rep in repas_list:
-            payeur_str = "Oui" if rep.payeur else "Non" # Si l'employé a payé initialement
-            refacturer_str = "Oui" if rep.refacturer else "Non"
-            
-            # Pour TVQ/TVH, on peut les sommer si une seule est présente, ou afficher celle qui est non-nulle.
-            tvq_tvh_str = ""
-            if rep.tvq > 0 and rep.tvh > 0:
-                tvq_tvh_str = f"{rep.tvq:.2f}/{rep.tvh:.2f}" # Les deux? Rare.
-            elif rep.tvq > 0:
-                tvq_tvh_str = f"{rep.tvq:.2f}"
-            elif rep.tvh > 0:
-                tvq_tvh_str = f"{rep.tvh:.2f}"
-            else:
-                tvq_tvh_str = "0.00"
-
-            data = [
-                rep.date.strftime("%d/%m/%y"), # Date plus courte
-                rep.description,
-                rep.restaurant,
-                rep.client,
-                rep.numero_commande,
-                refacturer_str,
-                payeur_str,
-                f"{rep.totale_apres_taxes:.2f}",
-                f"{rep.pourboire:.2f}",
-                f"{rep.tps:.2f}",
-                tvq_tvh_str,
-                f"{rep.employe:.2f}" # Montant à rembourser à l'employé
-            ]
-            self._add_table_row(pdf, data, self.col_widths, line_height=5) # line_height réduite
-            
-            # Le montant à rembourser est directement rep.employe
-            total_repas_employe_rembourser += rep.employe
-        
-        pdf.set_font("Arial", "B", 8)
-        # Total pour la section
-        # Identifier la colonne du montant à rembourser (la dernière)
-        desc_total_width = sum(col_widths[:-1])
-        montant_col_width = col_widths[-1]
-
-        pdf.cell(desc_total_width, 6, "Total Repas à Rembourser (Employé)", border="T", align="R") # Bordure Top seulement
-        pdf.cell(montant_col_width, 6, f"{total_repas_employe_rembourser:.2f} €", border="T", ln=1, align="R")
-        return total_repas_employe_rembourser
-
-    def _add_depenses_diverses_section(self, pdf: FPDF, depenses_list: List['Depense']):
-        if not depenses_list: return
-        self._add_section_title(pdf, "Dépenses Diverses")
-        
-        headers = [
-            "Date", "Type", "Description", "Fournisseur", "Payé Empl.?",
-            "Total Fact.(€)", "TPS(€)", "TVQ/TVH(€)", "Montant Remb.(€)"
-        ]
-        total_width = pdf.w - pdf.l_margin - pdf.r_margin
-        col_widths = [
-            total_width * 0.10, # Date
-            total_width * 0.12, # Type
-            total_width * 0.23, # Description
-            total_width * 0.15, # Fournisseur
-            total_width * 0.10, # Payé Empl.?
-            total_width * 0.10, # Total Fact.
-            total_width * 0.07, # TPS
-            total_width * 0.06, # TVQ/TVH
-            total_width * 0.07  # Montant Remb.
-        ]
-        self.col_widths = col_widths
-
-        self._add_table_header(pdf, headers, self.col_widths)
-        total_depenses_diverses_employe_rembourser = 0.0
-        pdf.set_font("Arial", "", 7) # Taille de police plus petite
-
-        for dep in depenses_list:
-            payeur_str = "Oui" if dep.payeur else "Non"
-            
-            tvq_tvh_str = ""
-            if dep.tvq > 0 and dep.tvh > 0:
-                tvq_tvh_str = f"{dep.tvq:.2f}/{dep.tvh:.2f}"
-            elif dep.tvq > 0:
-                tvq_tvh_str = f"{dep.tvq:.2f}"
-            elif dep.tvh > 0:
-                tvq_tvh_str = f"{dep.tvh:.2f}"
-            else:
-                tvq_tvh_str = "0.00"
-
-            data = [
-                dep.date.strftime("%d/%m/%y"), # Date plus courte
-                dep.type_depense,
-                dep.description,
-                dep.fournisseur,
-                payeur_str,
-                f"{dep.totale_apres_taxes:.2f}",
-                f"{dep.tps:.2f}",
-                tvq_tvh_str,
-                f"{dep.employe:.2f}" # Montant à rembourser à l'employé
-            ]
-            self._add_table_row(pdf, data, self.col_widths, line_height=5) # line_height réduite
-            
-            total_depenses_diverses_employe_rembourser += dep.employe
-
-        pdf.set_font("Arial", "B", 8)
-        desc_total_width = sum(col_widths[:-1])
-        montant_col_width = col_widths[-1]
-
-        pdf.cell(desc_total_width, 6, "Total Dépenses Diverses à Rembourser (Employé)", border="T", align="R")
-        pdf.cell(montant_col_width, 6, f"{total_depenses_diverses_employe_rembourser:.2f} €", border="T", ln=1, align="R")
-        return total_depenses_diverses_employe_rembourser
-
-    def _add_totaux_section(self, pdf: FPDF, total_deplacements: float, total_repas: float, total_divers: float):
-        self._add_section_title(pdf, "Totaux à Rembourser")
-        
-        grand_total = total_deplacements + total_repas + total_divers
-        
-        line_height = 8
-        col_width_desc = (pdf.w - pdf.l_margin - pdf.r_margin) * 0.75
-        col_width_montant = (pdf.w - pdf.l_margin - pdf.r_margin) * 0.25
-
-        pdf.set_font("Arial", "", 10)
-        pdf.cell(col_width_desc, line_height, "Total Déplacements:", border="T L B", align="R")
-        pdf.cell(col_width_montant, line_height, f"{total_deplacements:.2f} €", border="T R B", ln=1, align="R")
-        
-        pdf.cell(col_width_desc, line_height, "Total Repas (part Employé):", border="L B", align="R")
-        pdf.cell(col_width_montant, line_height, f"{total_repas:.2f} €", border="R B", ln=1, align="R")
-
-        pdf.cell(col_width_desc, line_height, "Total Dépenses Diverses (part Employé):", border="L B", align="R")
-        pdf.cell(col_width_montant, line_height, f"{total_divers:.2f} €", border="R B", ln=1, align="R")
-
-        pdf.ln(2)
-        pdf.set_font("Arial", "B", 12)
-        pdf.set_fill_color(220, 220, 220)
-        pdf.cell(col_width_desc, line_height + 2, "MONTANT TOTAL À REMBOURSER:", border=1, align="R", fill=True)
-        pdf.cell(col_width_montant, line_height + 2, f"{grand_total:.2f} €", border=1, ln=1, align="R", fill=True)
-
-
-    def generate(self, document, output_path: str): # L'annotation de type pour 'document' sera ajoutée après les imports réels
+        return f"""
+            <div class="totals-section">
+                <table>
+                    <tr><th>Total Déplacements:</th><td class="montant">{total_deplacements:.2f} €</td></tr>
+                    <tr><th>Total Repas:</th><td class="montant">{total_repas:.2f} €</td></tr>
+                    <tr><th>Total Dépenses Diverses:</th><td class="montant">{total_depenses_diverses:.2f} €</td></tr>
+                    <tr><th>GRAND TOTAL:</th><td class="grand-total montant">{grand_total_remboursement:.2f} €</td></tr>
+                </table>
+            </div>
         """
-        Génère un PDF pour le document fourni.
-        Détecte le type de document et appelle la méthode de génération appropriée.
+    
+    def _generate_footer_html(self) -> str:
+        return f"""
+            <div class="footer">
+                <p>Rapport généré par l'application GDJ.</p>
+            </div>
         """
-        # --- Importations réelles ici pour l'exécution ---
-        # Ceci est fait pour éviter les importations circulaires au niveau du module
-        # si DocumentPDFPrinter est importé dans les modules de documents eux-mêmes.
-        from models.document import Document # Assurez-vous que cette classe de base existe et est pertinente
+
+    def _generate_rapport_depense_html(self, rapport: 'RapportDepense') -> str:
+        """Construit la chaîne HTML complète pour un rapport de dépenses."""
+        
+        html_content = "<html><head><meta charset='UTF-8'><title>Rapport de Dépenses</title>"
+        html_content += f"<style>{self._get_base_css()}</style></head><body>"
+        
+        html_content += self._generate_header_html(rapport)
+        html_content += self._generate_rapport_info_table_html(rapport)
+        html_content += self._generate_deplacements_html(rapport.deplacements)
+        html_content += self._generate_repas_html(rapport.repas)
+        html_content += self._generate_depenses_diverses_html(rapport.depenses_diverses)
+        html_content += self._generate_totaux_html(rapport)
+        html_content += self._generate_footer_html()
+        
+        html_content += "</body></html>"
+        return html_content
+
+    def generate(self, document, output_path: str):
+        """
+        Génère un PDF pour le document fourni en utilisant WeasyPrint.
+        Détecte le type de document et appelle la méthode de génération HTML appropriée.
+        """
+        # --- Importations réelles ici pour éviter les dépendances circulaires au niveau du module ---
         from models.documents.rapport_depense.rapport_depense import RapportDepense
         # from models.documents.autre_type.autre_type import AutreTypeDocument # Pour le futur
 
+        html_string = ""
         if isinstance(document, RapportDepense):
-            self._generate_rapport_depense_pdf(document, output_path)
+            html_string = self._generate_rapport_depense_html(document)
         # elif isinstance(document, AutreTypeDocument):
-        #     self._generate_autre_type_pdf(document, output_path)
+        #     html_string = self._generate_autre_type_html(document) # À implémenter
         else:
-            # Tenter d'obtenir le nom de la classe de manière sûre
-            doc_type_name = type(document).__name__ if hasattr(type(document), '__name__') else str(type(document))
-            raise ValueError(f"Type de document non supporté pour l'impression PDF: {doc_type_name}")
+            print(f"Type de document non supporté pour la génération PDF HTML: {type(document).__name__}")
+            return
 
-    def _generate_rapport_depense_pdf(self, rapport: 'RapportDepense', output_path: str):
-        """Génère un PDF style facture pour un objet RapportDepense."""
-        pdf = FPDF()
-        
-        # --- Ajout explicite des polices Arial standards de Windows ---
-        # FPDF2 utilisera ces fichiers TTF, qui devraient supporter l'Euro.
-        # Les chemins sont typiques pour Windows; ajuster si nécessaire pour d'autres OS.
-        # FPDF2 cherche aussi dans des répertoires de polices système connus.
-        # Le nom de la police ("Arial") doit correspondre à celui utilisé dans set_font().
-        font_path_regular = "C:/Windows/Fonts/arial.ttf"
-        font_path_bold = "C:/Windows/Fonts/arialbd.ttf"
-        font_path_italic = "C:/Windows/Fonts/ariali.ttf"
-        font_path_bold_italic = "C:/Windows/Fonts/arialbi.ttf"
+        if not html_string:
+            print("Aucun contenu HTML généré.")
+            return
 
         try:
-            # Le paramètre 'uni=True' est obsolète dans FPDF2 >= 2.5.2 (UTF-8 est par défaut pour les TTF)
-            # mais ne nuit pas. FPDF2 s'attend à ce que les TTF soient encodées en UTF-8.
-            pdf.add_font("Arial", "", font_path_regular)
-            pdf.add_font("Arial", "B", font_path_bold)
-            pdf.add_font("Arial", "I", font_path_italic)
-            pdf.add_font("Arial", "BI", font_path_bold_italic)
-            print("Polices Arial TTF ajoutées avec succès.")
-        except Exception as e_font:
-            print(f"AVERTISSEMENT: Impossible d'ajouter les polices Arial TTF depuis C:/Windows/Fonts/: {e_font}.")
-            print("FPDF utilisera les polices 'core' par défaut, le symbole € pourrait manquer ou être incorrect.")
-            # Si l'ajout échoue, on continue, FPDF utilisera ses polices de base (Helvetica etc.)
+            # Configuration des polices pour WeasyPrint (si nécessaire, par exemple pour des polices non standard)
+            # font_config = FontConfiguration() # Commenté pour l'instant car non utilisé activement
+            
+            # Générer le PDF depuis la chaîne HTML
+            # La CSS de base est déjà incluse dans html_string via _generate_rapport_depense_html
+            # Si font_config était utilisé, il faudrait le passer ici ou à CSS() si on avait des CSS externes.
+            html_doc = HTML(string=html_string, base_url=os.path.dirname(os.path.abspath(__file__)))
+            html_doc.write_pdf(output_path) # Potentiellement ajouter font_config=font_config ici si utilisé
 
-        # pdf.set_auto_page_break(auto=True, margin=15) # Marge du bas pour le pied de page
-        pdf.add_page()
-        
-        # --- En-tête avec Logo et Titre ---
-        logo_path = "resources/images/logo-jacmar.png"
-        if os.path.exists(logo_path):
-            pdf.image(logo_path, x=10, y=8, w=30) # Ajuster w et h selon le logo
-        else:
-            print(f"Attention: Logo non trouvé à {logo_path}")
+            print(f"PDF généré avec succès (via HTML) : {output_path}")
 
-        page_width = pdf.w - pdf.l_margin - pdf.r_margin
-        
-        pdf.set_font("Arial", "B", 18) # Utiliser Arial pour le titre aussi
-        pdf.set_xy(0, 15) # Positionner le titre un peu plus bas
-        pdf.cell(page_width, 10, "Remboursement de dépenses", 0, 1, "C")
-        pdf.ln(10) # Espace après le titre principal
-        
-        # --- Informations du rapport et de l'employé ---
-        self._add_rapport_info_table(pdf, rapport) # Nouvelle méthode pour ce bloc
-
-        # --- Sections des dépenses ---
-        # Les totaux partiels sont retournés par chaque méthode de section
-        total_deplacements = self._add_deplacements_section(pdf, rapport.deplacements) or 0.0
-        total_repas = self._add_repas_section(pdf, rapport.repas) or 0.0
-        total_depenses_diverses = self._add_depenses_diverses_section(pdf, rapport.depenses_diverses) or 0.0
-        
-        # --- Section des Totaux ---
-        self._add_totaux_section(pdf, total_deplacements, total_repas, total_depenses_diverses)
-
-        try:
-            pdf.output(output_path, "F")
-            print(f"Le PDF du rapport de dépense a été généré : {output_path}")
         except Exception as e:
-            print(f"Erreur lors de la génération du PDF : {e}")
-            # import traceback
-            # traceback.print_exc() # Pour plus de détails sur l'erreur
-            raise # Remonter l'erreur pour que l'appelant soit informé
+            print(f"Erreur lors de la génération du PDF avec WeasyPrint : {e}")
+            import traceback
+            traceback.print_exc()
 
-    # def _generate_autre_type_pdf(self, autre_doc: 'AutreTypeDocument', output_path: str):
-    #     # Logique pour un autre type de document
-    #     pass 
+# --- Suppression des anciennes méthodes FPDF ---
+# _set_default_font
+# _add_header_footer (FPDF)
+# _add_rapport_info_table (FPDF)
+# _add_table_header
+# _add_table_row
+# _add_section_title
+# _add_deplacements_section (FPDF)
+# _add_repas_section (FPDF)
+# _add_depenses_diverses_section (FPDF)
+# _add_totaux_section (FPDF)
+# _generate_rapport_depense_pdf (FPDF) 
