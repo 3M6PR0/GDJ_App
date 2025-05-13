@@ -2090,6 +2090,7 @@ class RapportDepensePage(QWidget):
 
     def _add_entry(self):
         """ Ajoute l'entrée en lisant les champs du formulaire. """
+        current_type_index = self.entry_type_combo.currentIndex() # SAUVEGARDER L'INDEX ACTUEL
         entry_type = self.entry_type_combo.currentText()
         logger.info(f"Tentative d'ajout d'une entrée de type: {entry_type}")
 
@@ -2288,22 +2289,25 @@ class RapportDepensePage(QWidget):
                 logger.info(f"Ajout Déplacement: {new_entry}")
 
             if new_entry:
-                self._clear_entry_form()
-                self._populate_entries_list() # Rafraîchir la liste des entrées
-                self._update_totals_display() # Rafraîchir les totaux généraux
-                self._update_frame_titles_with_counts() # Mettre à jour les compteurs des cadres
-                # Réinitialiser la sélection du ComboBox au premier item (Déplacement)
-                self.entry_type_combo.setCurrentIndex(0) 
-                self._update_entry_form() # S'assurer que le formulaire est pour Déplacement
-                QTimer.singleShot(0, self._scroll_entries_to_bottom) # MODIFIÉ: Utiliser la nouvelle méthode
+                # L'entrée a été ajoutée au document (par ex. self.document.ajouter_repas(new_entry))
+                # Il faut maintenant mettre à jour l'UI AVANT de nettoyer le formulaire
 
-                # Afficher un message de confirmation
-                # msg_box = QMessageBox(self)
-                # msg_box.setIcon(QMessageBox.Information)
-                # msg_box.setText(f"{entry_type.capitalize()} ajouté avec succès.")
-                # msg_box.setWindowTitle("Confirmation")
-                # msg_box.setStandardButtons(QMessageBox.Ok)
-                # msg_box.exec_()
+                self._update_totals_display()         # Mettre à jour les labels de totaux
+                self._apply_sorting_and_filtering()   # Ceci devrait repeupler la liste des cartes/entrées
+                signals.document_modified.emit()      # Émettre un signal si d'autres parties de l'UI en dépendent
+                self._update_frame_titles_with_counts() # Mettre à jour les compteurs sur les titres des cadres
+                
+                # Mettre à jour spécifiquement le cadre déplacement si l'entrée ajoutée est un déplacement
+                # (Cette logique était présente avant et peut être utile)
+                if isinstance(new_entry, Deplacement):
+                    self._update_deplacement_info_display()
+
+                # Maintenant, on peut nettoyer le formulaire et scroller
+                self._clear_entry_form()
+                self._scroll_entries_to_bottom() 
+                
+                self.entry_type_combo.setCurrentIndex(current_type_index) # RESTAURER L'INDEX du combobox principal
+
                 signals.status_message_updated.emit(f"{entry_type.capitalize()} ajouté avec succès.", "success", 3000)
 
             else:
@@ -2945,32 +2949,57 @@ class RapportDepensePage(QWidget):
         """Supprime une entrée (déplacement, repas, dépense) du document et rafraîchit l'interface."""
         entry_type = type(entry_to_delete)
         removed = False
+        facture_folder_to_delete = None # Pour stocker le chemin du dossier de factures
 
         try:
+            # --- MODIFIÉ: Utiliser 'facture' au lieu de 'facture_data' ---
+            if hasattr(entry_to_delete, 'facture') and entry_to_delete.facture and \
+               hasattr(entry_to_delete.facture, 'folder_path') and entry_to_delete.facture.folder_path:
+                
+                facture_folder_path = Path(entry_to_delete.facture.folder_path)
+                # Vérification de sécurité: s'assurer que le dossier est bien dans FacturesEntrees
+                # et que ce n'est pas la racine elle-même.
+                base_factures_path = get_user_data_path() / "FacturesEntrees" # Assurez-vous que c'est le bon chemin
+                if base_factures_path in facture_folder_path.parents and facture_folder_path != base_factures_path:
+                    facture_folder_to_delete = facture_folder_path
+                else:
+                    logger.warning(f"Tentative de suppression d'un dossier de factures hors du répertoire attendu: {facture_folder_path}")
+            # --- FIN MODIFICATION ---
+
             if entry_type is Deplacement and entry_to_delete in self.document.deplacements:
                 self.document.deplacements.remove(entry_to_delete)
                 removed = True
-                # print(f"Déplacement supprimé: {entry_to_delete}") # Log de débogage # MODIFICATION
-                logger.info(f"Déplacement supprimé: {entry_to_delete}") # MODIFICATION
+                logger.info(f"Déplacement supprimé: {entry_to_delete}")
             elif entry_type is Repas and entry_to_delete in self.document.repas:
                 self.document.repas.remove(entry_to_delete)
                 removed = True
-                # print(f"Repas supprimé: {entry_to_delete}") # Log de débogage # MODIFICATION
-                logger.info(f"Repas supprimé: {entry_to_delete}") # MODIFICATION
+                logger.info(f"Repas supprimé: {entry_to_delete}")
             elif entry_type is Depense and hasattr(self.document, 'depenses_diverses') and entry_to_delete in self.document.depenses_diverses:
-                self.document.depenses_diverses.remove(entry_to_delete) # MODIFIÉ: Utilise depenses_diverses
+                self.document.depenses_diverses.remove(entry_to_delete)
                 removed = True
                 logger.info(f"Dépense (diverse) supprimée: {entry_to_delete}")
             elif entry_type is Depense and hasattr(self.document, 'depenses') and entry_to_delete in self.document.depenses:
-                # Fallback si 'depenses' existe et 'depenses_diverses' n'a pas fonctionné
                 self.document.depenses.remove(entry_to_delete)
                 removed = True
                 logger.info(f"Dépense (fallback 'depenses') supprimée: {entry_to_delete}")
             else:
-                # print(f"WARN: Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}") # MODIFICATION
-                logger.warning(f"Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}") # MODIFICATION
+                logger.warning(f"Tentative de suppression d'une entrée non trouvée ou de type inconnu: {entry_to_delete}")
 
             if removed:
+                # --- AJOUT: Supprimer le dossier de factures si identifié ---
+                if facture_folder_to_delete:
+                    try:
+                        if facture_folder_to_delete.exists() and facture_folder_to_delete.is_dir():
+                            shutil.rmtree(facture_folder_to_delete)
+                            logger.info(f"Dossier de factures supprimé avec succès: {facture_folder_to_delete}")
+                        else:
+                            logger.warning(f"Le dossier de factures {facture_folder_to_delete} n'existe pas ou n'est pas un dossier.")
+                    except Exception as e_fs:
+                        logger.error(f"Erreur lors de la suppression du dossier de factures {facture_folder_to_delete}: {e_fs}")
+                        QMessageBox.warning(self, "Erreur Suppression Factures", 
+                                            f"L'entrée a été supprimée, mais une erreur est survenue lors de la suppression de son dossier de factures:\\n{facture_folder_to_delete}\\n\\nErreur: {e_fs}")
+                # --- FIN AJOUT ---
+
                 self._update_totals_display()
                 self._apply_sorting_and_filtering()
                 signals.document_modified.emit()
