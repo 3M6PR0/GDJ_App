@@ -249,56 +249,56 @@ class DocumentPDFPrinter:
         rows_html = ""
         for item in repas_list:
             date_str = item.date.strftime('%d/%m/%Y') if hasattr(item, 'date') and item.date else ''
-            desc_str = item.description if hasattr(item, 'description') else ''
             resto_str = item.restaurant if hasattr(item, 'restaurant') else ''
             client_str = item.client if hasattr(item, 'client') else ''
             num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') else ''
             
             refacturer_text = "Oui" if hasattr(item, 'refacturer') and item.refacturer else "Non"
-            payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non"
-            
-            total_fact_str = f"{item.totale_apres_taxes:.2f} $" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 $'
+            # payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non" # Ancienne version
+            payeur_display_text = "Employé" if hasattr(item, 'payeur') and item.payeur else "Jacmar"
+
+            total_avant_taxes_str = f"{item.totale_avant_taxes:.2f} $" if hasattr(item, 'totale_avant_taxes') and item.totale_avant_taxes is not None else '0.00 $'
             pourboire_str = f"{item.pourboire:.2f} $" if hasattr(item, 'pourboire') and item.pourboire is not None else '0.00 $'
             tps_str = f"{item.tps:.2f} $" if hasattr(item, 'tps') and item.tps is not None else '0.00 $'
-            # Combiner TVQ et TVH si les deux existent, sinon afficher celle qui existe, ou 0.00
-            tvq_val = item.tvq if hasattr(item, 'tvq') and item.tvq is not None else 0
-            tvh_val = item.tvh if hasattr(item, 'tvh') and item.tvh is not None else 0
-            tvq_tvh_val = tvq_val + tvh_val
-            tvq_tvh_str = f"{tvq_tvh_val:.2f} $"
-
-            montant_remb_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $'
+            tvq_str = f"{item.tvq:.2f} $" if hasattr(item, 'tvq') and item.tvq is not None else '0.00 $'
+            tvh_str = f"{item.tvh:.2f} $" if hasattr(item, 'tvh') and item.tvh is not None else '0.00 $'
+            total_apres_taxes_str = f"{item.totale_apres_taxes:.2f} $" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 $'
+            montant_employe_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $'
 
             rows_html += f"""
                 <tr>
                     <td>{date_str}</td>
-                    <td>{desc_str}</td>
                     <td>{resto_str}</td>
                     <td>{client_str}</td>
                     <td>{num_cmd_str}</td>
                     <td>{refacturer_text}</td>
-                    <td>{payeur_text}</td>
-                    <td class="montant">{total_fact_str}</td>
+                    <td>{payeur_display_text}</td>
+                    <td class="montant">{total_avant_taxes_str}</td>
                     <td class="montant">{pourboire_str}</td>
                     <td class="montant">{tps_str}</td>
-                    <td class="montant">{tvq_tvh_str}</td>
-                    <td class="montant">{montant_remb_str}</td>
+                    <td class="montant">{tvq_str}</td>
+                    <td class="montant">{tvh_str}</td>
+                    <td class="montant">{total_apres_taxes_str}</td>
+                    <td class="montant">{montant_employe_str}</td>
                 </tr>
             """
-        # Largeurs de colonnes pour les repas (12 colonnes)
+        # Largeurs de colonnes pour les repas (maintenant 13 colonnes)
+        # Total = 100%
         colgroup_html = """
             <colgroup>
                 <col style="width: 7%;">  <!-- Date -->
-                <col style="width: 15%;"> <!-- Description -->
-                <col style="width: 10%;"> <!-- Restaurant -->
-                <col style="width: 10%;"> <!-- Client -->
+                <col style="width: 11%;"> <!-- Restaurant -->
+                <col style="width: 11%;"> <!-- Client -->
                 <col style="width: 7%;">  <!-- N° Cmd -->
-                <col style="width: 6%;">  <!-- Réf.? -->
-                <col style="width: 8%;">  <!-- Payé Empl. -->
-                <col style="width: 8%;">  <!-- Total Fact. -->
-                <col style="width: 8%;">  <!-- Pourboire -->
+                <col style="width: 6%;">  <!-- Refacturer -->
+                <col style="width: 7%;">  <!-- Payeur -->
+                <col style="width: 7%;">  <!-- Total av. Tx -->
+                <col style="width: 7%;">  <!-- Pourboire -->
                 <col style="width: 7%;">  <!-- TPS -->
-                <col style="width: 7%;">  <!-- TVQ/TVH -->
-                <col style="width: 7%;">  <!-- Montant Remb. -->
+                <col style="width: 7%;">  <!-- TVQ -->
+                <col style="width: 7%;">  <!-- TVH -->
+                <col style="width: 8%;">  <!-- Total ap. Tx -->
+                <col style="width: 8%;">  <!-- Montant Réclamé -->
             </colgroup>
         """
         return f"""
@@ -308,17 +308,18 @@ class DocumentPDFPrinter:
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Description</th>
                         <th>Restaurant</th>
                         <th>Client</th>
                         <th>N° Cmd</th>
-                        <th>Réf.?</th>
-                        <th>Payé Empl.</th>
-                        <th class="montant">Total Fact.</th>
+                        <th>Refacturer</th>
+                        <th>Payeur</th>
+                        <th class="montant">Total av. Tx</th>
                         <th class="montant">Pourboire</th>
                         <th class="montant">TPS</th>
-                        <th class="montant">TVQ/TVH</th>
-                        <th class="montant">Montant Remb.</th>
+                        <th class="montant">TVQ</th>
+                        <th class="montant">TVH</th>
+                        <th class="montant">Total ap. Tx</th>
+                        <th class="montant">Montant Réclamé</th>
                     </tr>
                 </thead>
                 <tbody>{rows_html}</tbody>
