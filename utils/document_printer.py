@@ -4,6 +4,10 @@ from weasyprint.text.fonts import FontConfiguration # Importation corrigée
 from typing import TYPE_CHECKING, List
 import os
 
+# --- AJOUT DE L'IMPORTATION POUR CONFIG_DATA ---
+from models.config_data import ConfigData
+# --------------------------------------------
+
 # --- Importation conditionnelle pour éviter les dépendances circulaires ---
 if TYPE_CHECKING:
     from models.document import Document # Classe de base hypothétique
@@ -86,16 +90,16 @@ class DocumentPDFPrinter:
                 width: 100%;
                 border-collapse: collapse;
                 margin-bottom: 20px;
-                font-size: 8pt; /* Taille de police plus petite pour les tableaux de données */
+                font-size: 7.5pt; /* MODIFIÉ: 8pt -> 7.5pt. Taille de police plus petite pour les tableaux de données */
                 table-layout: fixed; /* Force les largeurs de colonnes à être respectées */
             }
             table.data-table th, table.data-table td {
                 border: 1px solid #ccc;
                 padding: 4px; /* Léger ajustement du padding */
-                text-align: left;
+                text-align: center; /* MODIFIÉ: left -> center */
                 word-wrap: break-word; /* Permet au texte de wrapper */
                 overflow-wrap: break-word; /* Alternative moderne pour word-wrap */
-                vertical-align: top; /* Aligner le texte en haut des cellules */
+                vertical-align: middle; /* MODIFIÉ: top -> middle */
             }
             table.data-table th {
                 background-color: #e9ecef; /* Fond gris très clair pour les en-têtes de tableau de données */
@@ -103,8 +107,16 @@ class DocumentPDFPrinter:
                 padding-top: 8px;
                 padding-bottom: 8px;
             }
-            table.data-table td.montant, table.data-table th.montant {
-                text-align: right;
+            table.data-table td.montant {
+                text-align: right; /* Les données des montants restent à droite */
+            }
+            table.data-table th.montant {
+                text-align: center; /* Les en-têtes des colonnes de montants sont maintenant centrés */
+            }
+            table.data-table td.date-cell {
+                white-space: nowrap; /* Empêche le retour à la ligne pour les dates */
+                padding-left: 6px; /* Augmentation du padding gauche */
+                padding-right: 6px; /* Augmentation du padding droit */
             }
             .totals-section {
                 margin-top: 30px;
@@ -162,7 +174,7 @@ class DocumentPDFPrinter:
             <div class="header-container">
                 <div>{logo_img_html}</div>
                 <div class="title">
-                    <h1>Remboursement de Dépenses</h1>
+                    <h1>Rapport de Dépenses</h1>
                     {user_info_html}
                 </div>
             </div>
@@ -182,51 +194,94 @@ class DocumentPDFPrinter:
             </table>
         """
 
-    def _generate_deplacements_html(self, deplacements: List['Deplacement']) -> str:
+    def _generate_deplacements_html(self, rapport: 'RapportDepense') -> str:
+        deplacements = rapport.deplacements
         if not deplacements: return ""
-        rows_html = ""
+
+        total_kilometrage = 0
         for item in deplacements:
+            if hasattr(item, 'kilometrage') and item.kilometrage is not None:
+                total_kilometrage += item.kilometrage
+
+        config = ConfigData.get_instance()
+
+        # Récupérer le taux de remboursement depuis ConfigData
+        taux_remboursement_km_str = "0.50" # Valeur par défaut
+        try:
+            rapport_depense_config = config.get_top_level_key("documents", {}).get("rapport_depense", [])
+            if rapport_depense_config and isinstance(rapport_depense_config, list) and len(rapport_depense_config) > 0:
+                taux_val = rapport_depense_config[0].get("Taux_remboursement", 0.50)
+                taux_remboursement_km_str = f"{float(taux_val):.2f}"
+        except Exception as e:
+            print(f"Erreur lors de la récupération du taux de remboursement depuis ConfigData: {e}. Utilisation de la valeur par défaut.")
+
+        # Récupérer le nom du plafond de déplacement depuis l'objet RapportDepense
+        nom_plafond_deplacement = getattr(rapport, 'plafond_deplacement', None)
+        plafond_deplacement_valeur_str = "N/A"
+
+        if nom_plafond_deplacement:
+            try:
+                jacmar_config = config.get_top_level_key("jacmar", {})
+                plafonds_liste = jacmar_config.get("plafond_deplacement", [])
+                if plafonds_liste and isinstance(plafonds_liste, list) and len(plafonds_liste) > 0:
+                    plafonds_dict = plafonds_liste[0] # Le premier élément est le dictionnaire des plafonds
+                    if isinstance(plafonds_dict, dict) and nom_plafond_deplacement in plafonds_dict:
+                        valeur_plafond = plafonds_dict[nom_plafond_deplacement]
+                        plafond_deplacement_valeur_str = f"{float(valeur_plafond):.2f} $"
+                    else:
+                        print(f"Le nom de plafond '{nom_plafond_deplacement}' n'a pas été trouvé dans la configuration des plafonds.")
+                else:
+                    print("La liste plafond_deplacement est vide ou mal configurée dans ConfigData.")
+            except Exception as e:
+                print(f"Erreur lors de la récupération de la valeur du plafond de déplacement '{nom_plafond_deplacement}' depuis ConfigData: {e}.")
+        else:
+            print("Aucun nom de plafond de déplacement défini dans l'objet RapportDepense.")
+
+        # Informations au-dessus du tableau, sur une ligne horizontale
+        deplacement_info_html = f"""
+            <div style="margin-bottom: 10px; font-size: 9pt; display: flex; justify-content: space-around; align-items: center; border: 1px solid #eee; padding: 5px; background-color: #f9f9f9;">
+                <span style="margin-right: 15px;"><strong>Distance totale:</strong> {total_kilometrage} km</span>
+                <span style="margin-right: 15px;"><strong>Taux remboursement:</strong> {taux_remboursement_km_str} $ / km</span>
+                <span><strong>Plafond déplacement:</strong> {plafond_deplacement_valeur_str}</span>
+            </div>
+        """
+
+        rows_html = ""
+        for item in deplacements: # Utiliser la variable locale deplacements
             date_str = item.date.strftime('%d/%m/%y') if hasattr(item, 'date') and item.date else ''
             client_str = item.client if hasattr(item, 'client') else ''
             ville_str = item.ville if hasattr(item, 'ville') else ''
-            num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') else ''
+            num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') and item.numero_commande else '-'
             km_str = f"{item.kilometrage} km" if hasattr(item, 'kilometrage') and item.kilometrage is not None else '0 km'
             
-            taux_str = "N/A"
-            if hasattr(item, 'kilometrage') and item.kilometrage and item.kilometrage > 0 and hasattr(item, 'montant'):
-                taux_calcul_val = item.montant / item.kilometrage
-                taux_str = f"{taux_calcul_val:.2f} $"
-            elif hasattr(item, 'taux_par_km') and item.taux_par_km is not None:
-                taux_str = f"{item.taux_par_km:.2f} $"
-
             montant_remb_str = f"{item.montant:.2f} $" if hasattr(item, 'montant') and item.montant is not None else '0.00 $'
 
             rows_html += f"""
                 <tr>
-                    <td>{date_str}</td>
+                    <td class="date-cell">{date_str}</td>
                     <td>{client_str}</td>
                     <td>{ville_str}</td>
                     <td>{num_cmd_str}</td>
                     <td class="montant">{km_str}</td>
-                    <td class="montant">{taux_str}</td>
                     <td class="montant">{montant_remb_str}</td>
                 </tr>
             """
-        # Largeurs de colonnes pour les déplacements (7 colonnes)
-        # Total = 100%
+        
+        # Largeurs de colonnes pour les déplacements (maintenant 6 colonnes)
+        # Date (10%), Client (24%), Ville (23%), N° Commande (17%), Kilométrage (13%), Montant (13%) = 100%
         colgroup_html = """
             <colgroup>
-                <col style="width: 12%;"> <!-- Date -->
-                <col style="width: 20%;"> <!-- Client -->
-                <col style="width: 20%;"> <!-- Ville -->
-                <col style="width: 15%;"> <!-- N° Commande -->
-                <col style="width: 12%;"> <!-- Kilométrage -->
-                <col style="width: 10%;"> <!-- Taux/km -->
-                <col style="width: 11%;"> <!-- Montant -->
+                <col style="width: 10%;"> <!-- Date -->
+                <col style="width: 24%;"> <!-- Client -->
+                <col style="width: 23%;"> <!-- Ville -->
+                <col style="width: 17%;"> <!-- N° Commande -->
+                <col style="width: 13%;"> <!-- Kilométrage -->
+                <col style="width: 13%;"> <!-- Montant -->
             </colgroup>
         """
         return f"""
             <h2 class="section-title">Déplacements</h2>
+            {deplacement_info_html}
             <table class="data-table">
                 {colgroup_html}
                 <thead>
@@ -236,7 +291,6 @@ class DocumentPDFPrinter:
                         <th>Ville</th>
                         <th>N° Commande</th>
                         <th class="montant">Kilométrage</th>
-                        <th class="montant">Taux/km</th>
                         <th class="montant">Montant</th>
                     </tr>
                 </thead>
@@ -251,7 +305,7 @@ class DocumentPDFPrinter:
             date_str = item.date.strftime('%d/%m/%y') if hasattr(item, 'date') and item.date else ''
             resto_str = item.restaurant if hasattr(item, 'restaurant') else ''
             client_str = item.client if hasattr(item, 'client') else ''
-            num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') else ''
+            num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') and item.numero_commande else '-'
             
             refacturer_text = "Oui" if hasattr(item, 'refacturer') and item.refacturer else "Non"
             # payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non" # Ancienne version
@@ -267,7 +321,7 @@ class DocumentPDFPrinter:
 
             rows_html += f"""
                 <tr>
-                    <td>{date_str}</td>
+                    <td class="date-cell">{date_str}</td>
                     <td>{resto_str}</td>
                     <td>{client_str}</td>
                     <td>{num_cmd_str}</td>
@@ -285,15 +339,15 @@ class DocumentPDFPrinter:
         # Total = 100%
         colgroup_html = """
             <colgroup>
-                <col style="width: 7%;">  <!-- Date -->
-                <col style="width: 12%;"> <!-- Restaurant -->
-                <col style="width: 12%;"> <!-- Client -->
+                <col style="width: 10%;">  <!-- Date MODIFIED-->
+                <col style="width: 11%;"> <!-- Restaurant MODIFIED-->
+                <col style="width: 11%;"> <!-- Client MODIFIED-->
                 <col style="width: 7%;">  <!-- N° Cmd -->
                 <col style="width: 7%;">  <!-- Refacturer -->
                 <col style="width: 7%;">  <!-- Payeur -->
                 <col style="width: 8%;">  <!-- Total av. Tx -->
                 <col style="width: 8%;">  <!-- Pourboire -->
-                <col style="width: 8%;">  <!-- TPS -->
+                <col style="width: 7%;">  <!-- TPS MODIFIED-->
                 <col style="width: 8%;">  <!-- TVQ -->
                 <col style="width: 8%;">  <!-- TVH -->
                 <col style="width: 8%;">  <!-- Total ap. Tx -->
@@ -331,41 +385,42 @@ class DocumentPDFPrinter:
             type_depense_str = item.type_depense if hasattr(item, 'type_depense') else ''
             desc_str = item.description if hasattr(item, 'description') else ''
             fournisseur_str = item.fournisseur if hasattr(item, 'fournisseur') else ''
-            payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non"
-            
-            total_fact_str = f"{item.totale_apres_taxes:.2f} $" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 $'
-            tps_str = f"{item.tps:.2f} $" if hasattr(item, 'tps') and item.tps is not None else '0.00 $'
-            
-            tvq_val = item.tvq if hasattr(item, 'tvq') and item.tvq is not None else 0
-            tvh_val = item.tvh if hasattr(item, 'tvh') and item.tvh is not None else 0
-            tvq_tvh_val = tvq_val + tvh_val
-            tvq_tvh_str = f"{tvq_tvh_val:.2f} $"
+            # payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non" # Ancienne version
+            payeur_display_text = "Emp." if hasattr(item, 'payeur') and item.payeur else "Jac."
 
-            # montant_remb_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $' # Supprimé
+            total_avant_taxes_str = f"{item.totale_avant_taxes:.2f} $" if hasattr(item, 'totale_avant_taxes') and item.totale_avant_taxes is not None else '0.00 $'
+            tps_str = f"{item.tps:.2f} $" if hasattr(item, 'tps') and item.tps is not None else '0.00 $'
+            tvq_str = f"{item.tvq:.2f} $" if hasattr(item, 'tvq') and item.tvq is not None else '0.00 $'
+            tvh_str = f"{item.tvh:.2f} $" if hasattr(item, 'tvh') and item.tvh is not None else '0.00 $'
+            total_apres_taxes_str = f"{item.totale_apres_taxes:.2f} $" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 $'
 
             rows_html += f"""
                 <tr>
-                    <td>{date_str}</td>
+                    <td class="date-cell">{date_str}</td>
                     <td>{type_depense_str}</td>
                     <td>{desc_str}</td>
                     <td>{fournisseur_str}</td>
-                    <td>{payeur_text}</td>
-                    <td class="montant">{total_fact_str}</td>
+                    <td>{payeur_display_text}</td>
+                    <td class="montant">{total_avant_taxes_str}</td>
                     <td class="montant">{tps_str}</td>
-                    <td class="montant">{tvq_tvh_str}</td>
+                    <td class="montant">{tvq_str}</td>
+                    <td class="montant">{tvh_str}</td>
+                    <td class="montant">{total_apres_taxes_str}</td>
                 </tr>
             """
-        # Largeurs de colonnes pour les dépenses diverses (maintenant 8 colonnes)
+        # Largeurs de colonnes pour les dépenses diverses (maintenant 10 colonnes)
         colgroup_html = """
             <colgroup>
-                <col style="width: 11%;"> <!-- Date -->
-                <col style="width: 16%;"> <!-- Type -->
-                <col style="width: 27%;"> <!-- Description -->
-                <col style="width: 16%;"> <!-- Fournisseur -->
-                <col style="width: 10%;"> <!-- Payé Empl.? -->
-                <col style="width: 8%;">  <!-- Total Fact. -->
-                <col style="width: 6%;">  <!-- TPS -->
-                <col style="width: 6%;">  <!-- TVQ/TVH -->
+                <col style="width: 10%;"> <!-- Date -->
+                <col style="width: 12%;"> <!-- Type -->
+                <col style="width: 18%;"> <!-- Description -->
+                <col style="width: 12%;"> <!-- Fournisseur -->
+                <col style="width: 7%;">  <!-- Payeur -->
+                <col style="width: 8%;">  <!-- Tot. av. tx. -->
+                <col style="width: 8%;">  <!-- TPS -->
+                <col style="width: 8%;">  <!-- TVQ -->
+                <col style="width: 8%;">  <!-- TVH -->
+                <col style="width: 9%;">  <!-- Tot. ap. tx. -->
             </colgroup>
         """
         return f"""
@@ -378,10 +433,12 @@ class DocumentPDFPrinter:
                         <th>Type</th>
                         <th>Description</th>
                         <th>Fournisseur</th>
-                        <th>Payé Empl.?</th>
-                        <th class="montant">Total Fact.</th>
+                        <th>Payeur</th>
+                        <th class="montant">Tot. av. tx.</th>
                         <th class="montant">TPS</th>
-                        <th class="montant">TVQ/TVH</th>
+                        <th class="montant">TVQ</th>
+                        <th class="montant">TVH</th>
+                        <th class="montant">Tot. ap. tx.</th>
                     </tr>
                 </thead>
                 <tbody>{rows_html}</tbody>
@@ -443,7 +500,7 @@ class DocumentPDFPrinter:
         
         html_content += self._generate_header_html(rapport)
         html_content += self._generate_rapport_info_table_html(rapport)
-        html_content += self._generate_deplacements_html(rapport.deplacements)
+        html_content += self._generate_deplacements_html(rapport)
         html_content += self._generate_repas_html(rapport.repas)
         html_content += self._generate_depenses_diverses_html(rapport.depenses_diverses)
         html_content += self._generate_totaux_html(rapport)
