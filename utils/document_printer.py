@@ -186,7 +186,7 @@ class DocumentPDFPrinter:
         if not deplacements: return ""
         rows_html = ""
         for item in deplacements:
-            date_str = item.date.strftime('%d/%m/%Y') if hasattr(item, 'date') and item.date else ''
+            date_str = item.date.strftime('%d/%m/%y') if hasattr(item, 'date') and item.date else ''
             client_str = item.client if hasattr(item, 'client') else ''
             ville_str = item.ville if hasattr(item, 'ville') else ''
             num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') else ''
@@ -248,14 +248,14 @@ class DocumentPDFPrinter:
         if not repas_list: return ""
         rows_html = ""
         for item in repas_list:
-            date_str = item.date.strftime('%d/%m/%Y') if hasattr(item, 'date') and item.date else ''
+            date_str = item.date.strftime('%d/%m/%y') if hasattr(item, 'date') and item.date else ''
             resto_str = item.restaurant if hasattr(item, 'restaurant') else ''
             client_str = item.client if hasattr(item, 'client') else ''
             num_cmd_str = item.numero_commande if hasattr(item, 'numero_commande') else ''
             
             refacturer_text = "Oui" if hasattr(item, 'refacturer') and item.refacturer else "Non"
             # payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non" # Ancienne version
-            payeur_display_text = "Employé" if hasattr(item, 'payeur') and item.payeur else "Jacmar"
+            payeur_display_text = "Emp." if hasattr(item, 'payeur') and item.payeur else "Jac."
 
             total_avant_taxes_str = f"{item.totale_avant_taxes:.2f} $" if hasattr(item, 'totale_avant_taxes') and item.totale_avant_taxes is not None else '0.00 $'
             pourboire_str = f"{item.pourboire:.2f} $" if hasattr(item, 'pourboire') and item.pourboire is not None else '0.00 $'
@@ -263,7 +263,7 @@ class DocumentPDFPrinter:
             tvq_str = f"{item.tvq:.2f} $" if hasattr(item, 'tvq') and item.tvq is not None else '0.00 $'
             tvh_str = f"{item.tvh:.2f} $" if hasattr(item, 'tvh') and item.tvh is not None else '0.00 $'
             total_apres_taxes_str = f"{item.totale_apres_taxes:.2f} $" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 $'
-            montant_employe_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $'
+            # montant_employe_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $' # Supprimé
 
             rows_html += f"""
                 <tr>
@@ -279,26 +279,24 @@ class DocumentPDFPrinter:
                     <td class="montant">{tvq_str}</td>
                     <td class="montant">{tvh_str}</td>
                     <td class="montant">{total_apres_taxes_str}</td>
-                    <td class="montant">{montant_employe_str}</td>
                 </tr>
             """
-        # Largeurs de colonnes pour les repas (maintenant 13 colonnes)
+        # Largeurs de colonnes pour les repas (maintenant 12 colonnes)
         # Total = 100%
         colgroup_html = """
             <colgroup>
                 <col style="width: 7%;">  <!-- Date -->
-                <col style="width: 11%;"> <!-- Restaurant -->
-                <col style="width: 11%;"> <!-- Client -->
+                <col style="width: 12%;"> <!-- Restaurant -->
+                <col style="width: 12%;"> <!-- Client -->
                 <col style="width: 7%;">  <!-- N° Cmd -->
-                <col style="width: 6%;">  <!-- Refacturer -->
+                <col style="width: 7%;">  <!-- Refacturer -->
                 <col style="width: 7%;">  <!-- Payeur -->
-                <col style="width: 7%;">  <!-- Total av. Tx -->
-                <col style="width: 7%;">  <!-- Pourboire -->
-                <col style="width: 7%;">  <!-- TPS -->
-                <col style="width: 7%;">  <!-- TVQ -->
-                <col style="width: 7%;">  <!-- TVH -->
+                <col style="width: 8%;">  <!-- Total av. Tx -->
+                <col style="width: 8%;">  <!-- Pourboire -->
+                <col style="width: 8%;">  <!-- TPS -->
+                <col style="width: 8%;">  <!-- TVQ -->
+                <col style="width: 8%;">  <!-- TVH -->
                 <col style="width: 8%;">  <!-- Total ap. Tx -->
-                <col style="width: 8%;">  <!-- Montant Réclamé -->
             </colgroup>
         """
         return f"""
@@ -313,13 +311,12 @@ class DocumentPDFPrinter:
                         <th>N° Cmd</th>
                         <th>Refacturer</th>
                         <th>Payeur</th>
-                        <th class="montant">Total av. Tx</th>
-                        <th class="montant">Pourboire</th>
+                        <th class="montant">Tot. av. tx.</th>
+                        <th class="montant">Pourb.</th>
                         <th class="montant">TPS</th>
                         <th class="montant">TVQ</th>
                         <th class="montant">TVH</th>
-                        <th class="montant">Total ap. Tx</th>
-                        <th class="montant">Montant Réclamé</th>
+                        <th class="montant">Tot. ap. tx.</th>
                     </tr>
                 </thead>
                 <tbody>{rows_html}</tbody>
@@ -330,7 +327,7 @@ class DocumentPDFPrinter:
         if not depenses_list: return ""
         rows_html = ""
         for item in depenses_list:
-            date_str = item.date.strftime('%d/%m/%Y') if hasattr(item, 'date') and item.date else ''
+            date_str = item.date.strftime('%d/%m/%y') if hasattr(item, 'date') and item.date else ''
             type_depense_str = item.type_depense if hasattr(item, 'type_depense') else ''
             desc_str = item.description if hasattr(item, 'description') else ''
             fournisseur_str = item.fournisseur if hasattr(item, 'fournisseur') else ''
@@ -344,7 +341,7 @@ class DocumentPDFPrinter:
             tvq_tvh_val = tvq_val + tvh_val
             tvq_tvh_str = f"{tvq_tvh_val:.2f} $"
 
-            montant_remb_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $'
+            # montant_remb_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $' # Supprimé
 
             rows_html += f"""
                 <tr>
@@ -356,21 +353,19 @@ class DocumentPDFPrinter:
                     <td class="montant">{total_fact_str}</td>
                     <td class="montant">{tps_str}</td>
                     <td class="montant">{tvq_tvh_str}</td>
-                    <td class="montant">{montant_remb_str}</td>
                 </tr>
             """
-        # Largeurs de colonnes pour les dépenses diverses (9 colonnes)
+        # Largeurs de colonnes pour les dépenses diverses (maintenant 8 colonnes)
         colgroup_html = """
             <colgroup>
-                <col style="width: 10%;"> <!-- Date -->
-                <col style="width: 15%;"> <!-- Type -->
-                <col style="width: 25%;"> <!-- Description -->
-                <col style="width: 15%;"> <!-- Fournisseur -->
+                <col style="width: 11%;"> <!-- Date -->
+                <col style="width: 16%;"> <!-- Type -->
+                <col style="width: 27%;"> <!-- Description -->
+                <col style="width: 16%;"> <!-- Fournisseur -->
                 <col style="width: 10%;"> <!-- Payé Empl.? -->
                 <col style="width: 8%;">  <!-- Total Fact. -->
-                <col style="width: 7%;">  <!-- TPS -->
-                <col style="width: 7%;">  <!-- TVQ/TVH -->
-                <col style="width: 8%;">  <!-- Montant Remb. -->
+                <col style="width: 6%;">  <!-- TPS -->
+                <col style="width: 6%;">  <!-- TVQ/TVH -->
             </colgroup>
         """
         return f"""
@@ -387,7 +382,6 @@ class DocumentPDFPrinter:
                         <th class="montant">Total Fact.</th>
                         <th class="montant">TPS</th>
                         <th class="montant">TVQ/TVH</th>
-                        <th class="montant">Montant Remb.</th>
                     </tr>
                 </thead>
                 <tbody>{rows_html}</tbody>
@@ -404,14 +398,22 @@ class DocumentPDFPrinter:
         total_repas = 0.0
         if hasattr(rapport, 'repas') and rapport.repas:
             for repas_item in rapport.repas:
-                if hasattr(repas_item, 'employe') and repas_item.employe is not None:
-                    total_repas += repas_item.employe
+                # Sommer la totale_apres_taxes si payeur est True (Employé)
+                if (hasattr(repas_item, 'payeur') and
+                    repas_item.payeur and
+                    hasattr(repas_item, 'totale_apres_taxes') and
+                    repas_item.totale_apres_taxes is not None):
+                    total_repas += repas_item.totale_apres_taxes
         
         total_depenses_diverses = 0.0
         if hasattr(rapport, 'depenses_diverses') and rapport.depenses_diverses:
             for depense_item in rapport.depenses_diverses:
-                if hasattr(depense_item, 'employe') and depense_item.employe is not None:
-                    total_depenses_diverses += depense_item.employe
+                # Sommer la totale_apres_taxes si payeur est True (Employé)
+                if (hasattr(depense_item, 'payeur') and
+                    depense_item.payeur and
+                    hasattr(depense_item, 'totale_apres_taxes') and
+                    depense_item.totale_apres_taxes is not None):
+                    total_depenses_diverses += depense_item.totale_apres_taxes
 
         grand_total_remboursement = total_deplacements + total_repas + total_depenses_diverses
 

@@ -18,8 +18,6 @@ class Repas:
                  tvq: float,
                  tvh: float,
                  totale_apres_taxes: float,
-                 employe: float, # Montant payé par l'employé?
-                 jacmar: float, # Montant payé par Jacmar?
                  facture: Optional[Facture] = None # <-- RESTAURATION
                  ):
 
@@ -38,8 +36,6 @@ class Repas:
             "tvq": tvq,
             "tvh": tvh,
             "totale_apres_taxes": totale_apres_taxes,
-            "employe": employe,
-            "jacmar": jacmar
         }
         for nom, valeur in montants.items():
             if not isinstance(valeur, (int, float)) or valeur < 0:
@@ -65,8 +61,6 @@ class Repas:
         self.tvq: float = float(tvq)
         self.tvh: float = float(tvh)
         self.totale_apres_taxes: float = float(totale_apres_taxes)
-        self.employe: float = float(employe)
-        self.jacmar: float = float(jacmar)
         # --- Assigner l'attribut facture --- 
         self.facture: Optional[Facture] = facture
         # -----------------------------------
@@ -79,7 +73,7 @@ class Repas:
                 f"num_cmd='{self.numero_commande}', avant_tx={self.totale_avant_taxes:.2f}, "
                 f"pourboire={self.pourboire:.2f}, tps={self.tps:.2f}, tvq={self.tvq:.2f}, "
                 f"tvh={self.tvh:.2f}, total={self.totale_apres_taxes:.2f}, "
-                f"montant_employe={self.employe:.2f}, montant_jacmar={self.jacmar:.2f}{facture_repr})")
+                f"{facture_repr})")
         # ---------------------------------------
 
     @property

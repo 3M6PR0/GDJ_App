@@ -2162,8 +2162,8 @@ class RapportDepensePage(QWidget):
                  total_apres_taxes_val = get_float_from_field('total_apres_taxes')
                  # ---------------------------------------------------
                  # --- Ajout: Lire employe/jacmar s'ils existent, sinon 0 --- 
-                 employe_val = get_float_from_field('employe') # TODO: Ajouter champ si nécessaire
-                 jacmar_val = get_float_from_field('jacmar') # TODO: Ajouter champ si nécessaire
+                 # employe_val = get_float_from_field('employe') # TODO: Ajouter champ si nécessaire
+                 # jacmar_val = get_float_from_field('jacmar') # TODO: Ajouter champ si nécessaire
 
                  # --- AJOUT: Création de l'objet Facture --- 
                  facture_obj = None
@@ -2200,8 +2200,8 @@ class RapportDepensePage(QWidget):
                      tvq=tvq_val, 
                      tvh=tvh_val,
                                     totale_apres_taxes=total_apres_taxes_val,
-                     employe=employe_val, # À vérifier si nécessaire
-                     jacmar=jacmar_val,   # À vérifier si nécessaire
+                     # employe=employe_val, # Supprimé
+                     # jacmar=jacmar_val,   # Supprimé
                      facture=facture_obj # <--- MODIFICATION: Passer l'objet Facture (ou None)
                  )
                  # self.document.entries.append(new_entry)
@@ -2248,12 +2248,12 @@ class RapportDepensePage(QWidget):
                  # -------------------------------------------
 
                  # --- AJOUT: Déterminer les montants employe et jacmar pour Dépense ---
-                 employe_val_dep = 0.0
-                 jacmar_val_dep = 0.0
-                 if payeur_val: # True si Employé a payé
-                     employe_val_dep = total_apres_taxes_val
-                 else: # Jacmar a payé
-                     jacmar_val_dep = total_apres_taxes_val
+                 # employe_val_dep = 0.0
+                 # jacmar_val_dep = 0.0
+                 # if payeur_val: # True si Employé a payé
+                 #     employe_val_dep = total_apres_taxes_val
+                 # else: # Jacmar a payé
+                 #     jacmar_val_dep = total_apres_taxes_val
                  # ---------------------------------------------------------------------
 
                  new_entry = Depense(
@@ -2269,8 +2269,8 @@ class RapportDepensePage(QWidget):
                      tvq=tvq_val, 
                      tvh=tvh_val,
                      totale_apres_taxes=total_apres_taxes_val,
-                     employe=employe_val_dep, # AJOUTÉ
-                     jacmar=jacmar_val_dep,   # AJOUTÉ
+                     # employe=employe_val_dep, # Supprimé
+                     # jacmar=jacmar_val_dep,   # Supprimé
                      facture=facture_obj_dep 
                  )
                  self.document.ajouter_depense(new_entry)
@@ -3400,8 +3400,9 @@ class RapportDepensePage(QWidget):
                 self.editing_entry.tvq = get_float_from_field_apply('tvq')
                 self.editing_entry.tvh = get_float_from_field_apply('tvh')
                 self.editing_entry.totale_apres_taxes = get_float_from_field_apply('total_apres_taxes')
-                # self.editing_entry.employe = ... # Si nécessaire
-                # self.editing_entry.jacmar = ... # Si nécessaire
+                # Les lignes suivantes sont supprimées car les attributs n'existent plus sur la classe Repas
+                # # self.editing_entry.employe = ... 
+                # # self.editing_entry.jacmar = ... 
                 
                 # Mise à jour Facture
                 all_paths = list(self.current_facture_thumbnails.keys())

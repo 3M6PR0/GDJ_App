@@ -16,8 +16,6 @@ class Depense:
                  tvq: float,
                  tvh: float,
                  totale_apres_taxes: float,
-                 employe: float, # Montant payé par l'employé?
-                 jacmar: float, # Montant payé par Jacmar?
                  facture: Optional[Facture] = None
                  ):
 
@@ -35,8 +33,6 @@ class Depense:
             "tvq": tvq,
             "tvh": tvh,
             "totale_apres_taxes": totale_apres_taxes,
-            "employe": employe,
-            "jacmar": jacmar
         }
         for nom, valeur in montants.items():
             if not isinstance(valeur, (int, float)) or valeur < 0:
@@ -55,8 +51,6 @@ class Depense:
         self.tvq: float = float(tvq)
         self.tvh: float = float(tvh)
         self.totale_apres_taxes: float = float(totale_apres_taxes)
-        self.employe: float = float(employe)
-        self.jacmar: float = float(jacmar)
         self.facture: Optional[Facture] = facture
 
     def __repr__(self):
@@ -65,8 +59,7 @@ class Depense:
                 f"desc='{self.description}', fournisseur='{self.fournisseur}', "
                 f"payeur_employe={self.payeur}, avant_tx={self.totale_avant_taxes:.2f}, "
                 f"tps={self.tps:.2f}, tvq={self.tvq:.2f}, tvh={self.tvh:.2f}, "
-                f"total={self.totale_apres_taxes:.2f}, montant_employe={self.employe:.2f}, "
-                f"montant_jacmar={self.jacmar:.2f}{facture_repr})")
+                f"total={self.totale_apres_taxes:.2f}{facture_repr})")
 
     @property
     def total(self) -> float:
