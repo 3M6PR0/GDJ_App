@@ -82,4 +82,19 @@ class RapportDepense(Document):
                 f"{len(self.depenses_diverses)} dépenses diverses)")
     # -----------------------------------
 
-    # Ajouter d'autres méthodes (calculs totaux, etc.) 
+    # --- NOUVELLE MÉTHODE D'EXPORTATION PDF UTILISANT DocumentPDFPrinter ---
+    def export_to_pdf(self, output_path: str):
+        """Exporte ce rapport de dépenses en PDF en utilisant DocumentPDFPrinter."""
+        # Importation locale pour éviter les dépendances circulaires au niveau du module
+        # et parce que DocumentPDFPrinter n'est utilisé que par cette méthode ici.
+        from utils.document_printer import DocumentPDFPrinter
+        
+        printer = DocumentPDFPrinter()
+        try:
+            printer.generate(self, output_path)
+        except Exception as e:
+            # Il est généralement préférable de logger l'erreur ici plutôt que juste print
+            # et potentiellement remonter l'exception ou la gérer d'une manière spécifique à l'application.
+            print(f"Erreur lors de l'exportation du rapport en PDF: {e}")
+            # raise # Décommenter pour remonter l'exception si nécessaire
+    # -------------------------------------------------------------------- 

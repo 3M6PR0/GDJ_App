@@ -1,8 +1,8 @@
 import sys
 import os
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QSpacerItem, QSizePolicy, QMenu, QAction, QWidgetAction, QFrame
-from PyQt5.QtCore import Qt, QPoint, QSize, pyqtSlot as Slot, pyqtSignal, QEvent, QTimer
-from PyQt5.QtGui import QIcon, QPixmap, QFont, QCursor
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QSpacerItem, QSizePolicy, QMenu, QAction, QWidgetAction, QFrame, QFileDialog
+from PyQt5.QtCore import Qt, QPoint, QSize, pyqtSlot as Slot, pyqtSignal, QEvent, QTimer, QUrl
+from PyQt5.QtGui import QIcon, QPixmap, QFont, QCursor, QDesktopServices
 
 # --- Import CORRECT pour icon_loader --- 
 from utils import icon_loader
@@ -440,6 +440,7 @@ class CustomTitleBar(QWidget):
         action_save_as = self._file_menu.addAction("Enregistrer sous...")
         action_close_doc = self._file_menu.addAction("Fermer")
         action_print_doc = self._file_menu.addAction("Imprimer") # Renommé ici
+        action_print_doc.triggered.connect(self._handle_print_active_document) # <--- AJOUT DE LA CONNEXION
         # --- AJOUT CONNEXION pour Fermer --- 
         action_close_doc.triggered.connect(self.close_active_document_requested.emit)
         # -----------------------------------
@@ -580,6 +581,81 @@ class CustomTitleBar(QWidget):
         logger.info("CustomTitleBar: Action 'Nouveau' cliquée, émission de new_document_requested.")
         self.new_document_requested.emit()
     # -----------------------------------------------------------
+
+    # --- NOUVELLE MÉTHODE POUR GÉRER L'IMPRESSION DU DOCUMENT ACTIF ---
+    @Slot()
+    def _handle_print_active_document(self):
+        logger.debug("Action Imprimer document actif déclenchée.")
+        parent_window = self.parent()
+        if not parent_window:
+            logger.warning("Impossible d'obtenir la fenêtre parente pour l'impression.")
+            # TODO: Afficher un message à l'utilisateur ?
+            return
+
+        active_document = None
+        if hasattr(parent_window, 'get_active_document'):
+            active_document = parent_window.get_active_document()
+        else:
+            logger.warning("La fenêtre parente n'a pas de méthode 'get_active_document'.")
+            # TODO: Afficher un message à l'utilisateur ?
+            return
+
+        if active_document is None:
+            logger.info("Aucun document actif à imprimer.")
+            # TODO: Afficher un message à l'utilisateur (ex: barre de statut ou QMessageBox.information)
+            # from PyQt5.QtWidgets import QMessageBox
+            # QMessageBox.information(parent_window, "Impression", "Aucun document actif à imprimer.")
+            return
+
+        if not hasattr(active_document, 'export_to_pdf') or not callable(getattr(active_document, 'export_to_pdf')):
+            logger.warning(f"Le document actif de type '{type(active_document).__name__}' n'a pas de méthode export_to_pdf.")
+            # from PyQt5.QtWidgets import QMessageBox
+            # QMessageBox.warning(parent_window, "Impression", "Ce type de document ne peut pas être imprimé.")
+            return
+            
+        # Proposer un nom de fichier basé sur le titre du document ou un nom par défaut
+        default_filename = "impression.pdf"
+        if hasattr(active_document, 'title') and active_document.title:
+            # Nettoyer le titre pour qu'il soit un nom de fichier valide
+            safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '' for c in active_document.title).rstrip()
+            default_filename = f"{safe_title}.pdf"
+        elif hasattr(active_document, 'nom_fichier') and active_document.nom_fichier: # Fallback si nom_fichier existe
+            base, _ = os.path.splitext(active_document.nom_fichier)
+            default_filename = f"{base}_impression.pdf"
+
+        # Ouvrir la boîte de dialogue pour choisir l'emplacement de sauvegarde
+        # Le répertoire initial pourrait être le dernier utilisé ou le répertoire des documents de l'utilisateur
+        # Pour l'instant, on laisse le système choisir le répertoire par défaut.
+        file_path, _ = QFileDialog.getSaveFileName(
+            parent_window, 
+            "Enregistrer le PDF sous...", 
+            default_filename, # Nom de fichier suggéré
+            "Documents PDF (*.pdf);;Tous les fichiers (*)"
+        )
+
+        if file_path:
+            try:
+                logger.info(f"Tentative d'exportation du document actif vers : {file_path}")
+                active_document.export_to_pdf(file_path)
+                logger.info(f"PDF généré avec succès : {file_path}")
+                
+                # Ouvrir le PDF avec l'application par défaut
+                success = QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+                if not success:
+                    logger.error(f"Impossible d'ouvrir le PDF généré : {file_path}")
+                    # from PyQt5.QtWidgets import QMessageBox
+                    # QMessageBox.warning(parent_window, "Ouverture PDF", f"Impossible d'ouvrir le fichier PDF généré.\n{file_path}")
+            except Exception as e:
+                logger.error(f"Erreur lors de la génération ou de l'ouverture du PDF : {e}", exc_info=True)
+                # from PyQt5.QtWidgets import QMessageBox
+                # QMessageBox.critical(parent_window, "Erreur d'impression", f"Une erreur est survenue lors de la génération du PDF:\n{e}")
+        else:
+            logger.info("L'opération d'impression a été annulée par l'utilisateur.")
+    # -----------------------------------------------------------------------
+
+    def eventFilter(self, obj, event):
+        # ... existing code ...
+        return super().eventFilter(obj, event)
 
 # --- Section pour tester la barre seule --- 
 if __name__ == '__main__':

@@ -144,12 +144,28 @@ class DocumentWindow(QWidget):
             
             # --- EMPÊCHER QT DE QUITTER SI C'EST LA DERNIÈRE FENÊTRE LOGIQUE ---
             app = QApplication.instance() # S'assurer que QApplication est importé au début du fichier
-            if app and len(self.main_controller.open_document_windows) == 1: # Si c'est la dernière DocumentWindow
+            if app and self.main_controller and hasattr(self.main_controller, 'open_document_windows') and len(self.main_controller.open_document_windows) == 1: # Si c'est la dernière DocumentWindow
                 logger.debug("DocumentWindow: Temporairement quitOnLastWindowClosed = False avant de fermer.")
                 app.setQuitOnLastWindowClosed(False)
             # ----------------------------------------------------------------------
                  
             self.close()
+
+    # --- NOUVELLE MÉTHODE POUR OBTENIR LE DOCUMENT ACTIF ---
+    def get_active_document(self):
+        """Retourne l'objet document (par exemple, RapportDepense) de l'onglet actif.
+        Appelle la méthode correspondante sur la page documents_open_page.
+        """
+        if hasattr(self, 'documents_open_page') and self.documents_open_page and \
+           hasattr(self.documents_open_page, 'get_active_document_object'):
+            return self.documents_open_page.get_active_document_object()
+        else:
+            if not hasattr(self, 'documents_open_page') or not self.documents_open_page:
+                logger.warning("DocumentWindow: documents_open_page n'est pas initialisée.")
+            elif not hasattr(self.documents_open_page, 'get_active_document_object'):
+                logger.warning("DocumentWindow: documents_open_page n'a pas la méthode 'get_active_document_object'.")
+            return None
+    # --------------------------------------------------------
 
     def eventFilter(self, obj, event):
         if obj == self and event.type() == QEvent.MouseButtonPress:

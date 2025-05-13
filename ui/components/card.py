@@ -452,7 +452,7 @@ class CardWidget(QFrame):
                 details_layout.addWidget(value_widget, i + 1, 3)
 
             # --- NOUVEAU: Ajouter la section Facture Colonne 5 --- 
-            facture_label = QLabel("Facture:")
+            facture_label = QLabel("Facture(s):") # MODIFIÉ: Texte du label
             facture_label.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
             details_layout.addWidget(facture_label, 1, 4, Qt.AlignLeft | Qt.AlignTop) # Ligne 1 (sous séparateur), Col 4, Align Top
 
@@ -484,7 +484,7 @@ class CardWidget(QFrame):
             
             # Si pas de factures, cacher le label et ne rien ajouter
             if not has_factures:
-                facture_label.hide()
+                # facture_label.hide() # SUPPRIMÉ: Le label reste visible
                 no_facture_label = QLabel("Aucune")
                 no_facture_label.setStyleSheet("background-color: transparent; border: none; font-style: italic;")
                 # Ajouter à la même position que facture_thumbs_widget mais caché si has_factures est True
@@ -576,7 +576,7 @@ class CardWidget(QFrame):
             facture_label_dep = QLabel("Facture(s):")
             facture_label_dep.setStyleSheet("background-color: transparent; border: none; font-weight: bold;")
             # Aligner en haut de la colonne, à la première ligne de données (current_row)
-            details_layout.addWidget(facture_label_dep, current_row, 4, Qt.AlignLeft | Qt.AlignTop)
+            details_layout.addWidget(facture_label_dep, current_row, 4, Qt.AlignLeft | Qt.AlignTop) # current_row est 1
 
             facture_obj_dep = getattr(self.entry_data, facture_attr_depense, None)
             has_factures_dep = False

@@ -442,6 +442,26 @@ class DocumentsOpenPage(QWidget):
             self.close_tab(i) # Réutiliser la logique existante
         logger.info("DocumentsOpenPage: Tous les onglets ont été fermés.")
 
+    # --- NOUVELLE MÉTHODE POUR RÉCUPÉRER L'OBJET DOCUMENT ACTIF ---
+    def get_active_document_object(self):
+        """Retourne l'objet document (par exemple, RapportDepense) de l'onglet actuellement actif."""
+        current_index = self.tab_widget.currentIndex()
+        if current_index == -1: # Aucun onglet sélectionné ou aucun onglet
+            logger.debug("DocumentsOpenPage: Aucun onglet actif, impossible de récupérer l'objet document.")
+            return None
+
+        current_page_widget = self.tab_widget.widget(current_index)
+        if current_page_widget and hasattr(current_page_widget, 'document'):
+            logger.debug(f"DocumentsOpenPage: Document actif récupéré: {type(current_page_widget.document).__name__}")
+            return current_page_widget.document
+        else:
+            if not current_page_widget:
+                logger.warning("DocumentsOpenPage: Aucun widget trouvé pour l'onglet actif.")
+            elif not hasattr(current_page_widget, 'document'):
+                logger.warning(f"DocumentsOpenPage: Le widget de l'onglet actif ({type(current_page_widget).__name__}) n'a pas d'attribut 'document'.")
+            return None
+    # ---------------------------------------------------------------
+
 # Bloc de test
 if __name__ == '__main__':
     # Le test existant fonctionne toujours mais n'utilise pas le nouveau constructeur
