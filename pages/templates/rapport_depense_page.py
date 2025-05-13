@@ -228,7 +228,7 @@ class RapportDepensePage(QWidget):
             "Repas": "round_restaurant.png",
             "Dépense": "round_payments.png"
         }
-        fallback_icon_name = "round_receipt_long.png" # Icône si une autre n'est pas trouvée
+        fallback_icon_name = "round_priority_high_red.png" # Icône si une autre n'est pas trouvée
         
         for text, icon_name in entry_types.items():
             icon_path = get_icon_path(icon_name)
@@ -357,7 +357,7 @@ class RapportDepensePage(QWidget):
             "Employé": "round_badge.png", # MODIFIÉ: Nouvelle icône Employé
             "Jacmar": "round_corporate_fare.png"   # MODIFIÉ: Nouvelle icône Jacmar
         }
-        fallback_icon_name = "round_receipt_long.png" # Même fallback que l'autre combo
+        fallback_icon_name = "round_priority_high_red.png" # Même fallback que l'autre combo
 
         for text, icon_name in filter_options.items():
             icon_path = get_icon_path(icon_name)

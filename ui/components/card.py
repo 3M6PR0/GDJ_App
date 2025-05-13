@@ -272,7 +272,7 @@ class CardWidget(QFrame):
         icon_size = QSize(18, 18) # MODIFIÉ: Taille 18x18 (comme le pixmap de type)
         
         # Pixmap visible (icône rouge ou fallback)
-        icon_path = get_icon_path("round_receipt_red.png")
+        icon_path = get_icon_path("round_priority_high_red.png")
         if icon_path:
             try:
                 self.pixmap_facture_visible = QIcon(icon_path).pixmap(icon_size)
@@ -282,7 +282,7 @@ class CardWidget(QFrame):
                  logger.warning(f"CardWidget: Erreur chargement icône {icon_path}, utilisation fallback: {e_icon}")
                  self.pixmap_facture_visible = None # Assurer qu'on passe au fallback
         else:
-            logger.warning(f"CardWidget: Icône round_receipt_red.png non trouvée, utilisation fallback.")
+            logger.warning(f"CardWidget: Icône round_priority_high_red.png non trouvée, utilisation fallback.")
             self.pixmap_facture_visible = None # Pas d'icône trouvée
 
         # Fallback si pixmap visible est None (icône non trouvée ou invalide)
