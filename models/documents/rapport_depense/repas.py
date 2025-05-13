@@ -7,12 +7,11 @@ class Repas:
 
     def __init__(self,
                  date_repas: date,
-                 description: str,
                  restaurant: str,
-                 client: str, # Peut être vide si repas interne?
+                 client: str,
                  payeur: bool, # True = Employé, False = Jacmar?
                  refacturer: bool,
-                 numero_commande: str, # Peut être vide?
+                 numero_commande: str, # Peut être vide si non refacturé
                  totale_avant_taxes: float,
                  pourboire: float,
                  tps: float,
@@ -26,8 +25,6 @@ class Repas:
 
         if not isinstance(date_repas, date):
             raise TypeError("date_repas doit être un objet date.")
-        if not isinstance(description, str):
-            raise TypeError("description doit être une chaîne de caractères.")
         if not isinstance(refacturer, bool):
             raise TypeError("refacturer doit être un booléen.")
         if not isinstance(payeur, bool):
@@ -57,7 +54,6 @@ class Repas:
         # --------------------------------------------------
 
         self.date: date = date_repas
-        self.description: str = description
         self.restaurant: str = str(restaurant)
         self.client: str = str(client)
         self.payeur: bool = payeur
@@ -78,7 +74,7 @@ class Repas:
     def __repr__(self):
         # --- Adapter repr pour inclure facture --- 
         facture_repr = f", facture={self.facture}" if self.facture else ""
-        return (f"Repas(date={self.date.isoformat()}, desc='{self.description}', restaurant='{self.restaurant}', "
+        return (f"Repas(date={self.date.isoformat()}, restaurant='{self.restaurant}', "
                 f"client='{self.client}', payeur_employe={self.payeur}, refacturer={self.refacturer}, "
                 f"num_cmd='{self.numero_commande}', avant_tx={self.totale_avant_taxes:.2f}, "
                 f"pourboire={self.pourboire:.2f}, tps={self.tps:.2f}, tvq={self.tvq:.2f}, "

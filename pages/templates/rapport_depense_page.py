@@ -2188,8 +2188,7 @@ class RapportDepensePage(QWidget):
                  
                  # --- Créer l'objet Repas --- 
                  new_entry = Repas(
-                     date_repas=date_val, 
-                     description="Repas", # Description générique ou à ajouter au form?
+                     date_repas=date_val,
                      restaurant=restaurant_val, 
                      client=client_repas_val,
                      payeur=payeur_val, # Passer le booléen directement (True=Employé)
