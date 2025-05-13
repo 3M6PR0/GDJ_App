@@ -17,6 +17,17 @@ from widgets.numeric_input_with_unit import NumericInputWithUnit # <<< S'ASSURER
 from ui.components.card import CardWidget # Importer le widget card renommé
 from widgets.thumbnail_widget import ThumbnailWidget
 import traceback # Importer traceback pour débogage
+# --- AJOUTS POUR GESTION FICHIERS FACTURE ---
+import shutil
+from pathlib import Path
+from utils.paths import get_user_data_path
+from utils.file_management import (
+    sanitize_string_for_path,
+    format_total_for_path,
+    get_gl_code_for_expense_type,
+    get_next_file_index
+)
+# ---------------------------------------------
 # --- AJOUT: Tentative d'import de fitz et définition de PYMUPDF_AVAILABLE --- 
 try:
     import fitz # PyMuPDF
@@ -697,7 +708,6 @@ class RapportDepensePage(QWidget):
         # Initialisation du formulaire dynamique (appel original)
         self._update_entry_form()
 
-    # --- NOUVELLE MÉTHODE POUR METTRE À JOUR LES INFOS DU CADRE DÉPLACEMENT --- # DÉCOMMENTÉE
     def _update_deplacement_info_display(self):
         logger.debug("Mise à jour des informations du cadre Déplacement.")
         config_data = ConfigData.get_instance()
@@ -789,9 +799,6 @@ class RapportDepensePage(QWidget):
         # La partie Calcul du Montant Remboursable est supprimée car non demandée
         # logger.debug(f"Déplacement - Taux: ..., Plafond Doc: ...") # Log simplifié ou à ajuster si besoin
 
-    # --- FIN NOUVELLE MÉTHODE --- # DÉCOMMENTÉE
-
-    # AJOUT: Méthode pour mettre à jour les infos du cadre Repas
     def _update_repas_info_display(self):
         logger.debug("Mise à jour des informations du cadre Repas.")
         # Pour l'instant, s'assurer que le label affiche 0.00 $
@@ -805,7 +812,6 @@ class RapportDepensePage(QWidget):
             self.total_repas_valeur_label.setText("Erreur")
             logger.error(f"Erreur lors de la mise à jour de l'affichage du total repas: {e}", exc_info=True)
 
-    # AJOUT: Méthode pour mettre à jour les infos du cadre Dépenses Diverses
     def _update_depenses_diverses_info_display(self):
         logger.debug("Mise à jour des informations du cadre Dépenses Diverses.")
         # Pour l'instant, s'assurer que le label affiche 0.00 $
@@ -829,7 +835,6 @@ class RapportDepensePage(QWidget):
         # separator.setStyleSheet(...) # Supprimé
         return separator
 
-    # --- AJOUT: Mettre à jour les options de tri secondaire --- 
     def _update_secondary_sort_options(self):
         """Met à jour les options du ComboBox de tri secondaire pour exclure le critère primaire."""
         primary_option_text = self.sort_primary_combo.currentText()
@@ -1436,7 +1441,7 @@ class RapportDepensePage(QWidget):
             frame_content_layout.addLayout(label_button_layout)
 
             # ScrollArea pour les miniatures (ajoutée SOUS le label+bouton)
-            self.facture_scroll_area = QScrollArea()
+            self.facture_scroll_area = QScrollArea() 
             self.facture_scroll_area.setWidgetResizable(True)
             self.facture_scroll_area.setFrameShape(QFrame.NoFrame)
             # --- RESTAURATION: Hauteur MINIMALE pour miniature + scrollbar --- 
@@ -1453,11 +1458,8 @@ class RapportDepensePage(QWidget):
             self.facture_thumbnails_layout.setAlignment(Qt.AlignLeft) 
             self.facture_scroll_area.setWidget(self.facture_container_widget)
             
-            # Ajouter la ScrollArea au layout du frame
             frame_content_layout.addWidget(self.facture_scroll_area)
-            # frame_content_layout.addStretch(1) # Pousse le contenu vers le haut si besoin
-
-            # Ajouter le frame ENTIER au grid principal, sur 2 colonnes
+            
             self.dynamic_form_layout.addWidget(self.form_fields['facture_frame'], current_row, 0, 1, 2)
             current_row += 1
             # ----------------------------------------------------------------
@@ -2089,211 +2091,246 @@ class RapportDepensePage(QWidget):
     def _add_entry(self):
         """ Ajoute l'entrée en lisant les champs du formulaire. """
         entry_type = self.entry_type_combo.currentText()
-        
-        # --- DÉFINITION DE LA FONCTION HELPER get_float_from_field ICI ---
-        def get_float_from_field(key):
-            try:
-                widget = self.form_fields[key]
-                if isinstance(widget, NumericInputWithUnit):
-                    return widget.value()
-                else: # Fallback for other types, e.g. QLineEdit
-                    return float(widget.text().replace(',', '.'))
-            except (KeyError, ValueError, AttributeError): # Added AttributeError
-                # Si clé non trouvée ou conversion impossible, retourner 0.0
-                logger.warning(f"Clé '{key}' non trouvée dans form_fields ou valeur invalide lors de la conversion en float.")
-                return 0.0
-        # --- FIN DÉFINITION HELPER ---
+        logger.info(f"Tentative d'ajout d'une entrée de type: {entry_type}")
 
-        # --- AJOUT: Appel de la validation --- 
         if not self._validate_form_data(entry_type):
-            return # Stopper si la validation échoue
+            logger.warning("Validation du formulaire échouée.")
+            return
+
+        # Helper pour récupérer les floats depuis les champs
+        def get_float_from_field(key_suffix: str) -> float:
+            field_key_base = key_suffix.split('_')[0] # ex: 'total_avant_taxes' depuis 'total_avant_taxes_dep'
+            # Gérer les clés spécifiques pour Repas (pas de suffixe _dep) et Dépense (avec _dep)
+            actual_key = key_suffix 
+            if entry_type == "Repas" and key_suffix.endswith("_dep"):
+                 # Pour Repas, les clés comme 'total_avant_taxes' n'ont pas de suffixe _dep
+                 # Donc si on demande 'total_avant_taxes_dep' pour un Repas, c'est une erreur de logique appelante
+                 # ou alors on cherche un champ qui n'existe pas pour Repas. On devrait utiliser la clé sans _dep.
+                 # Cette fonction est appelée avec des clés comme 'total_avant_taxes', 'tps', etc. pour Repas
+                 # et 'total_avant_taxes_dep', 'tps_dep', etc. pour Dépense.
+                 # Donc, si entry_type == "Repas", key_suffix NE DEVRAIT PAS finir par _dep.
+                 # Si entry_type == "Dépense", key_suffix DEVRAIT finir par _dep.
+                 # Simplifions: la clé passée est celle à utiliser.
+                 pass # La clé est déjà correcte
+            elif entry_type == "Dépense" and not key_suffix.endswith("_dep"):
+                # Si c'est une dépense, et qu'on n'a pas le suffixe, il faut l'ajouter
+                # Cela ne devrait pas arriver si les appels sont corrects.
+                # Pour être robuste :
+                actual_key = key_suffix + "_dep" if key_suffix in ['total_avant_taxes', 'tps', 'tvq', 'tvh', 'total_apres_taxes'] else key_suffix
+            
+            widget = self.form_fields.get(actual_key)
+            if isinstance(widget, NumericInputWithUnit):
+                return widget.value()
+            elif isinstance(widget, QLineEdit): # Pourrait être un QLineEdit pour certains montants?
+                val_str = widget.text().replace(',', '.')
+                try:
+                    return float(val_str)
+                except ValueError:
+                    return 0.0
+            elif isinstance(widget, QDoubleSpinBox): # Au cas où QDoubleSpinBox serait utilisé directement
+                return widget.value()
+            logger.warning(f"Widget pour la clé '{actual_key}' non trouvé ou type non géré pour get_float_from_field.")
+            return 0.0
         # -------------------------------------
         
         try:
-            # Récupérer les valeurs communes (Date et Description)
-            date_val = self.form_fields['date'].date().toPyDate()
+            date_val_obj = self.form_fields['date'].date().toPyDate()
+            date_str_nom = date_val_obj.strftime('%d%m%y')
+            nom_complet_employe_str_nom = sanitize_string_for_path(f"{self.document.prenom_employe}_{self.document.nom_employe}")
 
+            facture_obj = None
+            dossier_destination_factures = None
+            noms_fichiers_relatifs_factures = []
+
+            if self.current_facture_thumbnails:
+                total_ap_taxes_val = 0.0
+                base_folder_name_components = [date_str_nom]
+
+                if entry_type == "Repas":
+                    restaurant_val_nom = sanitize_string_for_path(self.form_fields['restaurant'].text())
+                    client_val_nom = sanitize_string_for_path(self.form_fields['client_repas'].text())
+                    total_ap_taxes_val = get_float_from_field('total_apres_taxes')
+                    base_folder_name_components.extend([restaurant_val_nom, client_val_nom])
+                elif entry_type == "Dépense":
+                    type_depense_val = self.form_fields['type_depense'].currentText()
+                    code_gl_val = get_gl_code_for_expense_type(type_depense_val) or "nocode"
+                    description_val_nom = sanitize_string_for_path(type_depense_val) # Utiliser le type comme description
+                    total_ap_taxes_val = get_float_from_field('total_apres_taxes_dep')
+                    base_folder_name_components.extend([code_gl_val, description_val_nom])
+                
+                total_ap_taxes_str_nom = format_total_for_path(total_ap_taxes_val)
+                base_folder_name_components.extend([total_ap_taxes_str_nom, nom_complet_employe_str_nom])
+                
+                base_folder_name = "_".join(filter(None, base_folder_name_components))
+                base_folder_name = sanitize_string_for_path(base_folder_name, max_length=180) # Max length pour nom de dossier
+
+                factures_root_dir = get_user_data_path(subfolder="FacturesEntrees")
+                dossier_destination_factures = factures_root_dir / base_folder_name
+                dossier_destination_factures.mkdir(parents=True, exist_ok=True)
+
+                base_filename_sans_ext = base_folder_name # Le nom de fichier est basé sur le nom du dossier
+
+                for original_file_path_str in self.current_facture_thumbnails.keys():
+                    original_path_obj = Path(original_file_path_str)
+                    file_extension = original_path_obj.suffix
+                    
+                    next_idx = get_next_file_index(dossier_destination_factures, base_filename_sans_ext)
+                    nouveau_nom_fichier_relatif = f"{base_filename_sans_ext}_{next_idx}{file_extension}"
+                    destination_file_path_complet = dossier_destination_factures / nouveau_nom_fichier_relatif
+                    
+                    try:
+                        shutil.copy2(original_file_path_str, destination_file_path_complet)
+                        noms_fichiers_relatifs_factures.append(nouveau_nom_fichier_relatif)
+                        logger.info(f"Facture copiée: {original_file_path_str} -> {destination_file_path_complet}")
+                    except Exception as e_copy:
+                        logger.error(f"Erreur copie facture {original_file_path_str} vers {destination_file_path_complet}: {e_copy}")
+                        QMessageBox.warning(self, "Erreur Copie Facture", f"Impossible de copier la facture: {original_path_obj.name}\nErreur: {e_copy}")
+            
+            if noms_fichiers_relatifs_factures and dossier_destination_factures:
+                facture_obj = Facture(folder_path=str(dossier_destination_factures), filenames=noms_fichiers_relatifs_factures)
+
+            # Création de l'objet entrée (Repas ou Dépense)
             new_entry = None
-            if entry_type == "Déplacement":
-                 client_val = self.form_fields['client'].text()
-                 ville_val = self.form_fields['ville'].text()
-                 num_commande_val = self.form_fields['numero_commande'].text()
-                 kilometrage_val = self.form_fields['kilometrage'].value()
-                 # --- Calcul du montant pour Déplacement (réintroduit et corrigé) ---
-                 taux_remboursement = 0.0
-                 try:
-                     config_instance = ConfigData.get_instance()
-                     config = config_instance.all_data
-                     documents_config = config.get("documents", {})
-                     rapport_depense_config = documents_config.get("rapport_depense", [{}])
-                     if rapport_depense_config and isinstance(rapport_depense_config, list) and len(rapport_depense_config) > 0:
-                         taux_remboursement_str = str(rapport_depense_config[0].get('Taux_remboursement', '0.0'))
-                         taux_remboursement = float(taux_remboursement_str)
-                 except Exception as e_taux:
-                     logger.error(f"Erreur récupération taux remboursement dans _add_entry: {e_taux}")
-                     # Optionnel: Afficher une erreur à l'utilisateur?
-                 
-                 montant_calculé = kilometrage_val * taux_remboursement
-                 # -------------------------------------------------------------------
-                 new_entry = Deplacement(date_deplacement=date_val, 
-                                         client=client_val, ville=ville_val, 
-                                         numero_commande=num_commande_val,
-                                         kilometrage=kilometrage_val, 
-                                         montant=montant_calculé) # Utiliser le montant calculé
-                 self.document.ajouter_deplacement(new_entry)
-                 # print(f"Déplacement ajouté: {new_entry}") # MODIFICATION
-                 logger.info(f"Déplacement ajouté: {new_entry}") # MODIFICATION
-
-            elif entry_type == "Repas":
-                 # Récupérer les valeurs spécifiques depuis self.form_fields
+            if entry_type == "Repas":
                  restaurant_val = self.form_fields['restaurant'].text()
                  client_repas_val = self.form_fields['client_repas'].text()
-                 # --- Lire l'état des RadioButtons --- 
                  payeur_val = self.form_fields['payeur_employe'].isChecked()
                  refacturer_val = self.form_fields['refacturer_oui'].isChecked()
-                 # ------------------------------------
-                 num_commande_repas_val = self.form_fields['numero_commande_repas'].text()
-                 # --- Lire et convertir les QLineEdit monétaires --- 
+                 num_commande_repas_val = self.form_fields['numero_commande_repas'].text() if refacturer_val else ""
                  total_avant_taxes_val = get_float_from_field('total_avant_taxes')
                  pourboire_val = get_float_from_field('pourboire')
                  tps_val = get_float_from_field('tps')
                  tvq_val = get_float_from_field('tvq')
                  tvh_val = get_float_from_field('tvh')
                  total_apres_taxes_val = get_float_from_field('total_apres_taxes')
-                 # ---------------------------------------------------
-                 # --- Ajout: Lire employe/jacmar s'ils existent, sinon 0 --- 
-                 # employe_val = get_float_from_field('employe') # TODO: Ajouter champ si nécessaire
-                 # jacmar_val = get_float_from_field('jacmar') # TODO: Ajouter champ si nécessaire
-
-                 # --- AJOUT: Création de l'objet Facture --- 
-                 facture_obj = None
-                 if self.current_facture_thumbnails: # Si des miniatures existent
-                     all_paths = list(self.current_facture_thumbnails.keys())
-                     if all_paths:
-                         # Utiliser le dossier du premier fichier comme référence
-                         # ATTENTION: Ceci suppose que tous les fichiers sont dans le même dossier
-                         first_path = all_paths[0]
-                         folder_path = os.path.dirname(first_path)
-                         # Extraire juste les noms de fichiers
-                         filenames = [os.path.basename(p) for p in all_paths]
-                         try:
-                              facture_obj = Facture(folder_path=folder_path, filenames=filenames)
-                              # print(f"[TEMP] Objet Facture créé: {facture_obj}") # MODIFICATION
-                              logger.debug(f"Objet Facture créé: {facture_obj}") # MODIFICATION
-                         except (TypeError, ValueError) as fact_err:
-                              QMessageBox.warning(self, "Erreur Facture", f"Impossible de créer l'objet Facture:\\n{fact_err}")
-                              # Continuer sans facture en cas d'erreur
-                              facture_obj = None 
-                 # -------------------------------------------
                  
-                 # --- Créer l'objet Repas --- 
                  new_entry = Repas(
-                     date_repas=date_val,
+                     date_repas=date_val_obj,
                      restaurant=restaurant_val, 
                      client=client_repas_val,
-                     payeur=payeur_val, # Passer le booléen directement (True=Employé)
-                     refacturer=refacturer_val, # True si Oui
-                     numero_commande=num_commande_repas_val if refacturer_val else "", # Num cmd si refacturer
-                                    totale_avant_taxes=total_avant_taxes_val, 
+                     payeur=payeur_val, 
+                     refacturer=refacturer_val, 
+                     numero_commande=num_commande_repas_val if refacturer_val else "",
+                     totale_avant_taxes=total_avant_taxes_val, 
                      pourboire=pourboire_val, 
                      tps=tps_val, 
                      tvq=tvq_val, 
                      tvh=tvh_val,
-                                    totale_apres_taxes=total_apres_taxes_val,
-                     # employe=employe_val, # Supprimé
-                     # jacmar=jacmar_val,   # Supprimé
-                     facture=facture_obj # <--- MODIFICATION: Passer l'objet Facture (ou None)
+                     totale_apres_taxes=total_apres_taxes_val,
+                     facture=facture_obj 
                  )
-                 # self.document.entries.append(new_entry)
-                 self.document.ajouter_repas(new_entry) # Utiliser la méthode dédiée
-                 # print(f"Ajout Repas: {new_entry}") # Garder pour info # MODIFICATION
-                 logger.info(f"Ajout Repas: {new_entry}") # MODIFICATION
+                 self.document.ajouter_repas(new_entry)
+                 logger.info(f"Ajout Repas: {new_entry}")
                  
             elif entry_type == "Dépense":
-                 # --- Lire les valeurs du formulaire Dépense --- 
                  type_val = self.form_fields['type_depense'].currentText()
-                 description_val = self.form_fields['description_dep'].text() # MODIFIÉ: _dep
-                 fournisseur_val = self.form_fields['fournisseur_dep'].text() # MODIFIÉ: _dep
-                 payeur_val = self.form_fields['payeur_employe_dep'].isChecked() # True si Employé
-                 
-                 # Utiliser le helper pour les montants avec les clés _dep
+                 description_val = self.form_fields['description_dep'].text()
+                 fournisseur_val = self.form_fields['fournisseur_dep'].text()
+                 payeur_val = self.form_fields['payeur_employe_dep'].isChecked()
                  total_avant_taxes_val = get_float_from_field('total_avant_taxes_dep')
                  tps_val = get_float_from_field('tps_dep')
                  tvq_val = get_float_from_field('tvq_dep')
                  tvh_val = get_float_from_field('tvh_dep')
                  total_apres_taxes_val = get_float_from_field('total_apres_taxes_dep')
-                 
-                 # Validation (exemple simple)
-                 if not description_val: # Validation pour la nouvelle clé
-                     QMessageBox.warning(self, "Champ manquant", "La description est requise.")
-                     return
-                 if total_apres_taxes_val <= 0: # Validation pour la nouvelle clé
-                     QMessageBox.warning(self, "Montant invalide", "Le total après taxes doit être positif.")
-                     return # MODIFIÉ: Retourner ici pour stopper
-
-                 # --- AJOUT: Création de l'objet Facture pour Dépense --- 
-                 facture_obj_dep = None
-                 if self.current_facture_thumbnails: 
-                     all_paths = list(self.current_facture_thumbnails.keys())
-                     if all_paths:
-                         first_path = all_paths[0]
-                         folder_path = os.path.dirname(first_path)
-                         filenames = [os.path.basename(p) for p in all_paths]
-                         try:
-                              facture_obj_dep = Facture(folder_path=folder_path, filenames=filenames)
-                              logger.debug(f"Objet Facture (Dépense) créé: {facture_obj_dep}")
-                         except (TypeError, ValueError) as fact_err:
-                              QMessageBox.warning(self, "Erreur Facture", f"Impossible de créer l'objet Facture (Dépense):\n{fact_err}")
-                              facture_obj_dep = None 
-                 # -------------------------------------------
-
-                 # --- AJOUT: Déterminer les montants employe et jacmar pour Dépense ---
-                 # employe_val_dep = 0.0
-                 # jacmar_val_dep = 0.0
-                 # if payeur_val: # True si Employé a payé
-                 #     employe_val_dep = total_apres_taxes_val
-                 # else: # Jacmar a payé
-                 #     jacmar_val_dep = total_apres_taxes_val
-                 # ---------------------------------------------------------------------
 
                  new_entry = Depense(
-                     date_depense=date_val, 
+                     date_depense=date_val_obj, 
                      type_depense=type_val, 
                      description=description_val, 
                      fournisseur=fournisseur_val, 
                      payeur=payeur_val, 
-                     # refacturer=False, # RETIRÉ: Non applicable pour Dépense
-                     # numero_commande="", # RETIRÉ: Non applicable
                      totale_avant_taxes=total_avant_taxes_val,
                      tps=tps_val, 
                      tvq=tvq_val, 
                      tvh=tvh_val,
                      totale_apres_taxes=total_apres_taxes_val,
-                     # employe=employe_val_dep, # Supprimé
-                     # jacmar=jacmar_val_dep,   # Supprimé
-                     facture=facture_obj_dep 
+                     facture=facture_obj 
                  )
                  self.document.ajouter_depense(new_entry)
+                 logger.info(f"Ajout Dépense: {new_entry}")
+            elif entry_type == "Déplacement": # AJOUT DE CETTE CONDITION
+                client_val = self.form_fields['client'].text()
+                ville_val = self.form_fields['ville'].text()
+                num_commande_val = self.form_fields['numero_commande'].text()
+                kilometrage_val = self.form_fields['kilometrage'].value() # Supposant .value() pour NumericInputWithUnit
+                
+                # Récupérer le taux de remboursement depuis ConfigData
+                taux_remboursement = 0.0
+                try:
+                    config_instance = ConfigData.get_instance()
+                    config = config_instance.all_data
+                    documents_config = config.get("documents", {})
+                    rapport_depense_config_list = documents_config.get("rapport_depense", [{}])
+                    if rapport_depense_config_list and isinstance(rapport_depense_config_list, list) and len(rapport_depense_config_list) > 0:
+                        taux_remboursement_str = str(rapport_depense_config_list[0].get('Taux_remboursement', '0.0'))
+                        taux_remboursement = float(taux_remboursement_str)
+                    else:
+                        logger.warning("  rapport_depense_config est vide ou non conforme pour Taux_remboursement.")
+                except Exception as e_taux:
+                    logger.error(f"Erreur récupération taux remboursement pour ajout Déplacement: {e_taux}", exc_info=True)
+                    # Afficher une erreur à l'utilisateur et ne pas continuer si le taux est crucial
+                    QMessageBox.critical(self, "Erreur Configuration", 
+                                         f"Impossible de récupérer le taux de remboursement des déplacements.\nErreur: {e_taux}\nVeuillez vérifier la configuration.")
+                    return # Arrêter l'ajout si le taux n'est pas récupérable
 
-            if new_entry: # Si une entrée a été créée
-                logger.debug(f"Entrée ajoutée au document: {new_entry}")
+                montant_val = kilometrage_val * taux_remboursement
+                
+                new_entry = Deplacement(
+                    date_deplacement=date_val_obj,
+                    client=client_val,
+                    ville=ville_val,
+                    numero_commande=num_commande_val,
+                    kilometrage=kilometrage_val,
+                    montant=montant_val
+                    # facture=facture_obj RETIRÉ CAR DÉPLACEMENT N'A PAS DE FACTURE
+                )
+                self.document.ajouter_deplacement(new_entry)
+                logger.info(f"Ajout Déplacement: {new_entry}")
+
+            if new_entry:
                 self._clear_entry_form()
-                self._apply_sorting_and_filtering() # Rafraîchir la liste affichée
-                self._update_totals_display()
-                self._update_frame_titles_with_counts()  # MAJ titres après ajout
-                # print(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
-                logger.info(f"Entrée ajoutée au document: {new_entry}") # MODIFICATION
-                signals.document_modified.emit()
-                # AJOUT: Mettre à jour spécifiquement le cadre déplacement si besoin
-                if isinstance(new_entry, Deplacement):
-                    self._update_deplacement_info_display()
+                self._populate_entries_list() # Rafraîchir la liste des entrées
+                self._update_totals_display() # Rafraîchir les totaux généraux
+                self._update_frame_titles_with_counts() # Mettre à jour les compteurs des cadres
+                # Réinitialiser la sélection du ComboBox au premier item (Déplacement)
+                self.entry_type_combo.setCurrentIndex(0) 
+                self._update_entry_form() # S'assurer que le formulaire est pour Déplacement
+                QTimer.singleShot(0, self._scroll_entries_to_bottom) # MODIFIÉ: Utiliser la nouvelle méthode
 
-        except KeyError as e:
-             QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire: {e}. Le formulaire pour '{entry_type}' est peut-être incomplet.")
+                # Afficher un message de confirmation
+                # msg_box = QMessageBox(self)
+                # msg_box.setIcon(QMessageBox.Information)
+                # msg_box.setText(f"{entry_type.capitalize()} ajouté avec succès.")
+                # msg_box.setWindowTitle("Confirmation")
+                # msg_box.setStandardButtons(QMessageBox.Ok)
+                # msg_box.exec_()
+                signals.status_message_updated.emit(f"{entry_type.capitalize()} ajouté avec succès.", "success", 3000)
+
+            else:
+                logger.error("Aucune nouvelle entrée n'a été créée.")
+                QMessageBox.critical(self, "Erreur", "Impossible de créer l'entrée.")
+
         except Exception as e:
-             QMessageBox.critical(self, "Erreur", f"Impossible d'ajouter l'entrée: {e}")
-             # traceback.print_exc() # MODIFICATION
-             logger.exception(f"Impossible d'ajouter l'entrée:") # MODIFICATION
+            logger.error(f"Erreur majeure lors de l'ajout de l'entrée ({entry_type}): {e}", exc_info=True)
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur inattendue est survenue lors de l'ajout de l'entrée :\n{e}")
+            # Nettoyer le formulaire en cas d'erreur pour éviter un état incohérent
+            self._clear_entry_form()
+            self.entry_type_combo.setCurrentIndex(0)
+            self._update_entry_form()
+
+    def _scroll_entries_to_bottom(self):
+        """Fait défiler la liste des entrées (self.entries_scroll_area) jusqu'en bas."""
+        if hasattr(self, 'entries_scroll_area') and self.entries_scroll_area:
+            # Attendre un court instant pour que l'UI se mette à jour si nécessaire
+            # QTimer.singleShot(50, lambda: self.entries_scroll_area.verticalScrollBar().setValue(self.entries_scroll_area.verticalScrollBar().maximum()))
+            # Essayer sans délai supplémentaire d'abord, car le QTimer de _add_entry pourrait suffire
+            try:
+                self.entries_scroll_area.verticalScrollBar().setValue(self.entries_scroll_area.verticalScrollBar().maximum())
+                logger.debug("Défilement vers le bas de la liste des entrées effectué.")
+            except Exception as e_scroll:
+                logger.error(f"Erreur lors du défilement vers le bas : {e_scroll}")
+        else:
+            logger.warning("_scroll_entries_to_bottom: entries_scroll_area non trouvée.")
 
     def _update_totals_display(self):
         """Calcule et affiche les totaux généraux et les statistiques par catégorie."""
@@ -3335,10 +3372,9 @@ class RapportDepensePage(QWidget):
         """Sauvegarde les modifications de l'entrée en cours et quitte le mode édition."""
         if not self.editing_entry:
             logger.error("_apply_edit appelé sans entrée en cours d'édition.")
-            self._exit_edit_mode_ui() # Quitter proprement quand même
+            self._exit_edit_mode_ui()
             return
         
-        # --- DÉFINITION DE LA FONCTION HELPER get_float_from_field_apply ICI ---
         def get_float_from_field_apply(key):
             try:
                 widget = self.form_fields[key]
@@ -3349,141 +3385,259 @@ class RapportDepensePage(QWidget):
             except (KeyError, ValueError, AttributeError): 
                 logger.warning(f"Clé '{key}' non trouvée ou valeur invalide dans _apply_edit.")
                 return 0.0
-        # --- FIN DÉFINITION HELPER ---
 
-        logger.debug(f"Application des modifications pour: {self.editing_entry}")
-        original_entry = self.editing_entry # Garder référence pour la fin
-
+        logger.debug(f"Début _apply_edit pour: {self.editing_entry}")
+        original_facture_data = copy.deepcopy(self.editing_entry.facture) if hasattr(self.editing_entry, 'facture') and self.editing_entry.facture else None
+        
         try:
-            # --- AJOUT: Validation avant d'appliquer --- 
             current_entry_type_str = ""
             if isinstance(self.editing_entry, Deplacement): current_entry_type_str = "Déplacement"
             elif isinstance(self.editing_entry, Repas): current_entry_type_str = "Repas"
             elif isinstance(self.editing_entry, Depense): current_entry_type_str = "Dépense"
             
             if not self._validate_form_data(current_entry_type_str):
-                return # Stopper si validation échoue, RESTER en mode édition
-            # -------------------------------------------
+                logger.warning(f"_apply_edit: Validation échouée pour {current_entry_type_str}. Édition non appliquée.")
+                return
 
-            # Récupérer les valeurs du formulaire (logique similaire à _add_entry)
-            date_val = self.form_fields['date'].date().toPyDate()
+            # --- 1. Récupérer les NOUVELLES valeurs du formulaire --- 
+            nouvelle_date_obj = self.form_fields['date'].date().toPyDate()
+            date_str_nom_nouveau = nouvelle_date_obj.strftime('%d%m%y')
+            nom_complet_employe_str_nom = sanitize_string_for_path(f"{self.document.prenom_employe}_{self.document.nom_employe}")
             
-            # --- Mise à jour des attributs de self.editing_entry --- 
-            current_entry_type = type(self.editing_entry)
+            # --- 2. Déterminer le NOM DE DOSSIER ATTENDU basé sur les données ACTUELLES du formulaire --- 
+            nom_base_dossier_attendu_apres_modif = None
+            if current_entry_type_str in ["Repas", "Dépense"]:
+                base_folder_name_components = [date_str_nom_nouveau]
+                total_ap_taxes_val_form = 0.0
 
-            # Mettre à jour la date commune
-            if hasattr(self.editing_entry, 'date_repas'): self.editing_entry.date_repas = date_val
-            elif hasattr(self.editing_entry, 'date_deplacement'): self.editing_entry.date_deplacement = date_val
-            elif hasattr(self.editing_entry, 'date_depense'): self.editing_entry.date_depense = date_val
-            elif hasattr(self.editing_entry, 'date'): self.editing_entry.date = date_val
+                if current_entry_type_str == "Repas":
+                    restaurant_val_form = self.form_fields['restaurant'].text()
+                    client_val_form = self.form_fields['client_repas'].text()
+                    total_ap_taxes_val_form = get_float_from_field_apply('total_apres_taxes')
+                    base_folder_name_components.extend([
+                        sanitize_string_for_path(restaurant_val_form),
+                        sanitize_string_for_path(client_val_form)
+                    ])
+                elif current_entry_type_str == "Dépense":
+                    type_depense_val_form = self.form_fields['type_depense'].currentText()
+                    code_gl_val_form = get_gl_code_for_expense_type(type_depense_val_form) or "nocode"
+                    description_val_form = self.form_fields['description_dep'].text()
+                    description_pour_nom_dossier = sanitize_string_for_path(description_val_form or type_depense_val_form)
+                    total_ap_taxes_val_form = get_float_from_field_apply('total_apres_taxes_dep')
+                    base_folder_name_components.extend([
+                        code_gl_val_form,
+                        description_pour_nom_dossier
+                    ])
+                
+                total_ap_taxes_str_nom_form = format_total_for_path(total_ap_taxes_val_form)
+                base_folder_name_components.extend([total_ap_taxes_str_nom_form, nom_complet_employe_str_nom])
+                
+                nom_base_dossier_attendu_apres_modif = "_".join(filter(None, base_folder_name_components))
+                nom_base_dossier_attendu_apres_modif = sanitize_string_for_path(nom_base_dossier_attendu_apres_modif, max_length=180)
+                logger.debug(f"Nom de dossier attendu après modif (formulaire): {nom_base_dossier_attendu_apres_modif}")
 
-            if current_entry_type is Deplacement:
+            # --- 3. Logique de gestion des dossiers et fichiers --- 
+            ancien_dossier_path_obj = None
+            if original_facture_data and original_facture_data.folder_path:
+                ancien_dossier_path_obj = Path(original_facture_data.folder_path)
+            
+            dossier_final_pour_factures_path_obj = None
+            noms_fichiers_relatifs_finaux = []
+            factures_root_dir = get_user_data_path(subfolder="FacturesEntrees")
+
+            if current_entry_type_str in ["Repas", "Dépense"]:
+                if not self.current_facture_thumbnails: # CAS A: Plus aucune facture dans le formulaire
+                    logger.info("Aucune miniature de facture dans le formulaire après édition.")
+                    if ancien_dossier_path_obj and ancien_dossier_path_obj.exists():
+                        logger.info(f"Suppression de l'ancien dossier (et contenu): {ancien_dossier_path_obj}")
+                        try: shutil.rmtree(str(ancien_dossier_path_obj))
+                        except Exception as e_rm_old: logger.error(f"Erreur suppression ancien dossier {ancien_dossier_path_obj}: {e_rm_old}")
+                    self.editing_entry.facture = None
+                
+                else: # CAS B: Des factures sont présentes dans le formulaire
+                    # Étape B1: Préparer le dossier cible (dossier_cible_final)
+                    dossier_cible_final = factures_root_dir / nom_base_dossier_attendu_apres_modif
+                    logger.debug(f"Chemin complet du dossier cible calculé: {dossier_cible_final}")
+                    fichiers_sources_miniatures_actuels = list(self.current_facture_thumbnails.keys()) # Chemins sources des miniatures
+
+                    if ancien_dossier_path_obj and ancien_dossier_path_obj.exists():
+                        if ancien_dossier_path_obj.name != nom_base_dossier_attendu_apres_modif:
+                            logger.info(f"Le nom du dossier doit changer: '{ancien_dossier_path_obj.name}' -> '{nom_base_dossier_attendu_apres_modif}'")
+                            if dossier_cible_final.exists():
+                                logger.warning(f"Le dossier cible {dossier_cible_final} existe déjà lors du renommage/déplacement. Tentative de fusion.")
+                                for item in ancien_dossier_path_obj.iterdir():
+                                    s, d = ancien_dossier_path_obj / item.name, dossier_cible_final / item.name
+                                    if item.is_file(): shutil.copy2(str(s), str(d))
+                                    # else: Gérer les sous-dossiers si nécessaire
+                                logger.info(f"Contenu de {ancien_dossier_path_obj} copié vers {dossier_cible_final}.")
+                                shutil.rmtree(str(ancien_dossier_path_obj))
+                                logger.info(f"Ancien dossier {ancien_dossier_path_obj} supprimé après fusion.")
+                            else:
+                                try:
+                                    shutil.move(str(ancien_dossier_path_obj), str(dossier_cible_final))
+                                    logger.info(f"Ancien dossier déplacé/renommé vers: {dossier_cible_final}")
+                                except Exception as e_mv:
+                                    logger.error(f"Erreur lors du déplacement de {ancien_dossier_path_obj} vers {dossier_cible_final}: {e_mv}. Création du dossier cible.")
+                                    dossier_cible_final.mkdir(parents=True, exist_ok=True)
+                            
+                            # Mettre à jour les chemins sources des miniatures qui ont été déplacées
+                            temp_thumbs_updated = {}
+                            for src_path_str, thumb_widget in self.current_facture_thumbnails.items():
+                                src_path_obj_orig = Path(src_path_str)
+                                if src_path_obj_orig.parent == ancien_dossier_path_obj:
+                                    new_src_for_thumb_str = str(dossier_cible_final / src_path_obj_orig.name)
+                                    temp_thumbs_updated[new_src_for_thumb_str] = thumb_widget
+                                    thumb_widget.file_path = new_src_for_thumb_str 
+                                else:
+                                    temp_thumbs_updated[src_path_str] = thumb_widget
+                            self.current_facture_thumbnails = temp_thumbs_updated
+                            fichiers_sources_miniatures_actuels = list(self.current_facture_thumbnails.keys())
+                        else:
+                            logger.info(f"Le nom du dossier ({ancien_dossier_path_obj.name}) ne change pas.")
+                            # dossier_cible_final est déjà le bon
+                    else: # Pas d'ancien dossier ou il n'existe plus
+                        logger.info(f"Pas d'ancien dossier physique ou il n'existe plus. Création/utilisation de: {dossier_cible_final}")
+                        dossier_cible_final.mkdir(parents=True, exist_ok=True)
+
+                    # Étape B2: Renommer et indexer tous les fichiers nécessaires dans le dossier cible
+                    dossier_final_pour_factures_path_obj = dossier_cible_final
+                    nom_base_fichier_final_attendu = dossier_final_pour_factures_path_obj.name 
+                    
+                    noms_fichiers_relatifs_traites = [] # Stockera les noms relatifs après traitement
+
+                    for src_path_str_miniature in fichiers_sources_miniatures_actuels:
+                        src_path_obj_miniature = Path(src_path_str_miniature)
+                        
+                        # Utiliser noms_fichiers_relatifs_traites pour l'indexation progressive
+                        existing_stems_for_indexing = [Path(f).stem for f in noms_fichiers_relatifs_traites if Path(f).stem.startswith(nom_base_fichier_final_attendu)]
+                        
+                        next_file_idx = get_next_file_index(
+                            dossier_final_pour_factures_path_obj, 
+                            nom_base_fichier_final_attendu, 
+                            existing_stems_for_index=existing_stems_for_indexing
+                        )
+                        nom_fichier_cible_relatif = f"{nom_base_fichier_final_attendu}_{next_file_idx}{src_path_obj_miniature.suffix}"
+                        chemin_fichier_cible_absolu = dossier_final_pour_factures_path_obj / nom_fichier_cible_relatif
+
+                        op_status = ""
+                        try:
+                            if not src_path_obj_miniature.exists():
+                                logger.warning(f"Fichier source miniature {src_path_obj_miniature} n'existe pas. Ignoré.")
+                                op_status = "source_missing"
+                            elif src_path_obj_miniature == chemin_fichier_cible_absolu:
+                                logger.debug(f"Fichier {src_path_obj_miniature} est déjà correct.")
+                                op_status = "already_correct"
+                            elif src_path_obj_miniature.parent == dossier_final_pour_factures_path_obj: # Dans le bon dossier, mauvais nom
+                                shutil.move(str(src_path_obj_miniature), str(chemin_fichier_cible_absolu))
+                                op_status = f"renamed_from_{src_path_obj_miniature.name}"
+                                logger.info(f"Fichier renommé dans le dossier cible: {src_path_obj_miniature.name} -> {nom_fichier_cible_relatif}")
+                            else: # Vient d'ailleurs, copier
+                                shutil.copy2(str(src_path_obj_miniature), str(chemin_fichier_cible_absolu))
+                                op_status = f"copied_from_{src_path_obj_miniature.parent.name}"
+                                logger.info(f"Fichier copié: {src_path_obj_miniature} -> {chemin_fichier_cible_absolu}")
+                            
+                            if op_status not in ["", "source_missing"]:
+                                noms_fichiers_relatifs_traites.append(nom_fichier_cible_relatif)
+                                # Mettre à jour le widget miniature si son chemin source a changé
+                                if src_path_str_miniature != str(chemin_fichier_cible_absolu):
+                                    thumb_widget = self.current_facture_thumbnails.pop(src_path_str_miniature, None)
+                                    if thumb_widget:
+                                        thumb_widget.file_path = str(chemin_fichier_cible_absolu)
+                                        self.current_facture_thumbnails[str(chemin_fichier_cible_absolu)] = thumb_widget
+                        except Exception as e_file_op:
+                            logger.error(f"Erreur opération fichier ({op_status}) pour {src_path_obj_miniature} vers {chemin_fichier_cible_absolu}: {e_file_op}")
+
+                    noms_fichiers_relatifs_finaux = sorted(list(set(noms_fichiers_relatifs_traites)))
+                    logger.debug(f"Noms de fichiers relatifs finaux après traitement individuel: {noms_fichiers_relatifs_finaux}")
+
+                    # Étape B3: Nettoyer le dossier cible de fichiers non désirés
+                    if dossier_final_pour_factures_path_obj.exists():
+                        for item_on_disk in dossier_final_pour_factures_path_obj.iterdir():
+                            if item_on_disk.is_file() and item_on_disk.name not in noms_fichiers_relatifs_finaux:
+                                try: 
+                                    item_on_disk.unlink()
+                                    logger.info(f"Fichier nettoyé (non dans liste finale B3): {item_on_disk}")
+                                except Exception as e_clean_B3: logger.error(f"Erreur nettoyage final fichier {item_on_disk}: {e_clean_B3}")
+            
+            # --- 4. Mettre à jour l'objet self.editing_entry --- 
+            if hasattr(self.editing_entry, 'date_repas'): self.editing_entry.date_repas = nouvelle_date_obj
+            elif hasattr(self.editing_entry, 'date_deplacement'): self.editing_entry.date_deplacement = nouvelle_date_obj
+            elif hasattr(self.editing_entry, 'date_depense'): self.editing_entry.date_depense = nouvelle_date_obj
+            elif hasattr(self.editing_entry, 'date'): self.editing_entry.date = nouvelle_date_obj
+
+            if isinstance(self.editing_entry, Deplacement):
                 self.editing_entry.client = self.form_fields['client'].text()
                 self.editing_entry.ville = self.form_fields['ville'].text()
                 self.editing_entry.numero_commande = self.form_fields['numero_commande'].text()
                 self.editing_entry.kilometrage = self.form_fields['kilometrage'].value()
-                TAUX_KM = 0.50 # TODO: Externaliser
-                self.editing_entry.montant = self.editing_entry.kilometrage * TAUX_KM
+                taux_remboursement = 0.0 
+                try:
+                    config_instance = ConfigData.get_instance()
+                    rd_config = config_instance.get_top_level_key("documents", {}).get("rapport_depense", [{}])
+                    if rd_config and isinstance(rd_config, list) and rd_config:
+                        taux_remboursement = float(str(rd_config[0].get('Taux_remboursement', '0.0')))
+                except Exception as e_taux: logger.error(f"Erreur récup taux (edit Dépl): {e_taux}")
+                self.editing_entry.montant = self.editing_entry.kilometrage * taux_remboursement
 
-            elif current_entry_type is Repas:
+            elif isinstance(self.editing_entry, Repas):
                 self.editing_entry.restaurant = self.form_fields['restaurant'].text()
-                self.editing_entry.client = self.form_fields['client_repas'].text() # Attention, clé différente
+                self.editing_entry.client = self.form_fields['client_repas'].text()
                 self.editing_entry.payeur = self.form_fields['payeur_employe'].isChecked()
                 self.editing_entry.refacturer = self.form_fields['refacturer_oui'].isChecked()
                 self.editing_entry.numero_commande = self.form_fields['numero_commande_repas'].text() if self.editing_entry.refacturer else ""
-                
-                # RETRAIT DE LA DÉFINITION DE get_float_from_field_apply D'ICI
-                
                 self.editing_entry.totale_avant_taxes = get_float_from_field_apply('total_avant_taxes')
                 self.editing_entry.pourboire = get_float_from_field_apply('pourboire')
                 self.editing_entry.tps = get_float_from_field_apply('tps')
                 self.editing_entry.tvq = get_float_from_field_apply('tvq')
                 self.editing_entry.tvh = get_float_from_field_apply('tvh')
                 self.editing_entry.totale_apres_taxes = get_float_from_field_apply('total_apres_taxes')
-                # Les lignes suivantes sont supprimées car les attributs n'existent plus sur la classe Repas
-                # # self.editing_entry.employe = ... 
-                # # self.editing_entry.jacmar = ... 
-                
-                # Mise à jour Facture
-                all_paths = list(self.current_facture_thumbnails.keys())
-                if not all_paths:
-                    self.editing_entry.facture = None # Aucune facture dans le formulaire
-                else:
-                    first_path = all_paths[0]
-                    folder_path = os.path.dirname(first_path)
-                    filenames = [os.path.basename(p) for p in all_paths]
-                    # Vérifier si la facture existante peut être mise à jour ou s'il faut en créer une nouvelle
-                    if isinstance(self.editing_entry.facture, Facture):
-                        self.editing_entry.facture.folder_path = folder_path
-                        self.editing_entry.facture.filenames = filenames
-                    else:
-                        try:
-                            self.editing_entry.facture = Facture(folder_path=folder_path, filenames=filenames)
-                        except Exception as fact_err:
-                            # print(f"ERROR: Impossible de créer/màj l'objet Facture pendant l'édition: {fact_err}") # MODIFICATION
-                            logger.error(f"Impossible de créer/màj l'objet Facture pendant l'édition: {fact_err}") # MODIFICATION
-                            self.editing_entry.facture = None # Laisser à None en cas d'erreur
-            
-            elif current_entry_type is Depense:
+
+            elif isinstance(self.editing_entry, Depense):
                 self.editing_entry.type_depense = self.form_fields['type_depense'].currentText()
-                self.editing_entry.description = self.form_fields['description_dep'].text() # MODIFIÉ: _dep
-                self.editing_entry.fournisseur = self.form_fields['fournisseur_dep'].text() # MODIFIÉ: _dep
-                # CORRECTION: Mettre à jour l'attribut 'payeur' et non 'payeur_employe'
-                self.editing_entry.payeur = self.form_fields['payeur_employe_dep'].isChecked() # True si Employé a payé
-                
-                # Pas de refacturer ou num_commande pour Depense
-                self.editing_entry.refacturer = False
-                self.editing_entry.numero_commande = ""
-                                
-                self.editing_entry.totale_avant_taxes = get_float_from_field_apply('total_avant_taxes_dep') # MODIFIÉ: _dep
-                self.editing_entry.tps = get_float_from_field_apply('tps_dep') # MODIFIÉ: _dep
-                self.editing_entry.tvq = get_float_from_field_apply('tvq_dep') # MODIFIÉ: _dep
-                self.editing_entry.tvh = get_float_from_field_apply('tvh_dep') # MODIFIÉ: _dep
-                self.editing_entry.totale_apres_taxes = get_float_from_field_apply('total_apres_taxes_dep') # MODIFIÉ: _dep
-                
-                # Mise à jour Facture pour Dépense
-                all_paths_dep = list(self.current_facture_thumbnails.keys())
-                if not all_paths_dep:
-                    self.editing_entry.facture = None
-                else:
-                    first_path_dep = all_paths_dep[0]
-                    folder_path_dep = os.path.dirname(first_path_dep)
-                    filenames_dep = [os.path.basename(p) for p in all_paths_dep]
-                    if isinstance(self.editing_entry.facture, Facture):
-                        self.editing_entry.facture.folder_path = folder_path_dep
-                        self.editing_entry.facture.filenames = filenames_dep
+                self.editing_entry.description = self.form_fields['description_dep'].text()
+                self.editing_entry.fournisseur = self.form_fields['fournisseur_dep'].text()
+                self.editing_entry.payeur = self.form_fields['payeur_employe_dep'].isChecked()
+                self.editing_entry.totale_avant_taxes = get_float_from_field_apply('total_avant_taxes_dep')
+                self.editing_entry.tps = get_float_from_field_apply('tps_dep')
+                self.editing_entry.tvq = get_float_from_field_apply('tvq_dep')
+                self.editing_entry.tvh = get_float_from_field_apply('tvh_dep')
+                self.editing_entry.totale_apres_taxes = get_float_from_field_apply('total_apres_taxes_dep')
+
+            if current_entry_type_str in ["Repas", "Dépense"]:
+                if noms_fichiers_relatifs_finaux and dossier_final_pour_factures_path_obj:
+                    facture_attribut = getattr(self.editing_entry, 'facture', None)
+                    if isinstance(facture_attribut, Facture):
+                        facture_attribut.folder_path = str(dossier_final_pour_factures_path_obj)
+                        facture_attribut.filenames = noms_fichiers_relatifs_finaux
                     else:
-                        try:
-                            self.editing_entry.facture = Facture(folder_path=folder_path_dep, filenames=filenames_dep)
-                        except Exception as fact_err:
-                            logger.error(f"Impossible de màj Facture (Dépense édit.): {fact_err}")
-                            self.editing_entry.facture = None
-
-            # Validation (ajouter si nécessaire)
-            # ...
-
-            # Rafraîchir l'affichage et émettre signal
-            # print(f"Modifications appliquées à: {self.editing_entry}") # MODIFICATION
-            logger.info(f"Modifications appliquées à: {self.editing_entry}") # MODIFICATION
+                        self.editing_entry.facture = Facture(
+                            folder_path=str(dossier_final_pour_factures_path_obj),
+                            filenames=noms_fichiers_relatifs_finaux
+                        )
+                    logger.debug(f"Facture MAJ/Créée: {self.editing_entry.facture.folder_path}, {self.editing_entry.facture.filenames}")
+                else: 
+                    self.editing_entry.facture = None
+                    logger.debug("Facture mise à None (pas de fichiers/dossier final).")
+            
+            logger.info(f"Modifications appliquées: {self.editing_entry}")
+            
+            # --- 5. Rafraîchir l'UI et quitter le mode édition --- 
             self._update_totals_display()
-            self._apply_sorting_and_filtering() # Rafraîchit la liste des cartes
+            self._apply_sorting_and_filtering()
             signals.document_modified.emit()
-            self._update_frame_titles_with_counts()  # MAJ titres après édition
-            # AJOUT: Mettre à jour spécifiquement le cadre déplacement si besoin
-            if isinstance(self.editing_entry, Deplacement):
+            self._update_frame_titles_with_counts()
+            if isinstance(self.editing_entry, Deplacement): 
                 self._update_deplacement_info_display()
+            
+            self._exit_edit_mode_ui() 
 
-            # Quitter le mode édition
-            self._exit_edit_mode_ui()
-
-        except KeyError as e:
-             QMessageBox.critical(self, "Erreur Interne", f"Erreur de clé de formulaire lors de l'application: {e}. Le formulaire est peut-être incomplet.")
-             # Ne pas quitter le mode édition pour que l'utilisateur puisse corriger?
         except Exception as e:
-             QMessageBox.critical(self, "Erreur Application", f"Impossible d'appliquer les modifications: {e}")
-             # traceback.print_exc() # MODIFICATION
-             logger.exception(f"Impossible d'appliquer les modifications à l'entrée {original_entry}:") # MODIFICATION
-             # Ne pas quitter le mode édition ici non plus?
+             logger.exception(f"Erreur MAJEURE _apply_edit pour {self.editing_entry}:")
+             QMessageBox.critical(self, "Erreur Application Critique", f"Erreur critique apply_edit: {e}")
+             if hasattr(self.editing_entry, 'facture'):
+                 self.editing_entry.facture = original_facture_data 
+                 logger.info("Tentative restauration facture originale suite à erreur majeure.")
+             self._exit_edit_mode_ui()
 
     def _cancel_edit(self):
         """Annule l'édition en cours et quitte le mode édition."""

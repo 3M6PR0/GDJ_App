@@ -1,5 +1,6 @@
 import sys
 import os
+from pathlib import Path
 
 def get_base_path():
     """ 
@@ -22,7 +23,7 @@ def get_base_path():
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # --- NOUVELLE FONCTION ---
-def get_resource_path(relative_path):
+def get_resource_path(relative_path: str) -> str:
     """
     Construit le chemin absolu vers une ressource à partir du chemin de base.
 
@@ -34,9 +35,62 @@ def get_resource_path(relative_path):
     Returns:
         str: Le chemin absolu complet vers la ressource.
     """
-    base = get_base_path()
-    # os.path.join gère les séparateurs corrects pour l'OS
-    return os.path.join(base, relative_path.replace('/', os.sep))
+    base = Path(get_base_path())
+    # Construire le chemin en utilisant Path pour une meilleure gestion des / et \
+    # et s'assurer que relative_path est traité correctement même s'il commence par / ou \
+    # en le décomposant et en le rejoignant.
+    # Cependant, os.path.join fait déjà cela correctement.
+    # Simplicité:
+    # return str(base.joinpath(*relative_path.replace('\\', '/').split('/')))
+    # La version originale avec os.path.join est plus directe ici si relative_path est bien formé.
+    # Gardons la conversion explicite des slashes pour être sûr.
+    return os.path.join(str(base), *relative_path.replace('\\', '/').split('/'))
+
+# --- NOUVELLE FONCTION: Pour obtenir le chemin des données utilisateur ---
+def get_user_data_path(subfolder: str = None) -> Path:
+    """
+    Retourne le chemin vers un dossier de données spécifique à l'application dans AppData.
+    Crée le dossier (et le sous-dossier GDJ_App) s'il n'existe pas.
+
+    Args:
+        subfolder (str, optional): Un sous-dossier optionnel à créer/retourner 
+                                   à l'intérieur du dossier de données de l'application.
+                                   Ex: "FacturesEntrees", "Logs", etc.
+
+    Returns:
+        Path: Un objet Path vers le dossier de données utilisateur (ou le sous-dossier).
+              Retourne Path('.') en cas d'erreur critique d'accès à APPDATA.
+    """
+    try:
+        # Utiliser LOCALAPPDATA est souvent préférable pour les données non itinérantes
+        appdata_base = os.getenv('LOCALAPPDATA')
+        if not appdata_base: # Fallback sur APPDATA si LOCALAPPDATA n'est pas défini
+            appdata_base = os.getenv('APPDATA')
+        if not appdata_base: # Fallback ultime sur le répertoire courant si aucun n'est défini
+            app_dir_base = Path('.') / 'GDJ_App_User_Data' # Pour éviter de polluer le répertoire courant directement
+            # print("AVERTISSEMENT: LOCALAPPDATA et APPDATA non définis. Utilisation d'un dossier local.") # Logguer ceci serait mieux
+        else:
+            app_dir_base = Path(appdata_base) / 'GDJ_App'
+
+        if subfolder:
+            target_path = app_dir_base / subfolder
+        else:
+            target_path = app_dir_base
+        
+        target_path.mkdir(parents=True, exist_ok=True)
+        return target_path
+    except Exception as e:
+        # print(f"ERREUR CRITIQUE: Impossible de créer/accéder au dossier de données utilisateur : {e}") # Logguer
+        # En cas d'erreur majeure, retourner un chemin local sûr pour éviter un crash complet.
+        # Mais cela indique un problème de configuration ou de permissions.
+        fallback_path = Path('.') / 'GDJ_App_User_Data_Fallback'
+        if subfolder:
+            fallback_path = fallback_path / subfolder
+        try:
+            fallback_path.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass # Si même le fallback échoue, on ne peut plus faire grand chose ici.
+        return fallback_path
 
 # Exemple d'utilisation (à ne pas laisser dans le code final ici) :
 # if __name__ == '__main__':

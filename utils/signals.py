@@ -11,6 +11,9 @@ class ThemeSignalEmitter(QObject):
     theme_changed_signal = pyqtSignal(str)
     # Signal émis quand un document est modifié (ajout, suppression, duplication d'entrée)
     document_modified = pyqtSignal()
+    # Signal pour afficher des messages de statut dans la barre de statut principale
+    # Args: message (str), type (str: "success", "error", "info", "warning"), duration (int, ms)
+    status_message_updated = pyqtSignal(str, str, int)
 
 signals = None # Initialiser à None
 
