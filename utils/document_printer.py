@@ -195,11 +195,11 @@ class DocumentPDFPrinter:
             taux_str = "N/A"
             if hasattr(item, 'kilometrage') and item.kilometrage and item.kilometrage > 0 and hasattr(item, 'montant'):
                 taux_calcul_val = item.montant / item.kilometrage
-                taux_str = f"{taux_calcul_val:.2f} €"
+                taux_str = f"{taux_calcul_val:.2f} $"
             elif hasattr(item, 'taux_par_km') and item.taux_par_km is not None:
-                taux_str = f"{item.taux_par_km:.2f} €"
+                taux_str = f"{item.taux_par_km:.2f} $"
 
-            montant_remb_str = f"{item.montant:.2f} €" if hasattr(item, 'montant') and item.montant is not None else '0.00 €'
+            montant_remb_str = f"{item.montant:.2f} $" if hasattr(item, 'montant') and item.montant is not None else '0.00 $'
 
             rows_html += f"""
                 <tr>
@@ -257,16 +257,16 @@ class DocumentPDFPrinter:
             refacturer_text = "Oui" if hasattr(item, 'refacturer') and item.refacturer else "Non"
             payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non"
             
-            total_fact_str = f"{item.totale_apres_taxes:.2f} €" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 €'
-            pourboire_str = f"{item.pourboire:.2f} €" if hasattr(item, 'pourboire') and item.pourboire is not None else '0.00 €'
-            tps_str = f"{item.tps:.2f} €" if hasattr(item, 'tps') and item.tps is not None else '0.00 €'
+            total_fact_str = f"{item.totale_apres_taxes:.2f} $" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 $'
+            pourboire_str = f"{item.pourboire:.2f} $" if hasattr(item, 'pourboire') and item.pourboire is not None else '0.00 $'
+            tps_str = f"{item.tps:.2f} $" if hasattr(item, 'tps') and item.tps is not None else '0.00 $'
             # Combiner TVQ et TVH si les deux existent, sinon afficher celle qui existe, ou 0.00
             tvq_val = item.tvq if hasattr(item, 'tvq') and item.tvq is not None else 0
             tvh_val = item.tvh if hasattr(item, 'tvh') and item.tvh is not None else 0
             tvq_tvh_val = tvq_val + tvh_val
-            tvq_tvh_str = f"{tvq_tvh_val:.2f} €"
+            tvq_tvh_str = f"{tvq_tvh_val:.2f} $"
 
-            montant_remb_str = f"{item.employe:.2f} €" if hasattr(item, 'employe') and item.employe is not None else '0.00 €'
+            montant_remb_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $'
 
             rows_html += f"""
                 <tr>
@@ -335,15 +335,15 @@ class DocumentPDFPrinter:
             fournisseur_str = item.fournisseur if hasattr(item, 'fournisseur') else ''
             payeur_text = "Oui" if hasattr(item, 'payeur') and item.payeur else "Non"
             
-            total_fact_str = f"{item.totale_apres_taxes:.2f} €" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 €'
-            tps_str = f"{item.tps:.2f} €" if hasattr(item, 'tps') and item.tps is not None else '0.00 €'
+            total_fact_str = f"{item.totale_apres_taxes:.2f} $" if hasattr(item, 'totale_apres_taxes') and item.totale_apres_taxes is not None else '0.00 $'
+            tps_str = f"{item.tps:.2f} $" if hasattr(item, 'tps') and item.tps is not None else '0.00 $'
             
             tvq_val = item.tvq if hasattr(item, 'tvq') and item.tvq is not None else 0
             tvh_val = item.tvh if hasattr(item, 'tvh') and item.tvh is not None else 0
             tvq_tvh_val = tvq_val + tvh_val
-            tvq_tvh_str = f"{tvq_tvh_val:.2f} €"
+            tvq_tvh_str = f"{tvq_tvh_val:.2f} $"
 
-            montant_remb_str = f"{item.employe:.2f} €" if hasattr(item, 'employe') and item.employe is not None else '0.00 €'
+            montant_remb_str = f"{item.employe:.2f} $" if hasattr(item, 'employe') and item.employe is not None else '0.00 $'
 
             rows_html += f"""
                 <tr>
@@ -417,10 +417,10 @@ class DocumentPDFPrinter:
         return f"""
             <div class="totals-section">
                 <table>
-                    <tr><th>Total Déplacements:</th><td class="montant">{total_deplacements:.2f} €</td></tr>
-                    <tr><th>Total Repas:</th><td class="montant">{total_repas:.2f} €</td></tr>
-                    <tr><th>Total Dépenses Diverses:</th><td class="montant">{total_depenses_diverses:.2f} €</td></tr>
-                    <tr><th>GRAND TOTAL:</th><td class="grand-total montant">{grand_total_remboursement:.2f} €</td></tr>
+                    <tr><th>Total Déplacements:</th><td class="montant">{total_deplacements:.2f} $</td></tr>
+                    <tr><th>Total Repas:</th><td class="montant">{total_repas:.2f} $</td></tr>
+                    <tr><th>Total Dépenses Diverses:</th><td class="montant">{total_depenses_diverses:.2f} $</td></tr>
+                    <tr><th>GRAND TOTAL:</th><td class="grand-total montant">{grand_total_remboursement:.2f} $</td></tr>
                 </table>
             </div>
         """
