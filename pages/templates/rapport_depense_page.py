@@ -64,12 +64,18 @@ class RapportDepensePage(QWidget):
         
         self.total_rembourse_deplacement_label_value = QLabel("0.00 $")
         self.total_rembourse_deplacement_label_value.setStyleSheet("font-weight: bold;") # CORRECTION: Application du style gras
+        self.total_rembourse_deplacement_label_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter) # AJOUT
+        self.total_rembourse_deplacement_label_value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
 
         # AJOUT: Initialisation des labels pour les nouveaux frames Repas et Dépenses
         self.total_repas_valeur_label = QLabel("0.00 $")
         self.total_repas_valeur_label.setStyleSheet("font-weight: bold;")
+        self.total_repas_valeur_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) 
+        self.total_repas_valeur_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         self.total_depenses_diverses_valeur_label = QLabel("0.00 $")
         self.total_depenses_diverses_valeur_label.setStyleSheet("font-weight: bold;")
+        self.total_depenses_diverses_valeur_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) 
+        self.total_depenses_diverses_valeur_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         
         # --- Stockage des miniatures --- 
         self.current_facture_thumbnails = {} # { file_path: ThumbnailWidget }
@@ -164,14 +170,18 @@ class RapportDepensePage(QWidget):
 
         # Labels Placeholder pour les totaux
         self.total_deplacements_label = QLabel("0.00 $")
-        self.total_deplacements_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.total_deplacements_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) 
+        self.total_deplacements_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         self.total_repas_label = QLabel("0.00 $")
-        self.total_repas_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.total_repas_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) 
+        self.total_repas_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         self.total_depenses_label = QLabel("0.00 $")
-        self.total_depenses_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.total_depenses_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter) 
+        self.total_depenses_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         self.total_general_label = QLabel("0.00 $")
-        self.total_general_label.setStyleSheet("font-weight: bold;") # Mettre le total général en gras
+        self.total_general_label.setStyleSheet("font-weight: bold;") 
         self.total_general_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.total_general_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         
         totals_form_layout.addRow("Déplacements:", self.total_deplacements_label)
         totals_form_layout.addRow("Repas:", self.total_repas_label)
@@ -487,11 +497,14 @@ class RapportDepensePage(QWidget):
         # Labels dynamiques pour Plafond et Taux
         self.plafond_label_value = QLabel("N/A")
         self.plafond_label_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.plafond_label_value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         self.taux_remboursement_label_value = QLabel("N/A")
         self.taux_remboursement_label_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.taux_remboursement_label_value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
         # AJOUT: Label pour Kilométrage Total
         self.total_kilometrage_label_value = QLabel("0.0 km")
         self.total_kilometrage_label_value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.total_kilometrage_label_value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # AJOUT
 
         deplacement_form_layout.addRow("Plafond:", self.plafond_label_value)
         deplacement_form_layout.addRow("Taux de Remboursement:", self.taux_remboursement_label_value)
@@ -569,16 +582,26 @@ class RapportDepensePage(QWidget):
         bottom_frames_layout.addWidget(self.repas_frame, 1) # Stretch factor 1
 
         # --- AJOUT STATS REPAS (CORRIGÉ) ---
-        self.repas_employe_stats_label = QLabel("(0): 0.00 $") # Texte valeur seulement
-        self.repas_employe_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.repas_jacmar_stats_label = QLabel("(0): 0.00 $")
-        self.repas_jacmar_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        # Employé
+        self.repas_employe_descriptive_label = QLabel("Employé (0):")
+        self.repas_employe_value_label = QLabel("0.00 $")
+        self.repas_employe_value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.repas_employe_value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        
+        # Jacmar
+        self.repas_jacmar_descriptive_label = QLabel("Jacmar (0):")
+        self.repas_jacmar_value_label = QLabel("0.00 $")
+        self.repas_jacmar_value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.repas_jacmar_value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        # Factures Manquantes (reste inchangé dans sa définition, juste s'assurer de sa politique de taille)
         self.repas_missing_facture_label = QLabel("0")
         self.repas_missing_facture_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.repas_missing_facture_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) 
 
         # Ajout AVANT le stretch/séparateur existant
-        repas_form_layout.insertRow(0, "Employé:", self.repas_employe_stats_label)
-        repas_form_layout.insertRow(1, "Jacmar:", self.repas_jacmar_stats_label)
+        repas_form_layout.insertRow(0, self.repas_employe_descriptive_label, self.repas_employe_value_label)
+        repas_form_layout.insertRow(1, self.repas_jacmar_descriptive_label, self.repas_jacmar_value_label)
         repas_form_layout.insertRow(2, "Factures Manquantes:", self.repas_missing_facture_label)
         # --- FIN AJOUT STATS REPAS (CORRIGÉ) ---
 
@@ -640,16 +663,26 @@ class RapportDepensePage(QWidget):
         bottom_frames_layout.addWidget(self.depenses_diverses_frame, 1) # Stretch factor 1
 
         # --- AJOUT STATS DEPENSES DIVERSES (CORRIGÉ) ---
-        self.depense_employe_stats_label = QLabel("(0): 0.00 $") # Texte valeur seulement
-        self.depense_employe_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.depense_jacmar_stats_label = QLabel("(0): 0.00 $")
-        self.depense_jacmar_stats_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        # Employé
+        self.depense_employe_descriptive_label = QLabel("Employé (0):")
+        self.depense_employe_value_label = QLabel("0.00 $")
+        self.depense_employe_value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.depense_employe_value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        # Jacmar
+        self.depense_jacmar_descriptive_label = QLabel("Jacmar (0):")
+        self.depense_jacmar_value_label = QLabel("0.00 $")
+        self.depense_jacmar_value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.depense_jacmar_value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        # Factures Manquantes (reste inchangé dans sa définition, juste s'assurer de sa politique de taille)
         self.depense_missing_facture_label = QLabel("0")
         self.depense_missing_facture_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.depense_missing_facture_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         # Ajout AVANT le stretch/séparateur existant
-        depenses_diverses_form_layout.insertRow(0, "Employé:", self.depense_employe_stats_label)
-        depenses_diverses_form_layout.insertRow(1, "Jacmar:", self.depense_jacmar_stats_label)
+        depenses_diverses_form_layout.insertRow(0, self.depense_employe_descriptive_label, self.depense_employe_value_label)
+        depenses_diverses_form_layout.insertRow(1, self.depense_jacmar_descriptive_label, self.depense_jacmar_value_label)
         depenses_diverses_form_layout.insertRow(2, "Factures Manquantes:", self.depense_missing_facture_label)
         # --- FIN AJOUT STATS DEPENSES DIVERSES (CORRIGÉ) ---
 
@@ -2264,8 +2297,110 @@ class RapportDepensePage(QWidget):
              logger.exception(f"Impossible d'ajouter l'entrée:") # MODIFICATION
 
     def _update_totals_display(self):
-        # TODO: Lire self.document.get_totals() ou équivalent et mettre à jour les labels
-        pass 
+        """Calcule et affiche les totaux généraux et les statistiques par catégorie."""
+        try:
+            # Calcul pour Repas
+            repas_employe_count = 0
+            repas_employe_total = 0.0
+            repas_jacmar_count = 0
+            repas_jacmar_total = 0.0
+            repas_factures_manquantes = 0
+            # total_repas_global = 0.0 # Non utilisé pour le remboursement direct
+
+            for repas in getattr(self.document, 'repas', []):
+                montant = float(getattr(repas, 'totale_apres_taxes', 0.0))
+                
+                if getattr(repas, 'payeur', True): # True = Employé par défaut
+                    repas_employe_count += 1
+                    repas_employe_total += montant
+                else:
+                    repas_jacmar_count += 1
+                    repas_jacmar_total += montant
+
+                facture = getattr(repas, 'facture', None)
+                if facture is None or not getattr(facture, 'filenames', []):
+                    repas_factures_manquantes += 1
+            
+            # Calcul pour Dépenses Diverses
+            depense_employe_count = 0
+            depense_employe_total = 0.0
+            depense_jacmar_count = 0
+            depense_jacmar_total = 0.0
+            depense_factures_manquantes = 0
+            # total_depenses_diverses_global = 0.0 # Non utilisé pour le remboursement direct
+
+            for depense in getattr(self.document, 'depenses_diverses', []):
+                montant_dep = float(getattr(depense, 'totale_apres_taxes', 0.0))
+                
+                if getattr(depense, 'payeur', True): 
+                    depense_employe_count += 1
+                    depense_employe_total += montant_dep
+                else:
+                    depense_jacmar_count += 1
+                    depense_jacmar_total += montant_dep
+                
+                facture_dep = getattr(depense, 'facture', None)
+                if facture_dep is None or not getattr(facture_dep, 'filenames', []):
+                    depense_factures_manquantes += 1
+
+            # Calcul pour Déplacements (total remboursé à l'employé)
+            total_deplacement_rembourse_employe = 0.0
+            for deplacement_obj in getattr(self.document, 'deplacements', []):
+                total_deplacement_rembourse_employe += float(getattr(deplacement_obj, 'montant', 0.0))
+
+            # --- Mise à jour des Labels ---
+
+            # Cadre "Totaux"
+            if hasattr(self, 'total_deplacements_label'):
+                self.total_deplacements_label.setText(f"{total_deplacement_rembourse_employe:.2f} $")
+            if hasattr(self, 'total_repas_label'): # Ligne "Repas:" dans le cadre "Totaux"
+                self.total_repas_label.setText(f"{repas_employe_total:.2f} $")
+            if hasattr(self, 'total_depenses_label'): # Ligne "Dépenses diverses:" dans le cadre "Totaux"
+                self.total_depenses_label.setText(f"{depense_employe_total:.2f} $")
+            
+            # Total Général (dans le cadre "Totaux")
+            total_general_rembourse = total_deplacement_rembourse_employe + repas_employe_total + depense_employe_total
+            if hasattr(self, 'total_general_label'): 
+                self.total_general_label.setText(f"{total_general_rembourse:.2f} $")
+
+            # Cadre "Déplacement" - "Total Remboursé:"
+            # total_rembourse_deplacement_label_value est déjà mis à jour par _update_deplacement_info_display,
+            # qui doit calculer le montant remboursé à l'employé.
+            # Pour s'assurer de la cohérence si _update_deplacement_info_display n'est pas appelé après chaque modif :
+            if hasattr(self, 'total_rembourse_deplacement_label_value'):
+                 self.total_rembourse_deplacement_label_value.setText(f"{total_deplacement_rembourse_employe:.2f} $")
+
+
+            # Cadre "Repas" - "Total Remboursé:" (en bas du cadre repas)
+            if hasattr(self, 'total_repas_valeur_label'): 
+                 self.total_repas_valeur_label.setText(f"{repas_employe_total:.2f} $")
+
+            # Cadre "Dépenses Diverses" - "Total Remboursé:" (en bas du cadre dépenses diverses)
+            if hasattr(self, 'total_depenses_diverses_valeur_label'): 
+                 self.total_depenses_diverses_valeur_label.setText(f"{depense_employe_total:.2f} $")
+            
+            # Statistiques Repas (inchangées)
+            if hasattr(self, 'repas_employe_descriptive_label') and hasattr(self, 'repas_employe_value_label'):
+                self.repas_employe_descriptive_label.setText(f"Employé ({repas_employe_count}):")
+                self.repas_employe_value_label.setText(f"{repas_employe_total:.2f} $")
+            if hasattr(self, 'repas_jacmar_descriptive_label') and hasattr(self, 'repas_jacmar_value_label'):
+                self.repas_jacmar_descriptive_label.setText(f"Jacmar ({repas_jacmar_count}):")
+                self.repas_jacmar_value_label.setText(f"{repas_jacmar_total:.2f} $")
+            if hasattr(self, 'repas_missing_facture_label'):
+                self.repas_missing_facture_label.setText(f"{repas_factures_manquantes}")
+
+            # Statistiques Dépenses (inchangées)
+            if hasattr(self, 'depense_employe_descriptive_label') and hasattr(self, 'depense_employe_value_label'):
+                self.depense_employe_descriptive_label.setText(f"Employé ({depense_employe_count}):")
+                self.depense_employe_value_label.setText(f"{depense_employe_total:.2f} $")
+            if hasattr(self, 'depense_jacmar_descriptive_label') and hasattr(self, 'depense_jacmar_value_label'):
+                self.depense_jacmar_descriptive_label.setText(f"Jacmar ({depense_jacmar_count}):")
+                self.depense_jacmar_value_label.setText(f"{depense_jacmar_total:.2f} $")
+            if hasattr(self, 'depense_missing_facture_label'):
+                self.depense_missing_facture_label.setText(f"{depense_factures_manquantes}")
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la mise à jour des totaux: {e}", exc_info=True)
 
     def _toggle_num_commande_row_visibility(self, checked):
         """ Affiche ou cache la ligne (label + champ) N° Commande dans le QGridLayout. """
@@ -3293,7 +3428,8 @@ class RapportDepensePage(QWidget):
                 self.editing_entry.type_depense = self.form_fields['type_depense'].currentText()
                 self.editing_entry.description = self.form_fields['description_dep'].text() # MODIFIÉ: _dep
                 self.editing_entry.fournisseur = self.form_fields['fournisseur_dep'].text() # MODIFIÉ: _dep
-                self.editing_entry.payeur_employe = self.form_fields['payeur_employe_dep'].isChecked() # Ajuster attribut modèle si besoin
+                # CORRECTION: Mettre à jour l'attribut 'payeur' et non 'payeur_employe'
+                self.editing_entry.payeur = self.form_fields['payeur_employe_dep'].isChecked() # True si Employé a payé
                 
                 # Pas de refacturer ou num_commande pour Depense
                 self.editing_entry.refacturer = False
@@ -3766,11 +3902,10 @@ class RapportDepensePage(QWidget):
             repas_jacmar_count = 0
             repas_jacmar_total = 0.0
             repas_factures_manquantes = 0
-            total_repas_global = 0.0
+            # total_repas_global = 0.0 # Non utilisé pour le remboursement direct
 
             for repas in getattr(self.document, 'repas', []):
                 montant = float(getattr(repas, 'totale_apres_taxes', 0.0))
-                total_repas_global += montant
                 
                 if getattr(repas, 'payeur', True): # True = Employé par défaut
                     repas_employe_count += 1
@@ -3789,14 +3924,12 @@ class RapportDepensePage(QWidget):
             depense_jacmar_count = 0
             depense_jacmar_total = 0.0
             depense_factures_manquantes = 0
-            total_depenses_diverses_global = 0.0
+            # total_depenses_diverses_global = 0.0 # Non utilisé pour le remboursement direct
 
             for depense in getattr(self.document, 'depenses_diverses', []):
                 montant_dep = float(getattr(depense, 'totale_apres_taxes', 0.0))
-                total_depenses_diverses_global += montant_dep
                 
-                # Supposer que 'payeur_employe' est l'attribut booléen pour Depense
-                if getattr(depense, 'payeur_employe', True):
+                if getattr(depense, 'payeur', True): 
                     depense_employe_count += 1
                     depense_employe_total += montant_dep
                 else:
@@ -3807,46 +3940,61 @@ class RapportDepensePage(QWidget):
                 if facture_dep is None or not getattr(facture_dep, 'filenames', []):
                     depense_factures_manquantes += 1
 
-            # Calcul pour Déplacements (juste le total)
-            total_deplacement_global = 0.0
-            for deplacement in getattr(self.document, 'deplacements', []):
-                total_deplacement_global += float(getattr(deplacement, 'montant', 0.0))
+            # Calcul pour Déplacements (total remboursé à l'employé)
+            total_deplacement_rembourse_employe = 0.0
+            for deplacement_obj in getattr(self.document, 'deplacements', []):
+                total_deplacement_rembourse_employe += float(getattr(deplacement_obj, 'montant', 0.0))
 
-            # Mise à jour des Labels (Vérifier l'existence avant de setText)
-            # Totaux globaux par catégorie
-            if hasattr(self, 'total_repas_label'):
-                self.total_repas_label.setText(f"{total_repas_global:.2f} $")
-            if hasattr(self, 'total_depense_label'):
-                self.total_depense_label.setText(f"{total_depenses_diverses_global:.2f} $")
-            if hasattr(self, 'total_rembourse_deplacement_label_value'):
-                self.total_rembourse_deplacement_label_value.setText(f"{total_deplacement_global:.2f} $")
+            # --- Mise à jour des Labels ---
+
+            # Cadre "Totaux"
+            if hasattr(self, 'total_deplacements_label'):
+                self.total_deplacements_label.setText(f"{total_deplacement_rembourse_employe:.2f} $")
+            if hasattr(self, 'total_repas_label'): # Ligne "Repas:" dans le cadre "Totaux"
+                self.total_repas_label.setText(f"{repas_employe_total:.2f} $")
+            if hasattr(self, 'total_depenses_label'): # Ligne "Dépenses diverses:" dans le cadre "Totaux"
+                self.total_depenses_label.setText(f"{depense_employe_total:.2f} $")
             
-            # Statistiques Repas
-            if hasattr(self, 'repas_employe_stats_label'):
-                # CORRECTION: Ne plus inclure le texte descriptif ici
-                self.repas_employe_stats_label.setText(f"({repas_employe_count}): {repas_employe_total:.2f} $")
-            if hasattr(self, 'repas_jacmar_stats_label'):
-                # CORRECTION: Ne plus inclure le texte descriptif ici
-                self.repas_jacmar_stats_label.setText(f"({repas_jacmar_count}): {repas_jacmar_total:.2f} $")
+            # Total Général (dans le cadre "Totaux")
+            total_general_rembourse = total_deplacement_rembourse_employe + repas_employe_total + depense_employe_total
+            if hasattr(self, 'total_general_label'): 
+                self.total_general_label.setText(f"{total_general_rembourse:.2f} $")
+
+            # Cadre "Déplacement" - "Total Remboursé:"
+            # total_rembourse_deplacement_label_value est déjà mis à jour par _update_deplacement_info_display,
+            # qui doit calculer le montant remboursé à l'employé.
+            # Pour s'assurer de la cohérence si _update_deplacement_info_display n'est pas appelé après chaque modif :
+            if hasattr(self, 'total_rembourse_deplacement_label_value'):
+                 self.total_rembourse_deplacement_label_value.setText(f"{total_deplacement_rembourse_employe:.2f} $")
+
+
+            # Cadre "Repas" - "Total Remboursé:" (en bas du cadre repas)
+            if hasattr(self, 'total_repas_valeur_label'): 
+                 self.total_repas_valeur_label.setText(f"{repas_employe_total:.2f} $")
+
+            # Cadre "Dépenses Diverses" - "Total Remboursé:" (en bas du cadre dépenses diverses)
+            if hasattr(self, 'total_depenses_diverses_valeur_label'): 
+                 self.total_depenses_diverses_valeur_label.setText(f"{depense_employe_total:.2f} $")
+            
+            # Statistiques Repas (inchangées)
+            if hasattr(self, 'repas_employe_descriptive_label') and hasattr(self, 'repas_employe_value_label'):
+                self.repas_employe_descriptive_label.setText(f"Employé ({repas_employe_count}):")
+                self.repas_employe_value_label.setText(f"{repas_employe_total:.2f} $")
+            if hasattr(self, 'repas_jacmar_descriptive_label') and hasattr(self, 'repas_jacmar_value_label'):
+                self.repas_jacmar_descriptive_label.setText(f"Jacmar ({repas_jacmar_count}):")
+                self.repas_jacmar_value_label.setText(f"{repas_jacmar_total:.2f} $")
             if hasattr(self, 'repas_missing_facture_label'):
-                # CORRECTION: Ne plus inclure le texte descriptif ici
                 self.repas_missing_facture_label.setText(f"{repas_factures_manquantes}")
 
-            # Statistiques Dépenses
-            if hasattr(self, 'depense_employe_stats_label'):
-                # CORRECTION: Ne plus inclure le texte descriptif ici
-                self.depense_employe_stats_label.setText(f"({depense_employe_count}): {depense_employe_total:.2f} $")
-            if hasattr(self, 'depense_jacmar_stats_label'):
-                # CORRECTION: Ne plus inclure le texte descriptif ici
-                self.depense_jacmar_stats_label.setText(f"({depense_jacmar_count}): {depense_jacmar_total:.2f} $")
+            # Statistiques Dépenses (inchangées)
+            if hasattr(self, 'depense_employe_descriptive_label') and hasattr(self, 'depense_employe_value_label'):
+                self.depense_employe_descriptive_label.setText(f"Employé ({depense_employe_count}):")
+                self.depense_employe_value_label.setText(f"{depense_employe_total:.2f} $")
+            if hasattr(self, 'depense_jacmar_descriptive_label') and hasattr(self, 'depense_jacmar_value_label'):
+                self.depense_jacmar_descriptive_label.setText(f"Jacmar ({depense_jacmar_count}):")
+                self.depense_jacmar_value_label.setText(f"{depense_jacmar_total:.2f} $")
             if hasattr(self, 'depense_missing_facture_label'):
-                # CORRECTION: Ne plus inclure le texte descriptif ici
                 self.depense_missing_facture_label.setText(f"{depense_factures_manquantes}")
-
-            # Total Général
-            total_general = total_repas_global + total_depenses_diverses_global + total_deplacement_global
-            if hasattr(self, 'grand_total_valeur_label'):
-                self.grand_total_valeur_label.setText(f"{total_general:.2f} $")
 
         except Exception as e:
             logger.error(f"Erreur lors de la mise à jour des totaux: {e}", exc_info=True)
