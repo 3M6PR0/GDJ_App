@@ -117,9 +117,29 @@ def main():
     controller = MainController() # Utilise l'import local MainController
     logging.info("MainController instance created.")
 
-    logging.info("Calling controller.show_welcome_page()...")
-    controller.show_welcome_page()
-    logging.info("controller.show_welcome_page() finished.")
+    # --- GESTION DES ARGUMENTS DE LIGNE DE COMMANDE ---
+    file_to_open_on_startup = None
+    if len(sys.argv) > 1:
+        potential_file_path = sys.argv[1]
+        logger.info(f"Argument de ligne de commande détecté: {potential_file_path}")
+        if potential_file_path.lower().endswith(".rdj") and os.path.isfile(potential_file_path):
+            logger.info(f"Fichier .rdj valide détecté en argument: {potential_file_path}")
+            file_to_open_on_startup = potential_file_path
+        else:
+            logger.warning(f"Argument '{potential_file_path}' n'est pas un fichier .rdj valide ou n'existe pas.")
+
+    if file_to_open_on_startup:
+        logger.info(f"Tentative d'ouverture du fichier au démarrage: {file_to_open_on_startup}")
+        # S'assurer que le contrôleur a une méthode pour gérer cela
+        if hasattr(controller, 'handle_startup_file_argument'):
+            controller.handle_startup_file_argument(file_to_open_on_startup)
+        else:
+            logger.error("MainController n'a pas de méthode 'handle_startup_file_argument'. Affichage de la WelcomeWindow par défaut.")
+            controller.show_welcome_page() # Fallback
+    else:
+        logging.info("Aucun fichier à ouvrir au démarrage via argument, appel de controller.show_welcome_page()...")
+        controller.show_welcome_page()
+    # --- FIN GESTION DES ARGUMENTS ---
 
     logging.info("Starting QApplication event loop (app.exec_)...")
     exit_code = app.exec_()

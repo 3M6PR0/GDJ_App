@@ -37,6 +37,13 @@ Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 ; Crée un raccourci dans le menu Démarrer qui lancera GDJ.exe
 Name: "{group}\{#MyAppName}"; Filename: "{app}\GDJ.exe"
 
+[Registry]
+; Association de l'extension .rdj avec GDJ.exe pour l'UTILISATEUR ACTUEL
+Root: HKCU; Subkey: "Software\Classes\.rdj"; ValueType: string; ValueName: ""; ValueData: "Jacmar.RDJFile"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Jacmar.RDJFile"; ValueType: string; ValueName: ""; ValueData: "Rapport de Dépense Jacmar"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Jacmar.RDJFile\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\GDJ.exe,0"
+Root: HKCU; Subkey: "Software\Classes\Jacmar.RDJFile\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\GDJ.exe"" ""%1"""
+
 ; Ajout de la section Run pour lancer l'application après installation
 [Run]
 Filename: "{app}\GDJ.exe"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent

@@ -1317,6 +1317,28 @@ Consultez les logs pour plus de détails.""")
                 except Exception as e_cleanup:
                     logger.error(f"Erreur lors du nettoyage du répertoire temporaire '{temp_extract_path}': {e_cleanup}", exc_info=True)
 
+    # --- NOUVELLE MÉTHODE POUR GÉRER L'OUVERTURE D'UN FICHIER AU DÉMARRAGE ---
+    def handle_startup_file_argument(self, file_path: str):
+        logger.info(f"MainController: Traitement du fichier de démarrage: {file_path}")
+        
+        # S'assurer que la fenêtre de bienvenue est fermée si elle existe et est visible
+        if self.welcome_window and self.welcome_window.isVisible():
+            logger.info("Fermeture de la WelcomeWindow car un fichier est ouvert au démarrage.")
+            self.welcome_window.close()
+            # Il peut être nécessaire de s'assurer que les événements de fermeture sont traités
+            # avant de continuer, par exemple avec app.processEvents()
+            app = QApplication.instance()
+            if app:
+                app.processEvents()
+
+        # Appeler la méthode existante pour charger et afficher le document .rdj
+        # Cette méthode créera une nouvelle DocumentWindow ou utilisera une existante (selon sa logique actuelle)
+        # Pour un lancement direct de fichier, on ne spécifie pas de target_window, 
+        # donc une nouvelle DocumentWindow sera créée.
+        self._load_and_display_rdj_document(file_path, target_window=None)
+        logger.info(f"MainController: Traitement du fichier de démarrage {file_path} terminé.")
+    # --- FIN NOUVELLE MÉTHODE ---
+
 # --- SECTION PRINCIPALE (FIN DU FICHIER) ---
 def main():
     pass # <<< AJOUT D\'UN BLOC INDENTÉ POUR CORRIGER L\'ERREUR
