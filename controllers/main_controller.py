@@ -21,7 +21,7 @@ import functools # <<< AJOUT IMPORT
 logger = logging.getLogger('GDJ_App')
 
 # --- Import de la fonction utilitaire --- 
-from utils.paths import get_resource_path
+from utils.paths import get_resource_path, get_user_data_path
 
 # --- Import des nouvelles pages/fenêtres ---
 # from pages.welcome_page import WelcomePage # ANCIEN
@@ -47,6 +47,8 @@ from pathlib import Path
 # os est déjà importé plus haut
 # RapportDepense sera importé dynamiquement ou via une vérification de type
 from models.documents.rapport_depense import RapportDepense # Pour vérification de type
+# ---------------------------------
+from datetime import date # Ajout import date pour _load_and_display_rdj_document
 # ---------------------------------
 
 # --- Classe pour la boîte de dialogue des notes de version ---
@@ -377,27 +379,43 @@ class MainController(QObject):
         pass # Ne fait rien pour l'instant
 
     def open_document(self):
-        """Action appelée par le bouton 'Ouvrir' de WelcomeWindow."""
-        self._ensure_main_window_exists()
-        # Logique pour ouvrir un fichier via QFileDialog
+        """Action appelée par le bouton 'Ouvrir' de WelcomeWindow ou par d'autres sources.
+           Ouvre une boîte de dialogue pour sélectionner un fichier .rdj.
+        """
+        logger.info("MainController: open_document appelée.")
+        # self._ensure_main_window_exists() # Pas forcément besoin ici, on va ouvrir une DocumentWindow
+
         options = QFileDialog.Options()
-        filePath, _ = QFileDialog.getOpenFileName(self.main_window, 
-                                                  "Ouvrir un document GDJ", "", 
-                                                  "GDJ Documents (*.gdj);;Tous les fichiers (*.*)", options=options)
-        if filePath:
-            logger.debug(f"Ouverture du document: {filePath}")
-            # Ici, il faudrait charger le document depuis le fichier
-            # Pour l'instant, on simule comme avant
-            self._open_and_add_document_tab(f"Doc: {os.path.basename(filePath)}", None) # Passe le chemin ou titre
-            
-    def open_specific_document(self, path):
-        """Action appelée par double-clic sur un item récent dans WelcomeWindow."""
-        self._ensure_main_window_exists()
-        logger.debug(f"Ouverture du document spécifique: {path}")
-        # Ici, il faudrait charger le document depuis le `path`
-        # Simulé pour l'instant
-        self._open_and_add_document_tab(f"Doc: {os.path.basename(path)}", None) 
+        # On pourrait ne pas avoir de self.main_window ici si on vient de WelcomeWindow et qu'aucune DocumentWindow n'existe.
+        # Utiliser None comme parent pour QFileDialog si aucune fenêtre n'est appropriée.
+        parent_widget_for_dialog = self._get_active_document_window() or self.welcome_window or None
         
+        file_path, _ = QFileDialog.getOpenFileName(
+            parent_widget_for_dialog, 
+            "Ouvrir un Rapport de Dépenses Jacmar", 
+            os.path.expanduser("~"), # Répertoire initial
+            "Rapports de Dépenses Jacmar (*.rdj);;Tous les fichiers (*.*)", 
+            options=options
+        )
+        
+        if file_path:
+            logger.info(f"Fichier .rdj sélectionné pour ouverture: {file_path}")
+            self._load_and_display_rdj_document(file_path)
+        else:
+            logger.info("Ouverture de fichier annulée par l'utilisateur.")
+
+    def open_specific_document(self, path):
+        """Action appelée par double-clic sur un item récent dans WelcomeWindow.
+           Charge directement le fichier .rdj spécifié.
+        """
+        # self._ensure_main_window_exists() # Pas besoin, _load_and_display_rdj_document s'en chargera si besoin
+        logger.info(f"Ouverture du document spécifique (récent): {path}")
+        if Path(path).exists() and path.lower().endswith('.rdj'):
+            self._load_and_display_rdj_document(path)
+        else:
+            logger.error(f"Le chemin du document récent '{path}' n'existe pas ou n'est pas un .rdj.")
+            QMessageBox.warning(None, "Erreur Fichier Récent", f"Impossible d'ouvrir le fichier récent:\n{path}\nIl n'existe peut-être plus ou n'est pas un fichier valide.")
+
     def create_new_document_from_menu(self):
         """Action appelée par le menu Fichier > Nouveau."""
         # Pas besoin d'appeler _ensure_main_window_exists ici car le menu n'est visible
@@ -406,12 +424,32 @@ class MainController(QObject):
         pass # Ne fait rien pour l'instant
             
     def open_document_from_menu(self):
-        """Action appelée par le menu Fichier > Ouvrir."""
+        """Action appelée par le menu Fichier > Ouvrir d'une DocumentWindow."""
+        logger.info("MainController: open_document_from_menu appelée.")
+        active_doc_window = self._get_active_document_window()
+        if not active_doc_window:
+            logger.warning("open_document_from_menu: Aucune DocumentWindow active trouvée pour parenter QFileDialog. Utilisation de None.")
+            # Si on arrive ici, c'est probablement une erreur de logique car le menu
+            # ne devrait être accessible que depuis une DocumentWindow.
+            # Cependant, pour la robustesse :
+            # On pourrait appeler self.open_document() qui a une logique de fallback pour le parent.
+            self.open_document() # Utilise la logique plus générique avec fallback de parent
+            return
+
         options = QFileDialog.Options()
-        filePath, _ = QFileDialog.getOpenFileName(self.main_window, "Ouvrir un document GDJ", "", "GDJ Documents (*.gdj);;Tous les fichiers (*.*)", options=options)
-        if filePath:
-            logger.debug(f"Ouverture du document (menu): {filePath}")
-            self._open_and_add_document_tab(f"Doc: {os.path.basename(filePath)}", None)
+        file_path, _ = QFileDialog.getOpenFileName(
+            active_doc_window, # Parent est la DocumentWindow active
+            "Ouvrir un Rapport de Dépenses Jacmar", 
+            os.path.expanduser("~"), 
+            "Rapports de Dépenses Jacmar (*.rdj);;Tous les fichiers (*.*)", 
+            options=options
+        )
+        
+        if file_path:
+            logger.info(f"Fichier .rdj sélectionné pour ouverture (via menu): {file_path}")
+            self._load_and_display_rdj_document(file_path)
+        else:
+            logger.info("Ouverture de fichier (via menu) annulée par l'utilisateur.")
 
     def _create_and_add_document_tab(self, doc_type, data):
         """Factorisation de la logique de création d'un nouveau document et ajout d'onglet."""
@@ -819,7 +857,7 @@ class MainController(QObject):
             self.show_type_selection_window(source_window=src_for_type_selection)
         elif action_name == "open_document":
             logger.debug("MainController: Action 'open_document' reçue.")
-            self.open_document_from_menu() 
+            self.open_document() 
         elif action_name == "settings":
             logger.debug("MainController: Action 'settings' reçue.")
             self.show_settings_window()
@@ -1093,7 +1131,157 @@ class MainController(QObject):
              logger.debug(f"MainController: request_welcome_after_close reçue. Fenêtre trouvée: {found}, Nombre total: {count}. Flag inchangé.")
     # --------------------
 
-# --- SECTION PRINCIPALE (FIN DU FICHIER) --- 
+    # --- AJOUT IMPORTS POUR LA LOGIQUE D'OUVERTURE RDJ ---
+    # (Certains peuvent être redondants avec la section sauvegarde, mais c'est pour s'assurer qu'ils sont là)
+    # import json # Déjà présent
+    # import zipfile # Déjà présent
+    # import tempfile # Déjà présent
+    # import shutil # Déjà présent
+    # from pathlib import Path # Déjà présent
+    # import os # Déjà présent
+    from utils.paths import get_user_data_path # Assurer que get_user_data_path est importé
+    # -----------------------------------------------------
+
+    def _load_and_display_rdj_document(self, rdj_file_path: str):
+        logger.info(f"MainController: Tentative de chargement du document .rdj: {rdj_file_path}")
+        temp_dir_obj = None  # Pour s'assurer qu'il est défini en cas d'erreur avant sa création
+
+        try:
+            # Créer un répertoire temporaire unique pour l'extraction
+            temp_dir_obj = tempfile.TemporaryDirectory(prefix="rdj_extract_")
+            temp_extract_path = Path(temp_dir_obj.name)
+            logger.info(f"_load_and_display_rdj_document: Fichier .rdj '{rdj_file_path}' sera extrait vers '{temp_extract_path}'")
+
+            # Étape 1: Décompresser l'archive .rdj dans le répertoire temporaire
+            with zipfile.ZipFile(rdj_file_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_extract_path)
+            logger.info(f"_load_and_display_rdj_document: Contenu de .rdj extrait dans {temp_extract_path}")
+
+            # Étape 2: Lire le fichier rapport_data.json
+            json_file_path = temp_extract_path / "rapport_data.json"
+            if not json_file_path.exists():
+                logger.error(f"_load_and_display_rdj_document: Fichier rapport_data.json non trouvé dans l'archive à {json_file_path}")
+                QMessageBox.critical(self.main_window if self.main_window else None, "Erreur d'Ouverture", 
+                                     f"Le fichier 'rapport_data.json' est manquant dans l'archive {Path(rdj_file_path).name}.")
+                return
+
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+            logger.info(f"_load_and_display_rdj_document: Contenu de rapport_data.json chargé.")
+
+            doc_type_from_json = json_data.get('type_document', 'Inconnu')
+            logger.info(f"_load_and_display_rdj_document: Type de document lu depuis JSON: {doc_type_from_json}")
+
+            # --- AJOUT DE LA NORMALISATION DU TYPE DE DOCUMENT ---
+            doc_type_standardized = doc_type_from_json
+            if doc_type_from_json.lower() == "rapport de depense" or doc_type_from_json == "RapportDepense":
+                doc_type_standardized = "Rapport de depense" # La forme attendue par DocumentsOpenPage
+                logger.info(f"_load_and_display_rdj_document: Type de document normalisé en: '{doc_type_standardized}'")
+            # --- FIN DE L'AJOUT ---
+
+            # Vérifier si le type de document est supporté (pour l'instant, seulement Rapport de depense)
+            if doc_type_standardized != "Rapport de depense":
+                logger.error(f"_load_and_display_rdj_document: Type de document '{doc_type_standardized}' non supporté pour le chargement.")
+                QMessageBox.critical(self.main_window if self.main_window else None, "Type Non Supporté", 
+                                     f"Le type de document '{doc_type_standardized}' n'est pas supporté pour l'ouverture directe.")
+                return
+
+            # Étape 3: Créer un dossier de destination unique pour les factures de cette session d'ouverture
+            factures_entrees_base_path = Path(get_user_data_path()) / "FacturesEntrees"
+            factures_entrees_base_path.mkdir(parents=True, exist_ok=True)
+            
+            original_rdj_name = Path(rdj_file_path).stem
+            timestamp = date.today().strftime("%Y%m%d") # Format YYYYMMDD
+            # Utiliser seulement les 8 premiers caractères d'un UUID pour la concision
+            # import uuid # Assurez-vous que uuid est importé au début du fichier si ce n'est pas déjà fait
+            # unique_id = str(uuid.uuid4())[:8]
+            # Pour éviter l'import, on peut se baser sur un timestamp plus précis si nécessaire
+            # ou simplement un compteur si on gère plusieurs ouvertures simultanées de manière robuste
+            # Pour l'instant, on va simplifier et utiliser un nom basé sur le fichier et la date.
+            # Il faut s'assurer de l'unicité si plusieurs fichiers avec le même nom sont ouverts le même jour.
+            # Un compteur ou un timestamp plus précis pourrait être nécessaire.
+            # Pour l'instant, le risque de collision est faible pour un usage typique.
+            target_factures_folder_name = f"{original_rdj_name}_factures_{timestamp}" 
+            final_factures_path_for_session = factures_entrees_base_path / target_factures_folder_name
+            
+            # Gérer les conflits de noms de dossier (par exemple, si ouvert plusieurs fois)
+            counter = 1
+            temp_path = final_factures_path_for_session
+            while temp_path.exists():
+                logger.warning(f"_load_and_display_rdj_document: Dossier de factures '{temp_path}' existe déjà. Tentative avec suffixe.")
+                target_factures_folder_name = f"{original_rdj_name}_factures_{timestamp}_{counter}"
+                temp_path = factures_entrees_base_path / target_factures_folder_name
+                counter += 1
+            final_factures_path_for_session = temp_path
+            final_factures_path_for_session.mkdir(parents=True, exist_ok=True)
+            logger.info(f"_load_and_display_rdj_document: Dossier de destination pour les factures de cette session: {final_factures_path_for_session}")
+
+            # Étape 4: Copier les dossiers de factures depuis temp/factures vers le dossier unique
+            source_factures_in_zip_path = temp_extract_path / "factures"
+            if source_factures_in_zip_path.exists() and source_factures_in_zip_path.is_dir():
+                for item in source_factures_in_zip_path.iterdir():
+                    if item.is_dir(): # On s'attend à des dossiers individuels par facture
+                        try:
+                            shutil.copytree(item, final_factures_path_for_session / item.name)
+                            logger.info(f"_load_and_display_rdj_document: Dossier de facture '{item.name}' copié vers '{final_factures_path_for_session / item.name}'.")
+                        except Exception as e_copy:
+                            logger.error(f"Erreur lors de la copie du dossier de facture '{item.name}': {e_copy}", exc_info=True)
+                            # Continuer avec les autres factures si possible
+            else:
+                logger.info(f"_load_and_display_rdj_document: Aucun dossier 'factures' trouvé dans l'archive ou ce n'est pas un répertoire.")
+
+            # Étape 5: Appeler RapportDepense.from_dict
+            # Le original_rdj_filepath est rdj_file_path
+            # Le base_path_for_factures est final_factures_path_for_session
+            try:
+                rapport_objet = RapportDepense.from_dict(json_data, str(final_factures_path_for_session), rdj_file_path)
+                rapport_objet.original_file_path = rdj_file_path # Stocker le chemin d'origine
+                rapport_objet.factures_session_path = str(final_factures_path_for_session) # Stocker où les factures ont été copiées pour cette session
+                logger.info(f"_load_and_display_rdj_document: Objet RapportDepense créé à partir de from_dict.")
+            except Exception as e_from_dict:
+                logger.error(f"Erreur lors de la reconstruction de l'objet RapportDepense via from_dict: {e_from_dict}", exc_info=True)
+                QMessageBox.critical(self.main_window if self.main_window else None, "Erreur de Chargement",
+                                     f"""Impossible de reconstruire le rapport à partir des données du fichier.
+Détail: {e_from_dict}""")
+                return
+            
+            # Étape 6: Afficher le RapportDepense chargé
+            # Utiliser doc_type_standardized ici
+            doc_creation_data = {
+                'loaded_object': rapport_objet,
+                'doc_type': doc_type_standardized, 
+                'original_path': rdj_file_path, # Peut être utile pour le titre ou la sauvegarde
+                'factures_session_path': str(final_factures_path_for_session) # Chemin où les factures sont pour cette session
+            }
+            logger.info(f"_load_and_display_rdj_document: Données pour création de DocumentWindow: {doc_creation_data}")
+            
+            # Utiliser doc_type_standardized ici aussi
+            self.show_new_document_window(doc_type_standardized, doc_creation_data)
+            logger.info(f"_load_and_display_rdj_document: Document '{rdj_file_path}' chargé et affiché.")
+
+        except zipfile.BadZipFile:
+            logger.error(f"_load_and_display_rdj_document: Le fichier '{rdj_file_path}' n'est pas une archive ZIP valide ou est corrompu.")
+            QMessageBox.critical(self.main_window if self.main_window else None, "Erreur d'Ouverture", 
+                                 f"Le fichier '{Path(rdj_file_path).name}' n'est pas un fichier de rapport valide (.rdj) ou est corrompu.")
+        except json.JSONDecodeError:
+            logger.error(f"_load_and_display_rdj_document: Erreur de décodage JSON pour rapport_data.json dans '{rdj_file_path}'.")
+            QMessageBox.critical(self.main_window if self.main_window else None, "Erreur d'Ouverture", 
+                                 f"Les données internes du rapport '{Path(rdj_file_path).name}' sont corrompues (erreur JSON).")
+        except Exception as e:
+            logger.error(f"Erreur inattendue lors du chargement du document .rdj {rdj_file_path}: {e}", exc_info=True)
+            QMessageBox.critical(self.main_window if self.main_window else None, "Erreur Inconnue", 
+                                 f"""Une erreur inattendue est survenue lors de l'ouverture du fichier '{Path(rdj_file_path).name}'.
+Consultez les logs pour plus de détails.""")
+        finally:
+            # Nettoyer le répertoire temporaire, même en cas d'erreur
+            if temp_dir_obj:
+                try:
+                    temp_dir_obj.cleanup()
+                    logger.info(f"_load_and_display_rdj_document: Répertoire temporaire '{temp_extract_path}' nettoyé.")
+                except Exception as e_cleanup:
+                    logger.error(f"Erreur lors du nettoyage du répertoire temporaire '{temp_extract_path}': {e_cleanup}", exc_info=True)
+
+# --- SECTION PRINCIPALE (FIN DU FICHIER) ---
 def main():
     pass # <<< AJOUT D\'UN BLOC INDENTÉ POUR CORRIGER L\'ERREUR
     # ... le reste du code original de main() devrait être ici ...

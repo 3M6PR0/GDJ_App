@@ -99,4 +99,55 @@ class Repas:
             'facture': self.facture.to_dict() if self.facture else None
         }
 
+    @classmethod
+    def from_dict(cls, data: dict, base_path_for_factures_in_zip: str) -> 'Repas':
+        """
+        Crée une instance de Repas à partir d'un dictionnaire.
+
+        Args:
+            data: Dictionnaire contenant les attributs du repas.
+            base_path_for_factures_in_zip: Le chemin du répertoire 'factures'
+                                             où les dossiers de factures individuels (nommés par folder_name)
+                                             ont été copiés après extraction du .rdj.
+        
+        Returns:
+            Une instance de Repas.
+        """
+        date_str = data.get('date')
+        facture_data = data.get('facture')
+        
+        # Valider les champs essentiels
+        if date_str is None:
+            raise ValueError("La date est manquante pour le repas.")
+        # Ajouter d'autres validations si nécessaire pour les champs obligatoires
+
+        facture_obj = None
+        if facture_data:
+            try:
+                facture_obj = Facture.from_dict(facture_data, base_path_for_factures_in_zip)
+            except Exception as e:
+                # Log l'erreur et continuer sans facture, ou remonter l'erreur
+                # selon la politique de gestion des erreurs souhaitée.
+                # Pour l'instant, on log et on continue sans la facture.
+                # logger.error(f"Erreur lors de la création de la facture pour un repas: {e}")
+                print(f"AVERTISSEMENT: Erreur lors de la reconstruction de la facture pour un repas: {e}. Le repas sera chargé sans facture.")
+                # Ou, si une facture est essentielle et que l'erreur est fatale:
+                # raise ValueError(f"Impossible de reconstruire la facture pour le repas: {e}") from e
+
+        return cls(
+            date_repas=date.fromisoformat(date_str),
+            restaurant=str(data.get('restaurant', '')),
+            client=str(data.get('client', '')),
+            payeur=bool(data.get('payeur', True)), # True par défaut si manquant?
+            refacturer=bool(data.get('refacturer', False)),
+            numero_commande=str(data.get('numero_commande', '')),
+            totale_avant_taxes=float(data.get('totale_avant_taxes', 0.0)),
+            pourboire=float(data.get('pourboire', 0.0)),
+            tps=float(data.get('tps', 0.0)),
+            tvq=float(data.get('tvq', 0.0)),
+            tvh=float(data.get('tvh', 0.0)),
+            totale_apres_taxes=float(data.get('totale_apres_taxes', 0.0)),
+            facture=facture_obj
+        )
+
     # Ajouter d'autres méthodes si nécessaire (ex: calcul total, validation) 

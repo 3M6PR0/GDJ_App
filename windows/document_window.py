@@ -24,7 +24,21 @@ class DocumentWindow(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        window_title = f"Document - {self.initial_doc_type}" if self.initial_doc_type else "Document"
+        # --- Déterminer le titre de la fenêtre --- 
+        window_title = "Document"
+        if self.initial_doc_type:
+            base_title = self.initial_doc_type # Ex: "Rapport de depense"
+            # Si on a un objet chargé dans initial_doc_data, utiliser son titre
+            if 'loaded_object' in self.initial_doc_data and hasattr(self.initial_doc_data['loaded_object'], 'title') and self.initial_doc_data['loaded_object'].title:
+                window_title = self.initial_doc_data['loaded_object'].title
+            elif 'title' in self.initial_doc_data and self.initial_doc_data['title']:
+                 # Cas où title est directement dans initial_doc_data (moins probable pour loaded_object mais pour flexibilité)
+                window_title = self.initial_doc_data['title']
+            else:
+                # Fallback si pas de titre spécifique, juste le type de document
+                window_title = base_title.replace("_", " ").capitalize()
+        # ------------------------------------------
+        
         self.title_bar = CustomTitleBar(self, title=window_title, icon_base_name="logo-gdj.png", show_menu_button_initially=True)
         main_layout.addWidget(self.title_bar)
 

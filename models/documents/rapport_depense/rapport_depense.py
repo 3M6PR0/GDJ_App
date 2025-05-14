@@ -109,7 +109,7 @@ class RapportDepense(Document):
         """
         rapport_data = {
             'version_format': '1.0', # Pour une éventuelle gestion de versions futures
-            'type_document': 'RapportDepense',
+            'type_document': 'Rapport de depense',
             # Attributs de Document (classe parente)
             'title': self.title,
             'content': self.content, 
@@ -136,4 +136,80 @@ class RapportDepense(Document):
                         facture_dossiers_sources.append(item.facture.folder_path)
         
         return rapport_data, list(set(facture_dossiers_sources)) # Utiliser set pour garantir l'unicité
+    # -------------------------------------------------------------------- 
+
+    @classmethod
+    def from_dict(cls, data: dict, base_path_for_factures: str, original_rdj_filepath: str) -> 'RapportDepense':
+        """
+        Crée une instance de RapportDepense à partir d'un dictionnaire.
+
+        Args:
+            data: Dictionnaire contenant les données du rapport.
+            base_path_for_factures: Le chemin de base où les dossiers de factures individuels
+                                      (nommés par folder_name dans Facture.to_dict)
+                                      ont été copiés (par exemple, dans un sous-dossier unique de FacturesEntrees).
+            original_rdj_filepath: Le chemin complet du fichier .rdj d'origine qui a été ouvert.
+                                     Utilisé pour initialiser self.nom_fichier.
+        
+        Returns:
+            Une instance de RapportDepense.
+        """
+        # Récupérer les données de base du rapport
+        title = data.get('title')
+        content = data.get('content', "") # Contenu hérité de Document
+        # nom_fichier_origine = data.get('nom_fichier_origine') # Sera remplacé par original_rdj_filepath
+        date_rapport_str = data.get('date_rapport')
+        nom_employe = data.get('nom_employe', '')
+        prenom_employe = data.get('prenom_employe', '')
+        emplacement = data.get('emplacement', '')
+        departement = data.get('departement', '')
+        superviseur = data.get('superviseur', '')
+        plafond_deplacement = data.get('plafond_deplacement', '')
+
+        if not date_rapport_str:
+            raise ValueError("La date du rapport est manquante dans les données.")
+        date_rapport_obj = date.fromisoformat(date_rapport_str)
+
+        # Créer l'instance de RapportDepense
+        # Utiliser original_rdj_filepath pour nom_fichier
+        rapport = cls(
+            nom_fichier=original_rdj_filepath, 
+            date_rapport=date_rapport_obj,
+            nom_employe=nom_employe,
+            prenom_employe=prenom_employe,
+            emplacement=emplacement,
+            departement=departement,
+            superviseur=superviseur,
+            plafond_deplacement=plafond_deplacement,
+            title=title, # Peut être None, le constructeur génère un titre si c'est le cas
+            content=content
+        )
+
+        # Reconstruire les déplacements
+        deplacements_data = data.get('deplacements', [])
+        for dep_data in deplacements_data:
+            try:
+                rapport.ajouter_deplacement(Deplacement.from_dict(dep_data))
+            except Exception as e:
+                print(f"AVERTISSEMENT: Erreur reconstruction déplacement: {e}. Item ignoré.")
+
+        # Reconstruire les repas
+        repas_data = data.get('repas', [])
+        for rep_data in repas_data:
+            try:
+                # Passer base_path_for_factures car Repas peut contenir une Facture
+                rapport.ajouter_repas(Repas.from_dict(rep_data, base_path_for_factures))
+            except Exception as e:
+                print(f"AVERTISSEMENT: Erreur reconstruction repas: {e}. Item ignoré.")
+
+        # Reconstruire les dépenses diverses
+        depenses_diverses_data = data.get('depenses_diverses', [])
+        for dd_data in depenses_diverses_data:
+            try:
+                # Passer base_path_for_factures car Depense peut contenir une Facture
+                rapport.ajouter_depense(Depense.from_dict(dd_data, base_path_for_factures))
+            except Exception as e:
+                print(f"AVERTISSEMENT: Erreur reconstruction dépense diverse: {e}. Item ignoré.")
+
+        return rapport
     # -------------------------------------------------------------------- 

@@ -230,113 +230,95 @@ class DocumentsOpenPage(QWidget):
     # --- Nouvelle méthode pour créer un onglet --- 
     def _create_tab(self, doc_type: str, doc_data: dict):
         """Crée la page template et l'ajoute comme onglet."""
-        logger.info(f"DocumentsOpenPage: Tentative de création d'onglet type='{doc_type}'")
+        logger.info(f"DocumentsOpenPage: Tentative de création d'onglet type='{doc_type}', données: {doc_data}")
         page_widget = None
         tab_title = f"{doc_type} - Nouveau" # Titre par défaut
+        document_to_pass = None # Pour stocker soit le nouvel objet, soit l'objet chargé
 
         try:
-            if doc_type == "Rapport de depense":
-                from models.documents.rapport_depense.rapport_depense import RapportDepense
-                from datetime import datetime # Importer datetime ici aussi
-                
-                # --- Extraire et valider/convertir les données pour le modèle --- 
-                try:
-                    # Nom de fichier: pour l'instant, générique
-                    nom_fichier = f"Rapport_{doc_data.get('nom', 'Inconnu')}_{doc_data.get('date','0000-00')}.json" # Exemple
-                    
-                    # Date: convertir "Mois-Année" en objet date (1er du mois)
-                    date_str = doc_data.get("date", "")
-                    # === AJOUT LOG DATE ===
-                    logger.debug(f"[DATE_DEBUG] DOP._create_tab - Date string received: '{date_str}' (type: {type(date_str)})")
-                    # ========================
-                    date_rapport = None
-                    if date_str:
+            if doc_type == "Rapport de depense": # Garder la casse pour correspondre aux logs/types existants
+                # Vérifier si on charge un objet existant ou si on en crée un nouveau
+                if 'loaded_object' in doc_data and isinstance(doc_data['loaded_object'], RapportDepense):
+                    document_to_pass = doc_data['loaded_object']
+                    tab_title = document_to_pass.title if document_to_pass.title else "Rapport de dépense"
+                    logger.info(f"Chargement d'un RapportDepense existant: {tab_title}")
+                else:
+                    # Logique existante pour créer un NOUVEAU RapportDepense
+                    # from models.documents.rapport_depense.rapport_depense import RapportDepense # Déjà importé globalement
+                    from datetime import datetime # Importer datetime ici aussi
+                    try:
+                        nom_fichier_initial = doc_data.get('nom_fichier', f"NouveauRapport_{datetime.now().strftime('%Y%m%d%H%M%S')}.rdj")
+                        date_rapport_str = doc_data.get("date", datetime.now().strftime("%Y-%m"))
+                        
+                        logger.debug(f"[DATE_DEBUG] DOP._create_tab (nouveau) - Date string: '{date_rapport_str}'")
                         try:
-                            # Trouver le numéro du mois
-                            month_name_fr = date_str.split('-')[0]
-                            month_number = MONTHS.index(month_name_fr) + 1
-                            year = int(date_str.split('-')[1])
-                            date_rapport = date(year, month_number, 1)
-                            # === AJOUT LOG DATE ===
-                            logger.debug(f"[DATE_DEBUG] DOP._create_tab - Parsed date successfully: {date_rapport}")
-                            # ========================
-                        except (ValueError, IndexError) as e_date:
-                             logger.warning(f"Erreur conversion date '{date_str}': {e_date}. Utilisation date actuelle.")
-                             # === AJOUT LOG DATE ===
-                             logger.error(f"[DATE_DEBUG] DOP._create_tab - Date parsing FAILED for '{date_str}'. Error: {e_date}")
-                             # ========================
-                             date_rapport = date.today().replace(day=1)
-                    else:
-                         logger.warning(f"[_create_tab] date_str était vide ou None. Utilisation date actuelle.")
-                         # === AJOUT LOG DATE ===
-                         logger.warning(f"[DATE_DEBUG] DOP._create_tab - date_str is empty. Using current date.")
-                         # ========================
-                         date_rapport = date.today().replace(day=1) # Date par défaut
-                         
-                    # Autres champs (vérifiés dans le contrôleur, mais récupérer ici)
-                    nom_employe = doc_data.get("nom", "")
-                    prenom_employe = doc_data.get("prenom", "")
-                    emplacement = doc_data.get("emplacements", "") # Clé au pluriel dans get_dynamic_data?
-                    departement = doc_data.get("departements", "") # Clé au pluriel?
-                    superviseur = doc_data.get("superviseurs", "") # Clé au pluriel?
-                    plafond_deplacement = doc_data.get("plafond_deplacement", "")
-                    
-                    # Instancier le modèle avec les bonnes données
-                    new_doc_model = RapportDepense(
-                        nom_fichier=nom_fichier,
-                        date_rapport=date_rapport,
-                        nom_employe=nom_employe,
-                        prenom_employe=prenom_employe,
-                        emplacement=emplacement,
-                        departement=departement,
-                        superviseur=superviseur,
-                        plafond_deplacement=plafond_deplacement
-                        # title sera généré automatiquement dans __init__
-                    )
-                    # === AJOUT LOG DATE ===
-                    logger.debug(f"[DATE_DEBUG] DOP._create_tab - Final date_rapport passed to RapportDepense: {new_doc_model.date_rapport}")
-                    # ========================
-                    logger.info(f"Modèle {type(new_doc_model).__name__} créé: {new_doc_model}")
-                    page_widget = RapportDepensePage(document=new_doc_model) 
-                    tab_title = new_doc_model.title # Utiliser le titre généré par le modèle
+                            year, month = map(int, date_rapport_str.split('-'))
+                            date_rapport_obj = date(year, month, 1) # Premier jour du mois
+                        except ValueError:
+                            logger.error(f"Format de date invalide '{date_rapport_str}'. Utilisation de la date actuelle.")
+                            current_dt = datetime.now()
+                            date_rapport_obj = date(current_dt.year, current_dt.month, 1)
 
-                except KeyError as ke:
-                    logger.error(f"ERREUR: Clé manquante dans doc_data lors de la création de RapportDepense: {ke}")
-                    raise ValueError(f"Donnée manquante : {ke}") # Propage l'erreur
-                except Exception as e_model:
-                    logger.error(f"ERREUR lors de l'instanciation du modèle RapportDepense: {e_model}", exc_info=True)
-                    raise # Propage l'erreur
-                    
-            # elif doc_type == "Ecriture comptable":
-                # from models.documents.ecriture_comptable import EcritureComptable
-                # new_doc_model = EcritureComptable(...) 
-                # from pages.templates.ecriture_comptable_page import EcritureComptablePage
-                # page_widget = EcritureComptablePage(document=new_doc_model)
-            # ... autres types ...
+                        document_to_pass = RapportDepense(
+                            nom_fichier=nom_fichier_initial, # Nom initial, sera mis à jour à la sauvegarde
+                            date_rapport=date_rapport_obj,
+                            nom_employe=str(doc_data.get("nom", "")) + " " + str(doc_data.get("prenom", "")),
+                            prenom_employe=str(doc_data.get("prenom", "")),
+                            emplacement=str(doc_data.get("emplacements", "")),
+                            departement=str(doc_data.get("departements", "")),
+                            superviseur=str(doc_data.get("superviseurs", "")),
+                            plafond_deplacement=str(doc_data.get("plafond_deplacement", ""))
+                            # title est généré par le constructeur de RapportDepense si non fourni
+                        )
+                        tab_title = document_to_pass.title # Utiliser le titre généré
+                        logger.info(f"Création d'un nouveau RapportDepense: {tab_title}")
+
+                    except Exception as e_create_new:
+                        logger.error(f"Erreur lors de la création d'un NOUVEAU RapportDepense: {e_create_new}", exc_info=True)
+                        # Afficher une erreur à l'utilisateur ?
+                        self.add_document_tab(QLabel(f"Erreur création: {e_create_new}"), "Erreur")
+                        return
+                
+                # Instancier la page avec le document (nouveau ou chargé)
+                if document_to_pass:
+                    # TODO: S'assurer que RapportDepensePage accepte bien 'document' en argument
+                    page_widget = RapportDepensePage(document=document_to_pass) 
+                else:
+                    logger.error("document_to_pass est None après tentative de création/chargement de RapportDepense.")
+                    self.add_document_tab(QLabel("Erreur: Document non initialisé."), "Erreur")
+                    return
+
+            # --- GÉRER LES AUTRES TYPES DE DOCUMENTS (PAS ENCORE IMPLÉMENTÉ POUR LE CHARGEMENT) ---
+            # elif doc_type == "Ecriture Comptable":
+            #     # from pages.templates.ecriture_comptable_page import EcritureComptablePage
+            #     # page_widget = EcritureComptablePage(data=doc_data)
+            #     # tab_title = f"Écriture Comptable - {doc_data.get('titre', 'Nouveau')}"
+            #     pass 
             else:
                 logger.warning(f"Type de document '{doc_type}' non géré pour la création d'onglet.")
-                page_widget = QLabel(f"Template non trouvé pour {doc_type}")
-                page_widget.setAlignment(Qt.AlignCenter)
-                tab_title = f"Erreur - {doc_type}"
+                # Afficher un onglet d'erreur ou placeholder
+                error_label = QLabel(f"Type de document non supporté: {doc_type}")
+                error_label.setAlignment(Qt.AlignCenter)
+                self.add_document_tab(error_label, "Erreur Type")
+                return
 
             if page_widget:
-                # --- Stocker le type de document sur le widget de page ---
-                page_widget.setProperty("doc_type", doc_type)
-                # ----------------------------------------------------------
                 self.add_document_tab(page_widget, tab_title)
+            else:
+                # Ce cas ne devrait pas être atteint si la logique ci-dessus est correcte
+                logger.error("page_widget est None, aucun onglet n'a été créé.")
+                self.add_document_tab(QLabel(f"Erreur: Impossible de créer la page pour {doc_type}"), "Erreur Inconnue")
 
         except ImportError as ie:
-             logger.error(f"ERREUR D'IMPORT dans DocumentsOpenPage._create_tab: {ie}", exc_info=True)
-             # Afficher l'erreur dans un onglet?
-             error_widget = QLabel(f"Erreur Import: {ie}")
-             self.add_document_tab(error_widget, f"Erreur Import - {doc_type}")
+            logger.error(f"Erreur d'importation pour le type '{doc_type}': {ie}")
+            error_label = QLabel(f"Erreur chargement module pour: {doc_type}.\n{ie}")
+            error_label.setAlignment(Qt.AlignCenter)
+            self.add_document_tab(error_label, "Erreur Module")
         except Exception as e:
-            logger.error(f"ERREUR GÉNÉRALE dans DocumentsOpenPage._create_tab: {e}", exc_info=True)
-            import traceback
-            traceback.print_exc() # Garder celui-ci pour le moment, ou le retirer si logger.error suffit
-            error_widget = QLabel(f"Erreur Création: {e}")
-            self.add_document_tab(error_widget, f"Erreur Création - {doc_type}")
-    # --------------------------------------------
+            logger.error(f"Erreur générale lors de la création de l'onglet '{doc_type}': {e}", exc_info=True)
+            error_label = QLabel(f"Erreur inattendue pour: {doc_type}.\n{e}")
+            error_label.setAlignment(Qt.AlignCenter)
+            self.add_document_tab(error_label, "Erreur Critique")
 
     def add_document_tab(self, page_widget: QWidget, title: str):
         """Ajoute une page template de document comme nouvel onglet."""
