@@ -378,31 +378,57 @@ class MainController(QObject):
         logger.warning("Fonctionnalité 'Nouveau Document' (via WelcomeWindow) désactivée car NewDocumentDialog est supprimé.")
         pass # Ne fait rien pour l'instant
 
-    def open_document(self):
-        """Action appelée par le bouton 'Ouvrir' de WelcomeWindow ou par d'autres sources.
-           Ouvre une boîte de dialogue pour sélectionner un fichier .rdj.
-        """
-        logger.info("MainController: open_document appelée.")
-        # self._ensure_main_window_exists() # Pas forcément besoin ici, on va ouvrir une DocumentWindow
+    def open_document(self, initiated_by_window: Optional[QWidget] = None):
+        logger.info(f"MainController: open_document appelée. Initiée par: {initiated_by_window}")
 
         options = QFileDialog.Options()
-        # On pourrait ne pas avoir de self.main_window ici si on vient de WelcomeWindow et qu'aucune DocumentWindow n'existe.
-        # Utiliser None comme parent pour QFileDialog si aucune fenêtre n'est appropriée.
-        parent_widget_for_dialog = self._get_active_document_window() or self.welcome_window or None
-        
+        # Parent pour le dialogue : la fenêtre initiatrice si c'est une QWidget, sinon fallback.
+        parent_for_file_dialog = initiated_by_window if isinstance(initiated_by_window, QWidget) else (self._get_active_document_window() or self.welcome_window or None)
+
         file_path, _ = QFileDialog.getOpenFileName(
-            parent_widget_for_dialog, 
-            "Ouvrir un Rapport de Dépenses Jacmar", 
+            parent_for_file_dialog,
+            "Ouvrir un Rapport de Dépenses Jacmar",
             os.path.expanduser("~"), # Répertoire initial
-            "Rapports de Dépenses Jacmar (*.rdj);;Tous les fichiers (*.*)", 
+            "Rapports de Dépenses Jacmar (*.rdj);;Tous les fichiers (*.*)",
             options=options
         )
-        
+
         if file_path:
-            logger.info(f"Fichier .rdj sélectionné pour ouverture: {file_path}")
-            self._load_and_display_rdj_document(file_path)
+            logger.info(f"Fichier .rdj sélectionné: {file_path}")
+            
+            target_for_new_tab = None
+            if isinstance(initiated_by_window, DocumentWindow) and initiated_by_window.isVisible() and initiated_by_window in self.open_document_windows:
+                target_for_new_tab = initiated_by_window
+
+            if target_for_new_tab:
+                logger.info(f"DocumentWindow source ({target_for_new_tab}) détectée pour décision onglet/fenêtre.")
+                msg_box = QMessageBox(target_for_new_tab) # Parent pour centrage
+                msg_box.setWindowTitle("Ouvrir le Document")
+                msg_box.setText(f"Ouvrir: {Path(file_path).name}")
+                msg_box.setInformativeText("Où souhaitez-vous ouvrir ce document ?")
+                btn_new_tab = msg_box.addButton("Nouvel Onglet", QMessageBox.AcceptRole)
+                btn_new_window = msg_box.addButton("Nouvelle Fenêtre", QMessageBox.DestructiveRole)
+                btn_cancel = msg_box.addButton("Annuler", QMessageBox.RejectRole)
+                msg_box.setDefaultButton(btn_new_tab)
+                
+                msg_box.exec_()
+
+                if msg_box.clickedButton() == btn_new_tab:
+                    logger.info("Utilisateur a choisi d'ouvrir dans un NOUVEL ONGLET.")
+                    self._load_and_display_rdj_document(file_path, target_window=target_for_new_tab)
+                elif msg_box.clickedButton() == btn_new_window:
+                    logger.info("Utilisateur a choisi d'ouvrir dans une NOUVELLE FENÊTRE.")
+                    self._load_and_display_rdj_document(file_path, target_window=None)
+                elif msg_box.clickedButton() == btn_cancel:
+                    logger.info("Ouverture de document annulée par l'utilisateur après sélection.")
+                else:
+                    logger.info("Dialogue de choix fermé sans sélection, annulation.")
+            else:
+                # Pas de DocumentWindow source valide (ex: depuis WelcomeWindow), ouvrir dans une nouvelle fenêtre directement.
+                logger.info("Aucune DocumentWindow source valide pour décision onglet/fenêtre, ouverture dans une nouvelle fenêtre.")
+                self._load_and_display_rdj_document(file_path, target_window=None)
         else:
-            logger.info("Ouverture de fichier annulée par l'utilisateur.")
+            logger.info("Ouverture de fichier annulée par l'utilisateur (dialogue de fichier).")
 
     def open_specific_document(self, path):
         """Action appelée par double-clic sur un item récent dans WelcomeWindow.
@@ -853,11 +879,11 @@ class MainController(QObject):
         if action_name == "new_document":
             logger.debug("MainController: Action 'new_document' reçue.")
             # Utiliser active_doc_window comme source si c'est une DocumentWindow, sinon self.main_window (pour Welcome)
-            src_for_type_selection = active_doc_window if active_doc_window else self.main_window
+            src_for_type_selection = active_doc_window if active_doc_window else self.welcome_window # Modifié pour WelcomeWindow
             self.show_type_selection_window(source_window=src_for_type_selection)
         elif action_name == "open_document":
             logger.debug("MainController: Action 'open_document' reçue.")
-            self.open_document() 
+            self.open_document(initiated_by_window=active_doc_window) # MODIFIÉ: Passer active_doc_window
         elif action_name == "settings":
             logger.debug("MainController: Action 'settings' reçue.")
             self.show_settings_window()
@@ -1142,9 +1168,9 @@ class MainController(QObject):
     from utils.paths import get_user_data_path # Assurer que get_user_data_path est importé
     # -----------------------------------------------------
 
-    def _load_and_display_rdj_document(self, rdj_file_path: str):
-        logger.info(f"MainController: Tentative de chargement du document .rdj: {rdj_file_path}")
-        temp_dir_obj = None  # Pour s'assurer qu'il est défini en cas d'erreur avant sa création
+    def _load_and_display_rdj_document(self, rdj_file_path: str, target_window: Optional[DocumentWindow] = None): # AJOUT target_window
+        logger.info(f"MainController: Tentative de chargement du document .rdj: {rdj_file_path}. Cible: {target_window}") # MOD log
+        temp_dir_obj = None
 
         try:
             # Créer un répertoire temporaire unique pour l'extraction
@@ -1255,9 +1281,19 @@ Détail: {e_from_dict}""")
             }
             logger.info(f"_load_and_display_rdj_document: Données pour création de DocumentWindow: {doc_creation_data}")
             
-            # Utiliser doc_type_standardized ici aussi
-            self.show_new_document_window(doc_type_standardized, doc_creation_data)
-            logger.info(f"_load_and_display_rdj_document: Document '{rdj_file_path}' chargé et affiché.")
+            # MODIFIÉ: Logique pour utiliser target_window ou créer une nouvelle fenêtre
+            if target_window and hasattr(target_window, 'add_document_in_new_tab'):
+                logger.info(f"Tentative d'ajout du document dans un onglet de la fenêtre cible: {target_window}")
+                target_window.add_document_in_new_tab(doc_type_standardized, doc_creation_data)
+                target_window.activateWindow() # S'assurer qu'elle est au premier plan
+                target_window.raise_()
+                logger.info(f"_load_and_display_rdj_document: Document '{rdj_file_path}' chargé et affiché dans un onglet de {target_window}.")
+            else:
+                if target_window: # target_window a été fourni mais n'a pas la méthode attendue
+                    logger.warning(f"La fenêtre cible {target_window} n'a pas la méthode add_document_in_new_tab. Ouverture dans une nouvelle fenêtre par défaut.")
+                self.show_new_document_window(doc_type_standardized, doc_creation_data)
+                # Le logger existant dans show_new_document_window ou après son appel devrait suffire
+                # logger.info(f"_load_and_display_rdj_document: Document '{rdj_file_path}' chargé et affiché dans une nouvelle fenêtre.") # Redondant
 
         except zipfile.BadZipFile:
             logger.error(f"_load_and_display_rdj_document: Le fichier '{rdj_file_path}' n'est pas une archive ZIP valide ou est corrompu.")

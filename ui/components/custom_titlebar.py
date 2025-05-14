@@ -39,6 +39,8 @@ class CustomTitleBar(QWidget):
     # --- AJOUT SIGNAUX SAUVEGARDE ---
     save_document_requested = pyqtSignal()
     save_document_as_requested = pyqtSignal()
+    # --- AJOUT NOUVEAU SIGNAL ---
+    open_document_requested = pyqtSignal()
     # ---------------------------------------
 
     def __init__(self, parent=None, title="Application", icon_base_name=None, show_menu_button_initially=False):
@@ -409,156 +411,170 @@ class CustomTitleBar(QWidget):
 
     # --- AJOUT: Méthode pour créer le menu Fichier ---
     def _create_file_menu(self):
-        self._file_menu = QMenu(self)
-        self._file_menu.setObjectName("TitleBarDropdownMenu")
-        self._file_menu.setMinimumWidth(220)
-        
-        # Logique de reconstruction propre du menu Fichier pour insérer correctement
-        self._file_menu.clear() # Nettoyer le menu existant pour le reconstruire proprement
+        if self._file_menu is None:
+            self._file_menu = QMenu(self)
+            self._file_menu.setObjectName("TitleBarDropdownMenu")
+            # Appliquer le style global des menus si défini, sinon fallback
+            # self._file_menu.setStyleSheet(self.parent().styleSheet()) # Exemple
 
-        action_new = QAction(QIcon(icon_loader.get_icon_path("round_note_add.png")), "Nouveau", self)
-        action_new.setShortcut(Qt.CTRL | Qt.Key_N)
-        action_new.triggered.connect(self._handle_new_action)
-        self._file_menu.addAction(action_new)
-        
-        action_open = QAction(QIcon(icon_loader.get_icon_path("round_folder_open.png")), "Ouvrir...", self) # AJOUT Icône
-        action_open.setShortcut(Qt.CTRL | Qt.Key_O) # AJOUT Raccourci
-        # action_open.triggered.connect(self._handle_open_action) # TODO: Créer et connecter _handle_open_action
-        self._file_menu.addAction(action_open)
-        
-        # action_recent = self._file_menu.addAction("Recent") # Laisser pour plus tard
-        # TODO: Connecter action_open.triggered, action_recent.triggered
+            # Action Nouveau
+            self.new_action = QAction(self._file_menu) # Parent est le menu
+            new_icon_path = icon_loader.get_icon_path("round_add_circle.png")
+            if new_icon_path:
+                self.new_action.setIcon(QIcon(new_icon_path))
+            self.new_action.setText("Nouveau document")
+            self.new_action.setToolTip("Créer un nouveau document (Ctrl+N)")
+            self.new_action.setShortcut("Ctrl+N")
+            # --- MODIFICATION: Connecter à _handle_new_action --- 
+            self.new_action.triggered.connect(self._handle_new_action)
+            # ------------------------------------------------------
+            self._file_menu.addAction(self.new_action)
 
-        title_widget_doc_actif = self._create_separator_with_title("Document Actif")
-        widget_action_doc_actif = QWidgetAction(self._file_menu)
-        widget_action_doc_actif.setDefaultWidget(title_widget_doc_actif)
-        self._file_menu.addAction(widget_action_doc_actif)
-        
-        # Nos nouvelles actions Sauvegarder / Sauvegarder sous
-        action_save = QAction(QIcon(icon_loader.get_icon_path("round_save.png")), "Enregistrer", self) # AJOUT Icône
-        action_save.setShortcut(Qt.CTRL | Qt.Key_S) # AJOUT Raccourci Ctrl+S
-        action_save_as = QAction(QIcon(icon_loader.get_icon_path("round_save_as.png")), "Enregistrer sous...", self) # AJOUT Icône
-        # Pas de raccourci standard évident pour "Enregistrer sous", mais Ctrl+Shift+S est courant
-        action_save_as.setShortcut(Qt.CTRL | Qt.SHIFT | Qt.Key_S) # AJOUT Raccourci Ctrl+Shift+S
-        
-        # Ajouter les actions au menu (elles étaient déjà ajoutées par addAction, mais on les recrée pour icônes/raccourcis)
-        # Pour éviter les doublons, il faut vérifier si elles existent ou les remplacer.
-        # Solution plus simple: modifier les actions existantes si possible, ou les insérer correctement.
-        # Ici, je vais supposer qu'on remplace les anciennes si elles existaient sans icône/raccourci.
-        # Pour une meilleure gestion, il faudrait une méthode pour obtenir/créer une action.
+            # --- AJOUT ACTION OUVRIR ---
+            self.open_action = QAction(self._file_menu)
+            open_icon_path = icon_loader.get_icon_path("round_folder_open.png")
+            if open_icon_path:
+                self.open_action.setIcon(QIcon(open_icon_path))
+            self.open_action.setText("Ouvrir un document...")
+            self.open_action.setToolTip("Ouvrir un document existant (Ctrl+O)")
+            self.open_action.setShortcut("Ctrl+O")
+            self.open_action.triggered.connect(self.open_document_requested.emit)
+            self._file_menu.addAction(self.open_action)
+            # --- FIN AJOUT ACTION OUVRIR ---
 
-        # On retire les anciennes actions si elles ont été créées par self._file_menu.addAction("Texte")
-        # Ceci est une simplification. Idéalement, on construirait le menu plus dynamiquement.
-        # Si les actions "Enregistrer" et "Enregistrer sous..." étaient déjà là, il faut les gérer.
-        # Pour l'instant, je vais les ajouter après "Nouveau" et "Ouvrir" pour plus de clarté.
+            self._file_menu.addSeparator()
 
-        # Les actions existantes dans _create_file_menu sont:
-        # action_new = QAction(...)
-        # self._file_menu.addAction(action_new)
-        # action_open = self._file_menu.addAction("Ouvrir...")
-        # action_recent = self._file_menu.addAction("Recent")
-        # ... séparateur ...
-        # action_save = self._file_menu.addAction("Enregistrer") <-- CELLE-CI
-        # action_save_as = self._file_menu.addAction("Enregistrer sous...") <-- ET CELLE-CI
-        # action_close_doc = self._file_menu.addAction("Fermer")
-        # action_print_doc = self._file_menu.addAction("Imprimer")
+            # --- SECTION DOCUMENT ACTIF ---
+            title_widget_doc_actif = self._create_separator_with_title("Document Actif")
+            widget_action_doc_actif = QWidgetAction(self._file_menu)
+            widget_action_doc_actif.setDefaultWidget(title_widget_doc_actif)
+            self._file_menu.addAction(widget_action_doc_actif)
+            
+            # Nos nouvelles actions Sauvegarder / Sauvegarder sous
+            action_save = QAction(QIcon(icon_loader.get_icon_path("round_save.png")), "Enregistrer", self) # AJOUT Icône
+            action_save.setShortcut(Qt.CTRL | Qt.Key_S) # AJOUT Raccourci Ctrl+S
+            action_save_as = QAction(QIcon(icon_loader.get_icon_path("round_save_as.png")), "Enregistrer sous...", self) # AJOUT Icône
+            # Pas de raccourci standard évident pour "Enregistrer sous", mais Ctrl+Shift+S est courant
+            action_save_as.setShortcut(Qt.CTRL | Qt.SHIFT | Qt.Key_S) # AJOUT Raccourci Ctrl+Shift+S
+            
+            # Ajouter les actions au menu (elles étaient déjà ajoutées par addAction, mais on les recrée pour icônes/raccourcis)
+            # Pour éviter les doublons, il faut vérifier si elles existent ou les remplacer.
+            # Solution plus simple: modifier les actions existantes si possible, ou les insérer correctement.
+            # Ici, je vais supposer qu'on remplace les anciennes si elles existaient sans icône/raccourci.
+            # Pour une meilleure gestion, il faudrait une méthode pour obtenir/créer une action.
 
-        # Logique de reconstruction propre du menu Fichier pour insérer correctement
-        self._file_menu.clear() # Nettoyer le menu existant pour le reconstruire proprement
+            # On retire les anciennes actions si elles ont été créées par self._file_menu.addAction("Texte")
+            # Ceci est une simplification. Idéalement, on construirait le menu plus dynamiquement.
+            # Si les actions "Enregistrer" et "Enregistrer sous..." étaient déjà là, il faut les gérer.
+            # Pour l'instant, je vais les ajouter après "Nouveau" et "Ouvrir" pour plus de clarté.
 
-        action_new = QAction(QIcon(icon_loader.get_icon_path("round_note_add.png")), "Nouveau", self)
-        action_new.setShortcut(Qt.CTRL | Qt.Key_N)
-        action_new.triggered.connect(self._handle_new_action)
-        self._file_menu.addAction(action_new)
-        
-        action_open = QAction(QIcon(icon_loader.get_icon_path("round_folder_open.png")), "Ouvrir...", self) # AJOUT Icône
-        action_open.setShortcut(Qt.CTRL | Qt.Key_O) # AJOUT Raccourci
-        # action_open.triggered.connect(self._handle_open_action) # TODO: Créer et connecter _handle_open_action
-        self._file_menu.addAction(action_open)
-        
-        # action_recent = self._file_menu.addAction("Recent") # Laisser pour plus tard
-        # TODO: Connecter action_open.triggered, action_recent.triggered
+            # Les actions existantes dans _create_file_menu sont:
+            # action_new = QAction(...)
+            # self._file_menu.addAction(action_new)
+            # action_open = self._file_menu.addAction("Ouvrir...")
+            # action_recent = self._file_menu.addAction("Recent")
+            # ... séparateur ...
+            # action_save = self._file_menu.addAction("Enregistrer") <-- CELLE-CI
+            # action_save_as = self._file_menu.addAction("Enregistrer sous...") <-- ET CELLE-CI
+            # action_close_doc = self._file_menu.addAction("Fermer")
+            # action_print_doc = self._file_menu.addAction("Imprimer")
 
-        title_widget_doc_actif = self._create_separator_with_title("Document Actif")
-        widget_action_doc_actif = QWidgetAction(self._file_menu)
-        widget_action_doc_actif.setDefaultWidget(title_widget_doc_actif)
-        self._file_menu.addAction(widget_action_doc_actif)
-        
-        # Nos nouvelles actions Sauvegarder / Sauvegarder sous
-        action_save.triggered.connect(self.save_document_requested.emit) 
-        self._file_menu.addAction(action_save)
-        action_save_as.triggered.connect(self.save_document_as_requested.emit)
-        self._file_menu.addAction(action_save_as)
-        
-        action_close_doc = QAction(QIcon(icon_loader.get_icon_path("round_close_doc.png")), "Fermer", self) # AJOUT Icône
-        action_close_doc.setShortcut(Qt.CTRL | Qt.Key_W) # AJOUT Raccourci
-        action_close_doc.triggered.connect(self.close_active_document_requested.emit)
-        self._file_menu.addAction(action_close_doc)
-        
-        action_print_doc = QAction(QIcon(icon_loader.get_icon_path("round_print.png")), "Imprimer", self) # AJOUT Icône
-        action_print_doc.setShortcut(Qt.CTRL | Qt.Key_P) # AJOUT Raccourci
-        action_print_doc.triggered.connect(self._handle_print_active_document)
-        self._file_menu.addAction(action_print_doc)
-        
-        title_widget_all_docs = self._create_separator_with_title("Tous les documents")
-        widget_action_all_docs = QWidgetAction(self._file_menu)
-        widget_action_all_docs.setDefaultWidget(title_widget_all_docs)
-        self._file_menu.addAction(widget_action_all_docs)
-        
-        action_save_all = QAction(QIcon(icon_loader.get_icon_path("round_save_all.png")), "Enregistrer Tout", self) # AJOUT Icône
-        # action_save_all.triggered.connect(self._handle_save_all_action) # TODO
-        self._file_menu.addAction(action_save_all)
-        
-        action_close_all = QAction(QIcon(icon_loader.get_icon_path("round_close_all_docs.png")), "Fermer Tout", self) # AJOUT Icône
-        action_close_all.triggered.connect(self.close_all_documents_requested.emit)
-        self._file_menu.addAction(action_close_all)
-        
-        # action_print_all = self._file_menu.addAction("Imprimer Tout") # Laisser pour plus tard
+            # Logique de reconstruction propre du menu Fichier pour insérer correctement
+            self._file_menu.clear() # Nettoyer le menu existant pour le reconstruire proprement
 
-        title_widget_app = self._create_separator_with_title("Application")
-        widget_action_app = QWidgetAction(self._file_menu)
-        widget_action_app.setDefaultWidget(title_widget_app)
-        self._file_menu.addAction(widget_action_app)
-        
-        action_settings = QAction(QIcon(icon_loader.get_icon_path("round_settings.png")), "Paramètres", self) # AJOUT Icône
-        action_settings.triggered.connect(self.settings_requested.emit)
-        self._file_menu.addAction(action_settings)
-        
-        action_quit = QAction(QIcon(icon_loader.get_icon_path("round_exit_to_app.png")), "Quitter", self) # AJOUT Icône
-        action_quit.setShortcut(Qt.CTRL | Qt.Key_Q) # AJOUT Raccourci
-        action_quit.triggered.connect(self.close_window) 
-        self._file_menu.addAction(action_quit)
-        
-        # Appliquer un style global au menu si nécessaire via QSS
-        self._file_menu.setStyleSheet(f"""
-            QMenu#TitleBarDropdownMenu {{
-                background-color: {TITLE_BAR_BACKGROUND}; /* Fond du menu */
-                border: 1px solid {BUTTON_HOVER_BG}; /* Bordure légère */
-                color: {TITLE_BAR_TEXT_COLOR}; /* Couleur texte par défaut */
-            }}
-            QMenu#TitleBarDropdownMenu::item {{
-                padding: 5px 20px; /* Espacement interne */
-                background-color: transparent;
-            }}
-            /* Supprimer le style :disabled spécifique car on utilise QWidgetAction */
-            /* QMenu#TitleBarDropdownMenu::item:disabled {{
-                color: #888888; 
-                background-color: transparent;
-                 font-weight: bold; 
-            }} */
-            QMenu#TitleBarDropdownMenu::item:selected {{
-                background-color: {BUTTON_HOVER_BG}; /* Couleur au survol/sélection */
-                color: white; /* Couleur texte au survol/sélection */
-            }}
-            QMenu#TitleBarDropdownMenu::separator {{
-                height: 1px;
-                background-color: {BUTTON_HOVER_BG};
-                margin-left: 10px;
-                margin-right: 10px;
-            }}
-        """)
-        # -------------------------------------------------------
-    # --------------------------------------------------
+            action_new = QAction(QIcon(icon_loader.get_icon_path("round_note_add.png")), "Nouveau", self)
+            action_new.setShortcut(Qt.CTRL | Qt.Key_N)
+            action_new.triggered.connect(self._handle_new_action)
+            self._file_menu.addAction(action_new)
+            
+            action_open = QAction(QIcon(icon_loader.get_icon_path("round_folder_open.png")), "Ouvrir...", self) # AJOUT Icône
+            action_open.setShortcut(Qt.CTRL | Qt.Key_O) # AJOUT Raccourci
+            action_open.triggered.connect(self.open_document_requested.emit)
+            self._file_menu.addAction(action_open)
+            
+            # action_recent = self._file_menu.addAction("Recent") # Laisser pour plus tard
+            # TODO: Connecter action_open.triggered, action_recent.triggered
+
+            title_widget_doc_actif = self._create_separator_with_title("Document Actif")
+            widget_action_doc_actif = QWidgetAction(self._file_menu)
+            widget_action_doc_actif.setDefaultWidget(title_widget_doc_actif)
+            self._file_menu.addAction(widget_action_doc_actif)
+            
+            # Nos nouvelles actions Sauvegarder / Sauvegarder sous
+            action_save.triggered.connect(self.save_document_requested.emit) 
+            self._file_menu.addAction(action_save)
+            action_save_as.triggered.connect(self.save_document_as_requested.emit)
+            self._file_menu.addAction(action_save_as)
+            
+            action_close_doc = QAction(QIcon(icon_loader.get_icon_path("round_close_doc.png")), "Fermer", self) # AJOUT Icône
+            action_close_doc.setShortcut(Qt.CTRL | Qt.Key_W) # AJOUT Raccourci
+            action_close_doc.triggered.connect(self.close_active_document_requested.emit)
+            self._file_menu.addAction(action_close_doc)
+            
+            action_print_doc = QAction(QIcon(icon_loader.get_icon_path("round_print.png")), "Imprimer", self) # AJOUT Icône
+            action_print_doc.setShortcut(Qt.CTRL | Qt.Key_P) # AJOUT Raccourci
+            action_print_doc.triggered.connect(self._handle_print_active_document)
+            self._file_menu.addAction(action_print_doc)
+            
+            title_widget_all_docs = self._create_separator_with_title("Tous les documents")
+            widget_action_all_docs = QWidgetAction(self._file_menu)
+            widget_action_all_docs.setDefaultWidget(title_widget_all_docs)
+            self._file_menu.addAction(widget_action_all_docs)
+            
+            action_save_all = QAction(QIcon(icon_loader.get_icon_path("round_save_all.png")), "Enregistrer Tout", self) # AJOUT Icône
+            # action_save_all.triggered.connect(self._handle_save_all_action) # TODO
+            self._file_menu.addAction(action_save_all)
+            
+            action_close_all = QAction(QIcon(icon_loader.get_icon_path("round_close_all_docs.png")), "Fermer Tout", self) # AJOUT Icône
+            action_close_all.triggered.connect(self.close_all_documents_requested.emit)
+            self._file_menu.addAction(action_close_all)
+            
+            # action_print_all = self._file_menu.addAction("Imprimer Tout") # Laisser pour plus tard
+
+            title_widget_app = self._create_separator_with_title("Application")
+            widget_action_app = QWidgetAction(self._file_menu)
+            widget_action_app.setDefaultWidget(title_widget_app)
+            self._file_menu.addAction(widget_action_app)
+            
+            action_settings = QAction(QIcon(icon_loader.get_icon_path("round_settings.png")), "Paramètres", self) # AJOUT Icône
+            action_settings.triggered.connect(self.settings_requested.emit)
+            self._file_menu.addAction(action_settings)
+            
+            action_quit = QAction(QIcon(icon_loader.get_icon_path("round_exit_to_app.png")), "Quitter", self) # AJOUT Icône
+            action_quit.setShortcut(Qt.CTRL | Qt.Key_Q) # AJOUT Raccourci
+            action_quit.triggered.connect(self.close_window) 
+            self._file_menu.addAction(action_quit)
+            
+            # Appliquer un style global au menu si nécessaire via QSS
+            self._file_menu.setStyleSheet(f"""
+                QMenu#TitleBarDropdownMenu {{
+                    background-color: {TITLE_BAR_BACKGROUND}; /* Fond du menu */
+                    border: 1px solid {BUTTON_HOVER_BG}; /* Bordure légère */
+                    color: {TITLE_BAR_TEXT_COLOR}; /* Couleur texte par défaut */
+                }}
+                QMenu#TitleBarDropdownMenu::item {{
+                    padding: 5px 20px; /* Espacement interne */
+                    background-color: transparent;
+                }}
+                /* Supprimer le style :disabled spécifique car on utilise QWidgetAction */
+                /* QMenu#TitleBarDropdownMenu::item:disabled {{
+                    color: #888888; 
+                    background-color: transparent;
+                     font-weight: bold; 
+                }} */
+                QMenu#TitleBarDropdownMenu::item:selected {{
+                    background-color: {BUTTON_HOVER_BG}; /* Couleur au survol/sélection */
+                    color: white; /* Couleur texte au survol/sélection */
+                }}
+                QMenu#TitleBarDropdownMenu::separator {{
+                    height: 1px;
+                    background-color: {BUTTON_HOVER_BG};
+                    margin-left: 10px;
+                    margin-right: 10px;
+                }}
+            """)
+            # -------------------------------------------------------
+        # --------------------------------------------------
 
     # --- AJOUT: Helper pour créer le widget Séparateur + Titre ---
     def _create_separator_with_title(self, text):

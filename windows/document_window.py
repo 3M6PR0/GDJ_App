@@ -85,7 +85,14 @@ class DocumentWindow(QWidget):
                 logger.info("DocumentWindow: Connecté title_bar.save_document_as_requested -> _handle_save_document_as_request")
             else:
                 logger.warning("DocumentWindow: title_bar n'a pas le signal 'save_document_as_requested'.")
-            # --- FIN AJOUT CONNEXIONS SAUVEGARDE ---
+
+            # --- AJOUT CONNEXION OUVERTURE ---
+            if hasattr(self.title_bar, 'open_document_requested'):
+                self.title_bar.open_document_requested.connect(self._handle_open_document_request)
+                logger.info("DocumentWindow: Connecté title_bar.open_document_requested -> _handle_open_document_request")
+            else:
+                logger.warning("DocumentWindow: title_bar n'a pas le signal 'open_document_requested'.")
+            # --- FIN AJOUT CONNEXION OUVERTURE ---
 
         except Exception as e_connect:
              logger.error(f"DocumentWindow: Erreur connexion signaux title_bar: {e_connect}")
@@ -151,6 +158,11 @@ class DocumentWindow(QWidget):
     def _handle_save_document_as_request(self):
         logger.info("DocumentWindow: Reçu save_document_as_requested de title_bar, émission de request_main_action('save_document_as', self).")
         self.request_main_action.emit('save_document_as', self)
+
+    @Slot()
+    def _handle_open_document_request(self):
+        logger.info("DocumentWindow: Reçu open_document_requested de title_bar, émission de request_main_action('open_document', self).")
+        self.request_main_action.emit('open_document', self)
 
     @Slot()
     def close_active_document_tab(self):
