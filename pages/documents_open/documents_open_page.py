@@ -16,6 +16,10 @@ from utils.icon_loader import get_icon_path
 from datetime import datetime, date
 import logging # AJOUT
 
+# --- Importer DraggableTabBar ---
+from ui.components.draggable_tab_bar import DraggableTabBar
+# --------------------------------
+
 # --- Importer les templates --- 
 # (Il faudra les importer dynamiquement ou tous les importer ici)
 from pages.templates.rapport_depense_page import RapportDepensePage
@@ -146,9 +150,12 @@ class DocumentsOpenPage(QWidget):
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setObjectName("DocumentTabWidget")
+        # --- Utiliser DraggableTabBar ---
+        self.tab_widget.setTabBar(DraggableTabBar(self.tab_widget))
+        # --------------------------------
         self.tab_widget.setDocumentMode(True) 
         self.tab_widget.setTabsClosable(True)
-        self.tab_widget.setMovable(True)
+        self.tab_widget.setMovable(True) # Important pour le réarrangement interne et le look
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         # Connecter le changement d'onglet à la mise à jour du titre
         self.tab_widget.currentChanged.connect(self._update_sidebar) 

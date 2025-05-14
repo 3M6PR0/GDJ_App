@@ -6,9 +6,12 @@ from pages.documents_open.documents_open_page import DocumentsOpenPage
 from PyQt5.QtWidgets import QApplication
 import logging
 logger = logging.getLogger('GDJ_App')
+# --- Ajout pour DraggableTabBar MIME TYPE --- 
+from ui.components.draggable_tab_bar import DraggableTabBar 
+# -------------------------------------------
 
 class DocumentWindow(QWidget):
-    request_main_action = pyqtSignal(str, QWidget)
+    request_main_action = pyqtSignal(str, object)
     def __init__(self, main_controller, initial_doc_type=None, initial_doc_data=None, parent=None):
         super().__init__(parent)
         self.main_controller = main_controller
@@ -19,6 +22,10 @@ class DocumentWindow(QWidget):
         self.initial_doc_type = initial_doc_type
         self.initial_doc_data = initial_doc_data if initial_doc_data is not None else {}
         self.documents_open_page = None
+
+        # --- Accepter les drops --- 
+        self.setAcceptDrops(True)
+        # ------------------------
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -239,6 +246,51 @@ class DocumentWindow(QWidget):
             event.accept()
             logger.debug("DocumentWindow closeEvent: Calling self.deleteLater() as it was closed due to last tab.")
             self.deleteLater()
+
+    # --- Gestion du Drag & Drop --- 
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(DraggableTabBar.MIME_TYPE):
+            # Vérifier si le drop vient d'une autre fenêtre
+            # QDrag.source() renvoie le widget source du drag.
+            # Si le source est None ou différent de notre propre tab bar, alors c'est un drag externe.
+            # Pour simplifier, on accepte toujours si le format est bon.
+            # On pourrait ajouter une logique pour ne pas accepter un drop sur soi-même si on le souhaitait,
+            # mais le drag interne est déjà géré par QTabWidget.setMovable(True)
+            source_widget = event.source()
+            is_external_drag = True # Par défaut, on assume externe
+
+            if source_widget and isinstance(source_widget, DraggableTabBar):
+                # Si la source est une DraggableTabBar, vérifier si c'est celle de cette fenêtre
+                if self.documents_open_page and self.documents_open_page.tab_widget and \
+                   source_widget == self.documents_open_page.tab_widget.tabBar():
+                    is_external_drag = False
+            
+            if is_external_drag:
+                event.acceptProposedAction()
+                logger.debug("Drag Enter: Action acceptée pour type MIME correct (externe).")
+            else:
+                # C'est un drag interne, Qt s'en occupe (réarrangement)
+                event.ignore()
+                logger.debug("Drag Enter: Ignoré (drag interne présumé).")
+        else:
+            event.ignore()
+            logger.debug(f"Drag Enter: Ignoré (type MIME incorrect: {event.mimeData().formats()})")
+
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat(DraggableTabBar.MIME_TYPE):
+            file_path_bytes = event.mimeData().data(DraggableTabBar.MIME_TYPE)
+            file_path = file_path_bytes.data().decode('utf-8')
+            logger.info(f"Drop Event: Chemin du fichier reçu: {file_path}")
+            
+            # Demander au MainController d'ouvrir ce document
+            # Il faudra peut-être une nouvelle action ou un nouveau signal pour cela.
+            # Pour l'instant, on utilise 'open_document_from_path' qui sera une nouvelle action
+            # dans MainController.
+            self.request_main_action.emit("open_document_from_path", {"file_path": file_path, "target_window": self})
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    # --- Fin Gestion du Drag & Drop ---
 
 # Optionnel: pour tester cette fenêtre seule
 if __name__ == '__main__':

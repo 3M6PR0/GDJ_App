@@ -870,35 +870,81 @@ class MainController(QObject):
     # -------------------------------------------------------------
 
     # --- AJOUT SLOT POUR GÉRER LES ACTIONS DE DocumentWindow --- 
-    @pyqtSlot(str, QWidget)
+    @pyqtSlot(str, object) # MODIFIÉ: QWidget -> object
     def handle_main_action_request(self, action_name, source_window=None):
         logger.debug(f"MainController: Action '{action_name}' reçue. Source: {source_window}")
         # Déterminer la fenêtre source appropriée si non fournie directement pour certaines actions
-        active_doc_window = source_window if isinstance(source_window, DocumentWindow) else self._get_active_document_window()
+        
+        # --- MODIFICATION: Le paramètre 'source_window' de handle_main_action_request
+        # peut être un dict pour certaines actions comme 'open_document_from_path'
+        # ou 'create_document_from_selection'.
+        # Nous devons obtenir la 'vraie' fenêtre source pour les actions standard si source_window est un dict.
+        
+        action_data = None
+        actual_source_window = None
+
+        if isinstance(source_window, dict):
+            action_data = source_window
+            # Essayez d'obtenir 'target_window' ou 'source_window' du dictionnaire de données
+            # pour déterminer la fenêtre réelle à utiliser pour le contexte.
+            if 'target_window' in action_data and isinstance(action_data['target_window'], QWidget):
+                actual_source_window = action_data['target_window']
+            elif 'source_window' in action_data and isinstance(action_data['source_window'], QWidget): # cas pour show_type_selection_window
+                actual_source_window = action_data['source_window']
+            else:
+                # Si aucune fenêtre cible/source n'est dans les données, essayez d'obtenir la fenêtre active.
+                actual_source_window = self._get_active_document_window()
+        elif isinstance(source_window, QWidget):
+            actual_source_window = source_window
+        else: # Si source_window est None ou autre chose
+            actual_source_window = self._get_active_document_window()
+
+        logger.debug(f"MainController: actual_source_window déterminée: {actual_source_window}, action_data: {action_data}")
+
 
         if action_name == "new_document":
             logger.debug("MainController: Action 'new_document' reçue.")
-            # Utiliser active_doc_window comme source si c'est une DocumentWindow, sinon self.main_window (pour Welcome)
-            src_for_type_selection = active_doc_window if active_doc_window else self.welcome_window # Modifié pour WelcomeWindow
-            self.show_type_selection_window(source_window=src_for_type_selection)
+            # Utiliser actual_source_window (qui peut être WelcomeWindow ou DocumentWindow)
+            self.show_type_selection_window(source_window=actual_source_window)
         elif action_name == "open_document":
             logger.debug("MainController: Action 'open_document' reçue.")
-            self.open_document(initiated_by_window=active_doc_window) # MODIFIÉ: Passer active_doc_window
+            self.open_document(initiated_by_window=actual_source_window)
         elif action_name == "settings":
             logger.debug("MainController: Action 'settings' reçue.")
             self.show_settings_window()
         elif action_name == "save_document":
             logger.debug("MainController: Action 'save_document' reçue.")
-            if active_doc_window:
-                self._handle_save_document_action(active_doc_window, save_as=False)
+            if actual_source_window and isinstance(actual_source_window, DocumentWindow): # S'assurer que c'est une DocumentWindow
+                self._handle_save_document_action(actual_source_window, save_as=False)
             else:
-                logger.warning("MainController: 'save_document' demandée mais pas de DocumentWindow active/source.")
+                logger.warning(f"MainController: 'save_document' demandée mais pas de DocumentWindow active/source valide. Fenêtre source: {actual_source_window}")
         elif action_name == "save_document_as":
             logger.debug("MainController: Action 'save_document_as' reçue.")
-            if active_doc_window:
-                self._handle_save_document_action(active_doc_window, save_as=True)
+            if actual_source_window and isinstance(actual_source_window, DocumentWindow): # S'assurer que c'est une DocumentWindow
+                self._handle_save_document_action(actual_source_window, save_as=True)
             else:
-                logger.warning("MainController: 'save_document_as' demandée mais pas de DocumentWindow active/source.")
+                logger.warning(f"MainController: 'save_document_as' demandée mais pas de DocumentWindow active/source valide. Fenêtre source: {actual_source_window}")
+        # --- AJOUT NOUVELLE ACTION ---
+        elif action_name == "open_document_from_path":
+            logger.debug("MainController: Action 'open_document_from_path' reçue (drag & drop).")
+            if action_data and 'file_path' in action_data and 'target_window' in action_data:
+                file_path_to_open = action_data['file_path']
+                target_drop_window = action_data['target_window']
+                
+                if isinstance(target_drop_window, DocumentWindow) and target_drop_window.isVisible():
+                    logger.info(f"Ouverture de '{file_path_to_open}' par drag & drop dans la DocumentWindow existante: {target_drop_window}")
+                    # La méthode _load_and_display_rdj_document gère déjà l'ajout à une fenêtre existante
+                    # ou la création d'une nouvelle si target_window est None.
+                    # Ici, nous voulons explicitement l'ouvrir comme un nouvel onglet dans la fenêtre cible du drop.
+                    self._load_and_display_rdj_document(file_path_to_open, target_window=target_drop_window)
+                else:
+                    # Si la target_window n'est pas valide (ex: a été fermée entre-temps),
+                    # ouvrir dans une nouvelle fenêtre.
+                    logger.warning(f"Target window pour drag & drop n'est pas une DocumentWindow valide ou visible. Ouverture dans une nouvelle fenêtre. Path: {file_path_to_open}")
+                    self._load_and_display_rdj_document(file_path_to_open, target_window=None)
+            else:
+                logger.error(f"MainController: 'open_document_from_path' - données d'action manquantes ou incorrectes: {action_data}")
+        # --- FIN AJOUT NOUVELLE ACTION ---
         else:
             logger.warning(f"MainController: Action '{action_name}' non reconnue.")
 
