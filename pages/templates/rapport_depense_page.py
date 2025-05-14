@@ -137,6 +137,8 @@ class RapportDepensePage(QWidget):
         self._update_repas_info_display() # AJOUT: Appel initial
         self._update_depenses_diverses_info_display() # AJOUT: Appel initial
         self._update_frame_titles_with_counts()
+        self._apply_sorting_and_filtering() # <--- AJOUTÉ POUR PEUPLER LA LISTE DES ENTRÉES
+        self._update_totals_display()       # <--- AJOUTÉ POUR S'ASSURER QUE LES TOTAUX SONT CORRECTS
 
     def _setup_ui(self):
         # Layout vertical principal pour la page
