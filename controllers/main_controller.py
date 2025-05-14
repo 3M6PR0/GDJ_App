@@ -2,6 +2,8 @@ from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox, QFi
 from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSlot, QCoreApplication
 # --- AJOUT DE L'IMPORT QIcon ---
 from PyQt5.QtGui import QIcon
+# --- AJOUT DE L'IMPORT Optional ---
+from typing import Optional
 from pages.document_page import DocumentPage
 # from pages.profile_page import ProfilePage # Commenté
 # from models.profile import Profile # Commenté
@@ -35,6 +37,17 @@ from windows.settings_window import SettingsWindow
 # --- AJOUT IMPORT PreferencesController ---
 from controllers.preferences.preferences_controller import PreferencesController
 # ------------------------------------------
+# --- AJOUTS POUR LA SAUVEGARDE ---
+import json
+import zipfile
+import tempfile
+import shutil
+from pathlib import Path
+# QFileDialog est déjà importé plus haut
+# os est déjà importé plus haut
+# RapportDepense sera importé dynamiquement ou via une vérification de type
+from models.documents.rapport_depense import RapportDepense # Pour vérification de type
+# ---------------------------------
 
 # --- Classe pour la boîte de dialogue des notes de version ---
 class ReleaseNotesDialog(QDialog):
@@ -795,18 +808,171 @@ class MainController(QObject):
     # --- AJOUT SLOT POUR GÉRER LES ACTIONS DE DocumentWindow --- 
     @pyqtSlot(str, QWidget)
     def handle_main_action_request(self, action_name, source_window=None):
-        logger.info(f"MainController: Reçu request_main_action avec action: '{action_name}' depuis source: {source_window}")
-        if action_name == 'new_document':
-            logger.info("Action 'new_document' reçue, appel de show_type_selection_window...")
-            self.show_type_selection_window(source_window=source_window)
-        elif action_name == 'settings':
-             logger.info("Action 'settings' reçue, appel de show_settings_window...")
-             self.show_settings_window()
-        else:
-             logger.warning(f"Action inconnue reçue via request_main_action: {action_name}")
-    # ------------------------------------------------------
+        logger.debug(f"MainController: Action '{action_name}' reçue. Source: {source_window}")
+        # Déterminer la fenêtre source appropriée si non fournie directement pour certaines actions
+        active_doc_window = source_window if isinstance(source_window, DocumentWindow) else self._get_active_document_window()
 
-    # --- AJOUT: Méthode pour afficher la fenêtre de sélection de type --- 
+        if action_name == "new_document":
+            logger.debug("MainController: Action 'new_document' reçue.")
+            # Utiliser active_doc_window comme source si c'est une DocumentWindow, sinon self.main_window (pour Welcome)
+            src_for_type_selection = active_doc_window if active_doc_window else self.main_window
+            self.show_type_selection_window(source_window=src_for_type_selection)
+        elif action_name == "open_document":
+            logger.debug("MainController: Action 'open_document' reçue.")
+            self.open_document_from_menu() 
+        elif action_name == "settings":
+            logger.debug("MainController: Action 'settings' reçue.")
+            self.show_settings_window()
+        elif action_name == "save_document":
+            logger.debug("MainController: Action 'save_document' reçue.")
+            if active_doc_window:
+                self._handle_save_document_action(active_doc_window, save_as=False)
+            else:
+                logger.warning("MainController: 'save_document' demandée mais pas de DocumentWindow active/source.")
+        elif action_name == "save_document_as":
+            logger.debug("MainController: Action 'save_document_as' reçue.")
+            if active_doc_window:
+                self._handle_save_document_action(active_doc_window, save_as=True)
+            else:
+                logger.warning("MainController: 'save_document_as' demandée mais pas de DocumentWindow active/source.")
+        else:
+            logger.warning(f"MainController: Action '{action_name}' non reconnue.")
+
+    def _get_active_document_window(self) -> Optional[DocumentWindow]:
+        """Tente de trouver la DocumentWindow active ou la première si plusieurs."""
+        if self.open_document_windows:
+            for window in self.open_document_windows:
+                if window.isActiveWindow():
+                    return window
+            return self.open_document_windows[0] # Retourne la première si aucune n'est active explicitement
+        return None
+
+    def _handle_save_document_action(self, source_window: QWidget, save_as: bool):
+        logger.info(f"Début sauvegarde. save_as={save_as}")
+        if not isinstance(source_window, DocumentWindow): # Assurez-vous que DocumentWindow est importé ou utilisez QWidget et vérifiez les attributs
+            logger.error("Source pour sauvegarde n'est pas une DocumentWindow valide.")
+            QMessageBox.warning(source_window, "Erreur Sauvegarde", "Fenêtre source invalide pour la sauvegarde.")
+            return
+
+        document_object = source_window.get_active_document()
+
+        if not document_object:
+            logger.warning("Aucun document actif trouvé pour la sauvegarde.")
+            QMessageBox.information(source_window, "Sauvegarde", "Aucun document actif à sauvegarder.")
+            return
+
+        if not isinstance(document_object, RapportDepense): # Vérifier le type spécifique
+            logger.warning(f"Le document actif n'est pas un RapportDepense (type: {type(document_object)}). Sauvegarde non supportée pour ce type.")
+            QMessageBox.warning(source_window, "Sauvegarde non supportée", f"La sauvegarde n'est pas supportée pour le type de document actif ({type(document_object).__name__}).")
+            return
+
+        file_path_destination = None
+        doc_original_filename = getattr(document_object, 'nom_fichier', None)
+        
+        # Utiliser le titre du document ou un nom par défaut pour la suggestion
+        default_base_name = document_object.title if document_object.title else "NouveauRapport"
+        # Nettoyer le nom de base pour éviter les caractères invalides dans les noms de fichiers (simplification)
+        safe_base_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '' for c in default_base_name).rstrip()
+        if not safe_base_name: safe_base_name = "Rapport" # Fallback si le titre ne contient que des char invalides
+
+        suggested_filename_for_dialog = f"{safe_base_name}.rdj"
+
+        if save_as or not doc_original_filename or not Path(doc_original_filename).exists():
+            start_dir = str(Path(doc_original_filename).parent) if doc_original_filename and Path(doc_original_filename).exists() else os.path.expanduser("~")
+            dialog_suggested_path = os.path.join(start_dir, suggested_filename_for_dialog)
+
+            dialog = QFileDialog(source_window, "Enregistrer le rapport de dépenses", dialog_suggested_path)
+            dialog.setAcceptMode(QFileDialog.AcceptSave)
+            dialog.setNameFilter("Rapports de Dépenses Jacmar (*.rdj);;Tous les fichiers (*)")
+            dialog.setDefaultSuffix("rdj") 
+            
+            if dialog.exec_() == QFileDialog.Accepted:
+                file_path_destination = dialog.selectedFiles()[0]
+            else:
+                logger.info("Sauvegarde annulée par l'utilisateur.")
+                return
+        else:
+            file_path_destination = doc_original_filename
+
+        # --- Nettoyage du nom de fichier pour assurer la terminaison .rdj ---
+        if file_path_destination:
+            p = Path(file_path_destination)
+            name_part = p.name 
+            base_name_part = name_part
+            while Path(base_name_part).suffix: # Enlève toutes les extensions existantes
+                base_name_part = Path(base_name_part).stem
+            
+            file_path_destination = str(p.parent / (base_name_part + ".rdj"))
+            logger.info(f"Chemin de destination final nettoyé: {file_path_destination}")
+            # Mettre à jour nom_fichier dans l'objet si différent (surtout après Save As ou premier Save)
+            if doc_original_filename != file_path_destination:
+                 document_object.nom_fichier = file_path_destination
+                 # Mettre à jour le titre de la fenêtre
+                 new_window_title = Path(file_path_destination).name
+                 if hasattr(source_window, 'set_window_title_from_document_name'): # Méthode préférée
+                     source_window.set_window_title_from_document_name(new_window_title)
+                 elif hasattr(source_window.title_bar, 'setTitle'): 
+                     source_window.title_bar.setTitle(new_window_title)
+
+        else: # Ne devrait pas arriver si la logique ci-dessus est correcte (car on return si annulé)
+            logger.error("file_path_destination est None après la sélection/détermination du chemin.")
+            QMessageBox.critical(source_window, "Erreur Interne", "Impossible de déterminer le chemin de sauvegarde.")
+            return
+        
+        logger.info(f"Chemin de destination pour la sauvegarde (après nettoyage): {file_path_destination}")
+
+        try:
+            rapport_data, facture_dossiers_sources = document_object.save()
+            logger.debug(f"Données du rapport préparées: {list(rapport_data.keys())}")
+            logger.debug(f"Dossiers de factures sources: {facture_dossiers_sources}")
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmpdir_path = Path(tmpdir)
+                logger.debug(f"Répertoire temporaire créé: {tmpdir_path}")
+
+                # Écrire le fichier JSON principal
+                json_file_path = tmpdir_path / "rapport_data.json"
+                with open(json_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(rapport_data, f, ensure_ascii=False, indent=4)
+                logger.debug(f"Fichier JSON écrit dans le répertoire temporaire: {json_file_path}")
+
+                # Copier les dossiers de factures
+                if facture_dossiers_sources:
+                    factures_dir_in_tmp = tmpdir_path / "factures"
+                    factures_dir_in_tmp.mkdir()
+                    logger.debug(f"Sous-dossier 'factures' créé dans tmp: {factures_dir_in_tmp}")
+                    for src_folder_path_str in facture_dossiers_sources:
+                        src_folder = Path(src_folder_path_str)
+                        if src_folder.exists() and src_folder.is_dir():
+                            dest_folder_in_tmp = factures_dir_in_tmp / src_folder.name
+                            shutil.copytree(src_folder, dest_folder_in_tmp)
+                            logger.debug(f"Dossier facture copié: {src_folder} -> {dest_folder_in_tmp}")
+                        else:
+                            logger.warning(f"Dossier facture source non trouvé ou n'est pas un dossier: {src_folder_path_str}")
+                else:
+                    logger.debug("Aucun dossier de facture source à copier.")
+
+                # Créer l'archive ZIP
+                # shutil.make_archive attend base_name SANS extension pour le zip
+                archive_base_name = str(Path(file_path_destination).with_suffix(''))
+                shutil.make_archive(base_name=archive_base_name, format='zip', root_dir=tmpdir_path)
+                logger.debug(f"Archive ZIP créée: {archive_base_name}.zip")
+                
+                # Renommer .zip en .rdj
+                zip_file_path = archive_base_name + '.zip'
+                if os.path.exists(file_path_destination) and str(Path(zip_file_path).resolve()) != str(Path(file_path_destination).resolve()):
+                     os.remove(file_path_destination) # Supprimer l'ancien .rdj s'il existe et est différent du .zip (cas overwrite)
+                os.rename(zip_file_path, file_path_destination)
+                logger.info(f"Fichier sauvegardé avec succès sous: {file_path_destination}")
+                QMessageBox.information(source_window, "Sauvegarde Réussie", f"Le document a été sauvegardé avec succès sous:\n{file_path_destination}")
+                document_object.is_modified = False # Supposant un indicateur de modification
+                if hasattr(source_window, 'update_window_title_modified_indicator'):
+                    source_window.update_window_title_modified_indicator(False)
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde du document: {e}", exc_info=True)
+            QMessageBox.critical(source_window, "Erreur de Sauvegarde", f"Une erreur est survenue lors de la sauvegarde du document:\n{e}")
+
     def show_type_selection_window(self, source_window=None):
         """Crée et affiche la fenêtre TypeSelectionWindow."""
         self.doc_creation_source_window = source_window

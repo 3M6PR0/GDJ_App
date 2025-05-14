@@ -36,4 +36,14 @@ class Facture:
     def __repr__(self):
         return (f"Facture(folder='{self.folder_path}', files={self.filenames})")
 
+    def to_dict(self):
+        """Retourne une représentation dictionnaire de l'objet Facture pour la sérialisation JSON."""
+        # Pour la sauvegarde, nous voulons stocker uniquement le nom du dossier (basename)
+        # car il sera copié dans un sous-dossier 'factures' dans l'archive ZIP.
+        # Le chemin complet sera reconstruit lors du chargement par rapport à ce sous-dossier.
+        return {
+            'folder_name': os.path.basename(self.folder_path),
+            'filenames': self.filenames
+        }
+
     # Ajouter d'autres méthodes si nécessaire 

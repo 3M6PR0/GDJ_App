@@ -35,4 +35,15 @@ class Deplacement:
         """Retourne le montant total du déplacement."""
         return self.montant
 
+    def to_dict(self):
+        """Retourne une représentation dictionnaire de l'objet Deplacement pour la sérialisation JSON."""
+        return {
+            'date': self.date.isoformat() if self.date else None,
+            'client': self.client,
+            'ville': self.ville,
+            'numero_commande': self.numero_commande,
+            'kilometrage': self.kilometrage,
+            'montant': self.montant
+        }
+
     # Ajouter d'autres méthodes si nécessaire (ex: validation spécifique) 

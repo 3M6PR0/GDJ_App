@@ -98,3 +98,42 @@ class RapportDepense(Document):
             print(f"Erreur lors de l'exportation du rapport en PDF: {e}")
             # raise # Décommenter pour remonter l'exception si nécessaire
     # -------------------------------------------------------------------- 
+
+    def save(self):
+        """
+        Prépare les données du rapport pour la sauvegarde.
+
+        Retourne un tuple contenant:
+            - Un dictionnaire avec toutes les données du rapport sérialisables en JSON.
+            - Une liste des chemins absolus des dossiers de factures sources à inclure dans l'archive.
+        """
+        rapport_data = {
+            'version_format': '1.0', # Pour une éventuelle gestion de versions futures
+            'type_document': 'RapportDepense',
+            # Attributs de Document (classe parente)
+            'title': self.title,
+            'content': self.content, 
+            # Attributs de RapportDepense
+            'nom_fichier_origine': self.nom_fichier, # nom_fichier est déjà utilisé par QFileDialog
+            'date_rapport': self.date_rapport.isoformat() if self.date_rapport else None,
+            'nom_employe': self.nom_employe,
+            'prenom_employe': self.prenom_employe,
+            'emplacement': self.emplacement,
+            'departement': self.departement,
+            'superviseur': self.superviseur,
+            'plafond_deplacement': self.plafond_deplacement,
+            'deplacements': [d.to_dict() for d in self.deplacements],
+            'repas': [r.to_dict() for r in self.repas],
+            'depenses_diverses': [dd.to_dict() for dd in self.depenses_diverses],
+        }
+
+        facture_dossiers_sources = []
+        for item_list in [self.repas, self.depenses_diverses]:
+            for item in item_list:
+                if item.facture and item.facture.folder_path:
+                    # S'assurer de ne pas ajouter de doublons si plusieurs factures partagent un dossier (peu probable)
+                    if item.facture.folder_path not in facture_dossiers_sources:
+                        facture_dossiers_sources.append(item.facture.folder_path)
+        
+        return rapport_data, list(set(facture_dossiers_sources)) # Utiliser set pour garantir l'unicité
+    # -------------------------------------------------------------------- 

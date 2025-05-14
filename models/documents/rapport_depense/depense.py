@@ -66,4 +66,20 @@ class Depense:
         """Retourne le montant total après taxes."""
         return self.totale_apres_taxes
 
+    def to_dict(self):
+        """Retourne une représentation dictionnaire de l'objet Depense pour la sérialisation JSON."""
+        return {
+            'date': self.date.isoformat() if self.date else None,
+            'type_depense': self.type_depense,
+            'description': self.description,
+            'fournisseur': self.fournisseur,
+            'payeur': self.payeur,
+            'totale_avant_taxes': self.totale_avant_taxes,
+            'tps': self.tps,
+            'tvq': self.tvq,
+            'tvh': self.tvh,
+            'totale_apres_taxes': self.totale_apres_taxes,
+            'facture': self.facture.to_dict() if self.facture else None
+        }
+
     # Ajouter d'autres méthodes si nécessaire 

@@ -81,4 +81,22 @@ class Repas:
         """Retourne le montant total après taxes."""
         return self.totale_apres_taxes
 
+    def to_dict(self):
+        """Retourne une représentation dictionnaire de l'objet Repas pour la sérialisation JSON."""
+        return {
+            'date': self.date.isoformat() if self.date else None,
+            'restaurant': self.restaurant,
+            'client': self.client,
+            'payeur': self.payeur,
+            'refacturer': self.refacturer,
+            'numero_commande': self.numero_commande,
+            'totale_avant_taxes': self.totale_avant_taxes,
+            'pourboire': self.pourboire,
+            'tps': self.tps,
+            'tvq': self.tvq,
+            'tvh': self.tvh,
+            'totale_apres_taxes': self.totale_apres_taxes,
+            'facture': self.facture.to_dict() if self.facture else None
+        }
+
     # Ajouter d'autres méthodes si nécessaire (ex: calcul total, validation) 
