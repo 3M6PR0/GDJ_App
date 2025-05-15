@@ -525,6 +525,38 @@ class DispositionEditorWidget(QWidget):
         self._update_page_layout() 
         self.clear_selection()
 
+    def split_selected_cells(self):
+        # Placeholder pour la logique de défusion
+        selected_master_cells_to_split = []
+        for cell_item in self.selected_cells:
+            if cell_item._is_master_cell and cell_item._is_part_of_merged_cell:
+                selected_master_cells_to_split.append(cell_item)
+
+        if not selected_master_cells_to_split:
+            QMessageBox.information(self, "Défusion", "Aucune cellule fusionnée (cellule maître) n'est sélectionnée pour la défusion.")
+            return
+
+        regions_to_remove = []
+        for master_cell in selected_master_cells_to_split:
+            for region in self.merged_regions:
+                if region['row'] == master_cell.row and region['col'] == master_cell.col:
+                    regions_to_remove.append(region)
+                    break 
+        
+        if not regions_to_remove:
+            # Cela ne devrait pas arriver si selected_master_cells_to_split n'est pas vide
+            # et que les états des CellItem sont cohérents avec self.merged_regions
+            logger.warning("Tentative de défusionner des cellules maîtres sélectionnées mais aucune région correspondante trouvée.")
+            QMessageBox.warning(self, "Défusion", "Incohérence détectée. Impossible de trouver les régions à défusionner.")
+            return
+
+        for region in regions_to_remove:
+            self.merged_regions.remove(region)
+        
+        logger.info(f"{len(regions_to_remove)} région(s) fusionnée(s) défusionnée(s).")
+        self._update_page_layout()
+        self.clear_selection()
+
     def add_row(self):
         """ Ajoute une rangée à la grille et met à jour la page. """
         self.num_rows += 1

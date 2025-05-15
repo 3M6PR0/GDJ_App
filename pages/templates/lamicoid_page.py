@@ -143,32 +143,26 @@ class LamicoidPage(QWidget):
         # --- Cadre pour la gestion de la grille ---
         self.grid_management_frame = QFrame(self)
         self.grid_management_frame.setObjectName("GridManagementFrame")
-        grid_management_layout = QHBoxLayout(self.grid_management_frame)
+        grid_management_layout = QVBoxLayout(self.grid_management_frame)
         grid_management_layout.setContentsMargins(0, 5, 0, 5)
         grid_management_layout.setSpacing(10)
 
         self.add_row_button = QPushButton("Ajouter Rangée")
         self.add_column_button = QPushButton("Ajouter Colonne")
         self.merge_cells_button = QPushButton("Fusionner Cellules Sélectionnées")
+        self.split_cells_button = QPushButton("Défusionner Cellules Sélectionnées")
         
         grid_management_layout.addWidget(self.add_row_button)
         grid_management_layout.addWidget(self.add_column_button)
         grid_management_layout.addWidget(self.merge_cells_button)
+        grid_management_layout.addWidget(self.split_cells_button)
         grid_management_layout.addStretch()
 
         disposition_definition_layout.addWidget(self.grid_management_frame)
         # --- Fin du cadre pour la gestion de la grille ---
 
-        # Frame pour le bouton "Ajouter Zone"
-        self.add_zone_frame = QFrame(self)
-        add_zone_frame_layout = QHBoxLayout(self.add_zone_frame)
-        add_zone_frame_layout.setContentsMargins(0,5,0,0) # Un peu de marge au-dessus
-        self.add_zone_button = QPushButton("Ajouter Zone à la Disposition")
-        self.add_zone_button.setObjectName("ActionButton") # Style optionnel
-        add_zone_frame_layout.addWidget(self.add_zone_button)
-        add_zone_frame_layout.addStretch()
-        disposition_definition_layout.addWidget(self.add_zone_frame)
-        disposition_definition_layout.addStretch(1) # Remettre un stretch après le bouton
+        # Le Frame pour "Ajouter Zone" est supprimé ici.
+        disposition_definition_layout.addStretch(1) # Maintenir un stretch pour pousser les boutons vers le bas
 
         disposition_buttons_layout = QHBoxLayout() 
         self.save_disposition_button = QPushButton("Sauvegarder Disposition") 
@@ -283,12 +277,12 @@ class LamicoidPage(QWidget):
         self.cancel_disposition_button.clicked.connect(self._handle_cancel_disposition_action)
         self.save_model_button.clicked.connect(self._handle_save_model_action)
         self.cancel_model_button.clicked.connect(self._handle_cancel_model_action)
-        self.add_zone_button.clicked.connect(self._handle_add_zone_to_disposition_action)
 
         # Connexions pour les nouveaux boutons de grille
         self.add_row_button.clicked.connect(self._handle_add_row_to_disposition)
         self.add_column_button.clicked.connect(self._handle_add_column_to_disposition)
         self.merge_cells_button.clicked.connect(self._handle_merge_cells_action)
+        self.split_cells_button.clicked.connect(self._handle_split_cells_action)
 
     def _clear_form_fields(self):
         self.date_edit.setDate(QDate.currentDate())
@@ -520,14 +514,6 @@ class LamicoidPage(QWidget):
         self.mode_selection_combo.setCurrentIndex(0) # Retour à "--- Sélectionner Mode ---"
         self._ensure_correct_view_for_mode("--- Sélectionner Mode ---")
 
-    def _handle_add_zone_to_disposition_action(self):
-        logger.info("Action: Ajouter Zone à la Disposition")
-        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
-            self.disposition_editor_widget.add_new_zone()
-        else:
-            logger.warning("Tentative d'ajouter une zone alors que l'éditeur de disposition n'est pas actif.")
-            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour ajouter une zone.")
-
     def _handle_add_row_to_disposition(self):
         logger.info("Action: Ajouter Rangée à la Disposition")
         if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
@@ -551,13 +537,20 @@ class LamicoidPage(QWidget):
         else:
             logger.warning("Tentative de fusion de cellules sans éditeur de disposition actif.")
 
+    def _handle_split_cells_action(self):
+        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
+            logger.info("Action: Défusionner Cellules Sélectionnées")
+            self.disposition_editor_widget.split_selected_cells() # Méthode à créer dans DispositionEditorWidget
+        else:
+            logger.warning("Tentative de défusionner des cellules alors que l'éditeur de disposition n'est pas actif.")
+            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
+
     def _ensure_correct_view_for_mode(self, mode: str):
         self.item_form_widget.hide()
         self.disposition_definition_widget.hide()
         self.model_definition_widget.hide()
 
-        # Cacher/afficher le bouton "Ajouter Zone" en fonction du mode
-        self.add_zone_frame.setVisible(mode == "Disposition")
+        # La gestion de la visibilité de add_zone_frame est supprimée.
         self.grid_management_frame.setVisible(mode == "Disposition") # Afficher/cacher aussi ce cadre
 
         if mode == "Disposition":
