@@ -10,7 +10,7 @@ import json
 import os
 # --- AJOUT: Import logging --- 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('GDJ_App')
 # ---------------------------------------------------
 
 # --- AJOUT: Importer les Singletons --- 
