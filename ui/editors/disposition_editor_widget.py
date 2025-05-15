@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QPushButton, QGraphicsItem, QGraphicsPathItem, QGraphicsLineItem, QMessageBox, QRubberBand, QApplication, QGraphicsSimpleTextItem
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QPushButton, QGraphicsItem, QGraphicsPathItem, QGraphicsLineItem, QMessageBox, QRubberBand, QApplication, QGraphicsSimpleTextItem, QGraphicsTextItem
 from PyQt5.QtCore import Qt, QRectF, QLineF, QPoint, QSize, QPointF
 from PyQt5.QtGui import QBrush, QPen, QColor, QPainter, QPainterPath, QFont, QFontMetrics
 import logging
@@ -33,6 +33,9 @@ INCH_TO_MM = 25.4
 
 def pixels_to_mm(pixels: float, dpi: float) -> float:
     return (pixels / dpi) * INCH_TO_MM
+
+def mm_to_pixels(mm: float, dpi: float) -> float:
+    return (mm / INCH_TO_MM) * dpi
 
 class AbstractRulerItem(QGraphicsItem):
     def __init__(self, parent: QGraphicsItem | None = None):
@@ -285,6 +288,9 @@ class DispositionEditorWidget(QWidget):
         self.setObjectName("DispositionEditorWidget")
         
         self.dpi = DEFAULT_DPI
+        self.fixed_page_width_pixels: float | None = None
+        # self.fixed_page_height_pixels: float | None = None # Pour plus tard
+
         self.scene_items_counter = 0 
         self.page_background_item = None
         self.grid_lines = []
@@ -310,6 +316,27 @@ class DispositionEditorWidget(QWidget):
         self.view.setDragMode(QGraphicsView.NoDrag)
         layout.addWidget(self.view)
         logger.debug("DispositionEditorWidget initialisé avec SelectableGraphicsView.")
+
+    def set_fixed_page_width(self, width_mm: float | None):
+        """Définit ou supprime la largeur de page fixe.
+
+        Args:
+            width_mm: Largeur souhaitée en millimètres, ou None pour désactiver la largeur fixe.
+        """
+        if width_mm is not None and width_mm > 0:
+            self.fixed_page_width_pixels = mm_to_pixels(width_mm, self.dpi)
+            logger.info(f"Largeur de page fixe définie à {width_mm:.2f} mm ({self.fixed_page_width_pixels:.2f} px).")
+        else:
+            self.fixed_page_width_pixels = None
+            logger.info("Largeur de page fixe désactivée.")
+        
+        # Redessiner la disposition avec la nouvelle contrainte (ou son absence)
+        # Il faut s'assurer que _collect_current_content_details est appelé si nécessaire
+        # ou que _update_page_layout peut gérer un appel "frais" après ce changement.
+        # _update_page_layout est généralement appelé avec preserved_content.
+        # Ici, on veut juste forcer une re-mise en page basée sur les états actuels.
+        current_content = self._collect_current_content_details()
+        self._update_page_layout(preserved_content_details=current_content)
 
     def _text_width(self, text: str) -> float:
         if not text: # Gérer le cas où le texte est None ou vide
@@ -377,15 +404,108 @@ class DispositionEditorWidget(QWidget):
         """ Met à jour la taille et l'apparence du fond de page et de la scène. """
         if preserved_content_details is None:
             preserved_content_details = {}
-            
-        page_width = sum(self.column_widths) # Modifié
-        page_height = self.num_rows * self.cell_height # Inchangé pour l'instant
 
-        scene_width = page_width + 2 * PAGE_MARGIN
+        actual_page_width_pixels: float
+
+        if self.fixed_page_width_pixels is not None and self.num_cols > 0:
+            target_fixed_width = self.fixed_page_width_pixels
+            logger.debug(f"Application de la largeur de page fixe: {target_fixed_width:.2f} px")
+
+            # Recalculer les largeurs minimales demandées par chaque colonne basé sur leur contenu actuel
+            # _calculate_required_width_for_column retourne au moins DEFAULT_CELL_WIDTH
+            demanded_widths = [self._calculate_required_width_for_column(c) for c in range(self.num_cols)]
+            total_demanded_width = sum(demanded_widths)
+
+            if total_demanded_width <= target_fixed_width:
+                # Le contenu total demandé est inférieur ou égal à la largeur fixe.
+                # On distribue l'excédent.
+                excess_width = target_fixed_width - total_demanded_width
+                # Distribuer l'excédent proportionnellement aux largeurs demandées (ou également si toutes sont au min).
+                # Pour une distribution égale simple de l'excédent :
+                extra_per_column = excess_width / self.num_cols if self.num_cols > 0 else 0
+                self.column_widths = [demanded_widths[c] + extra_per_column for c in range(self.num_cols)]
+                actual_page_width_pixels = target_fixed_width
+                logger.debug(f"Largeur fixe respectée. Excédent distribué. Nouvelles largeurs: {self.column_widths}")
+            else:
+                # Le contenu total demandé DÉPASSE la largeur fixe.
+                # Nous devons "compresser" les colonnes pour qu'elles tiennent dans target_fixed_width.
+                # On distribue target_fixed_width proportionnellement aux largeurs demandées.
+                # self.column_widths[c] = (demanded_widths[c] / total_demanded_width) * target_fixed_width
+                # Chaque colonne ne sera pas plus petite que DEFAULT_CELL_WIDTH grâce à _calculate_required_width_for_column.
+                # Si la somme des DEFAULT_CELL_WIDTH dépasse target_fixed_width, alors target_fixed_width sera ignoré.
+                # Pour réellement contraindre : 
+
+                if sum(DEFAULT_CELL_WIDTH for _ in range(self.num_cols)) > target_fixed_width:
+                    # Même en mettant toutes les colonnes à leur minimum absolu, on dépasse la largeur fixe.
+                    # Dans ce cas, on ignore la largeur fixe et on utilise les largeurs minimales.
+                    self.column_widths = [DEFAULT_CELL_WIDTH] * self.num_cols # ou demanded_widths si on veut être plus généreux
+                    actual_page_width_pixels = sum(self.column_widths)
+                    logger.warning(f"La largeur fixe ({target_fixed_width:.2f} px) est trop petite même pour les largeurs minimales ({DEFAULT_CELL_WIDTH}px) des colonnes. Largeur fixe ignorée. Largeur page: {actual_page_width_pixels:.2f} px")
+                else:
+                    # On peut distribuer la largeur fixe. On essaie de le faire proportionnellement
+                    # aux largeurs demandées, tout en s'assurant que chaque colonne >= DEFAULT_CELL_WIDTH
+                    # et que la somme est target_fixed_width.
+                    current_widths = list(demanded_widths) # commencer avec les largeurs demandées
+                    current_sum = sum(current_widths)
+                    
+                    # Réduire itérativement jusqu'à ce que la somme atteigne la cible ou que toutes les colonnes soient au min
+                    while current_sum > target_fixed_width and any(w > DEFAULT_CELL_WIDTH for w in current_widths):
+                        over_target_amount = current_sum - target_fixed_width
+                        total_reducible_width = sum(w - DEFAULT_CELL_WIDTH for w in current_widths if w > DEFAULT_CELL_WIDTH)
+                        if total_reducible_width <= 0: # Rien à réduire au-delà des minimums
+                            break 
+                        
+                        for c in range(self.num_cols):
+                            if current_widths[c] > DEFAULT_CELL_WIDTH:
+                                reduction_ratio = (current_widths[c] - DEFAULT_CELL_WIDTH) / total_reducible_width
+                                reduction = over_target_amount * reduction_ratio
+                                current_widths[c] = max(DEFAULT_CELL_WIDTH, current_widths[c] - reduction)
+                        current_sum = sum(current_widths)
+                    
+                    # S'il reste un léger écart dû aux arrondis ou aux minimums, on ajuste la dernière colonne (ou on distribue)
+                    final_sum = sum(current_widths)
+                    if abs(final_sum - target_fixed_width) > 1e-5:
+                        diff = target_fixed_width - final_sum
+                        # Simple ajustement sur la dernière colonne qui n'est pas à son minimum (si possible)
+                        adjustable_cols = [c for c in range(self.num_cols) if current_widths[c] > DEFAULT_CELL_WIDTH]
+                        if adjustable_cols:
+                            # distribuer le diff sur les colonnes ajustables
+                            extra_per_adj_col = diff / len(adjustable_cols)
+                            for c in adjustable_cols:
+                                current_widths[c] += extra_per_adj_col
+                                current_widths[c] = max(DEFAULT_CELL_WIDTH, current_widths[c]) # Ré-assurer le min
+                        # Recalculer la somme finale après ajustement potentiel
+                        current_widths_sum_final = sum(current_widths)
+                        if abs(current_widths_sum_final - target_fixed_width) > 1e-2 : # Marge d'erreur plus grande pour cette rustine
+                            logger.warning(f"Ajustement final n'a pas pu atteindre exactement la largeur fixe. Somme: {current_widths_sum_final}, Cible: {target_fixed_width}")
+                            # Dans ce cas, on utilise les largeurs calculées, la page sera proche de la cible.
+
+                    self.column_widths = current_widths
+                    actual_page_width_pixels = sum(self.column_widths) # Doit être très proche de target_fixed_width
+                    if abs(actual_page_width_pixels - target_fixed_width) > 1.0 : # Si l'écart est > 1px
+                         logger.info(f"Largeur de page ({actual_page_width_pixels:.2f}px) ajustée pour respecter la largeur fixe ({target_fixed_width:.2f}px). Contenu compressé si nécessaire. Largeurs colonnes: {self.column_widths}")
+                    else:
+                         actual_page_width_pixels = target_fixed_width # Forcer si très proche
+                         logger.info(f"Largeur de page fixée à {target_fixed_width:.2f}px. Contenu compressé si nécessaire. Largeurs colonnes: {self.column_widths}")
+
+        elif self.num_cols == 0:
+             self.column_widths = []
+             actual_page_width_pixels = 0
+        else: # Cas où self.fixed_page_width_pixels est None ET self.num_cols > 0
+            if self.num_cols > 0: # Assurer qu'il y a des colonnes pour sommer leurs largeurs
+                actual_page_width_pixels = sum(self.column_widths)
+                logger.debug(f"Largeur de page dynamique (pas de largeur fixe), somme des largeurs de colonnes: {actual_page_width_pixels:.2f} px")
+            else: # Si num_cols est 0 et pas de largeur fixe (déjà couvert par le elif, mais bon à avoir pour la robustesse)
+                actual_page_width_pixels = 0
+                logger.debug("Largeur de page dynamique, 0 colonnes, largeur de page à 0 px.")
+
+        page_height = self.num_rows * self.cell_height
+
+        scene_width = actual_page_width_pixels + 2 * PAGE_MARGIN
         scene_height = page_height + 2 * PAGE_MARGIN
         self.scene.setSceneRect(0, 0, scene_width, scene_height)
 
-        background_rect_dims = QRectF(PAGE_MARGIN, PAGE_MARGIN, page_width, page_height)
+        background_rect_dims = QRectF(PAGE_MARGIN, PAGE_MARGIN, actual_page_width_pixels, page_height)
         
         path = QPainterPath()
         path.addRoundedRect(background_rect_dims, self.corner_radius, self.corner_radius)
@@ -401,16 +521,16 @@ class DispositionEditorWidget(QWidget):
             self.page_background_item.setPath(path)
         
         # Gestion des règles
-        page_width_px = sum(self.column_widths)
-        page_height_px = self.num_rows * self.cell_height
+        # page_width_px = sum(self.column_widths) # Remplacé par actual_page_width_pixels
+        page_height_px = self.num_rows * self.cell_height # Inchangé
 
         # Règle Horizontale
         if self.horizontal_ruler_item is None:
             self.horizontal_ruler_item = HorizontalRulerItem()
             self.scene.addItem(self.horizontal_ruler_item)
         
-        total_width_mm_str = f"{pixels_to_mm(page_width_px, self.dpi):.0f} mm"
-        self.horizontal_ruler_item.set_config(page_width_px, [], total_width_mm_str) # Passer une liste vide pour les divisions
+        total_width_mm_str = f"{pixels_to_mm(actual_page_width_pixels, self.dpi):.0f} mm"
+        self.horizontal_ruler_item.set_config(actual_page_width_pixels, [], total_width_mm_str)
         # Positionner la ligne de base (y=0 local) de la règle horizontale
         # pour qu'il y ait RULER_TEXT_MARGIN entre le haut du Lamicoid et la ligne de la règle.
         self.horizontal_ruler_item.setPos(PAGE_MARGIN, PAGE_MARGIN - RULER_TEXT_MARGIN)
@@ -421,8 +541,8 @@ class DispositionEditorWidget(QWidget):
             self.scene.addItem(self.vertical_ruler_item)
         
         total_height_mm_str = f"{pixels_to_mm(page_height_px, self.dpi):.0f} mm"
-        self.vertical_ruler_item.set_config(page_height_px, [], total_height_mm_str) # Passer une liste vide pour les divisions
-        self.vertical_ruler_item.setPos(PAGE_MARGIN + page_width_px + RULER_TEXT_MARGIN, PAGE_MARGIN)
+        self.vertical_ruler_item.set_config(page_height_px, [], total_height_mm_str)
+        self.vertical_ruler_item.setPos(PAGE_MARGIN + actual_page_width_pixels + RULER_TEXT_MARGIN, PAGE_MARGIN)
 
         for line_item in self.grid_lines:
             self.scene.removeItem(line_item)
@@ -454,7 +574,7 @@ class DispositionEditorWidget(QWidget):
 
         for i in range(1, self.num_rows):
             y = PAGE_MARGIN + i * self.cell_height
-            line = QGraphicsLineItem(QLineF(PAGE_MARGIN, y, PAGE_MARGIN + page_width, y))
+            line = QGraphicsLineItem(QLineF(PAGE_MARGIN, y, PAGE_MARGIN + actual_page_width_pixels, y))
             line.setPen(grid_pen)
             line.setZValue(-0.5)
             self.scene.addItem(line)
@@ -492,8 +612,8 @@ class DispositionEditorWidget(QWidget):
                 current_y_offset += self.cell_height
             current_x_offset += current_col_width
 
-        self._draw_grid_lines(page_width, page_height)
-        logger.debug(f"Page layout updated: {self.num_rows}x{self.num_cols} cells. Page width: {page_width}. Cells created: {self.num_rows*self.num_cols}")
+        self._draw_grid_lines(actual_page_width_pixels, page_height)
+        logger.debug(f"Page layout updated: {self.num_rows}x{self.num_cols} cells. Page width: {actual_page_width_pixels}. Cells created: {self.num_rows*self.num_cols}")
 
     def _recreate_placeholder_for_cell(self, cell_item: CellItem, content_type: str, actual_text: str | None):
         """ Recrée un placeholder pour une cellule donnée. """
@@ -516,13 +636,20 @@ class DispositionEditorWidget(QWidget):
         
         # elided_text = fm.elidedText(display_text, Qt.ElideRight, available_width) # Supprimé
             
-        new_placeholder = QGraphicsSimpleTextItem(display_text, parent=cell_item) # Utilise display_text directement
+        new_placeholder = QGraphicsTextItem(parent=cell_item) # Remplacer QGraphicsSimpleTextItem
+        new_placeholder.setHtml(display_text) # Utiliser setHtml pour interpréter les retours à la ligne potentiels dans actual_text ou pour un formatage futur
+        # Ou, si display_text ne doit jamais contenir de HTML et que l'on veut un texte brut :
+        # new_placeholder.setPlainText(display_text)
+        
         new_placeholder.setFont(font)
-        new_placeholder.setBrush(QBrush(Qt.black))
-        
+        new_placeholder.setDefaultTextColor(Qt.black) # QGraphicsTextItem utilise setDefaultTextColor
+
         cell_local_rect = cell_item.boundingRect()
-        placeholder_bound_rect = new_placeholder.boundingRect()
+        # Définir la largeur du texte pour permettre le retour à la ligne
+        new_placeholder.setTextWidth(cell_local_rect.width()) 
         
+        placeholder_bound_rect = new_placeholder.boundingRect() # Recalculer après setTextWidth
+
         # Logs détaillés pour le débogage
         logger.debug(f"Cell ({cell_item.row},{cell_item.col}) - In _recreate_placeholder_for_cell:")
         logger.debug(f"  Text to display (len: {len(display_text if display_text else '')}): '{display_text[:100]}{'...' if display_text and len(display_text) > 100 else ''}'")
@@ -536,7 +663,7 @@ class DispositionEditorWidget(QWidget):
         # Assurer que les offsets ne positionnent pas le texte en dehors si le texte est plus grand que la cellule
         # (bien que la logique de redimensionnement de colonne devrait empêcher cela pour la largeur)
         if offset_x < 0:
-            offset_x = 0 # Aligner à gauche si le texte est plus large que la cellule
+            offset_x = 0 # Aligner à gauche si le texte est plus large que la cellule (ne devrait plus arriver avec setTextWidth)
         if offset_y < 0:
             offset_y = 0 # Aligner en haut si le texte est plus haut que la cellule
             
@@ -544,7 +671,7 @@ class DispositionEditorWidget(QWidget):
         
         new_placeholder.setPos(offset_x, offset_y)
         cell_item.content_placeholder_item = new_placeholder
-        logger.debug(f"Placeholder '{display_text[:50]}{'...' if display_text and len(display_text) > 50 else ''}' recréé pour la cellule ({cell_item.row},{cell_item.col}). Positionné à ({offset_x},{offset_y})")
+        logger.debug(f"Placeholder '{display_text[:50]}{'...' if display_text and len(display_text) > 50 else ''}' recréé pour la cellule ({cell_item.row},{cell_item.col}). Positionné à ({offset_x},{offset_y}), TextWidth: {cell_local_rect.width()})")
 
     def _get_cell_merged_state(self, row: int, col: int, original_cell_rect_at_current_pos: QRectF) -> tuple[bool, bool, QRectF | None, QRectF]:
         for region in self.merged_regions:

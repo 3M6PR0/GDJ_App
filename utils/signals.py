@@ -15,6 +15,14 @@ class ThemeSignalEmitter(QObject):
     # Args: message (str), type (str: "success", "error", "info", "warning"), duration (int, ms)
     status_message_updated = pyqtSignal(str, str, int)
 
+    # Signaux pour LamicoidPage et potentiellement d'autres
+    # Le type "object" est utilisé pour LamicoidItem pour éviter une dépendance circulaire d'import
+    # ou si LamicoidItem n'est pas toujours le type exact attendu par tous les slots.
+    delete_item_requested = pyqtSignal(object) # Attend un LamicoidItem (ou son ID)
+    edit_item_requested = pyqtSignal(object)   # Attend un LamicoidItem
+    global_save_request = pyqtSignal(str, str) # doc_type, file_path
+    document_saved = pyqtSignal(str, str, str) # doc_type, file_path, doc_title
+
 signals = None # Initialiser à None
 
 def initialize_global_signals(app_instance=None):

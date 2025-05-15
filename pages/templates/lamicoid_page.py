@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
-                             QStackedWidget, QDialog)
+                             QStackedWidget, QDialog, QCheckBox, QDoubleSpinBox)
 from PyQt5.QtCore import Qt, QDate, pyqtSignal
 from PyQt5.QtGui import QFont
 import logging
@@ -138,6 +138,21 @@ class LamicoidPage(QWidget):
 
         self.disposition_name_edit = QLineEdit() # RENOMMÉ de template_name_edit
         self.disposition_form_layout.addRow("Nom de la Disposition:", self.disposition_name_edit) 
+        
+        # --- Contrôles pour la largeur fixe ---
+        self.fixed_width_checkbox = QCheckBox("Largeur Fixe")
+        self.fixed_width_spinbox = QDoubleSpinBox()
+        self.fixed_width_spinbox.setSuffix(" mm")
+        self.fixed_width_spinbox.setMinimum(10.0) # Largeur minimale de 10mm
+        self.fixed_width_spinbox.setMaximum(1000.0) # Largeur maximale de 1000mm
+        self.fixed_width_spinbox.setValue(85.0) # Valeur par défaut (ex: taille carte de crédit)
+        self.fixed_width_spinbox.setEnabled(False) # Désactivé par défaut
+
+        fixed_width_layout = QHBoxLayout()
+        fixed_width_layout.addWidget(self.fixed_width_checkbox)
+        fixed_width_layout.addWidget(self.fixed_width_spinbox)
+        self.disposition_form_layout.addRow(fixed_width_layout) # Ajout en tant que "rangée" au QFormLayout
+        # --- Fin des contrôles pour la largeur fixe ---
         
         disposition_definition_layout.addLayout(self.disposition_form_layout)
 
@@ -319,7 +334,15 @@ class LamicoidPage(QWidget):
         # Connexions pour les boutons de la palette de contenu
         self.add_text_content_button.clicked.connect(self._handle_add_text_content_action)
         self.add_image_content_button.clicked.connect(self._handle_add_image_content_action)
-        self.add_table_content_button.clicked.connect(lambda: self._handle_add_content_to_cell("tableau"))
+        self.add_table_content_button.clicked.connect(self._handle_add_content_to_cell_table)
+
+        # Signaux pour la largeur fixe
+        self.fixed_width_checkbox.toggled.connect(self._handle_fixed_width_toggled)
+        self.fixed_width_spinbox.editingFinished.connect(self._handle_fixed_width_value_changed) # Ou valueChanged si vous préférez une MàJ instantanée
+
+        signals.delete_item_requested.connect(self._handle_delete_item_request)
+        signals.edit_item_requested.connect(self._enter_edit_mode)
+        signals.global_save_request.connect(self._handle_global_save_request)
 
     def _clear_form_fields(self):
         self.date_edit.setDate(QDate.currentDate())
@@ -620,7 +643,7 @@ class LamicoidPage(QWidget):
                 current_cell_text = ""
                 cell_to_edit = self.disposition_editor_widget.cell_items[r][c]
                 if cell_to_edit and cell_to_edit.content_type == "Texte" and cell_to_edit.content_placeholder_item:
-                    current_cell_text = cell_to_edit.content_placeholder_item.text()
+                    current_cell_text = cell_to_edit.content_placeholder_item.toPlainText()
                     # Si le placeholder actuel est juste "Texte", ne pas le pré-remplir
                     if current_cell_text.lower() == "texte": 
                         current_cell_text = ""
@@ -677,6 +700,24 @@ class LamicoidPage(QWidget):
         else:
             logger.warning(f"Tentative d'ajouter du contenu '{content_type}' alors que l'éditeur de disposition n'est pas actif.")
             QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
+
+    def _handle_add_content_to_cell_table(self):
+        self._handle_add_content_to_cell("Tableau")
+
+    def _handle_fixed_width_toggled(self, checked: bool):
+        self.fixed_width_spinbox.setEnabled(checked)
+        if self.disposition_editor_widget: # S'assurer que l'éditeur existe
+            if checked:
+                current_value = self.fixed_width_spinbox.value()
+                self.disposition_editor_widget.set_fixed_page_width(current_value)
+            else:
+                self.disposition_editor_widget.set_fixed_page_width(None)
+
+    def _handle_fixed_width_value_changed(self):
+        if self.fixed_width_checkbox.isChecked():
+            if self.disposition_editor_widget: # S'assurer que l'éditeur existe
+                current_value = self.fixed_width_spinbox.value()
+                self.disposition_editor_widget.set_fixed_page_width(current_value)
 
     def _ensure_correct_view_for_mode(self, mode: str):
         self.item_form_widget.hide()
