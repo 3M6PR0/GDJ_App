@@ -311,6 +311,68 @@ class DispositionEditorWidget(QWidget):
         layout.addWidget(self.view)
         logger.debug("DispositionEditorWidget initialisé avec SelectableGraphicsView.")
 
+    def _text_width(self, text: str) -> float:
+        if not text: # Gérer le cas où le texte est None ou vide
+            return 0.0
+        if not hasattr(self, '_font_metrics_for_calc'):
+            # Utiliser la même police/taille que pour les placeholders
+            font = QFont("Arial", 8)
+            self._font_metrics_for_calc = QFontMetrics(font)
+        return self._font_metrics_for_calc.boundingRect(text).width()
+
+    def _calculate_required_width_for_column(self, col_idx: int) -> float:
+        """Calcule la largeur requise pour une colonne en fonction de son contenu."""
+        if not (0 <= col_idx < self.num_cols):
+            logger.error(f"_calculate_required_width_for_column appelé avec col_idx invalide: {col_idx}")
+            return DEFAULT_CELL_WIDTH
+
+        max_w = DEFAULT_CELL_WIDTH
+
+        # 1. Vérifier les cellules simples dans cette colonne
+        for r in range(self.num_rows):
+            if r < len(self.cell_items) and col_idx < len(self.cell_items[r]):
+                cell = self.cell_items[r][col_idx]
+                if cell and cell.content_type == "Texte" and cell.actual_text:
+                    # Est-ce une cellule simple (non maître d'une fusion qui commence ici, et non esclave) ?
+                    is_master_here, is_slave, _, _ = self._get_cell_merged_state(r, col_idx, QRectF()) # Le rect est factice
+                    if not is_master_here and not is_slave:
+                        required_cell_width = self._text_width(cell.actual_text) + 8 # Marge de 8px
+                        max_w = max(max_w, required_cell_width)
+            else:
+                logger.warning(f"Accès hors limites à cell_items dans _calculate_required_width_for_column pour ({r},{col_idx})")
+
+
+        # 2. Vérifier les fusions qui se terminent sur cette colonne
+        for region in self.merged_regions:
+            region_col_start = region['col']
+            region_colspan = region['colspan']
+            region_col_end = region_col_start + region_colspan - 1
+
+            if region_col_end == col_idx: # Cette fusion se termine sur la colonne actuelle
+                master_cell_row, master_cell_col = region['row'], region['col']
+                if master_cell_row < len(self.cell_items) and \
+                   master_cell_col < len(self.cell_items[master_cell_row]):
+                    master_cell = self.cell_items[master_cell_row][master_cell_col]
+                    if master_cell and master_cell.content_type == "Texte" and master_cell.actual_text:
+                        fusion_text_total_width = self._text_width(master_cell.actual_text) + 8 # Marge
+                        
+                        width_of_fusion_cols_before_this_one = 0
+                        if region_colspan > 1: # Si la fusion couvre plus d'une colonne
+                            for c_fus_idx in range(region_col_start, col_idx): # Colonnes de la fusion AVANT la col_idx actuelle
+                                if 0 <= c_fus_idx < len(self.column_widths):
+                                    width_of_fusion_cols_before_this_one += self.column_widths[c_fus_idx]
+                                else:
+                                    logger.error(f"Index de colonne {c_fus_idx} hors limites pour column_widths lors du calcul de la largeur de fusion.")
+                                    # Difficile de récupérer ici, la largeur de fusion sera fausse
+                                    
+                        # La largeur que cette dernière colonne doit avoir pour satisfaire le texte de la fusion
+                        required_for_this_col_due_to_fusion = fusion_text_total_width - width_of_fusion_cols_before_this_one
+                        required_for_this_col_due_to_fusion = max(DEFAULT_CELL_WIDTH, required_for_this_col_due_to_fusion)
+                        max_w = max(max_w, required_for_this_col_due_to_fusion)
+                else:
+                    logger.warning(f"Accès hors limites à cell_items pour la cellule maître ({master_cell_row},{master_cell_col}) d'une fusion.")
+        return max_w
+
     def _update_page_layout(self, preserved_content_details: dict[tuple[int, int], PreservedContentDetails] | None = None):
         """ Met à jour la taille et l'apparence du fond de page et de la scène. """
         if preserved_content_details is None:
@@ -1151,107 +1213,57 @@ class DispositionEditorWidget(QWidget):
         # Utiliser _recreate_placeholder_for_cell pour la création/mise à jour du placeholder
         self._recreate_placeholder_for_cell(cell_to_modify, content_type, actual_text)
 
-        # Ajuster la largeur de la colonne/fusion si nécessaire pour le contenu textuel
-        if content_type == "Texte" and cell_to_modify.actual_text:
-            font = QFont("Arial", 8)
-            fm = QFontMetrics(font)
-            text_actual_render_width = fm.boundingRect(cell_to_modify.actual_text).width()
-            # La largeur requise pour le contenu, avec une marge, mais jamais moins que DEFAULT_CELL_WIDTH
-            # Note: required_total_content_width est la largeur que le TEXTE veut, pas forcément la cellule/colonne finale
-            required_total_content_width = text_actual_render_width + 8 # Marge pour le texte
+        # --- Logique de redimensionnement de colonne (unifiée) ---
+        needs_layout_update_for_resize = False
+        col_idx_to_adjust = -1  # Colonne dont la largeur sera modifiée ou recalculée
 
-            needs_layout_update = False
-            
-            found_region_for_master: dict | None = None
-            if is_master_of_fusion:
-                for region_iter in self.merged_regions:
-                    if region_iter['row'] == cell_to_modify.row and region_iter['col'] == cell_to_modify.col:
-                        found_region_for_master = region_iter
-                        break
-            
-            if found_region_for_master: # Cas d'une cellule maître d'une fusion active
-                region = found_region_for_master
-                master_col_start = region['col']
-                colspan = region['colspan']
+        # 1. Déterminer quelle colonne est "responsable" ou affectée par le changement
+        #    sur cell_to_modify.
+        is_master, is_slave, _, _ = self._get_cell_merged_state(
+            cell_to_modify.row, cell_to_modify.col, QRectF() # Rect factice
+        )
+
+        master_region_of_modified_cell: dict | None = None
+        if is_master:
+            for region in self.merged_regions:
+                if region['row'] == cell_to_modify.row and region['col'] == cell_to_modify.col:
+                    master_region_of_modified_cell = region
+                    break
+            if not master_region_of_modified_cell:
+                logger.error(f"Cellule ({cell_to_modify.row},{cell_to_modify.col}) est maître mais sa région de fusion n'a pas été trouvée. Redimensionnement annulé.")
+                # Si master_region_of_modified_cell reste None, col_idx_to_adjust restera -1 (ou une autre valeur sentinelle si besoin)
+
+        if master_region_of_modified_cell: # Si la cellule modifiée est le maître d'une fusion
+            # La colonne à ajuster est la dernière colonne de cette fusion
+            col_idx_to_adjust = master_region_of_modified_cell['col'] + master_region_of_modified_cell['colspan'] - 1
+        elif not is_slave: # Si la cellule modifiée est une cellule simple (non maître, non esclave)
+            col_idx_to_adjust = cell_to_modify.col
+        # Si c'est une cellule esclave (is_slave est True), col_idx_to_adjust reste -1.
+        # La modification du contenu d'une esclave est déjà empêchée plus haut.
+
+        # 2. Si une colonne pertinente a été identifiée, calculer sa nouvelle largeur requise
+        if col_idx_to_adjust >= 0: # Uniquement si une colonne valide est à ajuster
+            if not (0 <= col_idx_to_adjust < self.num_cols):
+                logger.error(f"Indice de colonne à ajuster ({col_idx_to_adjust}) est hors limites (0-{self.num_cols - 1}). Redimensionnement annulé.")
+            else:
+                current_width_of_col_to_adjust = self.column_widths[col_idx_to_adjust]
                 
-                current_merged_cell_actual_width = sum(self.column_widths[i] for i in range(master_col_start, master_col_start + colspan))
+                # _calculate_required_width_for_column scanne TOUTES les cellules pertinentes
+                # pour col_idx_to_adjust et retourne la largeur max nécessaire.
+                # Elle utilise le contenu actualisé de cell_to_modify car _recreate_placeholder_for_cell
+                # a mis à jour cell_to_modify.actual_text et cell_to_modify.content_type.
+                required_width_for_col = self._calculate_required_width_for_column(col_idx_to_adjust)
                 
-                # La largeur que la fusion DEVRAIT avoir pour ce texte, en respectant le minimum pour la dernière colonne
-                # Cela commence par la largeur voulue par le texte.
-                target_merged_width = required_total_content_width 
+                if abs(current_width_of_col_to_adjust - required_width_for_col) > 1e-6: # Comparaison de floats
+                    self.column_widths[col_idx_to_adjust] = required_width_for_col
+                    needs_layout_update_for_resize = True
+                    logger.info(f"Colonne {col_idx_to_adjust} (ou dernière colonne d'une fusion) redimensionnée à {required_width_for_col:.2f}px en fonction du contenu global de la colonne.")
 
-                if target_merged_width != current_merged_cell_actual_width:
-                    width_delta = target_merged_width - current_merged_cell_actual_width
-                    last_col_idx_in_merge = master_col_start + colspan - 1
-                    
-                    # Appliquer le delta à la dernière colonne
-                    new_last_col_width = self.column_widths[last_col_idx_in_merge] + width_delta
-                    
-                    # S'assurer que la dernière colonne respecte sa largeur minimale
-                    if new_last_col_width < DEFAULT_CELL_WIDTH:
-                        # La dernière colonne veut être trop petite. Ajuster le delta pour qu'elle soit DEFAULT_CELL_WIDTH
-                        # et donc la fusion sera potentiellement plus large que target_merged_width initial.
-                        width_delta += (DEFAULT_CELL_WIDTH - new_last_col_width)
-                        new_last_col_width = DEFAULT_CELL_WIDTH # forcer la largeur minimale
-                    
-                    self.column_widths[last_col_idx_in_merge] = new_last_col_width
-                    needs_layout_update = True
-                    logger.info(f"Largeur de la fusion (col {master_col_start}, span {colspan}) ajustée. Delta total sur dernière col: {width_delta}.")
-
-            elif not is_slave: # Cas d'une cellule simple (non fusionnée et non esclave)
-                target_col_index = cell_to_modify.col
-                current_col_width = self.column_widths[target_col_index]
-                
-                # Pour une cellule simple, la largeur de colonne cible est la largeur du texte, mais au moins DEFAULT_CELL_WIDTH
-                target_col_width = max(required_total_content_width, DEFAULT_CELL_WIDTH)
-
-                if target_col_width != current_col_width:
-                    self.column_widths[target_col_index] = target_col_width
-                    needs_layout_update = True
-                    logger.info(f"Largeur de la colonne {target_col_index} ajustée à {target_col_width} pour le texte.")
-
-            if needs_layout_update:
-                preserved_content_before_resize = self._collect_current_content_details()
-                logger.debug(f"Dans set_cell_content, AVANT _update_page_layout, preserved_content_before_resize keys: {list(preserved_content_before_resize.keys())}")
-                self._update_page_layout(preserved_content_details=preserved_content_before_resize)
-
-        # Gérer le cas où ce n'est pas du texte, ou le texte est vidé
-        elif content_type != "Texte" or (content_type == "Texte" and not cell_to_modify.actual_text):
-            # Si le contenu n'est plus du texte ou devient vide, la colonne pourrait potentiellement rétrécir
-            # à sa largeur par défaut si elle était plus grande à cause d'un texte précédent.
-            target_col_index = cell_to_modify.col
-            needs_layout_update = False
-
-            found_region_for_master: dict | None = None
-            if is_master_of_fusion:
-                for region_iter in self.merged_regions:
-                    if region_iter['row'] == cell_to_modify.row and region_iter['col'] == cell_to_modify.col:
-                        found_region_for_master = region_iter
-                        break
-            
-            if found_region_for_master: # Cellule maître d'une fusion
-                region = found_region_for_master
-                master_col_start = region['col']
-                colspan = region['colspan']
-                # Pour une fusion vidée de son texte, chaque colonne la composant devrait idéalement
-                # revenir à DEFAULT_CELL_WIDTH, mais nous ne gérons que la dernière pour l'instant.
-                # Si la fusion a plusieurs colonnes, forcer la dernière à DEFAULT_CELL_WIDTH est simple.
-                # Si colspan est 1, c'est comme une cellule simple.
-                last_col_idx_in_merge = master_col_start + colspan - 1
-                if self.column_widths[last_col_idx_in_merge] > DEFAULT_CELL_WIDTH:
-                    self.column_widths[last_col_idx_in_merge] = DEFAULT_CELL_WIDTH
-                    needs_layout_update = True
-                    logger.info(f"Fusion (col {master_col_start}, span {colspan}) vidée/contenu non-texte, dernière col {last_col_idx_in_merge} réinitialisée à {DEFAULT_CELL_WIDTH}.")
-            
-            elif not is_slave: # Cellule simple vidée ou contenu non-texte
-                if self.column_widths[target_col_index] > DEFAULT_CELL_WIDTH:
-                    self.column_widths[target_col_index] = DEFAULT_CELL_WIDTH
-                    needs_layout_update = True
-                    logger.info(f"Colonne {target_col_index} vidée/contenu non-texte, réinitialisée à {DEFAULT_CELL_WIDTH}.")
-
-            if needs_layout_update:
-                preserved_content_before_resize = self._collect_current_content_details()
-                self._update_page_layout(preserved_content_details=preserved_content_before_resize)
+        # 3. Mettre à jour la disposition si un redimensionnement a eu lieu
+        if needs_layout_update_for_resize:
+            preserved_content_details_before_resize = self._collect_current_content_details()
+            self._update_page_layout(preserved_content_details=preserved_content_details_before_resize)
+        # --- Fin de la logique de redimensionnement ---
 
         logger.info(f"Contenu '{content_type}' (texte: '{actual_text if actual_text else ''}') appliqué à la cellule ({target_row},{target_col}).")
 
