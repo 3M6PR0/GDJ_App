@@ -1,0 +1,4 @@
+PyQt5
+cairosvg
+numpy
+numba

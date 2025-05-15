@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
-                             QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox)
+                             QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
+                             QStackedWidget)
 from PyQt5.QtCore import Qt, QDate, pyqtSignal
 from PyQt5.QtGui import QFont
 import logging
@@ -8,7 +9,10 @@ from datetime import datetime
 
 from models.documents.lamicoid.lamicoid import LamicoidDocument
 from models.documents.lamicoid.lamicoid_item import LamicoidItem
-from ui.components.lamicoid_item_card import LamicoidItemCardWidget
+from ui.components.lamicoid_display_widget import LamicoidDisplayWidget
+from ui.editors.disposition_editor_widget import DispositionEditorWidget
+from ui.editors.model_editor_widget import ModelEditorWidget
+from ui.components.frame import Frame
 from utils.signals import signals
 
 logger = logging.getLogger('GDJ_App')
@@ -25,7 +29,8 @@ class LamicoidPage(QWidget):
         self.editing_item_id = None # Aucun item en édition au départ
         
         self._init_ui()
-        self._load_and_display_items()
+        self._connect_signals()
+        self.lamicoid_display.update_display() # Appel initial pour afficher le placeholder
         logger.debug(f"LamicoidPage initialisée pour document: {document.file_name or 'Nouveau Lamicoid'}")
 
     def _init_ui(self):
@@ -35,30 +40,50 @@ class LamicoidPage(QWidget):
         page_layout.setSpacing(10)
 
         # --- Panneau Gauche (Formulaire d'édition/ajout) ---
-        left_panel = QFrame()
-        left_panel.setObjectName("LamicoidFormPanel")
-        left_panel.setFixedWidth(350) # Largeur fixe pour le formulaire
-        left_panel_layout = QVBoxLayout(left_panel)
-        left_panel_layout.setContentsMargins(5,5,5,5)
-        left_panel_layout.setSpacing(8)
+        # Création de l'en-tête pour le panneau gauche
+        left_header_widget = QWidget()
+        left_header_widget.setObjectName("FrameHeaderContainer")
+        left_header_layout = QVBoxLayout(left_header_widget) # QVBoxLayout pour empiler titre et combo
+        left_header_layout.setContentsMargins(0,0,0,0)
+        left_header_layout.setSpacing(5)
 
-        # Titre du panneau gauche (change si ajout ou édition)
         self.form_title_label = QLabel("Ajouter un nouvel item Lamicoid")
         self.form_title_label.setFont(QFont("Arial", 11, QFont.Bold))
-        left_panel_layout.addWidget(self.form_title_label)
+        self.form_title_label.setObjectName("CustomFrameTitle")
+        left_header_layout.addWidget(self.form_title_label)
 
-        # ComboBox pour type de Lamicoid (placeholder pour l'instant)
-        type_lamicoid_label = QLabel("Type de Lamicoid (Placeholder):")
-        self.type_lamicoid_combo = QComboBox()
-        self.type_lamicoid_combo.addItem("Standard Lamicoid Item") # Option par défaut
-        # self.type_lamicoid_combo.currentIndexChanged.connect(self._on_lamicoid_type_changed)
-        # Pour l'instant, ce combo ne fait rien
-        form_combo_layout = QHBoxLayout()
-        form_combo_layout.addWidget(type_lamicoid_label)
-        form_combo_layout.addWidget(self.type_lamicoid_combo)
-        left_panel_layout.addLayout(form_combo_layout)
+        type_lamicoid_combo_container = QWidget()
+        type_lamicoid_combo_layout = QHBoxLayout(type_lamicoid_combo_container)
+        type_lamicoid_combo_layout.setContentsMargins(0,0,0,0)
+        type_lamicoid_label = QLabel("Mode:")
+        self.mode_selection_combo = QComboBox()
+        self.mode_selection_combo.addItem("--- Sélectionner Mode ---")
+        self.mode_selection_combo.addItem("Disposition")
+        self.mode_selection_combo.addItem("Modèle")
+        self.mode_selection_combo.addItem("Lamicoid")
+        self.mode_selection_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        type_lamicoid_combo_layout.addWidget(type_lamicoid_label)
+        type_lamicoid_combo_layout.addWidget(self.mode_selection_combo, 1)
+        left_header_layout.addWidget(type_lamicoid_combo_container)
         
-        # Formulaire pour les champs de LamicoidItem
+        left_panel = Frame(header_widget=left_header_widget, parent=self)
+        # left_panel.setObjectName("LamicoidFormPanel") # RETIRÉ - Utilise "CustomFrame" de la classe Frame
+        left_panel.setFixedWidth(350) 
+        
+        # Obtenir le layout de contenu du Frame pour y ajouter nos éléments
+        left_panel_content_layout = left_panel.get_content_layout()
+        # Retirer les marges par défaut du content_layout si elles ne conviennent pas.
+        # Frame met déjà des marges (15,10,15,15). Ajuster si besoin.
+        # left_panel_content_layout.setContentsMargins(5,5,5,5) # Exemple d'ajustement
+        # left_panel_content_layout.setSpacing(8)
+
+        # --- Widget conteneur pour le formulaire d'ITEM Lamicoid ---
+        self.item_form_widget = QWidget(self) # Le parent est la LamicoidPage
+        item_form_widget_layout = QVBoxLayout(self.item_form_widget)
+        item_form_widget_layout.setContentsMargins(0,0,0,0) # Pas de marges pour ce conteneur interne
+        item_form_widget_layout.setSpacing(8)
+
+        # Formulaire pour les champs de LamicoidItem (déplacé dans item_form_widget_layout)
         self.form_layout = QFormLayout()
         self.form_layout.setSpacing(8)
         self.form_layout.setLabelAlignment(Qt.AlignLeft)
@@ -71,67 +96,199 @@ class LamicoidPage(QWidget):
         self.ref_edit = QLineEdit()
         self.form_layout.addRow("Numéro Réf.:", self.ref_edit)
         
-        self.desc_edit = QLineEdit() # Pourrait être QTextEdit pour plus d'espace
+        self.desc_edit = QLineEdit() 
         self.form_layout.addRow("Description:", self.desc_edit)
         
         self.qty_edit = QSpinBox()
         self.qty_edit.setRange(0, 9999)
-        self.qty_edit.setValue(1) # Valeur par défaut
+        self.qty_edit.setValue(1) 
         self.form_layout.addRow("Quantité:", self.qty_edit)
         
         self.material_edit = QLineEdit()
         self.form_layout.addRow("Matériel:", self.material_edit)
         
-        left_panel_layout.addLayout(self.form_layout)
-        left_panel_layout.addStretch(1) # Pousse les boutons vers le bas
+        item_form_widget_layout.addLayout(self.form_layout) # Ajout du form_layout au layout du widget d'item
+        item_form_widget_layout.addStretch(1) 
 
-        # Boutons pour le formulaire
+        # Boutons pour le formulaire d'item (déplacés dans item_form_widget_layout)
         form_buttons_layout = QHBoxLayout()
-        self.form_action_button = QPushButton("Ajouter Item") # Texte change en "Sauvegarder Item"
-        self.form_action_button.clicked.connect(self._handle_form_action_button)
+        self.form_action_button = QPushButton("Ajouter Item") 
+        # self.form_action_button.clicked.connect(self._handle_form_action_button) # Connexion dans _connect_signals
         self.form_cancel_button = QPushButton("Annuler")
-        self.form_cancel_button.clicked.connect(self._cancel_edit_mode)
-        self.form_cancel_button.setVisible(False) # Caché par défaut
+        # self.form_cancel_button.clicked.connect(self._cancel_edit_mode) # Connexion dans _connect_signals
+        self.form_cancel_button.setVisible(False) 
 
         form_buttons_layout.addStretch()
         form_buttons_layout.addWidget(self.form_cancel_button)
         form_buttons_layout.addWidget(self.form_action_button)
-        left_panel_layout.addLayout(form_buttons_layout)
+        item_form_widget_layout.addLayout(form_buttons_layout)
+        # --- Fin du widget conteneur pour le formulaire d'ITEM Lamicoid ---
+
+
+        # --- Widget conteneur pour le formulaire de DÉFINITION DE DISPOSITION ---
+        self.disposition_definition_widget = QWidget(self) # RENOMMÉ de template_definition_widget
+        disposition_definition_layout = QVBoxLayout(self.disposition_definition_widget)
+        disposition_definition_layout.setContentsMargins(0,0,0,0)
+        disposition_definition_layout.setSpacing(8)
+
+        self.disposition_form_layout = QFormLayout() # RENOMMÉ de template_form_layout
+        self.disposition_form_layout.setSpacing(8)
+        self.disposition_form_layout.setLabelAlignment(Qt.AlignLeft)
+
+        self.disposition_name_edit = QLineEdit() # RENOMMÉ de template_name_edit
+        self.disposition_form_layout.addRow("Nom de la Disposition:", self.disposition_name_edit) 
+        
+        disposition_definition_layout.addLayout(self.disposition_form_layout)
+
+        # --- Cadre pour la gestion de la grille ---
+        self.grid_management_frame = QFrame(self)
+        self.grid_management_frame.setObjectName("GridManagementFrame")
+        grid_management_layout = QHBoxLayout(self.grid_management_frame)
+        grid_management_layout.setContentsMargins(0, 5, 0, 5)
+        grid_management_layout.setSpacing(10)
+
+        self.add_row_button = QPushButton("Ajouter Rangée")
+        self.add_column_button = QPushButton("Ajouter Colonne")
+        self.merge_cells_button = QPushButton("Fusionner Cellules Sélectionnées")
+        
+        grid_management_layout.addWidget(self.add_row_button)
+        grid_management_layout.addWidget(self.add_column_button)
+        grid_management_layout.addWidget(self.merge_cells_button)
+        grid_management_layout.addStretch()
+
+        disposition_definition_layout.addWidget(self.grid_management_frame)
+        # --- Fin du cadre pour la gestion de la grille ---
+
+        # Frame pour le bouton "Ajouter Zone"
+        self.add_zone_frame = QFrame(self)
+        add_zone_frame_layout = QHBoxLayout(self.add_zone_frame)
+        add_zone_frame_layout.setContentsMargins(0,5,0,0) # Un peu de marge au-dessus
+        self.add_zone_button = QPushButton("Ajouter Zone à la Disposition")
+        self.add_zone_button.setObjectName("ActionButton") # Style optionnel
+        add_zone_frame_layout.addWidget(self.add_zone_button)
+        add_zone_frame_layout.addStretch()
+        disposition_definition_layout.addWidget(self.add_zone_frame)
+        disposition_definition_layout.addStretch(1) # Remettre un stretch après le bouton
+
+        disposition_buttons_layout = QHBoxLayout() 
+        self.save_disposition_button = QPushButton("Sauvegarder Disposition") 
+        self.cancel_disposition_button = QPushButton("Annuler Définition") 
+        
+        disposition_buttons_layout.addStretch()
+        disposition_buttons_layout.addWidget(self.cancel_disposition_button)
+        disposition_buttons_layout.addWidget(self.save_disposition_button)
+        disposition_definition_layout.addLayout(disposition_buttons_layout)
+        # --- Fin du widget conteneur pour la DÉFINITION DE DISPOSITION ---
+
+        # --- Widget conteneur pour le formulaire de DÉFINITION DE MODÈLE (Placeholder) ---
+        self.model_definition_widget = QWidget(self)
+        model_definition_layout = QVBoxLayout(self.model_definition_widget)
+        model_definition_layout.setContentsMargins(0,0,0,0)
+        model_definition_layout.setSpacing(8)
+
+        self.model_form_layout = QFormLayout()
+        self.model_form_layout.setSpacing(8)
+        self.model_form_layout.setLabelAlignment(Qt.AlignLeft)
+
+        self.model_name_edit = QLineEdit()
+        self.model_form_layout.addRow("Nom du Modèle:", self.model_name_edit)
+        self.base_disposition_combo = QComboBox() # Pour choisir la disposition de base
+        self.model_form_layout.addRow("Disposition de base:", self.base_disposition_combo)
+        
+        model_definition_layout.addLayout(self.model_form_layout)
+        model_definition_layout.addStretch(1)
+
+        model_buttons_layout = QHBoxLayout()
+        self.save_model_button = QPushButton("Sauvegarder Modèle")
+        self.cancel_model_button = QPushButton("Annuler Définition")
+        model_buttons_layout.addStretch()
+        model_buttons_layout.addWidget(self.cancel_model_button)
+        model_buttons_layout.addWidget(self.save_model_button)
+        model_definition_layout.addLayout(model_buttons_layout)
+        # --- Fin du widget conteneur pour la DÉFINITION DE MODÈLE ---
+
+        # Ajout des trois widgets conteneurs de formulaire au layout du panneau de gauche.
+        left_panel_content_layout.addWidget(self.item_form_widget)
+        left_panel_content_layout.addWidget(self.disposition_definition_widget)
+        left_panel_content_layout.addWidget(self.model_definition_widget)
+
+        self.disposition_definition_widget.hide()
+        self.model_definition_widget.hide()
+        # self.item_form_widget reste visible par défaut
         
         page_layout.addWidget(left_panel)
 
         # --- Panneau Droit (Liste des items sous forme de cartes) ---
-        right_panel = QFrame()
-        right_panel.setObjectName("LamicoidListPanel")
-        right_panel_layout = QVBoxLayout(right_panel)
-        right_panel_layout.setContentsMargins(0,0,0,0)
-
+        # Création de l'en-tête pour le panneau droit
+        right_header_widget = QWidget()
+        right_header_widget.setObjectName("FrameHeaderContainer")
+        right_header_layout = QHBoxLayout(right_header_widget)
+        right_header_layout.setContentsMargins(0,0,0,0) # Pas de marges pour le widget d'en-tête lui-même
+        
         list_title_label = QLabel("Liste des Items Lamicoid")
         list_title_label.setFont(QFont("Arial", 11, QFont.Bold))
-        right_panel_layout.addWidget(list_title_label)
+        list_title_label.setObjectName("CustomFrameTitle")
+        right_header_layout.addWidget(list_title_label)
+        right_header_layout.addStretch()
+        # On pourrait ajouter un compteur d'items ici, comme dans RapportDepensePage
 
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setObjectName("LamicoidListScrollArea")
-
-        self.cards_container_widget = QWidget() # Widget qui contiendra le layout des cartes
-        self.cards_container_widget.setObjectName("CardsContainer")
-        self.cards_container_layout = QVBoxLayout(self.cards_container_widget)
-        self.cards_container_layout.setAlignment(Qt.AlignTop) # Les cartes s'empilent en haut
-        self.cards_container_layout.setSpacing(5)
+        right_panel = Frame(header_widget=right_header_widget, parent=self)
+        # right_panel.setObjectName("LamicoidListPanel") # RETIRÉ - Utilise "CustomFrame" de la classe Frame
         
-        self.scroll_area.setWidget(self.cards_container_widget)
-        right_panel_layout.addWidget(self.scroll_area)
-        page_layout.addWidget(right_panel, 1) # Le panneau droit prend l'espace restant
+        right_panel_content_layout = right_panel.get_content_layout()
+        # right_panel_content_layout.setContentsMargins(0,0,0,0) # Ajuster si les marges par défaut de Frame ne vont pas
 
-        # Bouton de sauvegarde global du document (en bas du panneau de droite ou ailleurs)
-        # Pour l'instant, plaçons-le sous la liste des cartes.
+        # Création du QStackedWidget pour le panneau de droite
+        self.right_display_stack = QStackedWidget(self)
+
+        # Page 1: Affichage des items Lamicoid (existant)
+        self.lamicoid_display = LamicoidDisplayWidget(self.document, self)
+        self.right_display_stack.addWidget(self.lamicoid_display)
+
+        # Page 2: Éditeur de Disposition (pour mode Disposition)
+        self.disposition_editor_widget = DispositionEditorWidget(self)
+        self.right_display_stack.addWidget(self.disposition_editor_widget)
+
+        # Page 3: Éditeur de Modèle (pour mode Modèle)
+        self.model_editor_widget = ModelEditorWidget(self)
+        self.right_display_stack.addWidget(self.model_editor_widget)
+        
+        right_panel_content_layout.addWidget(self.right_display_stack)
+        
+        self.right_display_stack.setCurrentWidget(self.lamicoid_display)
+
+        page_layout.addWidget(right_panel, 1) 
+
+        # Bouton de sauvegarde global du document
+        # Je le déplace hors du panneau droit pour qu'il soit en bas de la page_layout.
+        # Ou alors, on le met dans le content_layout du right_panel, mais APRES la scrollArea.
+        
         self.save_document_button = QPushButton("Sauvegarder Document Lamicoid")
         self.save_document_button.clicked.connect(self._save_document_clicked)
-        right_panel_layout.addWidget(self.save_document_button)
+        # Pour le mettre en bas du panneau de droite, APRES la scroll area :
+        right_panel_content_layout.addWidget(self.save_document_button, 0, Qt.AlignBottom)
+
+        # Si on le veut en bas de TOUTE la page (sous les deux panneaux):
+        # On créerait un QVBoxLayout global pour page_layout, puis ajouter le bouton après.
+        # Pour l'instant, laissons le en bas du panneau droit.
         
         self.setLayout(page_layout)
+
+    def _connect_signals(self):
+        self.form_action_button.clicked.connect(self._handle_form_action_button)
+        self.form_cancel_button.clicked.connect(self._cancel_edit_mode)
+        self.save_document_button.clicked.connect(self._save_document_clicked)
+        self.mode_selection_combo.currentTextChanged.connect(self._on_mode_selected)
+        self.save_disposition_button.clicked.connect(self._handle_save_disposition_action)
+        self.cancel_disposition_button.clicked.connect(self._handle_cancel_disposition_action)
+        self.save_model_button.clicked.connect(self._handle_save_model_action)
+        self.cancel_model_button.clicked.connect(self._handle_cancel_model_action)
+        self.add_zone_button.clicked.connect(self._handle_add_zone_to_disposition_action)
+
+        # Connexions pour les nouveaux boutons de grille
+        self.add_row_button.clicked.connect(self._handle_add_row_to_disposition)
+        self.add_column_button.clicked.connect(self._handle_add_column_to_disposition)
+        self.merge_cells_button.clicked.connect(self._handle_merge_cells_action)
 
     def _clear_form_fields(self):
         self.date_edit.setDate(QDate.currentDate())
@@ -139,7 +296,8 @@ class LamicoidPage(QWidget):
         self.desc_edit.clear()
         self.qty_edit.setValue(1)
         self.material_edit.clear()
-        self.type_lamicoid_combo.setCurrentIndex(0) # Réinitialiser au type par défaut
+        # self.type_lamicoid_combo.setCurrentIndex(0) # On ne réinitialise plus systématiquement le combo ici
+                                                    # car l'action peut venir du combo lui-même.
 
     def _populate_form_fields(self, item: LamicoidItem):
         self.date_edit.setDate(QDate.fromString(item.date_item, "yyyy-MM-dd"))
@@ -149,25 +307,6 @@ class LamicoidPage(QWidget):
         self.material_edit.setText(item.materiel or "")
         # La sélection du type de Lamicoid pourrait être mise à jour ici si elle était dynamique
 
-    def _load_and_display_items(self):
-        # Vider les cartes existantes
-        while self.cards_container_layout.count():
-            child = self.cards_container_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-        
-        # Créer et ajouter les nouvelles cartes
-        if self.document and self.document.items:
-            for item in self.document.items:
-                card = LamicoidItemCardWidget(item, self.cards_container_widget)
-                card.edit_requested.connect(self._handle_edit_item_request)
-                card.delete_requested.connect(self._handle_delete_item_request)
-                self.cards_container_layout.addWidget(card)
-        # Ajouter un spacer pour pousser les cartes vers le haut si peu nombreuses
-        # self.cards_container_layout.addStretch(1) 
-        # Attention: un stretch permanent peut être problématique si on ajoute/supprime beaucoup.
-        # Il est souvent mieux de juste laisser les widgets s'empiler naturellement avec AlignTop.
-
     def _enter_edit_mode(self, item: LamicoidItem):
         self.editing_item_id = item.id_item
         self._populate_form_fields(item)
@@ -175,6 +314,8 @@ class LamicoidPage(QWidget):
         self.form_action_button.setText("Sauvegarder Item")
         self.form_cancel_button.setVisible(True)
         logger.debug(f"Entrée en mode édition pour item ID: {item.id_item}")
+        # Lorsqu'on édite un item, on pourrait essayer de sélectionner son type si cette info était stockée.
+        # Pour l'instant, on laisse le combobox de type tel quel.
 
     def _exit_edit_mode(self):
         self.editing_item_id = None
@@ -183,21 +324,47 @@ class LamicoidPage(QWidget):
         self.form_action_button.setText("Ajouter Item")
         self.form_cancel_button.setVisible(False)
         logger.debug("Sortie du mode édition.")
+        # self.type_lamicoid_combo.setCurrentIndex(0) # Pas de réinitialisation ici non plus
 
     def _cancel_edit_mode(self):
         self._exit_edit_mode()
+        self.mode_selection_combo.setCurrentIndex(0) 
+        # S'assurer que le formulaire d'item est visible et celui de template caché
+        self.disposition_definition_widget.hide()
+        self.model_definition_widget.hide()
+        self.item_form_widget.show()
+        self.form_title_label.setText("Ajouter un nouvel item Lamicoid") # Titre par défaut
+
+    def _on_mode_selected(self, selected_mode: str):
+        logger.debug(f"Mode sélectionné: {selected_mode}")
+        self._ensure_correct_view_for_mode(selected_mode)
+        
+        # Logique additionnelle si nécessaire à la sélection d'un mode
+        if selected_mode == "Disposition":
+            self.disposition_name_edit.clear() # Toujours commencer avec un nom vide pour une nouvelle disposition ? Ou charger ?
+        elif selected_mode == "Modèle":
+            self.model_name_edit.clear()
+            # TODO: Charger la liste des dispositions disponibles dans self.base_disposition_combo
+            # Exemple : self.base_disposition_combo.clear(); self.base_disposition_combo.addItems(["Disp1", "Disp2"])
+            pass
+        elif selected_mode == "Lamicoid":
+            # TODO: Peut-être charger une liste de modèles disponibles dans un autre ComboBox (non existant)
+            # Pour l'instant, le formulaire d'item est générique.
+            pass
 
     def _handle_form_action_button(self):
-        # Récupérer les données du formulaire
+        if not self.item_form_widget.isVisible():
+            logger.warning("Action de formulaire d'item appelée alors qu'il n'est pas visible.")
+            return
+        # Logique existante pour ajouter/mettre à jour un LamicoidItem (déjà présente et correcte)
         date_val = self.date_edit.date().toString("yyyy-MM-dd")
         ref_val = self.ref_edit.text().strip()
         desc_val = self.desc_edit.text().strip()
         qty_val = self.qty_edit.value()
         material_val = self.material_edit.text().strip()
 
-        # Validation simple (à améliorer)
         if not ref_val:
-            QMessageBox.warning(self, "Champ manquant", "Le numéro de référence est requis.")
+            QMessageBox.warning(self, "Champ manquant", "Le numéro de référence est requis pour un Lamicoid.")
             self.ref_edit.setFocus()
             return
         if qty_val <= 0:
@@ -207,7 +374,6 @@ class LamicoidPage(QWidget):
 
         try:
             if self.editing_item_id:
-                # Mode Édition
                 item_to_update = self.document.get_item_by_id(self.editing_item_id)
                 if item_to_update:
                     item_to_update.date_item = date_val
@@ -215,18 +381,12 @@ class LamicoidPage(QWidget):
                     item_to_update.description = desc_val
                     item_to_update.quantite = qty_val
                     item_to_update.materiel = material_val
-                    # Notifier la carte correspondante de mettre à jour son affichage
-                    for i in range(self.cards_container_layout.count()):
-                        widget = self.cards_container_layout.itemAt(i).widget()
-                        if isinstance(widget, LamicoidItemCardWidget) and widget.get_item().id_item == self.editing_item_id:
-                            widget.update_data(item_to_update) # Mettre à jour les données de la carte
-                            break
+                    self.lamicoid_display.update_display()
                     logger.info(f"Item Lamicoid ID '{self.editing_item_id}' mis à jour.")
                 else:
                     logger.error(f"Impossible de trouver l'item ID '{self.editing_item_id}' pour la mise à jour.")
                 self._exit_edit_mode()
             else:
-                # Mode Ajout
                 new_item = LamicoidItem(
                     date_item=date_val,
                     numero_reference=ref_val,
@@ -235,23 +395,12 @@ class LamicoidPage(QWidget):
                     materiel=material_val
                 )
                 self.document.add_item(new_item)
-                # Ajouter une nouvelle carte (au lieu de tout recharger pour l'instant)
-                card = LamicoidItemCardWidget(new_item, self.cards_container_widget)
-                card.edit_requested.connect(self._handle_edit_item_request)
-                card.delete_requested.connect(self._handle_delete_item_request)
-                self.cards_container_layout.addWidget(card)
+                self.lamicoid_display.update_display()
                 logger.info(f"Nouvel item Lamicoid ajouté: {new_item.id_item}")
                 self._clear_form_fields()
-            
-            # Optionnel: Défiler vers le bas si une nouvelle carte est ajoutée
-            # self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
-
         except Exception as e:
             logger.error(f"Erreur lors de l'ajout/modification de l'item Lamicoid: {e}", exc_info=True)
             QMessageBox.critical(self, "Erreur", f"Une erreur est survenue: {e}")
-
-    def _handle_edit_item_request(self, item: LamicoidItem):
-        self._enter_edit_mode(item)
 
     def _handle_delete_item_request(self, item_to_delete: LamicoidItem):
         reply = QMessageBox.question(self, "Confirmation de suppression", 
@@ -261,13 +410,7 @@ class LamicoidPage(QWidget):
             if self.document.remove_item(item_to_delete.id_item):
                 logger.info(f"Item Lamicoid ID '{item_to_delete.id_item}' supprimé du document.")
                 # Retrouver et supprimer la carte de l'UI
-                for i in range(self.cards_container_layout.count()):
-                    widget = self.cards_container_layout.itemAt(i).widget()
-                    if isinstance(widget, LamicoidItemCardWidget) and widget.get_item().id_item == item_to_delete.id_item:
-                        widget.deleteLater()
-                        self.cards_container_layout.takeAt(i) # Retirer du layout
-                        logger.debug(f"Carte pour item ID '{item_to_delete.id_item}' supprimée de l'UI.")
-                        break
+                self.lamicoid_display.update_display()
                 if self.editing_item_id == item_to_delete.id_item: # Si on supprime l'item en cours d'édition
                     self._exit_edit_mode()
             else:
@@ -312,6 +455,137 @@ class LamicoidPage(QWidget):
     def can_close(self) -> bool:
         # TODO: Vérifier modifications non sauvegardées
         return True
+
+    def _handle_global_save_request(self, doc_type: str, file_path: str):
+        if self.document and file_path == self.document.file_name:
+            logger.info(f"Requête de sauvegarde globale interceptée pour {file_path}, type {doc_type}")
+            self._try_save_document(auto=True, show_success_message=False) # Sauvegarde silencieuse
+
+    def _try_save_document(self, auto=False, show_success_message=True):
+        if self.document:
+            try:
+                self.document.save() # Le chemin est déjà dans l'objet document
+                logger.info(f"Document Lamicoid '{self.document.file_name}' sauvegardé.")
+                if not auto and show_success_message:
+                    QMessageBox.information(self, "Sauvegarde", "Document Lamicoid sauvegardé avec succès.")
+                self.document_saved_signal.emit(self.document.file_name) # Émettre le signal de sauvegarde
+            except Exception as e:
+                logger.error(f"Erreur lors de la sauvegarde du document Lamicoid '{self.document.file_name}': {e}")
+                if not auto:
+                    QMessageBox.critical(self, "Erreur de Sauvegarde", f"Impossible de sauvegarder le document: {e}")
+        else:
+            logger.warning("Tentative de sauvegarde, mais aucun document Lamicoid n'est chargé.")
+            if not auto:
+                QMessageBox.warning(self, "Sauvegarde impossible", "Aucun document à sauvegarder.")
+
+    def _handle_save_disposition_action(self):
+        disposition_name = self.disposition_name_edit.text().strip()
+        if not disposition_name:
+            QMessageBox.warning(self, "Nom manquant", "Veuillez donner un nom à la disposition.")
+            self.disposition_name_edit.setFocus()
+            return
+        logger.info(f"Action: Sauvegarder Disposition - Nom: {disposition_name}")
+        # disposition_data = self.disposition_editor_widget.get_disposition_data()
+        # ... logique de sauvegarde ...
+        QMessageBox.information(self, "Disposition", f"Sauvegarde de la disposition '{disposition_name}' (et de ses zones) à implémenter.")
+        # Après sauvegarde, on pourrait revenir au mode Lamicoid ou Modèle par défaut
+        self.mode_selection_combo.setCurrentIndex(0) # Retour à "--- Sélectionner Mode ---"
+        self._ensure_correct_view_for_mode("--- Sélectionner Mode ---")
+
+    def _handle_cancel_disposition_action(self):
+        logger.info("Action: Annuler Définition de Disposition")
+        self.mode_selection_combo.setCurrentIndex(0) # Retour à "--- Sélectionner Mode ---"
+        self._ensure_correct_view_for_mode("--- Sélectionner Mode ---")
+
+    def _handle_save_model_action(self):
+        model_name = self.model_name_edit.text().strip()
+        base_disposition = self.base_disposition_combo.currentText() # À peupler et valider
+        if not model_name:
+            QMessageBox.warning(self, "Nom manquant", "Veuillez donner un nom au modèle.")
+            self.model_name_edit.setFocus()
+            return
+        if self.base_disposition_combo.currentIndex() == 0: # Supposant que l'index 0 est un placeholder
+            QMessageBox.warning(self, "Disposition manquante", "Veuillez sélectionner une disposition de base pour le modèle.")
+            self.base_disposition_combo.setFocus()
+            return
+        logger.info(f"Action: Sauvegarder Modèle - Nom: {model_name}, Base: {base_disposition}")
+        # model_data = self.model_editor_widget.get_model_data()
+        # ... logique de sauvegarde ...
+        QMessageBox.information(self, "Modèle", f"Sauvegarde du modèle '{model_name}' (basé sur {base_disposition}) à implémenter.")
+        self.mode_selection_combo.setCurrentIndex(0) # Retour à "--- Sélectionner Mode ---"
+        self._ensure_correct_view_for_mode("--- Sélectionner Mode ---")
+
+    def _handle_cancel_model_action(self):
+        logger.info("Action: Annuler Définition de Modèle")
+        self.mode_selection_combo.setCurrentIndex(0) # Retour à "--- Sélectionner Mode ---"
+        self._ensure_correct_view_for_mode("--- Sélectionner Mode ---")
+
+    def _handle_add_zone_to_disposition_action(self):
+        logger.info("Action: Ajouter Zone à la Disposition")
+        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
+            self.disposition_editor_widget.add_new_zone()
+        else:
+            logger.warning("Tentative d'ajouter une zone alors que l'éditeur de disposition n'est pas actif.")
+            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour ajouter une zone.")
+
+    def _handle_add_row_to_disposition(self):
+        logger.info("Action: Ajouter Rangée à la Disposition")
+        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
+            self.disposition_editor_widget.add_row() # Méthode à créer dans DispositionEditorWidget
+        else:
+            logger.warning("Tentative d'ajouter une rangée alors que l'éditeur de disposition n'est pas actif.")
+            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
+
+    def _handle_add_column_to_disposition(self):
+        logger.info("Action: Ajouter Colonne à la Disposition")
+        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
+            self.disposition_editor_widget.add_column() # Méthode à créer dans DispositionEditorWidget
+        else:
+            logger.warning("Tentative d'ajouter une colonne alors que l'éditeur de disposition n'est pas actif.")
+            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
+
+    def _handle_merge_cells_action(self):
+        if self.disposition_editor_widget:
+            logger.info("Action: Fusionner Cellules")
+            self.disposition_editor_widget.merge_selected_cells()
+        else:
+            logger.warning("Tentative de fusion de cellules sans éditeur de disposition actif.")
+
+    def _ensure_correct_view_for_mode(self, mode: str):
+        self.item_form_widget.hide()
+        self.disposition_definition_widget.hide()
+        self.model_definition_widget.hide()
+
+        # Cacher/afficher le bouton "Ajouter Zone" en fonction du mode
+        self.add_zone_frame.setVisible(mode == "Disposition")
+        self.grid_management_frame.setVisible(mode == "Disposition") # Afficher/cacher aussi ce cadre
+
+        if mode == "Disposition":
+            self.disposition_definition_widget.show()
+            self.disposition_name_edit.setFocus()
+            self.form_title_label.setText("Nouvelle/Édition Disposition")
+            self.right_display_stack.setCurrentWidget(self.disposition_editor_widget)
+            self.disposition_editor_widget.load_disposition() # TODO: Charger la disposition sélectionnée ou une nouvelle
+        elif mode == "Modèle":
+            self.model_definition_widget.show()
+            self.model_name_edit.setFocus()
+            self.form_title_label.setText("Nouveau/Édition Modèle")
+            self.right_display_stack.setCurrentWidget(self.model_editor_widget)
+            # TODO: Charger les dispositions dans self.base_disposition_combo
+            # self.model_editor_widget.load_model() # TODO: Charger le modèle sélectionné ou un nouveau
+        elif mode == "Lamicoid":
+            self.item_form_widget.show()
+            # Si on n'est pas en mode édition d'item, clearer le formulaire
+            if not self.editing_item_id:
+                self._clear_form_fields()
+            self.form_title_label.setText("Nouvel Item Lamicoid" if not self.editing_item_id else "Modifier Item Lamicoid")
+            self.right_display_stack.setCurrentWidget(self.lamicoid_display)
+            self.lamicoid_display.update_display() # S'assurer que l'affichage est à jour
+        else: # "--- Sélectionner Mode ---" ou état inconnu
+            self.item_form_widget.show() # Par défaut, montrer le formulaire d'item (peut-être vide/désactivé)
+            self.form_title_label.setText("Prêt - Sélectionnez un mode")
+            self.right_display_stack.setCurrentWidget(self.lamicoid_display)
+            self._clear_form_fields()
 
 # Retrait de l'ancien main de test qui utilisait QTableView
 
