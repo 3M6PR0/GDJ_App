@@ -78,7 +78,7 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
             
             # 1. --- MODIFICATION: Hardcoder les types de documents --- 
             # self.document_types = config.document_types # <- SUPPRIMÉ
-            self.document_types = ["Rapport de depense", "CSA"] # <- HARDCODÉ avec CSA
+            self.document_types = ["Rapport de depense", "CSA", "Lamicoid"] # <- HARDCODÉ avec CSA
             logger.debug(f"  TypeSelectionController: Types récupérés de ConfigData: {self.document_types}")
             logger.debug(f"  DTSC: Types HARDCODÉS: {self.document_types}")
             # --------------------------------------------------------
@@ -223,6 +223,12 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
         elif selected_type == "CSA":
             logger.debug(f"Détermination des champs pour: {selected_type} (aucun champ requis)")
             fields_structure_list = [] # Aucun champ pour CSA
+        # --- AJOUT DU CAS LAMICOID ---
+        elif selected_type == "Lamicoid":
+            logger.debug(f"Détermination des champs pour: {selected_type}")
+            fields_structure_list = [
+                "date", "numero_reference" # Champs pour Lamicoid
+            ]
         else:
             # Cas où le type sélectionné n'est pas géré ici (ou si la string est vide)
             if selected_type:

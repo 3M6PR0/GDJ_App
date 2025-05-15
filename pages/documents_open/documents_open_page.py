@@ -23,11 +23,13 @@ from ui.components.draggable_tab_bar import DraggableTabBar
 # --- Importer les templates --- 
 # (Il faudra les importer dynamiquement ou tous les importer ici)
 from pages.templates.rapport_depense_page import RapportDepensePage
+from pages.templates.lamicoid_page import LamicoidPage # AJOUT IMPORT
 # from pages.templates.ecriture_comptable_page import EcritureComptablePage # Exemple
 # ... autres imports ...
 
 # --- CORRECTION IMPORT --- 
 from models.documents.rapport_depense.rapport_depense import RapportDepense
+from models.documents.lamicoid.lamicoid import LamicoidDocument # AJOUT IMPORT
 # -------------------------
 
 logger = logging.getLogger('GDJ_App') # OBTENIR LE LOGGER
@@ -170,6 +172,7 @@ class DocumentsOpenPage(QWidget):
         
         doc_type_display = "Aucun document"
         is_rapport_depense = False
+        is_lamicoid = False # AJOUT
         active_document = None
         
         if current_widget:
@@ -181,6 +184,9 @@ class DocumentsOpenPage(QWidget):
                     # --- Correction Titre: Utiliser le type explicitement ---
                     doc_type_display = "Rapport de dépense" 
                     # ------------------------------------------------------
+                elif isinstance(active_document, LamicoidDocument): # AJOUT
+                    is_lamicoid = True # AJOUT
+                    doc_type_display = "Lamicoid" # AJOUT
                 elif active_document is not None:
                     # Utiliser le nom de la classe pour les autres types
                     doc_type_display = type(active_document).__name__.replace('_', ' ').capitalize() 
@@ -224,9 +230,18 @@ class DocumentsOpenPage(QWidget):
             self.sidebar_labels.get("superviseur").setText(active_document.superviseur or "-")
             self.sidebar_labels.get("plafond_deplacement").setText(str(active_document.plafond_deplacement) or "-") # Assurer str
 
+        elif is_lamicoid and active_document:
+            # Vider les labels si ce n'est pas un RapportDepense (ou Lamicoid avec infos spécifiques)
+            for key, label in self.sidebar_labels.items():
+                if key == "nom_employe": # Exemple: utiliser "nom_employe" pour afficher le profil Lamicoid
+                    label.setText(active_document.profile_name or "-")
+                elif key == "date_rapport": # Exemple: utiliser "date_rapport" pour la date de création
+                    label.setText(active_document.date_creation_doc.strftime("%Y-%m-%d") if active_document.date_creation_doc else "-")
+                else:
+                    label.setText("-") # Vider les autres champs non pertinents pour Lamicoid
         else:
-            # Vider les labels si ce n'est pas un RapportDepense
-            for label in self.sidebar_labels.values():
+            # Vider les labels si ce n'est pas un RapportDepense (ou Lamicoid avec active_document, ou pas d'active_document)
+            for key, label in self.sidebar_labels.items():
                 label.setText("-")
 
     def add_new_document_to_tabs(self, doc_type: str, doc_data: dict):
@@ -250,50 +265,96 @@ class DocumentsOpenPage(QWidget):
                     tab_title = document_to_pass.title if document_to_pass.title else "Rapport de dépense"
                     logger.info(f"Chargement d'un RapportDepense existant: {tab_title}")
                 else:
-                    # Logique existante pour créer un NOUVEAU RapportDepense
-                    # from models.documents.rapport_depense.rapport_depense import RapportDepense # Déjà importé globalement
-                    from datetime import datetime # Importer datetime ici aussi
+                    # Logique de création pour RapportDeDepense...
+                    nom = doc_data.get('nom', '')
+                    prenom = doc_data.get('prenom', '')
+                    date_str = doc_data.get('date', datetime.now().strftime('%Y-%m')) # ex: "2023-12"
+                    
+                    # Construction du titre
+                    title_parts = [doc_type]
+                    if nom and prenom:
+                        title_parts.append(f"{nom} {prenom}")
+                    title_parts.append(date_str)
+                    tab_title = " - ".join(title_parts)
+
+                    # Convertir la date du formulaire (ex: "Décembre-2023") en objet date pour le modèle
                     try:
-                        nom_fichier_initial = doc_data.get('nom_fichier', f"NouveauRapport_{datetime.now().strftime('%Y%m%d%H%M%S')}.rdj")
-                        date_rapport_str = doc_data.get("date", datetime.now().strftime("%Y-%m"))
-                        
-                        logger.debug(f"[DATE_DEBUG] DOP._create_tab (nouveau) - Date string: '{date_rapport_str}'")
-                        try:
-                            year, month = map(int, date_rapport_str.split('-'))
-                            date_rapport_obj = date(year, month, 1) # Premier jour du mois
-                        except ValueError:
-                            logger.error(f"Format de date invalide '{date_rapport_str}'. Utilisation de la date actuelle.")
-                            current_dt = datetime.now()
-                            date_rapport_obj = date(current_dt.year, current_dt.month, 1)
+                        month_str, year_str = doc_data['date'].split('-')
+                        month_int = MONTHS.index(month_str) + 1
+                        report_date = date(int(year_str), month_int, 1) # 1er jour du mois
+                    except (ValueError, KeyError, AttributeError) as e:
+                        logger.warning(f"Date invalide pour nouveau Rapport de Dépense: {doc_data.get('date')}, erreur: {e}. Utilisation de la date actuelle.")
+                        report_date = date.today() # Fallback
 
-                        document_to_pass = RapportDepense(
-                            nom_fichier=nom_fichier_initial, # Nom initial, sera mis à jour à la sauvegarde
-                            date_rapport=date_rapport_obj,
-                            nom_employe=str(doc_data.get("nom", "")) + " " + str(doc_data.get("prenom", "")),
-                            prenom_employe=str(doc_data.get("prenom", "")),
-                            emplacement=str(doc_data.get("emplacements", "")),
-                            departement=str(doc_data.get("departements", "")),
-                            superviseur=str(doc_data.get("superviseurs", "")),
-                            plafond_deplacement=str(doc_data.get("plafond_deplacement", ""))
-                            # title est généré par le constructeur de RapportDepense si non fourni
-                        )
-                        tab_title = document_to_pass.title # Utiliser le titre généré
-                        logger.info(f"Création d'un nouveau RapportDepense: {tab_title}")
+                    # Générer un nom de fichier initial pour un nouveau rapport
+                    # Ce nom sera utilisé par le constructeur et pourra être mis à jour lors de la première sauvegarde réelle.
+                    current_time_str = datetime.now().strftime("%Y%m%d%H%M%S")
+                    initial_file_name = f"RapportDepense_{current_time_str}.rdj"
 
-                    except Exception as e_create_new:
-                        logger.error(f"Erreur lors de la création d'un NOUVEAU RapportDepense: {e_create_new}", exc_info=True)
-                        # Afficher une erreur à l'utilisateur ?
-                        self.add_document_tab(QLabel(f"Erreur création: {e_create_new}"), "Erreur")
-                        return
-                
-                # Instancier la page avec le document (nouveau ou chargé)
-                if document_to_pass:
-                    # TODO: S'assurer que RapportDepensePage accepte bien 'document' en argument
-                    page_widget = RapportDepensePage(document=document_to_pass) 
+                    document_to_pass = RapportDepense(
+                        nom_fichier=initial_file_name, # RESTAURÉ ET FOURNI
+                        title=tab_title, 
+                        nom_employe=doc_data.get('nom'),
+                        prenom_employe=doc_data.get('prenom'),
+                        date_rapport=report_date, 
+                        emplacement=doc_data.get('emplacements'),
+                        departement=doc_data.get('departements'),
+                        superviseur=doc_data.get('superviseurs'),
+                        plafond_deplacement=doc_data.get('plafond_deplacement'),
+                    )
+                page_widget = RapportDepensePage(document=document_to_pass)
+            
+            elif doc_type == "Lamicoid": # AJOUT DE LA LOGIQUE POUR LAMICOID
+                if 'loaded_object' in doc_data and isinstance(doc_data['loaded_object'], LamicoidDocument):
+                    document_to_pass = doc_data['loaded_object']
+                    tab_title = document_to_pass.title if document_to_pass.title else "Lamicoid"
                 else:
-                    logger.error("document_to_pass est None après tentative de création/chargement de RapportDepense.")
-                    self.add_document_tab(QLabel("Erreur: Document non initialisé."), "Erreur")
-                    return
+                    # Création d'un nouveau LamicoidDocument
+                    numero_reference = doc_data.get('numero_reference', 'N/A')
+                    # La date dans doc_data est déjà au format "YYYY-MM-DD" ou "Mois-Année"
+                    # LamicoidDocument attend une date (objet date) pour date_creation_doc
+                    # et LamicoidItem attend une chaîne "YYYY-MM-DD" pour date_item
+                    date_creation_doc_obj = date.today() # Valeur par défaut
+                    date_form_value = doc_data.get('date', '') # ex: "Mai-2025" ou "2025-05-15"
+                    
+                    try:
+                        if '-' in date_form_value and any(m in date_form_value for m in MONTHS): # Format "Mois-Année"
+                            month_str, year_str = date_form_value.split('-')
+                            month_int = MONTHS.index(month_str) + 1
+                            date_creation_doc_obj = date(int(year_str), month_int, 1)
+                        elif '-' in date_form_value and len(date_form_value.split('-')) == 3 : # Format "YYYY-MM-DD"
+                             date_creation_doc_obj = date.fromisoformat(date_form_value)
+                        else: # Fallback ou format non reconnu
+                            logger.warning(f"Format de date non reconnu pour Lamicoid: {date_form_value}. Utilisation de la date du jour.")
+                    except (ValueError, KeyError, AttributeError, TypeError) as e:
+                        logger.warning(f"Date invalide pour nouveau Lamicoid: {date_form_value}, erreur: {e}. Utilisation de la date du jour.")
+
+                    # Pour un nouveau Lamicoid, le nom de fichier est initialement basé sur la référence et la date
+                    # La sauvegarde finale utilisera le titre complet.
+                    # profile_name est déterminé par le système de préférences, non directement ici.
+                    # Pour l'instant, laissons Preference s'en charger.
+                    
+                    # Tentative de récupérer profile_name depuis les données (si passé par DocumentsTypeSelectionController)
+                    # Sinon, LamicoidDocument utilisera celui des préférences par défaut.
+                    profile_name = doc_data.get('profile_name', None)
+
+
+                    base_file_name = f"Lamicoid_{numero_reference}_{date_creation_doc_obj.strftime('%Y-%m-%d')}.json"
+                    default_title = f"Lamicoid - {numero_reference} ({date_creation_doc_obj.strftime('%Y-%m-%d')})"
+
+                    document_to_pass = LamicoidDocument(
+                        file_name=base_file_name, # MODIFIÉ: nom_fichier -> file_name
+                        title=default_title,
+                        date_creation_doc=date_creation_doc_obj,
+                        # profile_name est géré par LamicoidDocument via Preference si non fourni ici explicitement
+                        # ou si on l'ajoutait comme argument à LamicoidDocument.__init__
+                    )
+                    if profile_name: # Si le nom du profil a été passé dans doc_data
+                        document_to_pass.profile_name = profile_name
+                    
+                    tab_title = document_to_pass.title
+
+                page_widget = LamicoidPage(document=document_to_pass)
 
             # --- GÉRER LES AUTRES TYPES DE DOCUMENTS (PAS ENCORE IMPLÉMENTÉ POUR LE CHARGEMENT) ---
             # elif doc_type == "Ecriture Comptable":
