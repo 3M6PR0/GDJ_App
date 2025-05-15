@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QPushButton, QGraphicsItem, QGraphicsPathItem, QGraphicsLineItem, QMessageBox, QRubberBand, QApplication
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QPushButton, QGraphicsItem, QGraphicsPathItem, QGraphicsLineItem, QMessageBox, QRubberBand, QApplication, QGraphicsSimpleTextItem
 from PyQt5.QtCore import Qt, QRectF, QLineF, QPoint, QSize
-from PyQt5.QtGui import QBrush, QPen, QColor, QPainter, QPainterPath
+from PyQt5.QtGui import QBrush, QPen, QColor, QPainter, QPainterPath, QFont
 import logging
 
 logger = logging.getLogger('GDJ_App')
@@ -20,16 +20,29 @@ SELECTED_CELL_BRUSH = QBrush(QColor(173, 216, 230, 128)) # Bleu clair semi-trans
 NORMAL_CELL_BRUSH = QBrush(Qt.transparent)
 CELL_BORDER_PEN = QPen(QColor("#C0C0C0"), 0.5, Qt.DotLine) # Pointillés légers pour les cellules
 
+# Structure pour stocker les détails du contenu préservé
+# (content_type, actual_text_if_any)
+PreservedContentDetails = tuple[str, str | None]
+
 class CellItem(QGraphicsRectItem):
     def __init__(self, row: int, col: int, rect: QRectF, editor_widget: 'DispositionEditorWidget', graphics_parent: QGraphicsItem | None = None):
-        super().__init__(rect, graphics_parent)
+        # Initialiser sans rectangle pour éviter confusion, nous allons gérer pos et rect manuellement.
+        # Appeler avec seulement le parent si on ne spécifie pas le rect ici.
+        super().__init__(graphics_parent)
         self.row = row
         self.col = col
         self.editor_widget = editor_widget
         self._is_selected = False
         self._is_part_of_merged_cell = False
         self._is_master_cell = False
+        self.content_type: str | None = None
+        self.actual_text: str | None = None # Pour stocker le texte réel si content_type est "Texte"
+        self.content_placeholder_item: QGraphicsSimpleTextItem | None = None
         
+        # Définir la position et le rectangle local
+        self.setPos(rect.topLeft())
+        self.setRect(QRectF(0, 0, rect.width(), rect.height()))
+
         self.setAcceptHoverEvents(True)
         self.setBrush(NORMAL_CELL_BRUSH)
         self.setPen(CELL_BORDER_PEN)
@@ -56,20 +69,22 @@ class CellItem(QGraphicsRectItem):
 
         if is_master:
             # C'est la cellule maître d'une fusion
-            if display_rect: self.setRect(display_rect)
-            # Apparence comme une cellule normale/sélectionnée mais grande
+            if display_rect:
+                self.setPos(display_rect.topLeft())
+                self.setRect(QRectF(0, 0, display_rect.width(), display_rect.height()))
             self.setPen(CELL_BORDER_PEN) 
             self.setBrush(SELECTED_CELL_BRUSH if self._is_selected else NORMAL_CELL_BRUSH)
             self.setVisible(True)
         elif is_part_of_merged: # et pas maître (implicite)
             # C'est une cellule esclave d'une fusion
-            # Son rect original est défini lors de la création de CellItem.
+            # Son rect et pos originaux sont conservés depuis l'init.
             # Elle devient simplement invisible.
             self.setVisible(False)
         else:
             # C'est une cellule normale, non fusionnée
-            # display_rect est son rect original.
-            if display_rect: self.setRect(display_rect) 
+            if display_rect: # display_rect est son rect original sur la scène
+                self.setPos(display_rect.topLeft())
+                self.setRect(QRectF(0, 0, display_rect.width(), display_rect.height()))
             self.setPen(CELL_BORDER_PEN)
             self.setBrush(NORMAL_CELL_BRUSH if not self._is_selected else SELECTED_CELL_BRUSH)
             self.setVisible(True)
@@ -110,7 +125,7 @@ class SelectableGraphicsView(QGraphicsView):
             distance = (event.pos() - self.selection_origin).manhattanLength()
             if distance > QApplication.startDragDistance():
                 self.is_dragging_selection_rect = True
-                self.editor_widget.clear_selection() # Effacer avant de commencer la sélection par drag
+                self.editor_widget.clear_selection()
                 self.rubber_band_selection.show()
             else:
                 # Pas encore un drag, laisser la vue gérer d'autres types de mouvements si nécessaire
@@ -142,14 +157,14 @@ class SelectableGraphicsView(QGraphicsView):
         # Cellules à sélectionner (celles dans le rubber_band qui ne sont pas déjà dans selected_cells)
         cells_to_select_now = current_selection_candidate - self.editor_widget.selected_cells
         for cell in cells_to_select_now:
-            if cell not in self.editor_widget.selected_cells: # Double vérification
+            if cell not in self.editor_widget.selected_cells:
                 cell.set_selected(True)
                 self.editor_widget._handle_cell_selection_toggled(cell, True)
 
         # Cellules à désélectionner (celles dans selected_cells qui ne sont plus dans le rubber_band)
         cells_to_deselect_now = self.editor_widget.selected_cells - current_selection_candidate
         for cell in cells_to_deselect_now:
-            if cell in self.editor_widget.selected_cells: # Double vérification
+            if cell in self.editor_widget.selected_cells:
                 cell.set_selected(False)
                 self.editor_widget._handle_cell_selection_toggled(cell, False)
 
@@ -206,17 +221,18 @@ class DispositionEditorWidget(QWidget):
         layout.addWidget(self.view)
         logger.debug("DispositionEditorWidget initialisé avec SelectableGraphicsView.")
 
-    def _update_page_layout(self):
+    def _update_page_layout(self, preserved_content_details: dict[tuple[int, int], PreservedContentDetails] | None = None):
         """ Met à jour la taille et l'apparence du fond de page et de la scène. """
+        if preserved_content_details is None:
+            preserved_content_details = {}
+            
         page_width = self.num_cols * self.cell_width
         page_height = self.num_rows * self.cell_height
 
-        # La scène doit être plus grande que la page pour inclure les marges
         scene_width = page_width + 2 * PAGE_MARGIN
         scene_height = page_height + 2 * PAGE_MARGIN
         self.scene.setSceneRect(0, 0, scene_width, scene_height)
 
-        # Position du fond de page (centré avec marges)
         background_rect_dims = QRectF(PAGE_MARGIN, PAGE_MARGIN, page_width, page_height)
         
         path = QPainterPath()
@@ -232,21 +248,20 @@ class DispositionEditorWidget(QWidget):
         else:
             self.page_background_item.setPath(path)
         
-        # Supprimer les anciennes lignes de la grille
         for line_item in self.grid_lines:
             self.scene.removeItem(line_item)
         self.grid_lines.clear()
 
-        # Supprimer les anciens items de cellules
-        for r in range(len(self.cell_items)):
-            for c in range(len(self.cell_items[r])):
-                if self.cell_items[r][c]:
-                    old_cell = self.cell_items[r][c]
-                    if old_cell in self.selected_cells:
-                        self.selected_cells.remove(old_cell)
-                    self.scene.removeItem(old_cell)
+        if hasattr(self, 'cell_items'):
+            for r_idx in range(len(self.cell_items)):
+                for c_idx in range(len(self.cell_items[r_idx])):
+                    if self.cell_items[r_idx][c_idx]:
+                        old_cell = self.cell_items[r_idx][c_idx]
+                        if old_cell in self.selected_cells:
+                            self.selected_cells.remove(old_cell)
+                        self.scene.removeItem(old_cell) 
+        
         self.cell_items = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
-        self.selected_cells.clear()
 
         # Dessiner les nouvelles lignes de la grille
         grid_pen = QPen(QColor("#D0D0D0"), 0.5, Qt.SolidLine) # Pen fin et gris clair
@@ -288,9 +303,41 @@ class DispositionEditorWidget(QWidget):
                 cell_item.setZValue(-0.2)
                 self.scene.addItem(cell_item)
                 self.cell_items[r][c] = cell_item
+                
+                if (r, c) in preserved_content_details:
+                    content_type_str, actual_text_str = preserved_content_details[(r, c)]
+                    current_is_master, current_is_slave, _, _ = self._get_cell_merged_state(r, c, QRectF())
+                    if not current_is_slave:
+                        self._recreate_placeholder_for_cell(cell_item, content_type_str, actual_text_str)
 
         self._draw_grid_lines(page_width, page_height)
-        logger.debug(f"Page layout updated: {self.num_rows}x{self.num_cols} cells. Page size: {page_width}x{page_height}px. Scene size: {scene_width}x{scene_height}px. Grid lines: {len(self.grid_lines)}. Cells created: {self.num_rows*self.num_cols}")
+        logger.debug(f"Page layout updated: {self.num_rows}x{self.num_cols} cells. Page size: {page_width}x{page_height}px. Scene size: {scene_width}x{scene_height}px. Cells created: {self.num_rows*self.num_cols}")
+
+    def _recreate_placeholder_for_cell(self, cell_item: CellItem, content_type: str, actual_text: str | None):
+        """ Recrée un placeholder pour une cellule donnée. """
+        if cell_item.content_placeholder_item and cell_item.content_placeholder_item.scene():
+            self.scene.removeItem(cell_item.content_placeholder_item)
+        
+        cell_item.content_type = content_type
+        cell_item.actual_text = actual_text # Stocker aussi le texte réel sur la cellule
+
+        display_text = actual_text if content_type == "Texte" and actual_text is not None else content_type.capitalize()
+        if content_type == "Texte" and actual_text == "": # Afficher quelque chose si le texte est vide
+            display_text = "[Texte vide]"
+            
+        new_placeholder = QGraphicsSimpleTextItem(display_text, parent=cell_item)
+        new_placeholder.setFont(QFont("Arial", 8))
+        new_placeholder.setBrush(QBrush(Qt.black))
+        
+        cell_local_rect = cell_item.boundingRect()
+        placeholder_bound_rect = new_placeholder.boundingRect()
+        
+        offset_x = (cell_local_rect.width() - placeholder_bound_rect.width()) / 2
+        offset_y = (cell_local_rect.height() - placeholder_bound_rect.height()) / 2
+        
+        new_placeholder.setPos(offset_x, offset_y)
+        cell_item.content_placeholder_item = new_placeholder
+        logger.debug(f"Placeholder '{display_text}' recréé pour la cellule ({cell_item.row},{cell_item.col}).")
 
     def _get_cell_merged_state(self, row: int, col: int, original_cell_rect: QRectF) -> tuple[bool, bool, QRectF | None, QRectF]:
         """ Vérifie si une cellule (row, col) est partie d'une fusion et retourne son état. """
@@ -378,6 +425,8 @@ class DispositionEditorWidget(QWidget):
         self.selected_cells.clear()
         self.merged_regions.clear()
         self.scene_items_counter = 0
+        
+        content_to_load: dict[tuple[int,int], PreservedContentDetails] = {}
 
         if disposition_data:
             logger.info(f"Chargement des données de la disposition: {disposition_data.get('name', 'N/A')}")
@@ -387,6 +436,20 @@ class DispositionEditorWidget(QWidget):
             self.cell_height = disposition_data.get('cell_height', DEFAULT_CELL_HEIGHT)
             self.corner_radius = disposition_data.get('corner_radius', CORNER_RADIUS)
             self.merged_regions = disposition_data.get('merged_cells', [])
+            # Charger le contenu des cellules (nouveau)
+            cell_contents_data = disposition_data.get('cell_contents', {})
+            for coord_str, content_details_list in cell_contents_data.items():
+                try:
+                    r_str, c_str = coord_str.strip("()").split(",")
+                    r, c = int(r_str), int(c_str)
+                    # S'assurer que les détails sont bien une liste/tuple avec type et texte
+                    if isinstance(content_details_list, (list, tuple)) and len(content_details_list) == 2:
+                         content_to_load[(r,c)] = (str(content_details_list[0]), content_details_list[1]) # content_type, actual_text
+                    else:
+                        logger.warning(f"Format de contenu de cellule incorrect pour {coord_str}: {content_details_list}")
+                except ValueError as e:
+                    logger.error(f"Erreur de parsing des coordonnées de cellule_contents '{coord_str}': {e}")
+
         else:
             logger.info("Préparation de l'éditeur pour une nouvelle disposition.")
             self.num_rows = DEFAULT_ROWS
@@ -395,31 +458,10 @@ class DispositionEditorWidget(QWidget):
             self.cell_height = DEFAULT_CELL_HEIGHT
             self.corner_radius = CORNER_RADIUS
             
-        self._update_page_layout() # Dessine/Met à jour le fond de page
+        self._update_page_layout(preserved_content_details=content_to_load)
 
-        # Charger les zones après avoir initialisé la page, si elles existent
-        if disposition_data and 'zones' in disposition_data:
-             for zone_data in disposition_data.get('zones', []):
-                # Assumant que les zones sont stockées avec x, y, width, height en pixels relatifs au coin haut-gauche de la PAGE
-                # et qu'elles ont un type
-                # Il faut ajouter PAGE_MARGIN aux coordonnées x,y pour les placer correctement sur la scène
-                
-                # Exemple simple de recréation d'un QGraphicsRectItem
-                # Il faudrait gérer différents types de zones plus tard
-                if zone_data.get('type') == 'rectangle':
-                    rect_item = QGraphicsRectItem(
-                        QRectF(
-                            zone_data['x'] + PAGE_MARGIN, 
-                            zone_data['y'] + PAGE_MARGIN, 
-                            zone_data['width'], 
-                            zone_data['height']
-                        )
-                    )
-                    rect_item.setBrush(QBrush(Qt.cyan)) # Valeurs par défaut pour l'instant
-                    rect_item.setPen(QPen(Qt.darkCyan, 2))
-                    rect_item.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsFocusable)
-                    self.scene.addItem(rect_item)
-                    self.scene_items_counter +=1
+        # La logique de chargement des anciennes "zones" peut être supprimée ou adaptée si nécessaire.
+        # Pour l'instant, on se concentre sur le contenu basé sur les cellules.
 
     def _handle_cell_selection_toggled(self, cell_item: CellItem, is_selected: bool):
         """ Gère la logique de sélection/désélection d'une cellule, notifiée par CellItem. """
@@ -449,8 +491,10 @@ class DispositionEditorWidget(QWidget):
             QMessageBox.information(self, "Fusion", "Aucune cellule sélectionnée.")
             return
 
+        preserved_content = self._collect_current_content_details()
+        new_content_map: dict[tuple[int,int], PreservedContentDetails] = {}
         unit_coords_for_new_merge = set()
-        selected_existing_merge_regions_to_absorb = [] # Stocke les dicts des régions
+        selected_existing_merge_regions_to_absorb = []
 
         for cell_item in self.selected_cells:
             is_master_of_existing_region = False
@@ -472,8 +516,6 @@ class DispositionEditorWidget(QWidget):
             if not is_master_of_existing_region and not cell_item._is_part_of_merged_cell:
                  unit_coords_for_new_merge.add((cell_item.row, cell_item.col))
             elif not is_master_of_existing_region and cell_item._is_part_of_merged_cell and not cell_item._is_master_cell:
-                # Cellule esclave sélectionnée. Cela ne devrait pas arriver car elles sont invisibles.
-                # Si cela se produit, c'est une erreur de logique quelque part.
                 logger.warning(f"Cellule esclave ({cell_item.row},{cell_item.col}) trouvée dans la sélection. Elle sera ignorée.")
 
         if not unit_coords_for_new_merge:
@@ -519,14 +561,32 @@ class DispositionEditorWidget(QWidget):
             'row': min_row, 'col': min_col, 'rowspan': new_rowspan, 'colspan': new_colspan
         })
         self.merged_regions = final_merged_regions
-
         logger.info(f"Fusion effectuée : {new_rowspan}x{new_colspan} cellules à partir de ({min_row},{min_col}). {len(selected_existing_merge_regions_to_absorb)} régions existantes absorbées.")
         
-        self._update_page_layout() 
+        content_of_master_cell_details = preserved_content.get((min_row, min_col))
+
+        for (r_orig, c_orig), content_details in preserved_content.items():
+            is_inside_newly_merged_region = False
+            if min_row <= r_orig <= max_row and min_col <= c_orig <= max_col:
+                is_inside_newly_merged_region = True
+            
+            part_of_absorbed_region = False
+            for absorbed_region in selected_existing_merge_regions_to_absorb:
+                if absorbed_region['row'] <= r_orig < absorbed_region['row'] + absorbed_region['rowspan'] and \
+                   absorbed_region['col'] <= c_orig < absorbed_region['col'] + absorbed_region['colspan']:
+                    part_of_absorbed_region = True
+                    break
+
+            if not is_inside_newly_merged_region and not part_of_absorbed_region:
+                new_content_map[(r_orig, c_orig)] = content_details
+        
+        if content_of_master_cell_details:
+            new_content_map[(min_row, min_col)] = content_of_master_cell_details
+
+        self._update_page_layout(preserved_content_details=new_content_map)
         self.clear_selection()
 
     def split_selected_cells(self):
-        # Placeholder pour la logique de défusion
         selected_master_cells_to_split = []
         for cell_item in self.selected_cells:
             if cell_item._is_master_cell and cell_item._is_part_of_merged_cell:
@@ -536,38 +596,162 @@ class DispositionEditorWidget(QWidget):
             QMessageBox.information(self, "Défusion", "Aucune cellule fusionnée (cellule maître) n'est sélectionnée pour la défusion.")
             return
 
+        preserved_content = self._collect_current_content_details()
+        new_content_map: dict[tuple[int,int], PreservedContentDetails] = {}
+        content_from_split_masters: dict[tuple[int,int], PreservedContentDetails] = {}
+
         regions_to_remove = []
         for master_cell in selected_master_cells_to_split:
+            if (master_cell.row, master_cell.col) in preserved_content:
+                content_from_split_masters[(master_cell.row, master_cell.col)] = preserved_content[(master_cell.row, master_cell.col)]
+            
             for region in self.merged_regions:
                 if region['row'] == master_cell.row and region['col'] == master_cell.col:
                     regions_to_remove.append(region)
                     break 
         
         if not regions_to_remove:
-            # Cela ne devrait pas arriver si selected_master_cells_to_split n'est pas vide
-            # et que les états des CellItem sont cohérents avec self.merged_regions
             logger.warning("Tentative de défusionner des cellules maîtres sélectionnées mais aucune région correspondante trouvée.")
             QMessageBox.warning(self, "Défusion", "Incohérence détectée. Impossible de trouver les régions à défusionner.")
             return
 
-        for region in regions_to_remove:
-            self.merged_regions.remove(region)
+        current_merged_regions_after_split = [r for r in self.merged_regions if r not in regions_to_remove]
+        self.merged_regions = current_merged_regions_after_split
+
+        for (r_orig, c_orig), content_details in preserved_content.items():
+            is_part_of_a_just_split_region = False
+            for removed_region in regions_to_remove:
+                if removed_region['row'] <= r_orig < removed_region['row'] + removed_region['rowspan'] and \
+                   removed_region['col'] <= c_orig < removed_region['col'] + removed_region['colspan']:
+                    is_part_of_a_just_split_region = True
+                    break
+            if not is_part_of_a_just_split_region:
+                new_content_map[(r_orig, c_orig)] = content_details
         
+        for (r_master, c_master), master_content_details in content_from_split_masters.items():
+            new_content_map[(r_master, c_master)] = master_content_details
+
         logger.info(f"{len(regions_to_remove)} région(s) fusionnée(s) défusionnée(s).")
-        self._update_page_layout()
+        self._update_page_layout(preserved_content_details=new_content_map)
         self.clear_selection()
 
-    def add_row(self):
-        """ Ajoute une rangée à la grille et met à jour la page. """
-        self.num_rows += 1
-        self._update_page_layout()
-        logger.debug(f"Rangée ajoutée. Total rangées: {self.num_rows}")
+    def _collect_current_content_details(self) -> dict[tuple[int, int], PreservedContentDetails]:
+        """ Collecte les types de contenu actuels de toutes les cellules. """
+        content_map: dict[tuple[int,int], PreservedContentDetails] = {}
+        if hasattr(self, 'cell_items') and self.cell_items:
+            for r_idx in range(len(self.cell_items)):
+                for c_idx in range(len(self.cell_items[r_idx])):
+                    cell = self.cell_items[r_idx][c_idx]
+                    if cell and cell.content_type:
+                        content_map[(cell.row, cell.col)] = (cell.content_type, cell.actual_text)
+        return content_map
+
+    def _add_column_at_end(self):
+        """ Ajoute une colonne à la fin de la grille. """
+        # Pas besoin de décaler le contenu, car on ajoute à la fin.
+        preserved_content = self._collect_current_content_details()
+        self.num_cols += 1
+        logger.debug(f"Colonne ajoutée à la fin. Total colonnes: {self.num_cols}")
+        self._update_page_layout(preserved_content_details=preserved_content)
+
+    def _insert_column_before_index(self, target_index: int):
+        """ Insère une nouvelle colonne avant target_index et décale les suivantes. """
+        preserved_content = self._collect_current_content_details()
+        new_content_map: dict[tuple[int,int], PreservedContentDetails] = {}
+
+        if not (0 <= target_index <= self.num_cols):
+            logger.error(f"Indice d'insertion de colonne invalide: {target_index}. Max: {self.num_cols}")
+            pass 
+
+        self.num_cols += 1
+        new_merged_regions = []
+        for region in self.merged_regions:
+            r, c, rs, cs = region['row'], region['col'], region['rowspan'], region['colspan']
+            if c >= target_index:
+                region['col'] = c + 1
+            elif c < target_index < c + cs:
+                region['colspan'] = cs + 1
+            new_merged_regions.append(region)
+        self.merged_regions = new_merged_regions
+
+        for (r_orig, c_orig), content_details in preserved_content.items():
+            if c_orig >= target_index:
+                new_content_map[(r_orig, c_orig + 1)] = content_details
+            else:
+                new_content_map[(r_orig, c_orig)] = content_details
+
+        logger.debug(f"Colonne insérée avant l'index {target_index}. Total colonnes: {self.num_cols}")
+        self._update_page_layout(preserved_content_details=new_content_map)
 
     def add_column(self):
-        """ Ajoute une colonne à la grille et met à jour la page. """
-        self.num_cols += 1
-        self._update_page_layout()
-        logger.debug(f"Colonne ajoutée. Total colonnes: {self.num_cols}")
+        if not self.selected_cells:
+            self._add_column_at_end()
+        else:
+            selected_coords = self.get_selected_cells_coords()
+            if not selected_coords:
+                self._add_column_at_end()
+                return
+            
+            max_selected_col = -1
+            for r,c in selected_coords:
+                if c > max_selected_col:
+                    max_selected_col = c
+            
+            insertion_target_index = max_selected_col + 1
+            self._insert_column_before_index(insertion_target_index)
+        self.clear_selection()
+
+    def _add_row_at_end(self):
+        preserved_content = self._collect_current_content_details()
+        self.num_rows += 1
+        logger.debug(f"Rangée ajoutée à la fin. Total rangées: {self.num_rows}")
+        self._update_page_layout(preserved_content_details=preserved_content)
+
+    def _insert_row_before_index(self, target_index: int):
+        preserved_content = self._collect_current_content_details()
+        new_content_map: dict[tuple[int,int], PreservedContentDetails] = {}
+
+        if not (0 <= target_index <= self.num_rows):
+            logger.error(f"Indice d'insertion de rangée invalide: {target_index}. Max: {self.num_rows}")
+            pass
+
+        self.num_rows += 1
+        new_merged_regions = []
+        for region in self.merged_regions:
+            r, c, rs, cs = region['row'], region['col'], region['rowspan'], region['colspan']
+            if r >= target_index:
+                region['row'] = r + 1
+            elif r < target_index < r + rs:
+                region['rowspan'] = rs + 1
+            new_merged_regions.append(region)
+        self.merged_regions = new_merged_regions
+
+        for (r_orig, c_orig), content_details in preserved_content.items():
+            if r_orig >= target_index:
+                new_content_map[(r_orig + 1, c_orig)] = content_details
+            else:
+                new_content_map[(r_orig, c_orig)] = content_details
+
+        logger.debug(f"Rangée insérée avant l'index {target_index}. Total rangées: {self.num_rows}")
+        self._update_page_layout(preserved_content_details=new_content_map)
+
+    def add_row(self):
+        if not self.selected_cells:
+            self._add_row_at_end()
+        else:
+            selected_coords = self.get_selected_cells_coords()
+            if not selected_coords:
+                self._add_row_at_end()
+                return
+            
+            max_selected_row = -1
+            for r,c in selected_coords:
+                 if r > max_selected_row:
+                    max_selected_row = r
+            
+            insertion_target_index = max_selected_row + 1
+            self._insert_row_before_index(insertion_target_index)
+        self.clear_selection()
 
     def add_new_zone(self):
         """ Ajoute un nouveau rectangle (zone) à la scène. """
@@ -608,36 +792,217 @@ class DispositionEditorWidget(QWidget):
     def get_disposition_data(self):
         """ Récupère les données de la disposition éditée. """
         logger.info("Récupération des données de la disposition.")
+        
+        # Ancienne logique pour les "zones" (rectangles génériques), peut être conservée ou supprimée
+        # si le contenu est uniquement géré par les cellules maintenant.
+        # Pour l'instant, on la laisse mais elle n'est pas prioritaire.
         zones_data = []
-        for item in self.scene.items():
-            if item.data(PAGE_BACKGROUND_ITEM_KEY): # Exclure le fond de page
-                continue
+        # for item in self.scene.items():
+        #     if item.data(PAGE_BACKGROUND_ITEM_KEY): 
+        #         continue
+        #     if isinstance(item, QGraphicsRectItem) and not isinstance(item, CellItem):
+        #         rect = item.rect()
+        #         page_relative_x = rect.x() - PAGE_MARGIN
+        #         page_relative_y = rect.y() - PAGE_MARGIN
+        #         zones_data.append({
+        #             "id": str(item), 
+        #             "type": "rectangle",
+        #             "x": page_relative_x,
+        #             "y": page_relative_y,
+        #             "width": rect.width(), 
+        #             "height": rect.height()
+        #         })
 
-            if isinstance(item, QGraphicsRectItem) and not isinstance(item, CellItem): # Exclure les CellItem de la liste des zones de contenu
-                rect = item.rect() # QRectF, coordonnées de scène
-                # Convertir les coordonnées de scène en coordonnées relatives à la page
-                page_relative_x = rect.x() - PAGE_MARGIN
-                page_relative_y = rect.y() - PAGE_MARGIN
-                
-                zones_data.append({
-                    "id": str(item), 
-                    "type": "rectangle", # Pour l'instant, toutes les zones sont des rectangles
-                    "x": page_relative_x,
-                    "y": page_relative_y,
-                    "width": rect.width(),
-                    "height": rect.height()
-                })
+        cell_contents_to_save = {}
+        if hasattr(self, 'cell_items') and self.cell_items:
+            for r_idx in range(len(self.cell_items)):
+                for c_idx in range(len(self.cell_items[r_idx])):
+                    cell = self.cell_items[r_idx][c_idx]
+                    if cell and cell.content_type:
+                        # Utiliser une clé string "(r,c)" pour la sérialisation JSON
+                        coord_key = f"({cell.row},{cell.col})"
+                        cell_contents_to_save[coord_key] = [cell.content_type, cell.actual_text]
         
         return {
-            "name": "nom_a_definir_via_LamicoidPage", # Le nom sera géré par LamicoidPage
+            "name": "nom_a_definir_via_LamicoidPage",
             "num_rows": self.num_rows,
             "num_cols": self.num_cols,
             "cell_width": self.cell_width,
             "cell_height": self.cell_height,
             "corner_radius": self.corner_radius,
-            "merged_cells": list(self.merged_regions),
-            "zones": zones_data
+            "merged_cells": list(self.merged_regions), # S'assurer que c'est une copie sérialisable
+            "cell_contents": cell_contents_to_save, # Nouveau champ pour le contenu des cellules
+            "zones": zones_data # Ancien champ, peut être déprécié
         }
+
+    def delete_rows(self, row_indices_to_delete: list[int]):
+        if not row_indices_to_delete:
+            return
+        
+        preserved_content = self._collect_current_content_details()
+        new_content_map: dict[tuple[int,int], PreservedContentDetails] = {}
+
+        unique_sorted_rows = sorted(list(set(row_indices_to_delete)), reverse=True)
+
+        if self.num_rows == 1 and len(unique_sorted_rows) >= 1:
+            QMessageBox.information(self, "Suppression Rangées", "Impossible de supprimer la dernière rangée.")
+            return
+        
+        if len(unique_sorted_rows) >= self.num_rows:
+            logger.warning(f"Tentative de supprimer toutes les {self.num_rows} rangées. Limitation à {self.num_rows -1} suppressions.")
+            unique_sorted_rows = unique_sorted_rows[:self.num_rows - 1]
+            if not unique_sorted_rows:
+                QMessageBox.information(self, "Suppression Rangées", "Impossible de supprimer la dernière rangée.")
+                return
+
+        if not all(0 <= r_idx < self.num_rows for r_idx in unique_sorted_rows):
+            logger.error(f"Tentative de suppression de rangées avec des indices invalides: {unique_sorted_rows}. Max: {self.num_rows-1}")
+            QMessageBox.warning(self, "Erreur", "Indices de rangées invalides pour la suppression.")
+            return
+
+        logger.info(f"Suppression des rangées aux indices: {unique_sorted_rows}")
+
+        new_merged_regions = []
+        for region in self.merged_regions:
+            r, c, rs, cs = region['row'], region['col'], region['rowspan'], region['colspan']
+            region_end_row = r + rs -1
+            
+            affected_by_deletion = False
+            num_deleted_rows_within_region = 0
+            for del_r_idx in unique_sorted_rows:
+                if r <= del_r_idx <= region_end_row:
+                    num_deleted_rows_within_region += 1
+                    affected_by_deletion = True
+            
+            if affected_by_deletion:
+                if num_deleted_rows_within_region >= rs:
+                    continue 
+                else:
+                    region['rowspan'] = rs - num_deleted_rows_within_region
+                    num_deleted_rows_above_or_at_region_start = sum(1 for del_idx in unique_sorted_rows if del_idx < r + num_deleted_rows_within_region and del_idx >= r)
+                    region['row'] = r - num_deleted_rows_above_or_at_region_start
+                    new_merged_regions.append(region)
+            else:
+                shift_down_count = sum(1 for del_idx in unique_sorted_rows if del_idx < r)
+                region['row'] = r - shift_down_count
+                new_merged_regions.append(region)
+        self.merged_regions = new_merged_regions
+        
+        for (r_orig, c_orig), content_details in preserved_content.items():
+            if r_orig in unique_sorted_rows: # La rangée de cette cellule est supprimée
+                continue # Ne pas ajouter ce contenu
+            
+            num_deleted_rows_above = sum(1 for del_idx in unique_sorted_rows if del_idx < r_orig)
+            new_r = r_orig - num_deleted_rows_above
+            new_content_map[(new_r, c_orig)] = content_details
+
+        self.num_rows -= len(unique_sorted_rows)
+        
+        self._update_page_layout(preserved_content_details=new_content_map)
+        self.clear_selection()
+        logger.info(f"{len(unique_sorted_rows)} rangée(s) supprimée(s). Total rangées restantes: {self.num_rows}")
+
+    def delete_columns(self, col_indices_to_delete: list[int]):
+        if not col_indices_to_delete:
+            return
+        
+        preserved_content = self._collect_current_content_details()
+        new_content_map: dict[tuple[int,int], PreservedContentDetails] = {}
+        
+        unique_sorted_cols = sorted(list(set(col_indices_to_delete)), reverse=True)
+
+        if self.num_cols == 1 and len(unique_sorted_cols) >= 1:
+            QMessageBox.information(self, "Suppression Colonnes", "Impossible de supprimer la dernière colonne.")
+            return
+        
+        if len(unique_sorted_cols) >= self.num_cols:
+            logger.warning(f"Tentative de supprimer toutes les {self.num_cols} colonnes. Limitation à {self.num_cols -1} suppressions.")
+            unique_sorted_cols = unique_sorted_cols[:self.num_cols -1]
+            if not unique_sorted_cols:
+                QMessageBox.information(self, "Suppression Colonnes", "Impossible de supprimer la dernière colonne.")
+                return
+
+        if not all(0 <= c_idx < self.num_cols for c_idx in unique_sorted_cols):
+            logger.error(f"Tentative de suppression de colonnes avec des indices invalides: {unique_sorted_cols}. Max: {self.num_cols-1}")
+            QMessageBox.warning(self, "Erreur", "Indices de colonnes invalides pour la suppression.")
+            return
+        
+        logger.info(f"Suppression des colonnes aux indices: {unique_sorted_cols}")
+        
+        new_merged_regions = []
+        for region in self.merged_regions:
+            r, c, rs, cs = region['row'], region['col'], region['rowspan'], region['colspan']
+            region_end_col = c + cs - 1
+
+            affected_by_deletion = False
+            num_deleted_cols_within_region = 0
+            for del_c_idx in unique_sorted_cols:
+                if c <= del_c_idx <= region_end_col:
+                    num_deleted_cols_within_region +=1
+                    affected_by_deletion = True
+            
+            if affected_by_deletion:
+                if num_deleted_cols_within_region >= cs:
+                    continue
+                else:
+                    region['colspan'] = cs - num_deleted_cols_within_region
+                    num_deleted_cols_before_or_at_region_start = sum(1 for del_idx in unique_sorted_cols if del_idx < c + num_deleted_cols_within_region and del_idx >=c)
+                    region['col'] = c - num_deleted_cols_before_or_at_region_start
+                    new_merged_regions.append(region)
+            else:
+                shift_left_count = sum(1 for del_idx in unique_sorted_cols if del_idx < c)
+                region['col'] = c - shift_left_count
+                new_merged_regions.append(region)
+        self.merged_regions = new_merged_regions
+
+        for (r_orig, c_orig), content_details in preserved_content.items():
+            if c_orig in unique_sorted_cols: # La colonne de cette cellule est supprimée
+                continue # Ne pas ajouter ce contenu
+            
+            num_deleted_cols_before = sum(1 for del_idx in unique_sorted_cols if del_idx < c_orig)
+            new_c = c_orig - num_deleted_cols_before
+            new_content_map[(r_orig, new_c)] = content_details
+                
+        self.num_cols -= len(unique_sorted_cols)
+
+        self._update_page_layout(preserved_content_details=new_content_map)
+        self.clear_selection()
+        logger.info(f"{len(unique_sorted_cols)} colonne(s) supprimée(s). Total colonnes restantes: {self.num_cols}")
+
+    def set_cell_content(self, target_row: int, target_col: int, content_type: str, actual_text: str | None = None):
+        cell_to_modify: CellItem | None = None
+
+        # Vérifier si la cible est une cellule maître d'une fusion
+        is_master_of_fusion, is_slave, merged_rect, original_rect = self._get_cell_merged_state(target_row, target_col, QRectF())
+        
+        if is_master_of_fusion:
+            # La cellule cible est la maître d'une fusion existante.
+            # Assurons-nous d'obtenir l'objet CellItem correct.
+            if 0 <= target_row < len(self.cell_items) and 0 <= target_col < len(self.cell_items[target_row]):
+                cell_to_modify = self.cell_items[target_row][target_col]
+            else:
+                 logger.error(f"Cellule maître ({target_row},{target_col}) hors limites après vérification de fusion.")
+                 return 
+            logger.info(f"La cellule ({target_row},{target_col}) est maître d'une fusion. Contenu appliqué à elle.")
+        elif is_slave: 
+            logger.warning(f"Tentative d'ajout de contenu à une cellule esclave ({target_row},{target_col}). Ignoré.")
+            QMessageBox.warning(self, "Action impossible", "Impossible d'ajouter du contenu directement à une cellule esclave d'une fusion.")
+            return
+        elif 0 <= target_row < self.num_rows and 0 <= target_col < self.num_cols and \
+             0 <= target_row < len(self.cell_items) and 0 <= target_col < len(self.cell_items[target_row]):
+            cell_to_modify = self.cell_items[target_row][target_col]
+        else:
+            logger.error(f"Cellule cible ({target_row},{target_col}) hors limites pour set_cell_content.")
+            return
+
+        if not cell_to_modify:
+            logger.error(f"Impossible de trouver CellItem à ({target_row},{target_col}) pour set_cell_content après toutes les vérifications.")
+            return
+
+        # Utiliser _recreate_placeholder_for_cell pour la création/mise à jour du placeholder
+        self._recreate_placeholder_for_cell(cell_to_modify, content_type, actual_text)
+
+        logger.info(f"Contenu '{content_type}' (texte: '{actual_text if actual_text else ''}') appliqué à la cellule ({target_row},{target_col}).")
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QHBoxLayout, QWidget as TestWidget

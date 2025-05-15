@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
-                             QStackedWidget)
+                             QStackedWidget, QDialog)
 from PyQt5.QtCore import Qt, QDate, pyqtSignal
 from PyQt5.QtGui import QFont
 import logging
@@ -14,6 +14,7 @@ from ui.editors.disposition_editor_widget import DispositionEditorWidget
 from ui.editors.model_editor_widget import ModelEditorWidget
 from ui.components.frame import Frame
 from utils.signals import signals
+from ui.dialogs.text_input_dialog import TextInputDialog
 
 logger = logging.getLogger('GDJ_App')
 
@@ -151,15 +152,44 @@ class LamicoidPage(QWidget):
         self.add_column_button = QPushButton("Ajouter Colonne")
         self.merge_cells_button = QPushButton("Fusionner Cellules Sélectionnées")
         self.split_cells_button = QPushButton("Défusionner Cellules Sélectionnées")
+        self.delete_rows_button = QPushButton("Supprimer Rangée(s) Sélectionnée(s)")
+        self.delete_columns_button = QPushButton("Supprimer Colonne(s) Sélectionnée(s)")
         
         grid_management_layout.addWidget(self.add_row_button)
         grid_management_layout.addWidget(self.add_column_button)
         grid_management_layout.addWidget(self.merge_cells_button)
         grid_management_layout.addWidget(self.split_cells_button)
+        grid_management_layout.addWidget(self.delete_rows_button)
+        grid_management_layout.addWidget(self.delete_columns_button)
         grid_management_layout.addStretch()
+
+        grid_management_layout.addStretch() # Pour pousser les boutons vers le haut s'ils ne remplissent pas tout l'espace
 
         disposition_definition_layout.addWidget(self.grid_management_frame)
         # --- Fin du cadre pour la gestion de la grille ---
+
+        # --- Cadre pour la Palette de Contenu --- 
+        self.content_palette_frame = QFrame(self)
+        self.content_palette_frame.setObjectName("ContentPaletteFrame")
+        content_palette_layout = QVBoxLayout(self.content_palette_frame)
+        content_palette_layout.setContentsMargins(0, 5, 0, 5)
+        content_palette_layout.setSpacing(10)
+
+        content_palette_title = QLabel("Contenu Disponible:")
+        content_palette_title.setFont(QFont("Arial", 9, QFont.Bold))
+        content_palette_layout.addWidget(content_palette_title)
+
+        self.add_text_content_button = QPushButton("Texte")
+        self.add_image_content_button = QPushButton("Image")
+        self.add_table_content_button = QPushButton("Tableau")
+
+        content_palette_layout.addWidget(self.add_text_content_button)
+        content_palette_layout.addWidget(self.add_image_content_button)
+        content_palette_layout.addWidget(self.add_table_content_button)
+        content_palette_layout.addStretch()
+
+        disposition_definition_layout.addWidget(self.content_palette_frame)
+        # --- Fin du cadre pour la Palette de Contenu ---
 
         # Le Frame pour "Ajouter Zone" est supprimé ici.
         disposition_definition_layout.addStretch(1) # Maintenir un stretch pour pousser les boutons vers le bas
@@ -283,6 +313,13 @@ class LamicoidPage(QWidget):
         self.add_column_button.clicked.connect(self._handle_add_column_to_disposition)
         self.merge_cells_button.clicked.connect(self._handle_merge_cells_action)
         self.split_cells_button.clicked.connect(self._handle_split_cells_action)
+        self.delete_rows_button.clicked.connect(self._handle_delete_selected_rows_action)
+        self.delete_columns_button.clicked.connect(self._handle_delete_selected_columns_action)
+
+        # Connexions pour les boutons de la palette de contenu
+        self.add_text_content_button.clicked.connect(self._handle_add_text_content_action)
+        self.add_image_content_button.clicked.connect(self._handle_add_image_content_action)
+        self.add_table_content_button.clicked.connect(lambda: self._handle_add_content_to_cell("tableau"))
 
     def _clear_form_fields(self):
         self.date_edit.setDate(QDate.currentDate())
@@ -545,6 +582,102 @@ class LamicoidPage(QWidget):
             logger.warning("Tentative de défusionner des cellules alors que l'éditeur de disposition n'est pas actif.")
             QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
 
+    def _handle_delete_selected_rows_action(self):
+        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
+            selected_cells = self.disposition_editor_widget.selected_cells
+            if not selected_cells:
+                QMessageBox.information(self, "Suppression Rangées", "Veuillez sélectionner au moins une cellule dans les rangées à supprimer.")
+                return
+            
+            row_indices_to_delete = sorted(list(set(cell.row for cell in selected_cells)), reverse=True)
+            logger.info(f"Action: Supprimer Rangées Sélectionnées - Indices: {row_indices_to_delete}")
+            self.disposition_editor_widget.delete_rows(row_indices_to_delete)
+        else:
+            logger.warning("Tentative de supprimer des rangées alors que l'éditeur de disposition n'est pas actif.")
+            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
+
+    def _handle_delete_selected_columns_action(self):
+        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
+            selected_cells = self.disposition_editor_widget.selected_cells
+            if not selected_cells:
+                QMessageBox.information(self, "Suppression Colonnes", "Veuillez sélectionner au moins une cellule dans les colonnes à supprimer.")
+                return
+
+            col_indices_to_delete = sorted(list(set(cell.col for cell in selected_cells)), reverse=True)
+            logger.info(f"Action: Supprimer Colonnes Sélectionnées - Indices: {col_indices_to_delete}")
+            self.disposition_editor_widget.delete_columns(col_indices_to_delete)
+        else:
+            logger.warning("Tentative de supprimer des colonnes alors que l'éditeur de disposition n'est pas actif.")
+            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
+
+    def _handle_add_text_content_action(self):
+        if self.disposition_editor_widget and self.disposition_editor_widget.get_selected_cells_coords():
+            selected_coords = self.disposition_editor_widget.get_selected_cells_coords()
+            if len(selected_coords) == 1:
+                r, c = selected_coords[0]
+                
+                # Récupérer le texte actuel de la cellule, s'il existe et est de type texte
+                current_cell_text = ""
+                cell_to_edit = self.disposition_editor_widget.cell_items[r][c]
+                if cell_to_edit and cell_to_edit.content_type == "Texte" and cell_to_edit.content_placeholder_item:
+                    current_cell_text = cell_to_edit.content_placeholder_item.text()
+                    # Si le placeholder actuel est juste "Texte", ne pas le pré-remplir
+                    if current_cell_text.lower() == "texte": 
+                        current_cell_text = ""
+
+                dialog = TextInputDialog(self, current_text=current_cell_text)
+                if dialog.exec_() == QDialog.Accepted:
+                    text_to_add = dialog.get_text()
+                    if text_to_add is not None: # Peut être une chaîne vide, c'est ok
+                        logger.info(f"Action: Ajouter Contenu Texte '{text_to_add}' à la cellule ({r},{c})")
+                        # Nous passons maintenant le texte réel à set_cell_content
+                        self.disposition_editor_widget.set_cell_content(r, c, "Texte", actual_text=text_to_add)
+                    else:
+                        # Cas où get_text retourne None (ne devrait pas arriver si Accepted, mais par sécurité)
+                        logger.info(f"Action: Ajouter Contenu Texte annulée (pas de texte) pour la cellule ({r},{c})")
+                else:
+                    logger.info(f"Action: Dialogue d'ajout de texte annulé pour la cellule ({r},{c})")
+            else:
+                QMessageBox.information(self, "Sélection Multiple", "Veuillez sélectionner une seule cellule pour ajouter du texte.")
+        else:
+            logger.warning("Tentative d'ajout de contenu de type Texte sans éditeur de disposition actif ou sans sélection.")
+            QMessageBox.warning(self, "Action impossible", "Veuillez sélectionner une cellule dans l'éditeur de disposition avant d'ajouter du texte.")
+
+    def _handle_add_image_content_action(self):
+        if self.disposition_editor_widget and self.disposition_editor_widget.get_selected_cells_coords():
+            selected_coords = self.disposition_editor_widget.get_selected_cells_coords()
+            if len(selected_coords) == 1:
+                r, c = selected_coords[0]
+                logger.info(f"Action: Ajouter Contenu Image à la cellule ({r},{c})")
+                # Pour l'instant, utilise "Image" comme placeholder. Une sélection de fichier sera nécessaire.
+                self.disposition_editor_widget.set_cell_content(r, c, "Image") 
+            else:
+                QMessageBox.information(self, "Sélection Multiple", "Veuillez sélectionner une seule cellule pour ajouter une image.")
+        else:
+            logger.warning("Tentative d'ajout de contenu de type Image sans éditeur de disposition actif ou sans sélection.")
+            QMessageBox.warning(self, "Action impossible", "Veuillez sélectionner une cellule dans l'éditeur de disposition avant d'ajouter une image.")
+
+    def _handle_add_content_to_cell(self, content_type: str):
+        if self.disposition_editor_widget and self.right_display_stack.currentWidget() == self.disposition_editor_widget:
+            selected_cell_items = self.disposition_editor_widget.selected_cells
+            if not selected_cell_items:
+                QMessageBox.information(self, "Ajout de Contenu", f"Veuillez sélectionner une cellule pour y ajouter du contenu '{content_type}'.")
+                return
+            if len(selected_cell_items) > 1:
+                QMessageBox.information(self, "Ajout de Contenu", "Veuillez sélectionner une seule cellule pour y ajouter du contenu.")
+                return
+            
+            target_cell = list(selected_cell_items)[0]
+            # Si la cellule sélectionnée est une esclave d'une fusion, trouver sa maître.
+            # Pour l'instant, on assume que la sélection est toujours une cellule maître ou une cellule simple.
+            # La logique de _get_cell_merged_state pourrait être utile ici pour trouver la vraie cellule cible.
+
+            logger.info(f"Action: Ajouter contenu '{content_type}' à la cellule ({target_cell.row}, {target_cell.col})")
+            self.disposition_editor_widget.set_cell_content(target_cell.row, target_cell.col, content_type)
+        else:
+            logger.warning(f"Tentative d'ajouter du contenu '{content_type}' alors que l'éditeur de disposition n'est pas actif.")
+            QMessageBox.warning(self, "Mode incorrect", "Veuillez être en mode 'Disposition' pour cette action.")
+
     def _ensure_correct_view_for_mode(self, mode: str):
         self.item_form_widget.hide()
         self.disposition_definition_widget.hide()
@@ -552,6 +685,7 @@ class LamicoidPage(QWidget):
 
         # La gestion de la visibilité de add_zone_frame est supprimée.
         self.grid_management_frame.setVisible(mode == "Disposition") # Afficher/cacher aussi ce cadre
+        self.content_palette_frame.setVisible(mode == "Disposition") # Afficher/cacher aussi ce cadre
 
         if mode == "Disposition":
             self.disposition_definition_widget.show()
