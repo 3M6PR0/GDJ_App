@@ -285,6 +285,7 @@ class DispositionEditorWidget(QWidget):
             self.grid_lines.append(line)
             
         current_x_offset = PAGE_MARGIN
+        logger.debug(f"Dans _update_page_layout, preserved_content_details keys: {list(preserved_content_details.keys()) if preserved_content_details else 'None'}")
         for c in range(self.num_cols):
             current_y_offset = PAGE_MARGIN
             current_col_width = self.column_widths[c]
@@ -296,25 +297,25 @@ class DispositionEditorWidget(QWidget):
                 
                 cell_item.set_selected(False)
                 if is_master or is_slave:
-                    # Pour les esclaves, original_rect_for_slave sera leur propre petit rect de base.
-                    # Pour le maître, merged_cell_rect est son grand rect.
                     cell_item.set_merged_state(is_master, True, merged_cell_rect if is_master else original_cell_rect_for_slave)
                 else:
-                    cell_item.set_merged_state(False, False, cell_rect) # cell_rect est son propre rect
+                    cell_item.set_merged_state(False, False, cell_rect)
                 
                 cell_item.setZValue(-0.2)
                 self.scene.addItem(cell_item)
                 self.cell_items[r][c] = cell_item
                 
-                if (r, c) in preserved_content_details:
-                    content_type_str, actual_text_str = preserved_content_details[(r, c)]
-                    current_is_master, current_is_slave, _, _ = self._get_cell_merged_state(r, c, QRectF()) 
-                    if not current_is_slave:
+                # Log de débogage pour la restauration du contenu
+                if preserved_content_details:
+                    is_in_preserved = (r, c) in preserved_content_details
+                    logger.debug(f"  _update_page_layout: Cell ({r},{c}), in preserved: {is_in_preserved}, is_master: {is_master}, is_slave: {is_slave}")
+                    if is_in_preserved:
+                        content_type_str, actual_text_str = preserved_content_details[(r, c)]
                         self._recreate_placeholder_for_cell(cell_item, content_type_str, actual_text_str)
                 current_y_offset += self.cell_height
             current_x_offset += current_col_width
 
-        self._draw_grid_lines(page_width, page_height) # Pass page_width qui est sum(self.column_widths)
+        self._draw_grid_lines(page_width, page_height)
         logger.debug(f"Page layout updated: {self.num_rows}x{self.num_cols} cells. Page width: {page_width}. Cells created: {self.num_rows*self.num_cols}")
 
     def _recreate_placeholder_for_cell(self, cell_item: CellItem, content_type: str, actual_text: str | None):
@@ -345,12 +346,25 @@ class DispositionEditorWidget(QWidget):
         cell_local_rect = cell_item.boundingRect()
         placeholder_bound_rect = new_placeholder.boundingRect()
         
-        offset_x = (cell_local_rect.width() - placeholder_bound_rect.width()) / 2
+        # Logs détaillés pour le débogage
+        logger.debug(f"Cell ({cell_item.row},{cell_item.col}) - In _recreate_placeholder_for_cell:")
+        logger.debug(f"  Text to display (len: {len(display_text if display_text else '')}): '{display_text[:100]}{'...' if display_text and len(display_text) > 100 else ''}'")
+        logger.debug(f"  CellItem local_rect width: {cell_local_rect.width()}, height: {cell_local_rect.height()}")
+        logger.debug(f"  Placeholder bounding_rect width: {placeholder_bound_rect.width()}, height: {placeholder_bound_rect.height()}")
+        
+        # Simplification du positionnement X pour le débogage
+        offset_x = 2 
         offset_y = (cell_local_rect.height() - placeholder_bound_rect.height()) / 2
+        
+        # Assurer que offset_y ne soit pas négatif si le texte est plus haut que la cellule
+        if offset_y < 0:
+            offset_y = 0
+            
+        logger.debug(f"  Calculated offset_x (simplified): {offset_x}, offset_y: {offset_y}")
         
         new_placeholder.setPos(offset_x, offset_y)
         cell_item.content_placeholder_item = new_placeholder
-        logger.debug(f"Placeholder '{display_text}' recréé pour la cellule ({cell_item.row},{cell_item.col}).") # Logger avec display_text
+        logger.debug(f"Placeholder '{display_text[:50]}{'...' if display_text and len(display_text) > 50 else ''}' recréé pour la cellule ({cell_item.row},{cell_item.col}). Positionné à ({offset_x},{offset_y})") # Logger avec display_text
 
     def _get_cell_merged_state(self, row: int, col: int, original_cell_rect_at_current_pos: QRectF) -> tuple[bool, bool, QRectF | None, QRectF]:
         for region in self.merged_regions:
@@ -1018,27 +1032,59 @@ class DispositionEditorWidget(QWidget):
         # Utiliser _recreate_placeholder_for_cell pour la création/mise à jour du placeholder
         self._recreate_placeholder_for_cell(cell_to_modify, content_type, actual_text)
 
-        # Ajuster la largeur de la colonne si nécessaire pour le contenu textuel
+        # Ajuster la largeur de la colonne/fusion si nécessaire pour le contenu textuel
         if content_type == "Texte" and cell_to_modify.actual_text:
             font = QFont("Arial", 8) # Assurez-vous que c'est la même police/taille que dans _recreate_placeholder_for_cell
             fm = QFontMetrics(font)
-            text_width = fm.boundingRect(cell_to_modify.actual_text).width()
+            text_actual_render_width = fm.boundingRect(cell_to_modify.actual_text).width()
+            required_total_content_width = text_actual_render_width + 8 # Ajouter une petite marge (ex: 4px de chaque côté)
+
+            needs_layout_update = False
             
-            required_width = text_width + 8 # Ajouter une petite marge (ex: 4px de chaque côté)
-            target_col_index = cell_to_modify.col
+            # is_master_of_fusion, is_slave sont déterminés au début de la fonction
+            
+            found_region_for_master: dict | None = None
+            if is_master_of_fusion: # cell_to_modify est la cellule maître
+                for region_iter in self.merged_regions:
+                    if region_iter['row'] == cell_to_modify.row and region_iter['col'] == cell_to_modify.col:
+                        found_region_for_master = region_iter
+                        break
+            
+            if found_region_for_master: # Cas d'une cellule maître d'une fusion active
+                region = found_region_for_master
+                master_col_start = region['col']
+                colspan = region['colspan']
+                
+                current_merged_cell_actual_width = sum(self.column_widths[i] for i in range(master_col_start, master_col_start + colspan))
+                
+                if required_total_content_width > current_merged_cell_actual_width:
+                    width_to_add = required_total_content_width - current_merged_cell_actual_width
+                    
+                    last_col_idx_in_merge = master_col_start + colspan - 1
+                    self.column_widths[last_col_idx_in_merge] += width_to_add
+                    
+                    if self.column_widths[last_col_idx_in_merge] < DEFAULT_CELL_WIDTH:
+                         self.column_widths[last_col_idx_in_merge] = DEFAULT_CELL_WIDTH
+                         
+                    needs_layout_update = True
+                    logger.info(f"Largeur de la fusion (col {master_col_start}, span {colspan}) ajustée. {width_to_add}px ajoutés à col {last_col_idx_in_merge}.")
 
-            # S'assurer que la largeur n'est pas inférieure à la largeur par défaut
-            if required_width < DEFAULT_CELL_WIDTH:
-                required_width = DEFAULT_CELL_WIDTH
+            elif not is_slave: # Cas d'une cellule simple (non fusionnée et non esclave)
+                target_col_index = cell_to_modify.col
+                current_col_width = self.column_widths[target_col_index]
+                
+                effective_required_width_for_single_cell = max(required_total_content_width, DEFAULT_CELL_WIDTH)
 
-            if required_width > self.column_widths[target_col_index]:
-                self.column_widths[target_col_index] = required_width
-                # Il faut préserver tout le contenu actuel car _update_page_layout va tout recréer
+                if effective_required_width_for_single_cell > current_col_width:
+                    self.column_widths[target_col_index] = effective_required_width_for_single_cell
+                    needs_layout_update = True
+                    logger.info(f"Largeur de la colonne {target_col_index} ajustée à {effective_required_width_for_single_cell} pour le texte.")
+
+            if needs_layout_update:
                 preserved_content_before_resize = self._collect_current_content_details()
+                logger.debug(f"Dans set_cell_content, AVANT _update_page_layout, preserved_content_before_resize keys: {list(preserved_content_before_resize.keys())}")
                 self._update_page_layout(preserved_content_details=preserved_content_before_resize)
-                logger.info(f"Largeur de la colonne {target_col_index} ajustée à {required_width} pour le texte.")
-            # Si la largeur requise est plus petite, nous ne réduisons pas la colonne pour l'instant.
-            # Une logique pour réduire pourrait être ajoutée ici si souhaité.
+            # Si la largeur requise est plus petite, nous ne réduisons pas la colonne/fusion pour l'instant.
 
         logger.info(f"Contenu '{content_type}' (texte: '{actual_text if actual_text else ''}') appliqué à la cellule ({target_row},{target_col}).")
 
