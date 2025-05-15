@@ -304,7 +304,8 @@ class DispositionEditorWidget(QWidget):
         self.num_rows = DEFAULT_ROWS
         self.num_cols = DEFAULT_COLS
         self.column_widths = [DEFAULT_CELL_WIDTH] * self.num_cols
-        self.cell_height = DEFAULT_CELL_HEIGHT # Reste scalaire pour l'instant
+        # self.cell_height = DEFAULT_CELL_HEIGHT # Reste scalaire pour l'instant -> Remplacé
+        self.row_heights = [DEFAULT_CELL_HEIGHT] * self.num_rows # Nouvelle liste pour les hauteurs de rangées
         self.corner_radius = CORNER_RADIUS
 
         layout = QVBoxLayout(self)
@@ -336,6 +337,9 @@ class DispositionEditorWidget(QWidget):
         # _update_page_layout est généralement appelé avec preserved_content.
         # Ici, on veut juste forcer une re-mise en page basée sur les états actuels.
         current_content = self._collect_current_content_details()
+        # Il faut s'assurer que les row_heights sont à jour AVANT de potentiellement les utiliser
+        # dans _calculate_required_width_for_column si celui-ci dépendait de la hauteur des cellules (ce qui n'est pas le cas actuellement)
+        # L'appel principal à _recalculate_all_row_heights se fera DANS _update_page_layout.
         self._update_page_layout(preserved_content_details=current_content)
 
     def _text_width(self, text: str) -> float:
@@ -400,113 +404,196 @@ class DispositionEditorWidget(QWidget):
                     logger.warning(f"Accès hors limites à cell_items pour la cellule maître ({master_cell_row},{master_cell_col}) d'une fusion.")
         return max_w
 
+    def _calculate_required_height_for_row(self, row_idx: int) -> float:
+        """Calcule la hauteur requise pour une rangée en fonction de son contenu."""
+        if not (0 <= row_idx < self.num_rows):
+            logger.error(f"_calculate_required_height_for_row appelé avec row_idx invalide: {row_idx}")
+            return DEFAULT_CELL_HEIGHT
+
+        max_h = DEFAULT_CELL_HEIGHT
+
+        for col_idx in range(self.num_cols):
+            if not (row_idx < len(self.cell_items) and col_idx < len(self.cell_items[row_idx])):
+                logger.warning(f"Accès hors limites à cell_items dans _calculate_required_height_for_row pour ({row_idx},{col_idx})")
+                continue
+            
+            cell = self.cell_items[row_idx][col_idx]
+            if not cell or not cell.content_placeholder_item: # Si pas de cellule ou pas de contenu affichable
+                continue
+
+            placeholder_height = cell.content_placeholder_item.boundingRect().height()
+
+            is_master, is_slave, merged_region_details, _ = self._get_cell_merged_state(row_idx, col_idx, QRectF()) # Rect factice
+
+            if is_master: # La cellule est maître d'une fusion qui commence à (row_idx, col_idx)
+                # placeholder_height est la hauteur totale du texte dans la fusion.
+                # On la divise par le rowspan pour obtenir une hauteur "par rangée" de la fusion.
+                # C'est une simplification ; une gestion plus fine pourrait être nécessaire si les autres
+                # rangées de la fusion ont des contenus très hauts.
+                current_region = None
+                for region in self.merged_regions:
+                    if region['row'] == row_idx and region['col'] == col_idx:
+                        current_region = region
+                        break
+                
+                if current_region:
+                    rowspan = current_region['rowspan']
+                    if rowspan > 0:
+                        # Ajouter une petite marge pour éviter que le texte ne touche le bord
+                        required_cell_height = (placeholder_height / rowspan) + 4 # Marge de 4px
+                        max_h = max(max_h, required_cell_height)
+                    else: # rowspan devrait toujours être > 0
+                        max_h = max(max_h, placeholder_height + 4)
+                else:
+                    # Ne devrait pas arriver si is_master est vrai
+                    logger.error(f"Cellule ({row_idx},{col_idx}) est maître mais sa région de fusion n'a pas été trouvée.")
+                    max_h = max(max_h, placeholder_height + 4)
+            
+            elif not is_slave: # Cellule simple (non maître, non esclave)
+                required_cell_height = placeholder_height + 4 # Marge de 4px
+                max_h = max(max_h, required_cell_height)
+            
+            # Les cellules esclaves ne dictent pas directement la hauteur de la rangée,
+            # c'est la cellule maître de leur fusion qui s'en charge.
+
+        return max(DEFAULT_CELL_HEIGHT, max_h) # Assurer une hauteur minimale
+
+    def _recalculate_all_row_heights(self) -> bool:
+        """Recalcule toutes les hauteurs de rangées et retourne True si un changement a eu lieu."""
+        changed = False
+        if not hasattr(self, 'row_heights') or len(self.row_heights) != self.num_rows:
+            # Initialisation ou réinitialisation si la structure a changé (ex: chargement)
+            self.row_heights = [DEFAULT_CELL_HEIGHT] * self.num_rows
+            changed = True # Forcer la mise à jour si on réinitialise
+
+        new_heights = []
+        for r in range(self.num_rows):
+            # On a besoin que cell_items soit peuplé et que les placeholders soient créés
+            # pour que _calculate_required_height_for_row fonctionne correctement.
+            # Cela signifie que cette méthode est typiquement appelée APRÈS une première passe
+            # de _update_page_layout ou après set_cell_content.
+            if not self.cell_items or r >= len(self.cell_items):
+                # Pas encore de cell_items, on ne peut pas calculer, garder la hauteur par défaut ou l'ancienne
+                new_height = self.row_heights[r] if r < len(self.row_heights) else DEFAULT_CELL_HEIGHT
+            else:
+                new_height = self._calculate_required_height_for_row(r)
+            
+            new_heights.append(new_height)
+            if r < len(self.row_heights) and abs(self.row_heights[r] - new_height) > 1e-6:
+                changed = True
+            elif r >= len(self.row_heights) and new_height != DEFAULT_CELL_HEIGHT: # Nouvelle rangée, hauteur non standard
+                changed = True
+        
+        if changed:
+            self.row_heights = new_heights
+            logger.debug(f"Hauteurs de rangées recalculées: {self.row_heights}")
+        return changed
+
     def _update_page_layout(self, preserved_content_details: dict[tuple[int, int], PreservedContentDetails] | None = None):
         """ Met à jour la taille et l'apparence du fond de page et de la scène. """
         if preserved_content_details is None:
             preserved_content_details = {}
 
+        # --- Phase 1: Calcul des largeurs de colonnes --- 
         actual_page_width_pixels: float
-
         if self.fixed_page_width_pixels is not None and self.num_cols > 0:
             target_fixed_width = self.fixed_page_width_pixels
-            logger.debug(f"Application de la largeur de page fixe: {target_fixed_width:.2f} px")
-
-            # Recalculer les largeurs minimales demandées par chaque colonne basé sur leur contenu actuel
-            # _calculate_required_width_for_column retourne au moins DEFAULT_CELL_WIDTH
             demanded_widths = [self._calculate_required_width_for_column(c) for c in range(self.num_cols)]
             total_demanded_width = sum(demanded_widths)
-
             if total_demanded_width <= target_fixed_width:
-                # Le contenu total demandé est inférieur ou égal à la largeur fixe.
-                # On distribue l'excédent.
                 excess_width = target_fixed_width - total_demanded_width
-                # Distribuer l'excédent proportionnellement aux largeurs demandées (ou également si toutes sont au min).
-                # Pour une distribution égale simple de l'excédent :
                 extra_per_column = excess_width / self.num_cols if self.num_cols > 0 else 0
                 self.column_widths = [demanded_widths[c] + extra_per_column for c in range(self.num_cols)]
                 actual_page_width_pixels = target_fixed_width
-                logger.debug(f"Largeur fixe respectée. Excédent distribué. Nouvelles largeurs: {self.column_widths}")
             else:
-                # Le contenu total demandé DÉPASSE la largeur fixe.
-                # Nous devons "compresser" les colonnes pour qu'elles tiennent dans target_fixed_width.
-                # On distribue target_fixed_width proportionnellement aux largeurs demandées.
-                # self.column_widths[c] = (demanded_widths[c] / total_demanded_width) * target_fixed_width
-                # Chaque colonne ne sera pas plus petite que DEFAULT_CELL_WIDTH grâce à _calculate_required_width_for_column.
-                # Si la somme des DEFAULT_CELL_WIDTH dépasse target_fixed_width, alors target_fixed_width sera ignoré.
-                # Pour réellement contraindre : 
-
                 if sum(DEFAULT_CELL_WIDTH for _ in range(self.num_cols)) > target_fixed_width:
-                    # Même en mettant toutes les colonnes à leur minimum absolu, on dépasse la largeur fixe.
-                    # Dans ce cas, on ignore la largeur fixe et on utilise les largeurs minimales.
-                    self.column_widths = [DEFAULT_CELL_WIDTH] * self.num_cols # ou demanded_widths si on veut être plus généreux
+                    self.column_widths = [DEFAULT_CELL_WIDTH] * self.num_cols
                     actual_page_width_pixels = sum(self.column_widths)
-                    logger.warning(f"La largeur fixe ({target_fixed_width:.2f} px) est trop petite même pour les largeurs minimales ({DEFAULT_CELL_WIDTH}px) des colonnes. Largeur fixe ignorée. Largeur page: {actual_page_width_pixels:.2f} px")
+                    logger.warning(f"Largeur fixe ({target_fixed_width:.2f} px) trop petite. Ignorée.")
                 else:
-                    # On peut distribuer la largeur fixe. On essaie de le faire proportionnellement
-                    # aux largeurs demandées, tout en s'assurant que chaque colonne >= DEFAULT_CELL_WIDTH
-                    # et que la somme est target_fixed_width.
-                    current_widths = list(demanded_widths) # commencer avec les largeurs demandées
+                    current_widths = list(demanded_widths)
                     current_sum = sum(current_widths)
-                    
-                    # Réduire itérativement jusqu'à ce que la somme atteigne la cible ou que toutes les colonnes soient au min
                     while current_sum > target_fixed_width and any(w > DEFAULT_CELL_WIDTH for w in current_widths):
                         over_target_amount = current_sum - target_fixed_width
                         total_reducible_width = sum(w - DEFAULT_CELL_WIDTH for w in current_widths if w > DEFAULT_CELL_WIDTH)
-                        if total_reducible_width <= 0: # Rien à réduire au-delà des minimums
-                            break 
-                        
-                        for c in range(self.num_cols):
-                            if current_widths[c] > DEFAULT_CELL_WIDTH:
-                                reduction_ratio = (current_widths[c] - DEFAULT_CELL_WIDTH) / total_reducible_width
+                        if total_reducible_width <= 0: break
+                        for c_idx in range(self.num_cols):
+                            if current_widths[c_idx] > DEFAULT_CELL_WIDTH:
+                                reduction_ratio = (current_widths[c_idx] - DEFAULT_CELL_WIDTH) / total_reducible_width
                                 reduction = over_target_amount * reduction_ratio
-                                current_widths[c] = max(DEFAULT_CELL_WIDTH, current_widths[c] - reduction)
+                                current_widths[c_idx] = max(DEFAULT_CELL_WIDTH, current_widths[c_idx] - reduction)
                         current_sum = sum(current_widths)
-                    
-                    # S'il reste un léger écart dû aux arrondis ou aux minimums, on ajuste la dernière colonne (ou on distribue)
                     final_sum = sum(current_widths)
                     if abs(final_sum - target_fixed_width) > 1e-5:
                         diff = target_fixed_width - final_sum
-                        # Simple ajustement sur la dernière colonne qui n'est pas à son minimum (si possible)
-                        adjustable_cols = [c for c in range(self.num_cols) if current_widths[c] > DEFAULT_CELL_WIDTH]
+                        adjustable_cols = [c_idx for c_idx in range(self.num_cols) if current_widths[c_idx] > DEFAULT_CELL_WIDTH]
                         if adjustable_cols:
-                            # distribuer le diff sur les colonnes ajustables
                             extra_per_adj_col = diff / len(adjustable_cols)
-                            for c in adjustable_cols:
-                                current_widths[c] += extra_per_adj_col
-                                current_widths[c] = max(DEFAULT_CELL_WIDTH, current_widths[c]) # Ré-assurer le min
-                        # Recalculer la somme finale après ajustement potentiel
-                        current_widths_sum_final = sum(current_widths)
-                        if abs(current_widths_sum_final - target_fixed_width) > 1e-2 : # Marge d'erreur plus grande pour cette rustine
-                            logger.warning(f"Ajustement final n'a pas pu atteindre exactement la largeur fixe. Somme: {current_widths_sum_final}, Cible: {target_fixed_width}")
-                            # Dans ce cas, on utilise les largeurs calculées, la page sera proche de la cible.
-
+                            for c_idx_adj in adjustable_cols:
+                                current_widths[c_idx_adj] += extra_per_adj_col
+                                current_widths[c_idx_adj] = max(DEFAULT_CELL_WIDTH, current_widths[c_idx_adj])
                     self.column_widths = current_widths
-                    actual_page_width_pixels = sum(self.column_widths) # Doit être très proche de target_fixed_width
-                    if abs(actual_page_width_pixels - target_fixed_width) > 1.0 : # Si l'écart est > 1px
-                         logger.info(f"Largeur de page ({actual_page_width_pixels:.2f}px) ajustée pour respecter la largeur fixe ({target_fixed_width:.2f}px). Contenu compressé si nécessaire. Largeurs colonnes: {self.column_widths}")
-                    else:
-                         actual_page_width_pixels = target_fixed_width # Forcer si très proche
-                         logger.info(f"Largeur de page fixée à {target_fixed_width:.2f}px. Contenu compressé si nécessaire. Largeurs colonnes: {self.column_widths}")
-
+                    actual_page_width_pixels = sum(self.column_widths)
         elif self.num_cols == 0:
-             self.column_widths = []
-             actual_page_width_pixels = 0
-        else: # Cas où self.fixed_page_width_pixels est None ET self.num_cols > 0
-            if self.num_cols > 0: # Assurer qu'il y a des colonnes pour sommer leurs largeurs
-                actual_page_width_pixels = sum(self.column_widths)
-                logger.debug(f"Largeur de page dynamique (pas de largeur fixe), somme des largeurs de colonnes: {actual_page_width_pixels:.2f} px")
-            else: # Si num_cols est 0 et pas de largeur fixe (déjà couvert par le elif, mais bon à avoir pour la robustesse)
-                actual_page_width_pixels = 0
-                logger.debug("Largeur de page dynamique, 0 colonnes, largeur de page à 0 px.")
+            self.column_widths = []
+            actual_page_width_pixels = 0
+        else: 
+            actual_page_width_pixels = sum(self.column_widths) if self.num_cols > 0 else 0
 
-        page_height = self.num_rows * self.cell_height
+        # --- Phase 2: Nettoyage préliminaire et sauvegarde des anciens items --- 
+        for line_item in self.grid_lines:
+            if line_item.scene(): self.scene.removeItem(line_item)
+        self.grid_lines.clear()
 
+        old_cell_items_to_remove_from_scene = []
+        if hasattr(self, 'cell_items') and self.cell_items: # Garder une copie des anciens items
+            for r_old in range(len(self.cell_items)):
+                for c_old in range(len(self.cell_items[r_old])):
+                    if self.cell_items[r_old][c_old]:
+                        old_cell_items_to_remove_from_scene.append(self.cell_items[r_old][c_old])
+        
+        # Initialiser la nouvelle grille de cell_items (sera peuplée en phase 3)
+        self.cell_items = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
+
+        # --- Phase 3: Création des CellItems et de leurs placeholders (sans les ajouter à la scène) ---
+        # Utilise les row_heights actuelles (défaut ou chargées)
+        current_x_offset_p3 = PAGE_MARGIN
+        for c_p3 in range(self.num_cols):
+            current_y_offset_p3 = PAGE_MARGIN
+            current_col_width_p3 = self.column_widths[c_p3]
+            for r_p3 in range(self.num_rows):
+                current_row_height_p3 = self.row_heights[r_p3] if r_p3 < len(self.row_heights) else DEFAULT_CELL_HEIGHT
+                cell_rect_p3 = QRectF(current_x_offset_p3, current_y_offset_p3, current_col_width_p3, current_row_height_p3)
+                
+                # Créer la cellule mais ne pas l'ajouter à la scène encore
+                cell_item = CellItem(r_p3, c_p3, cell_rect_p3, editor_widget=self, graphics_parent=None) 
+                self.cell_items[r_p3][c_p3] = cell_item
+
+                # Restaurer le contenu pour que _recalculate_all_row_heights ait les infos
+                # _get_cell_merged_state ici utilise les hauteurs de rangées non encore finales
+                is_master_p3, is_slave_p3, _, _ = self._get_cell_merged_state(r_p3, c_p3, cell_rect_p3)
+                if preserved_content_details and (r_p3, c_p3) in preserved_content_details:
+                    content_type_str, actual_text_str = preserved_content_details[(r_p3, c_p3)]
+                    if is_master_p3 or (not is_master_p3 and not is_slave_p3):
+                         self._recreate_placeholder_for_cell(cell_item, content_type_str, actual_text_str)
+                current_y_offset_p3 += current_row_height_p3
+            current_x_offset_p3 += current_col_width_p3
+
+        # --- Phase 4: Recalculer les hauteurs de rangées basées sur le contenu réel ---
+        if self.num_rows > 0 and self.num_cols > 0:
+            self._recalculate_all_row_heights()
+        elif self.num_rows == 0:
+            self.row_heights = []
+        # Si num_cols == 0 mais num_rows > 0, row_heights devrait déjà avoir des hauteurs (par défaut)
+
+        page_height_final = sum(self.row_heights) if self.row_heights else 0
+
+        # --- Phase 5: Configuration de la scène et du fond de page ---
         scene_width = actual_page_width_pixels + 2 * PAGE_MARGIN
-        scene_height = page_height + 2 * PAGE_MARGIN
+        scene_height = page_height_final + 2 * PAGE_MARGIN
         self.scene.setSceneRect(0, 0, scene_width, scene_height)
 
-        background_rect_dims = QRectF(PAGE_MARGIN, PAGE_MARGIN, actual_page_width_pixels, page_height)
-        
+        background_rect_dims = QRectF(PAGE_MARGIN, PAGE_MARGIN, actual_page_width_pixels, page_height_final)
         path = QPainterPath()
         path.addRoundedRect(background_rect_dims, self.corner_radius, self.corner_radius)
 
@@ -514,106 +601,71 @@ class DispositionEditorWidget(QWidget):
             self.page_background_item = QGraphicsPathItem(path)
             self.page_background_item.setBrush(QBrush(Qt.white))
             self.page_background_item.setPen(QPen(QColor("#B0B0B0"), 1))
-            self.page_background_item.setZValue(-1) 
+            self.page_background_item.setZValue(-1)
             self.page_background_item.setData(PAGE_BACKGROUND_ITEM_KEY, True)
             self.scene.addItem(self.page_background_item)
         else:
             self.page_background_item.setPath(path)
-        
-        # Gestion des règles
-        # page_width_px = sum(self.column_widths) # Remplacé par actual_page_width_pixels
-        page_height_px = self.num_rows * self.cell_height # Inchangé
 
-        # Règle Horizontale
-        if self.horizontal_ruler_item is None:
-            self.horizontal_ruler_item = HorizontalRulerItem()
-            self.scene.addItem(self.horizontal_ruler_item)
-        
-        total_width_mm_str = f"{pixels_to_mm(actual_page_width_pixels, self.dpi):.0f} mm"
-        self.horizontal_ruler_item.set_config(actual_page_width_pixels, [], total_width_mm_str)
-        # Positionner la ligne de base (y=0 local) de la règle horizontale
-        # pour qu'il y ait RULER_TEXT_MARGIN entre le haut du Lamicoid et la ligne de la règle.
-        self.horizontal_ruler_item.setPos(PAGE_MARGIN, PAGE_MARGIN - RULER_TEXT_MARGIN)
+        # --- Phase 6: Retirer les anciens CellItem de la scène et vider selected_cells si nécessaire ---
+        for old_cell_item in old_cell_items_to_remove_from_scene:
+            if old_cell_item.scene(): self.scene.removeItem(old_cell_item)
+            if old_cell_item in self.selected_cells: self.selected_cells.remove(old_cell_item)
+        if not old_cell_items_to_remove_from_scene and self.selected_cells: # Sécurité pour vider la sélection
+            self.selected_cells.clear()
 
-        # Règle Verticale
-        if self.vertical_ruler_item is None:
-            self.vertical_ruler_item = VerticalRulerItem()
-            self.scene.addItem(self.vertical_ruler_item)
-        
-        total_height_mm_str = f"{pixels_to_mm(page_height_px, self.dpi):.0f} mm"
-        self.vertical_ruler_item.set_config(page_height_px, [], total_height_mm_str)
-        self.vertical_ruler_item.setPos(PAGE_MARGIN + actual_page_width_pixels + RULER_TEXT_MARGIN, PAGE_MARGIN)
+        # --- Phase 7: Configuration finale des CellItem et ajout à la scène ---
+        current_x_offset_final = PAGE_MARGIN
+        for c_final in range(self.num_cols):
+            current_y_offset_final = PAGE_MARGIN
+            current_col_width_final = self.column_widths[c_final]
+            for r_final in range(self.num_rows):
+                cell_item = self.cell_items[r_final][c_final]
+                if not cell_item: continue
 
-        for line_item in self.grid_lines:
-            self.scene.removeItem(line_item)
-        self.grid_lines.clear()
-
-        if hasattr(self, 'cell_items'):
-            for r_idx in range(len(self.cell_items)):
-                for c_idx in range(len(self.cell_items[r_idx])):
-                    if self.cell_items[r_idx][c_idx]:
-                        old_cell = self.cell_items[r_idx][c_idx]
-                        if old_cell in self.selected_cells:
-                            self.selected_cells.remove(old_cell)
-                        self.scene.removeItem(old_cell) 
-        
-        self.cell_items = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
-
-        grid_pen = QPen(QColor("#D0D0D0"), 0.5, Qt.SolidLine)
-        current_x = PAGE_MARGIN
-        for i in range(self.num_cols):
-            if i > 0: # Pas de ligne verticale avant la première colonne
-                line = QGraphicsLineItem(QLineF(current_x, PAGE_MARGIN, current_x, PAGE_MARGIN + page_height))
-                line.setPen(grid_pen)
-                line.setZValue(-0.5)
-                self.scene.addItem(line)
-                self.grid_lines.append(line)
-            # current_x est déjà prêt pour la prochaine cellule/ligne verticale
-            if i < self.num_cols: # S'assurer de ne pas dépasser l'index pour column_widths
-                 current_x += self.column_widths[i]
-
-        for i in range(1, self.num_rows):
-            y = PAGE_MARGIN + i * self.cell_height
-            line = QGraphicsLineItem(QLineF(PAGE_MARGIN, y, PAGE_MARGIN + actual_page_width_pixels, y))
-            line.setPen(grid_pen)
-            line.setZValue(-0.5)
-            self.scene.addItem(line)
-            self.grid_lines.append(line)
-            
-        current_x_offset = PAGE_MARGIN
-        logger.debug(f"Dans _update_page_layout, preserved_content_details keys: {list(preserved_content_details.keys()) if preserved_content_details else 'None'}")
-        for c in range(self.num_cols):
-            current_y_offset = PAGE_MARGIN
-            current_col_width = self.column_widths[c]
-            for r in range(self.num_rows):
-                cell_rect = QRectF(current_x_offset, current_y_offset, current_col_width, self.cell_height)
-                cell_item = CellItem(r, c, cell_rect, editor_widget=self, graphics_parent=None)
+                current_row_height_final = self.row_heights[r_final]
+                cell_rect_final = QRectF(current_x_offset_final, current_y_offset_final, current_col_width_final, current_row_height_final)
                 
-                is_master, is_slave, merged_cell_rect, original_cell_rect_for_slave = self._get_cell_merged_state(r, c, cell_rect)
+                cell_item.setPos(cell_rect_final.topLeft())
+                cell_item.setRect(QRectF(0, 0, cell_rect_final.width(), cell_rect_final.height()))
+
+                # Mettre à jour la largeur du placeholder et sa position
+                if cell_item.content_placeholder_item:
+                    cell_item.content_placeholder_item.setTextWidth(cell_rect_final.width())
+                    placeholder_bound_rect = cell_item.content_placeholder_item.boundingRect()
+                    offset_x = (cell_rect_final.width() - placeholder_bound_rect.width()) / 2
+                    offset_y = (cell_rect_final.height() - placeholder_bound_rect.height()) / 2
+                    if offset_x < 0: offset_x = 0
+                    if offset_y < 0: offset_y = 0
+                    cell_item.content_placeholder_item.setPos(offset_x, offset_y)
                 
-                cell_item.set_selected(False)
-                if is_master or is_slave:
-                    cell_item.set_merged_state(is_master, True, merged_cell_rect if is_master else original_cell_rect_for_slave)
-                else:
-                    cell_item.set_merged_state(False, False, cell_rect)
+                is_master_final, is_slave_final, merged_cell_rect_final, _ = self._get_cell_merged_state(r_final, c_final, cell_rect_final)
+                cell_item.set_selected(False) # Normalement déjà désélectionné
+                cell_item.set_merged_state(is_master_final, is_slave_final, merged_cell_rect_final if is_master_final else cell_rect_final)
                 
                 cell_item.setZValue(-0.2)
-                self.scene.addItem(cell_item)
-                self.cell_items[r][c] = cell_item
+                if not cell_item.scene(): self.scene.addItem(cell_item)
                 
-                # Log de débogage pour la restauration du contenu
-                if preserved_content_details:
-                    is_in_preserved = (r, c) in preserved_content_details
-                    logger.debug(f"  _update_page_layout: Cell ({r},{c}), in preserved: {is_in_preserved}, is_master: {is_master}, is_slave: {is_slave}")
-                    if is_in_preserved:
-                        content_type_str, actual_text_str = preserved_content_details[(r, c)]
-                        if is_master or (not is_master and not is_slave):
-                             self._recreate_placeholder_for_cell(cell_item, content_type_str, actual_text_str)
-                current_y_offset += self.cell_height
-            current_x_offset += current_col_width
+                current_y_offset_final += current_row_height_final
+            current_x_offset_final += current_col_width_final
 
-        self._draw_grid_lines(actual_page_width_pixels, page_height)
-        logger.debug(f"Page layout updated: {self.num_rows}x{self.num_cols} cells. Page width: {actual_page_width_pixels}. Cells created: {self.num_rows*self.num_cols}")
+        # --- Phase 8: Mettre à jour les règles et dessiner les lignes de la grille ---
+        if self.horizontal_ruler_item is None: # ... (code règle horizontale existant)
+            self.horizontal_ruler_item = HorizontalRulerItem()
+            self.scene.addItem(self.horizontal_ruler_item)
+        total_width_mm_str = f"{pixels_to_mm(actual_page_width_pixels, self.dpi):.0f} mm"
+        self.horizontal_ruler_item.set_config(actual_page_width_pixels, [], total_width_mm_str)
+        self.horizontal_ruler_item.setPos(PAGE_MARGIN, PAGE_MARGIN - RULER_TEXT_MARGIN)
+
+        if self.vertical_ruler_item is None: # ... (code règle verticale existant)
+            self.vertical_ruler_item = VerticalRulerItem()
+            self.scene.addItem(self.vertical_ruler_item)
+        total_height_mm_str = f"{pixels_to_mm(page_height_final, self.dpi):.0f} mm"
+        self.vertical_ruler_item.set_config(page_height_final, [], total_height_mm_str)
+        self.vertical_ruler_item.setPos(PAGE_MARGIN + actual_page_width_pixels + RULER_TEXT_MARGIN, PAGE_MARGIN)
+
+        self._draw_grid_lines(actual_page_width_pixels, page_height_final)
+        logger.debug(f"Page layout updated: {self.num_rows}x{self.num_cols}. Page W: {actual_page_width_pixels:.1f}, H: {page_height_final:.1f}")
 
     def _recreate_placeholder_for_cell(self, cell_item: CellItem, content_type: str, actual_text: str | None):
         """ Recrée un placeholder pour une cellule donnée. """
@@ -682,36 +734,49 @@ class DispositionEditorWidget(QWidget):
             if r_start <= row <= r_end and c_start <= col <= c_end:
                 is_master = (row == r_start and col == c_start)
                 
-                # Calculer la largeur et la position x de la région fusionnée en sommant les largeurs de colonnes individuelles
                 merged_region_x = PAGE_MARGIN + sum(self.column_widths[i] for i in range(c_start))
                 merged_region_width = sum(self.column_widths[i] for i in range(c_start, c_start + col_span))
                 
-                master_rect = QRectF(
-                    merged_region_x,
-                    PAGE_MARGIN + r_start * self.cell_height,
-                    merged_region_width,
-                    row_span * self.cell_height 
-                )
-                # Pour une cellule esclave, son "original_rect" est celui passé en argument, 
-                # qui est déjà calculé avec la bonne largeur de colonne et position x.
+                merged_region_y = PAGE_MARGIN
+                current_y_sum = 0
+                for i in range(r_start):
+                    if i < len(self.row_heights): current_y_sum += self.row_heights[i]
+                    else: current_y_sum += DEFAULT_CELL_HEIGHT # Fallback
+                merged_region_y += current_y_sum
+                
+                merged_region_height = 0
+                if hasattr(self, 'row_heights') and self.row_heights:
+                    # Sommer les hauteurs des rangées couvertes par la fusion
+                    for i in range(r_start, min(r_start + row_span, self.num_rows, len(self.row_heights))):
+                         merged_region_height += self.row_heights[i]
+                else: 
+                    merged_region_height = row_span * DEFAULT_CELL_HEIGHT
+                    logger.warning("_get_cell_merged_state: Fallback pour hauteur fusion car row_heights non prêt.")
+                
+                # S'assurer que la hauteur n'est pas nulle si row_span est valide mais row_heights est vide/incorrect
+                if merged_region_height == 0 and row_span > 0:
+                    merged_region_height = row_span * DEFAULT_CELL_HEIGHT
+                    logger.warning(f"_get_cell_merged_state: Hauteur de fusion était 0, fallback à {merged_region_height}")
+
+                master_rect = QRectF(merged_region_x, merged_region_y, merged_region_width, merged_region_height)
                 return is_master, True, master_rect, original_cell_rect_at_current_pos
         return False, False, None, original_cell_rect_at_current_pos
 
     def _draw_grid_lines(self, page_width: float, page_height: float):
+        # page_height ici est la somme cumulée des hauteurs de rangées
         for line_item in self.grid_lines:
-            self.scene.removeItem(line_item)
+            if line_item.scene(): self.scene.removeItem(line_item)
         self.grid_lines.clear()
         grid_pen = QPen(QColor("#D0D0D0"), 0.5, Qt.SolidLine)
 
+        # Lignes Verticales (inchangé)
         current_x = PAGE_MARGIN
         for c_idx in range(self.num_cols):
-            # Dessiner la ligne verticale *après* cette colonne, sauf pour la dernière
             if c_idx < self.num_cols -1: 
                 current_x += self.column_widths[c_idx]
                 should_draw_vertical_line = True
-                # Vérifier si cette ligne verticale est à l'intérieur d'une fusion pour toutes les rangées
-                for r_idx in range(self.num_rows):
-                    if self._are_cells_in_same_merge(r_idx, c_idx, r_idx, c_idx + 1):
+                for r_idx_v_line in range(self.num_rows):
+                    if self._are_cells_in_same_merge(r_idx_v_line, c_idx, r_idx_v_line, c_idx + 1):
                         should_draw_vertical_line = False
                         break
                 if should_draw_vertical_line:
@@ -720,23 +785,25 @@ class DispositionEditorWidget(QWidget):
                     line.setZValue(-0.5)
                     self.scene.addItem(line)
                     self.grid_lines.append(line)
-            elif c_idx == self.num_cols -1: # S'assurer que current_x est bien à la fin de la dernière colonne
+            elif c_idx == self.num_cols -1: 
                  current_x += self.column_widths[c_idx]
 
-        for r_idx in range(1, self.num_rows):
-            y = PAGE_MARGIN + r_idx * self.cell_height
-            should_draw_horizontal_line = True
-            # Vérifier si cette ligne horizontale est à l'intérieur d'une fusion pour toutes les colonnes
-            for c_idx in range(self.num_cols):
-                 if self._are_cells_in_same_merge(r_idx -1, c_idx, r_idx, c_idx):
-                    should_draw_horizontal_line = False
-                    break
-            if should_draw_horizontal_line:
-                line = QGraphicsLineItem(QLineF(PAGE_MARGIN, y, PAGE_MARGIN + page_width, y)) # page_width est sum(column_widths)
-                line.setPen(grid_pen)
-                line.setZValue(-0.5)
-                self.scene.addItem(line)
-                self.grid_lines.append(line)
+        # Lignes Horizontales (utilise self.row_heights)
+        current_y = PAGE_MARGIN
+        for r_idx in range(self.num_rows):
+            if r_idx < self.num_rows - 1: # Pas de ligne après la dernière rangée
+                current_y += self.row_heights[r_idx] # Position Y de la ligne est APRÈS la rangée actuelle
+                should_draw_horizontal_line = True
+                for c_idx_h_line in range(self.num_cols):
+                     if self._are_cells_in_same_merge(r_idx, c_idx_h_line, r_idx + 1, c_idx_h_line):
+                        should_draw_horizontal_line = False
+                        break
+                if should_draw_horizontal_line:
+                    line = QGraphicsLineItem(QLineF(PAGE_MARGIN, current_y, PAGE_MARGIN + page_width, current_y))
+                    line.setPen(grid_pen)
+                    line.setZValue(-0.5)
+                    self.scene.addItem(line)
+                    self.grid_lines.append(line)
 
     def _are_cells_in_same_merge(self, r1, c1, r2, c2) -> bool:
         cell1_region = None
@@ -777,7 +844,14 @@ class DispositionEditorWidget(QWidget):
             else:
                 self.column_widths = [DEFAULT_CELL_WIDTH] * self.num_cols
             
-            self.cell_height = disposition_data.get('cell_height', DEFAULT_CELL_HEIGHT) # Reste scalaire
+            # Charger les hauteurs de rangées si elles existent, sinon initialiser par défaut
+            loaded_row_heights = disposition_data.get('row_heights')
+            if loaded_row_heights and len(loaded_row_heights) == self.num_rows:
+                self.row_heights = loaded_row_heights
+            else:
+                self.row_heights = [DEFAULT_CELL_HEIGHT] * self.num_rows
+            
+            # self.cell_height = disposition_data.get('cell_height', DEFAULT_CELL_HEIGHT) # Supprimé
             self.corner_radius = disposition_data.get('corner_radius', CORNER_RADIUS)
             self.merged_regions = disposition_data.get('merged_cells', [])
             cell_contents_data = disposition_data.get('cell_contents', {})
@@ -795,7 +869,8 @@ class DispositionEditorWidget(QWidget):
             self.num_rows = DEFAULT_ROWS
             self.num_cols = DEFAULT_COLS
             self.column_widths = [DEFAULT_CELL_WIDTH] * self.num_cols
-            self.cell_height = DEFAULT_CELL_HEIGHT
+            # self.cell_height = DEFAULT_CELL_HEIGHT # Supprimé
+            self.row_heights = [DEFAULT_CELL_HEIGHT] * self.num_rows 
             self.corner_radius = CORNER_RADIUS
             
         self._update_page_layout(preserved_content_details=content_to_load)
@@ -968,10 +1043,11 @@ class DispositionEditorWidget(QWidget):
         content_map: dict[tuple[int,int], PreservedContentDetails] = {}
         if hasattr(self, 'cell_items') and self.cell_items:
             for r_idx in range(len(self.cell_items)):
-                for c_idx in range(len(self.cell_items[r_idx])):
-                    cell = self.cell_items[r_idx][c_idx]
-                    if cell and cell.content_type:
-                        content_map[(cell.row, cell.col)] = (cell.content_type, cell.actual_text)
+                if self.cell_items[r_idx] is not None: # Vérifier si la rangée existe
+                    for c_idx in range(len(self.cell_items[r_idx])):
+                        cell = self.cell_items[r_idx][c_idx]
+                        if cell and cell.content_type:
+                            content_map[(cell.row, cell.col)] = (cell.content_type, cell.actual_text)
         return content_map
 
     def _add_column_at_end(self):
@@ -1039,7 +1115,8 @@ class DispositionEditorWidget(QWidget):
     def _add_row_at_end(self):
         preserved_content = self._collect_current_content_details()
         self.num_rows += 1
-        logger.debug(f"Rangée ajoutée à la fin. Total rangées: {self.num_rows}")
+        self.row_heights.append(DEFAULT_CELL_HEIGHT) # Ajouter une hauteur par défaut pour la nouvelle rangée
+        logger.debug(f"Rangée ajoutée à la fin. Total rangées: {self.num_rows}. Hauteurs: {self.row_heights}")
         self._update_page_layout(preserved_content_details=preserved_content)
 
     def _insert_row_before_index(self, target_index: int):
@@ -1048,15 +1125,20 @@ class DispositionEditorWidget(QWidget):
 
         if not (0 <= target_index <= self.num_rows):
             logger.error(f"Indice d'insertion de rangée invalide: {target_index}. Max: {self.num_rows}")
-            pass
+            return 
 
         self.num_rows += 1
+        if 0 <= target_index < len(self.row_heights):
+            self.row_heights.insert(target_index, DEFAULT_CELL_HEIGHT)
+        else: # Si target_index == self.num_rows (ancienne valeur), c'est un ajout à la fin
+            self.row_heights.append(DEFAULT_CELL_HEIGHT)
+
         new_merged_regions = []
         for region in self.merged_regions:
             r, c, rs, cs = region['row'], region['col'], region['rowspan'], region['colspan']
             if r >= target_index:
                 region['row'] = r + 1
-            elif r < target_index < r + rs:
+            elif r < target_index < r + rs: # La nouvelle rangée est insérée au milieu d'une fusion existante
                 region['rowspan'] = rs + 1
             new_merged_regions.append(region)
         self.merged_regions = new_merged_regions
@@ -1067,7 +1149,7 @@ class DispositionEditorWidget(QWidget):
             else:
                 new_content_map[(r_orig, c_orig)] = content_details
 
-        logger.debug(f"Rangée insérée avant l'index {target_index}. Total rangées: {self.num_rows}")
+        logger.debug(f"Rangée insérée avant l'index {target_index}. Total rangées: {self.num_rows}. Hauteurs: {self.row_heights}")
         self._update_page_layout(preserved_content_details=new_content_map)
 
     def add_row(self):
@@ -1096,14 +1178,14 @@ class DispositionEditorWidget(QWidget):
         # Positionnement simple pour éviter la superposition exacte au début
         # Les coordonnées sont relatives au coin de la page blanche
         offset_x = (self.scene_items_counter % self.num_cols) * (self.column_widths[self.scene_items_counter % self.num_cols] / 2)
-        offset_y = (self.scene_items_counter // self.num_cols) * (self.cell_height / 2)
+        offset_y = (self.scene_items_counter // self.num_cols) * (self.row_heights[self.scene_items_counter // self.num_cols] / 2)
         
         zone_width = self.column_widths[self.scene_items_counter % self.num_cols] * 0.8
-        zone_height = self.cell_height * 0.8
+        zone_height = self.row_heights[self.scene_items_counter // self.num_cols] * 0.8
         
         # Vérifier que la nouvelle zone ne dépasse pas les limites de la page
         max_x_on_page = (sum(self.column_widths) - zone_width)
-        max_y_on_page = (self.num_rows * self.cell_height) - zone_height
+        max_y_on_page = (self.num_rows * self.row_heights[0]) - zone_height
         
         final_x_on_page = min(offset_x, max_x_on_page)
         final_y_on_page = min(offset_y, max_y_on_page)
@@ -1161,7 +1243,8 @@ class DispositionEditorWidget(QWidget):
             "num_rows": self.num_rows,
             "num_cols": self.num_cols,
             "column_widths": list(self.column_widths), # Sauvegarder les largeurs de colonnes
-            "cell_height": self.cell_height, # Reste scalaire
+            # "cell_height": self.cell_height, # Supprimé
+            "row_heights": list(self.row_heights), # Sauvegarder les hauteurs de rangées
             "corner_radius": self.corner_radius,
             "merged_cells": list(self.merged_regions),
             "cell_contents": cell_contents_to_save,
@@ -1174,19 +1257,22 @@ class DispositionEditorWidget(QWidget):
         
         preserved_content = self._collect_current_content_details()
         new_content_map: dict[tuple[int,int], PreservedContentDetails] = {}
-
+        
         unique_sorted_rows = sorted(list(set(row_indices_to_delete)), reverse=True)
 
         if self.num_rows == 1 and len(unique_sorted_rows) >= 1:
             QMessageBox.information(self, "Suppression Rangées", "Impossible de supprimer la dernière rangée.")
             return
         
-        if len(unique_sorted_rows) >= self.num_rows:
-            logger.warning(f"Tentative de supprimer toutes les {self.num_rows} rangées. Limitation à {self.num_rows -1} suppressions.")
-            unique_sorted_rows = unique_sorted_rows[:self.num_rows - 1]
-            if not unique_sorted_rows:
-                QMessageBox.information(self, "Suppression Rangées", "Impossible de supprimer la dernière rangée.")
-                return
+        max_deletable = self.num_rows -1
+        if len(unique_sorted_rows) > max_deletable and max_deletable > 0:
+            logger.warning(f"Tentative de supprimer trop de rangées ({len(unique_sorted_rows)} vs {self.num_rows} total). Limitation à {max_deletable} suppressions.")
+            unique_sorted_rows = unique_sorted_rows[:max_deletable]
+        elif max_deletable <=0: 
+             QMessageBox.information(self, "Suppression Rangées", "Impossible de supprimer la dernière rangée (num_rows <= 1).")
+             return
+        if not unique_sorted_rows: # Si après limitation, il n'y a plus rien à supprimer
+            return
 
         if not all(0 <= r_idx < self.num_rows for r_idx in unique_sorted_rows):
             logger.error(f"Tentative de suppression de rangées avec des indices invalides: {unique_sorted_rows}. Max: {self.num_rows-1}")
@@ -1195,6 +1281,8 @@ class DispositionEditorWidget(QWidget):
 
         logger.info(f"Suppression des rangées aux indices: {unique_sorted_rows}")
 
+        # Mettre à jour self.row_heights AVANT de recalculer les fusions ou le contenu
+        # Les indices dans unique_sorted_rows sont ceux AVANT suppression.
         new_merged_regions = []
         for region in self.merged_regions:
             r, c, rs, cs = region['row'], region['col'], region['rowspan'], region['colspan']
