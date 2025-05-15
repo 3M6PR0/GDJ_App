@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QPushButton, QGraphicsItem, QGraphicsPathItem, QGraphicsLineItem, QMessageBox, QRubberBand, QApplication, QGraphicsSimpleTextItem
-from PyQt5.QtCore import Qt, QRectF, QLineF, QPoint, QSize
+from PyQt5.QtCore import Qt, QRectF, QLineF, QPoint, QSize, QPointF
 from PyQt5.QtGui import QBrush, QPen, QColor, QPainter, QPainterPath, QFont, QFontMetrics
 import logging
 
@@ -16,6 +16,11 @@ DEFAULT_ROWS = 1
 DEFAULT_COLS = 1
 CORNER_RADIUS = 10        # pixels pour les coins arrondis de la page
 
+# Constantes pour les règles
+DEFAULT_DPI = 96.0  # Points par pouce, pour la conversion en mm
+RULER_THICKNESS = 20 # Épaisseur des règles en pixels
+RULER_TEXT_MARGIN = 10 # Marge pour le texte dans les règles (augmentée)
+
 SELECTED_CELL_BRUSH = QBrush(QColor(173, 216, 230, 128)) # Bleu clair semi-transparent
 NORMAL_CELL_BRUSH = QBrush(Qt.transparent)
 CELL_BORDER_PEN = QPen(QColor("#C0C0C0"), 0.5, Qt.DotLine) # Pointillés légers pour les cellules
@@ -23,6 +28,87 @@ CELL_BORDER_PEN = QPen(QColor("#C0C0C0"), 0.5, Qt.DotLine) # Pointillés légers
 # Structure pour stocker les détails du contenu préservé
 # (content_type, actual_text_if_any)
 PreservedContentDetails = tuple[str, str | None]
+
+INCH_TO_MM = 25.4
+
+def pixels_to_mm(pixels: float, dpi: float) -> float:
+    return (pixels / dpi) * INCH_TO_MM
+
+class AbstractRulerItem(QGraphicsItem):
+    def __init__(self, parent: QGraphicsItem | None = None):
+        super().__init__(parent)
+        self._length_pixels: float = 0
+        # Liste de tuples: (position_pixel, label_mm_str)
+        self._divisions: list[tuple[float, str]] = []
+        self._total_label_mm: str = "0mm"
+        self.setZValue(10) # S'assurer que les règles sont au-dessus des autres éléments
+        self._font = QFont("Arial", 7)
+        self._pen = QPen(Qt.black, 1)
+        self._text_pen = QPen(Qt.black, 1)
+
+    def set_config(self, length_pixels: float, divisions_pixels_labels: list[tuple[float, str]], total_label_mm: str):
+        self.prepareGeometryChange()
+        self._length_pixels = length_pixels
+        self._divisions = divisions_pixels_labels
+        self._total_label_mm = total_label_mm
+        self.update()
+
+    def boundingRect(self) -> QRectF:
+        # Implémentation spécifique dans les classes dérivées
+        raise NotImplementedError
+
+    def paint(self, painter: QPainter, option: 'QStyleOptionGraphicsItem', widget: QWidget | None = None):
+        # Implémentation spécifique dans les classes dérivées
+        raise NotImplementedError
+
+class HorizontalRulerItem(AbstractRulerItem):
+    def boundingRect(self) -> QRectF:
+        return QRectF(0, -RULER_THICKNESS, self._length_pixels, RULER_THICKNESS)
+
+    def paint(self, painter: QPainter, option: 'QStyleOptionGraphicsItem', widget: QWidget | None = None):
+        painter.setFont(self._font)
+        painter.setPen(self._pen)
+
+        # Ligne de base de la règle
+        painter.drawLine(QPointF(0, 0), QPointF(self._length_pixels, 0))
+
+        # Afficher seulement le label total centré
+        painter.setPen(self._text_pen)
+        # Le texte est dans le boundingRect de la règle, qui va de y=-RULER_THICKNESS à y=0.
+        # On veut centrer le texte dans cet espace.
+        text_rect = QRectF(0, -RULER_THICKNESS + RULER_TEXT_MARGIN, self._length_pixels, RULER_THICKNESS - RULER_TEXT_MARGIN * 2)
+        painter.drawText(text_rect, Qt.AlignCenter | Qt.TextDontClip, self._total_label_mm)
+
+class VerticalRulerItem(AbstractRulerItem):
+    def boundingRect(self) -> QRectF:
+        # Estimation de la largeur pour le texte (ex: "100 mm")
+        # Une QFontMetrics pourrait être utilisée ici pour plus de précision si nécessaire,
+        # mais une estimation fixe est plus simple pour l'instant.
+        text_label_width_estimate = 40  # pixels, assez pour "XXX mm"
+        # La règle elle-même n'a plus besoin d'une "épaisseur" si la ligne est à x=0
+        # Le boundingRect inclut la ligne (à x=0) et le texte à droite.
+        return QRectF(0, 0, RULER_TEXT_MARGIN + text_label_width_estimate, self._length_pixels)
+
+    def paint(self, painter: QPainter, option: 'QStyleOptionGraphicsItem', widget: QWidget | None = None):
+        painter.setFont(self._font)
+        painter.setPen(self._pen)
+
+        # Ligne de base de la règle à x=0 (bord gauche du boundingRect)
+        painter.drawLine(QPointF(0, 0), QPointF(0, self._length_pixels))
+
+        # Afficher le label total à droite de la ligne, centré verticalement
+        painter.setPen(self._text_pen)
+        
+        # Le texte est positionné à RULER_TEXT_MARGIN de la ligne (qui est à x=0).
+        # Il s'étend sur la largeur restante du boundingRect.
+        text_render_rect = QRectF(
+            RULER_TEXT_MARGIN,  # Début X du texte
+            0,                  # Début Y du texte (sera centré verticalement)
+            self.boundingRect().width() - RULER_TEXT_MARGIN, # Largeur dispo pour le texte
+            self._length_pixels # Hauteur totale pour centrage vertical
+        )
+        # Aligner à gauche dans son rect disponible, et centré verticalement.
+        painter.drawText(text_render_rect, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextDontClip, self._total_label_mm)
 
 class CellItem(QGraphicsRectItem):
     def __init__(self, row: int, col: int, rect: QRectF, editor_widget: 'DispositionEditorWidget', graphics_parent: QGraphicsItem | None = None):
@@ -198,12 +284,16 @@ class DispositionEditorWidget(QWidget):
         super().__init__(parent)
         self.setObjectName("DispositionEditorWidget")
         
+        self.dpi = DEFAULT_DPI
         self.scene_items_counter = 0 
         self.page_background_item = None
         self.grid_lines = []
         self.cell_items: list[list[CellItem | None]] = []
         self.selected_cells = set()
         self.merged_regions = []
+
+        self.horizontal_ruler_item: HorizontalRulerItem | None = None
+        self.vertical_ruler_item: VerticalRulerItem | None = None
 
         self.num_rows = DEFAULT_ROWS
         self.num_cols = DEFAULT_COLS
@@ -248,6 +338,30 @@ class DispositionEditorWidget(QWidget):
         else:
             self.page_background_item.setPath(path)
         
+        # Gestion des règles
+        page_width_px = sum(self.column_widths)
+        page_height_px = self.num_rows * self.cell_height
+
+        # Règle Horizontale
+        if self.horizontal_ruler_item is None:
+            self.horizontal_ruler_item = HorizontalRulerItem()
+            self.scene.addItem(self.horizontal_ruler_item)
+        
+        total_width_mm_str = f"{pixels_to_mm(page_width_px, self.dpi):.0f} mm"
+        self.horizontal_ruler_item.set_config(page_width_px, [], total_width_mm_str) # Passer une liste vide pour les divisions
+        # Positionner la ligne de base (y=0 local) de la règle horizontale
+        # pour qu'il y ait RULER_TEXT_MARGIN entre le haut du Lamicoid et la ligne de la règle.
+        self.horizontal_ruler_item.setPos(PAGE_MARGIN, PAGE_MARGIN - RULER_TEXT_MARGIN)
+
+        # Règle Verticale
+        if self.vertical_ruler_item is None:
+            self.vertical_ruler_item = VerticalRulerItem()
+            self.scene.addItem(self.vertical_ruler_item)
+        
+        total_height_mm_str = f"{pixels_to_mm(page_height_px, self.dpi):.0f} mm"
+        self.vertical_ruler_item.set_config(page_height_px, [], total_height_mm_str) # Passer une liste vide pour les divisions
+        self.vertical_ruler_item.setPos(PAGE_MARGIN + page_width_px + RULER_TEXT_MARGIN, PAGE_MARGIN)
+
         for line_item in self.grid_lines:
             self.scene.removeItem(line_item)
         self.grid_lines.clear()
@@ -957,11 +1071,12 @@ class DispositionEditorWidget(QWidget):
         
         logger.info(f"Suppression des colonnes aux indices: {unique_sorted_cols}")
         
-        new_column_widths = []
+        # Reconstruire self.column_widths en ne gardant que les largeurs des colonnes non supprimées
+        new_column_widths_temp = []
         for i, width in enumerate(self.column_widths):
-            if i not in col_indices_to_delete:
-                new_column_widths.append(width)
-        self.column_widths = new_column_widths
+            if i not in unique_sorted_cols: # unique_sorted_cols contient les indices à supprimer
+                new_column_widths_temp.append(width)
+        self.column_widths = new_column_widths_temp
         
         new_merged_regions = []
         for region in self.merged_regions:
