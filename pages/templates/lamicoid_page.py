@@ -141,6 +141,10 @@ class LamicoidPage(QWidget):
         # add_icon = self.style().standardIcon(QStyle.SP_FileIcon) # Exemple d'icône
         # self.add_text_button.setIcon(add_icon)
         editor_toolbar_layout.addWidget(self.add_text_button)
+
+        self.add_rect_button = QPushButton("Rectangle")
+        editor_toolbar_layout.addWidget(self.add_rect_button)
+
         editor_toolbar_layout.addStretch() # Pousse les boutons à gauche
         
         right_panel_content_layout.addWidget(self.editor_toolbar) # AJOUTÉ AVANT LE STACK
@@ -165,6 +169,7 @@ class LamicoidPage(QWidget):
         self.margin_spinbox.valueChanged.connect(self._update_lamicoid_editor_params)
         self.grid_spacing_spinbox.valueChanged.connect(self._update_lamicoid_editor_params)
         self.add_text_button.clicked.connect(self._add_text_item_to_editor)
+        self.add_rect_button.clicked.connect(self._add_rect_item_to_editor)
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -195,6 +200,13 @@ class LamicoidPage(QWidget):
             self.lamicoid_editor_widget.add_editor_item("texte") # Type "texte" pour l'instant
         else:
             logger.warning("LamicoidEditorWidget n'est pas actif, impossible d'ajouter un item texte.")
+
+    def _add_rect_item_to_editor(self):
+        if self.lamicoid_editor_widget and self.right_display_stack.currentWidget() == self.lamicoid_editor_widget:
+            logger.debug("Demande d'ajout d'un item Rectangle à l'éditeur Lamicoid.")
+            self.lamicoid_editor_widget.add_editor_item("rectangle") 
+        else:
+            logger.warning("LamicoidEditorWidget n'est pas actif, impossible d'ajouter un item rectangle.")
 
     def _ensure_correct_view_for_mode(self, mode: str):
         if mode == "Nouveau Lamicoid":

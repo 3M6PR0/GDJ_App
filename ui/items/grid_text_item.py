@@ -125,105 +125,103 @@ class GridTextItem(QGraphicsTextItem):
 
         return super().itemChange(change, value)
 
-    def handle_moved(self, handle_type: str, new_handle_pos_in_item: QPointF):
-        """Appelé par une poignée lorsqu'elle est déplacée."""
+    def handle_moved(self, handle_type: str, new_handle_local_pos: QPointF):
+        """Appelé par une poignée lorsqu'elle est déplacée, avec ancrage du coin opposé."""
         if not self.editor_view:
             return
 
-        current_rect = self.boundingRect() # Rectangle actuel de l'item dans ses propres coordonnées
-        new_rect = QRectF(current_rect)
-
-        # Convertir la nouvelle position de la poignée (qui est dans les coordonnées de l'item parent)
-        # en coordonnées de la scène pour l'alignement sur la grille.
-        # Position de l'item dans la scène
-        item_scene_pos = self.scenePos()
-        
-        # La position de la poignée est déjà relative au GridTextItem.
-        # new_handle_pos_in_item est la nouvelle position de la poignée DANS le système de coordonnées de GridTextItem.
-        
-        # On veut déterminer le nouveau coin de l'item dans les coordonnées de l'item lui-même.
-        if handle_type == "top_left":
-            new_rect.setTopLeft(new_handle_pos_in_item)
-        elif handle_type == "top_right":
-            new_rect.setTopRight(new_handle_pos_in_item)
-        elif handle_type == "bottom_left":
-            new_rect.setBottomLeft(new_handle_pos_in_item)
-        elif handle_type == "bottom_right":
-            new_rect.setBottomRight(new_handle_pos_in_item)
-        
-        # Normaliser le rectangle (s'assurer que topLeft est bien en haut à gauche)
-        # Cela gère le cas où l'utilisateur "inverse" le rectangle en déplaçant une poignée au-delà de son opposée.
-        normalized_rect = new_rect.normalized()
-
-        # --- Logique de Snap du rectangle ---
         grid_spacing_x, grid_spacing_y = self.editor_view.get_grid_spacing()
-        grid_origin_offset = self.editor_view.get_grid_origin_offset() # Coordonnées de scène
+        grid_origin_offset = self.editor_view.get_grid_origin_offset()
 
-        # Les coordonnées du rectangle (normalized_rect) sont dans le système de coordonnées de l'item.
-        # Pour le snap, il faut travailler avec les coordonnées de la scène.
-        # Le nouveau coin supérieur gauche de l'item DANS LA SCENE sera : self.pos() + normalized_rect.topLeft()
+        # Coin supérieur gauche actuel de l'item dans la scène
+        current_item_scene_pos = self.pos()
+        # Rectangle de texte actuel en coordonnées locales de l'item
+        current_text_local_rect = super().boundingRect()
+        # Largeur et hauteur actuelles du texte
+        current_text_width = current_text_local_rect.width()
+        current_text_height = current_text_local_rect.height()
+
+        # Coins actuels du rectangle de texte en coordonnées de SCÈNE
+        scene_topLeft = current_item_scene_pos + current_text_local_rect.topLeft() # Devrait être self.pos()
+        scene_bottomRight = current_item_scene_pos + current_text_local_rect.bottomRight()
+        # Pour être plus précis si le topLeft local n'est pas (0,0)
+        scene_topRight = current_item_scene_pos + current_text_local_rect.topRight()
+        scene_bottomLeft = current_item_scene_pos + current_text_local_rect.bottomLeft()
+
+        # Position de la souris (où la poignée est déplacée) en coordonnées de SCÈNE
+        # new_handle_local_pos est la position de la poignée dans les coordonnées locales de GridTextItem.
+        # Pour obtenir la position de la souris en scène, il faut la mapper.
+        # La poignée elle-même est un enfant, donc new_handle_local_pos est la position relative à GridTextItem.
+        moving_corner_scene_target_pos = self.mapToScene(new_handle_local_pos)
+
+        # Snapper cette position cible du coin mobile à la grille
+        snapped_moving_corner_x = round((moving_corner_scene_target_pos.x() - grid_origin_offset.x()) / grid_spacing_x) * grid_spacing_x + grid_origin_offset.x()
+        snapped_moving_corner_y = round((moving_corner_scene_target_pos.y() - grid_origin_offset.y()) / grid_spacing_y) * grid_spacing_y + grid_origin_offset.y()
+        snapped_moving_corner_scene_pos = QPointF(snapped_moving_corner_x, snapped_moving_corner_y)
+
+        # Déterminer le coin fixe et le nouveau rectangle cible dans la SCÈNE
+        fixed_corner_scene_pos = QPointF()
+        new_target_scene_rect = QRectF()
+
+        if handle_type == "top_left":
+            fixed_corner_scene_pos = scene_bottomRight
+            new_target_scene_rect = QRectF(snapped_moving_corner_scene_pos, fixed_corner_scene_pos).normalized()
+        elif handle_type == "top_right":
+            fixed_corner_scene_pos = scene_bottomLeft
+            # Construire le rect à partir des X et Y fixes et mobiles
+            p1 = QPointF(fixed_corner_scene_pos.x(), snapped_moving_corner_scene_pos.y()) # Nouveau topLeft (X de l'ancre, Y du mobile)
+            p2 = QPointF(snapped_moving_corner_scene_pos.x(), fixed_corner_scene_pos.y()) # Nouveau bottomRight (X du mobile, Y de l'ancre)
+            new_target_scene_rect = QRectF(p1, p2).normalized()
+        elif handle_type == "bottom_left":
+            fixed_corner_scene_pos = scene_topRight
+            p1 = QPointF(snapped_moving_corner_scene_pos.x(), fixed_corner_scene_pos.y()) # Nouveau topLeft (X du mobile, Y de l'ancre)
+            p2 = QPointF(fixed_corner_scene_pos.x(), snapped_moving_corner_scene_pos.y()) # Nouveau bottomRight (X de l'ancre, Y du mobile)
+            new_target_scene_rect = QRectF(p1, p2).normalized()
+        elif handle_type == "bottom_right":
+            fixed_corner_scene_pos = scene_topLeft 
+            new_target_scene_rect = QRectF(fixed_corner_scene_pos, snapped_moving_corner_scene_pos).normalized()
         
-        # Nouveau TopLeft de l'item dans la scène
-        potential_item_scene_topLeft_x = self.pos().x() + normalized_rect.left()
-        potential_item_scene_topLeft_y = self.pos().y() + normalized_rect.top()
+        # Assurer une taille minimale pour la largeur et la hauteur du rectangle de SCÈNE
+        new_width = new_target_scene_rect.width()
+        new_height = new_target_scene_rect.height() # On aura besoin de la hauteur pour ajuster le rect si taille min affecte hauteur
 
-        # Aligner ce TopLeft sur la grille
-        relative_tl_x = potential_item_scene_topLeft_x - grid_origin_offset.x()
-        relative_tl_y = potential_item_scene_topLeft_y - grid_origin_offset.y()
+        final_scene_width = max(new_width, grid_spacing_x)
+        final_scene_height = max(new_height, grid_spacing_y) # Même si on ne fixe pas la hauteur du texte, le rect doit respecter la grille
+
+        # Ajuster le rectangle de SCÈNE si la taille minimale l'a modifié
+        # Ceci assure que le coin fixe reste fixe, et le coin mobile s'ajuste.
+        if final_scene_width > new_width:
+            if handle_type == "top_left" or handle_type == "bottom_left": # Le coin gauche bougeait
+                new_target_scene_rect.setLeft(new_target_scene_rect.right() - final_scene_width)
+            else: # Le coin droit bougeait (top_right or bottom_right)
+                new_target_scene_rect.setRight(new_target_scene_rect.left() + final_scene_width)
         
-        snapped_relative_tl_x = round(relative_tl_x / grid_spacing_x) * grid_spacing_x
-        snapped_relative_tl_y = round(relative_tl_y / grid_spacing_y) * grid_spacing_y
+        if final_scene_height > new_height:
+            if handle_type == "top_left" or handle_type == "top_right": # Le coin haut bougeait
+                new_target_scene_rect.setTop(new_target_scene_rect.bottom() - final_scene_height)
+            else: # Le coin bas bougeait (bottom_left or bottom_right)
+                new_target_scene_rect.setBottom(new_target_scene_rect.top() + final_scene_height)
 
-        snapped_item_scene_topLeft_x = snapped_relative_tl_x + grid_origin_offset.x()
-        snapped_item_scene_topLeft_y = snapped_relative_tl_y + grid_origin_offset.y()
+        # Appliquer les changements
+        print(f"handle_moved: type={handle_type}")
+        print(f"  Initial self.pos(): {self.pos()}, Initial self.width: {self.document().textWidth()}")
+        print(f"  Fixed corner (scene): {fixed_corner_scene_pos}")
+        print(f"  Snapped moving corner (scene): {snapped_moving_corner_scene_pos}")
+        print(f"  New target scene rect: {new_target_scene_rect}")
+        print(f"  Applying self.setPos({new_target_scene_rect.topLeft()})")
+        print(f"  Applying setTextWidth({new_target_scene_rect.width()})")
 
-        # Calculer la nouvelle position de l'item dans la scène
-        new_item_scene_pos_x = snapped_item_scene_topLeft_x
-        new_item_scene_pos_y = snapped_item_scene_topLeft_y
-        
-        # Aligner la largeur et la hauteur sur la grille
-        # La largeur et la hauteur sont calculées à partir des coins snappés.
-        # On doit aussi aligner le coin inférieur droit.
-
-        potential_item_scene_bottomRight_x = self.pos().x() + normalized_rect.right()
-        potential_item_scene_bottomRight_y = self.pos().y() + normalized_rect.bottom()
-
-        relative_br_x = potential_item_scene_bottomRight_x - grid_origin_offset.x()
-        relative_br_y = potential_item_scene_bottomRight_y - grid_origin_offset.y()
-
-        snapped_relative_br_x = round(relative_br_x / grid_spacing_x) * grid_spacing_x
-        snapped_relative_br_y = round(relative_br_y / grid_spacing_y) * grid_spacing_y
-
-        snapped_item_scene_bottomRight_x = snapped_relative_br_x + grid_origin_offset.x()
-        snapped_item_scene_bottomRight_y = snapped_relative_br_y + grid_origin_offset.y()
-        
-        snapped_width = snapped_item_scene_bottomRight_x - snapped_item_scene_topLeft_x
-        snapped_height = snapped_item_scene_bottomRight_y - snapped_item_scene_topLeft_y
-
-        # Assurer une taille minimale (par exemple, l'espacement de la grille)
-        snapped_width = max(snapped_width, grid_spacing_x)
-        snapped_height = max(snapped_height, grid_spacing_y)
-
-        # Avant de changer la géométrie, préparer la scène
         self.prepareGeometryChange()
         
-        # Mettre à jour la position de l'item
-        self.setPos(QPointF(new_item_scene_pos_x, new_item_scene_pos_y))
+        self.setPos(new_target_scene_rect.topLeft()) # La nouvelle position de l'item est le topLeft du rect de scène
+        self.document().setTextWidth(new_target_scene_rect.width()) # La largeur du texte est la largeur du rect de scène
         
-        # Mettre à jour la largeur du texte.
-        # Note: QGraphicsTextItem n'a pas de setHeight. La hauteur est déterminée par le contenu.
-        # Pour contrôler la hauteur, il faudrait utiliser un QGraphicsRectItem et y dessiner le texte,
-        # ou limiter la hauteur du document texte, ce qui est plus complexe.
-        # Pour l'instant, on contrôle seulement la largeur.
-        # La largeur du texte est relative à l'item lui-même, donc pas de self.pos() ici.
-        self.document().setTextWidth(snapped_width)
+        # La hauteur de QGraphicsTextItem est gérée par son contenu.
+        # Si on voulait forcer une hauteur visuelle minimale (pas du texte mais de la zone d'interaction),
+        # on pourrait avoir besoin d'un item conteneur ou de dessiner un fond nous-mêmes.
+        # Pour l'instant, on se concentre sur la largeur.
 
-        # Après le changement, mettre à jour les poignées
-        self.update_handles_position()
-        
-        # Il faut aussi remettre la poignée déplacée à sa nouvelle position snappée (relative à l'item)
-        # C'est un peu délicat car la position de l'item a aussi changé.
-        # Le plus simple est que update_handles_position() recalcule tout.
+        self.update_handles_position() # Mettre à jour la position des poignées
 
     # Surcharger boundingRect pour s'assurer qu'il est correct après le changement de largeur
     def boundingRect(self):

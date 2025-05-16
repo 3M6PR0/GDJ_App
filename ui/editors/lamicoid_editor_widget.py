@@ -5,8 +5,19 @@ import logging
 from typing import List
 
 from ui.items.grid_text_item import GridTextItem
+from ui.items.grid_rectangle_item import GridRectangleItem
 
 logger = logging.getLogger('GDJ_App')
+
+# Conversion (peut être déplacé dans un fichier utils plus tard)
+DEFAULT_DPI = 96.0
+INCH_TO_MM = 25.4
+
+def global_mm_to_pixels(mm: float, dpi: float = DEFAULT_DPI) -> float:
+    return (mm / INCH_TO_MM) * dpi
+
+def global_pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
+    return (pixels / dpi) * INCH_TO_MM
 
 class LamicoidEditorWidget(QGraphicsView):
     def __init__(self, parent=None):
@@ -70,6 +81,33 @@ class LamicoidEditorWidget(QGraphicsView):
             text_item.setPos(initial_pos) 
             self._scene.addItem(text_item)
             logger.debug(f"GridTextItem ajouté à la scène à {initial_pos} (aligné)")
+        elif item_type == "rectangle":
+            grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
+            grid_origin_offset = self.get_grid_origin_offset()
+
+            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item):
+                logger.warning("Impossible d'ajouter un rectangle : grille non définie ou marge absente.")
+                return
+
+            # Position initiale du coin supérieur gauche du rectangle, alignée sur la grille
+            # (identique à la logique pour GridTextItem)
+            rect_start_pos_scene = grid_origin_offset
+
+            # Définir une taille initiale pour le rectangle, par exemple 2x2 cellules de grille
+            rect_width_px = 2 * grid_spacing_x
+            rect_height_px = 2 * grid_spacing_y
+            
+            # Le QGraphicsRectItem est défini par son coin sup gauche et sa largeur/hauteur
+            # Ses coordonnées sont relatives à sa propre position (self.pos() de l'item).
+            # Si on veut que le rect_start_pos_scene soit le coin sup gauche du rectangle DANS LA SCENE,
+            # alors le QRectF de construction doit avoir son topLeft à (0,0) et on setPos() l'item.
+            initial_local_rect = QRectF(0, 0, rect_width_px, rect_height_px)
+            
+            rectangle_item = GridRectangleItem(initial_local_rect, editor_view=self)
+            rectangle_item.setPos(rect_start_pos_scene)
+            
+            self._scene.addItem(rectangle_item)
+            logger.debug(f"GridRectangleItem ajouté à la scène à {rect_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
         else:
             logger.warning(f"Type d'item inconnu demandé pour ajout: {item_type}")
 
@@ -237,6 +275,14 @@ class LamicoidEditorWidget(QGraphicsView):
         if self.lamicoid_item: # Si quelque chose est dessiné
             self.fitInView(self._scene.sceneRect(), Qt.KeepAspectRatio)
 
+    @staticmethod
+    def mm_to_pixels(mm: float, dpi: float = DEFAULT_DPI) -> float:
+        return global_mm_to_pixels(mm, dpi)
+
+    @staticmethod
+    def pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
+        return global_pixels_to_mm(pixels, dpi)
+
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication, QMainWindow
     import sys
@@ -265,7 +311,7 @@ if __name__ == '__main__':
             height_px=207, 
             corner_radius_px=11, 
             margin_px=19,
-            grid_spacing_px=mm_to_pixels(1.0) # Exemple pour le test, 1mm en pixels
+            grid_spacing_px=editor.mm_to_pixels(1.0) # Exemple pour le test, 1mm en pixels
         )
     QTimer.singleShot(500, test_properties)
     
