@@ -235,7 +235,22 @@ class GridRectangleItem(QGraphicsRectItem):
         snapped_moving_x = round((moving_corner_target_scene_pos.x() - grid_origin_offset.x()) / grid_spacing_x) * grid_spacing_x + grid_origin_offset.x()
         snapped_moving_y = round((moving_corner_target_scene_pos.y() - grid_origin_offset.y()) / grid_spacing_y) * grid_spacing_y + grid_origin_offset.y()
         snapped_moving_corner_scene_pos = QPointF(snapped_moving_x, snapped_moving_y)
-        logger.debug(f"Snapped moving corner SCENE pos={snapped_moving_corner_scene_pos}") # DEBUG
+        logger.debug(f"Snapped moving corner SCENE pos (before margin clamp)={snapped_moving_corner_scene_pos}") # DEBUG
+
+        # Récupérer les limites de la marge depuis l'éditeur
+        margin_rect_scene = self.editor_view.get_margin_scene_rect()
+
+        if margin_rect_scene:
+            # Contraindre la position snappée à l'intérieur de la marge
+            clamped_x = max(margin_rect_scene.left(), min(snapped_moving_corner_scene_pos.x(), margin_rect_scene.right()))
+            clamped_y = max(margin_rect_scene.top(), min(snapped_moving_corner_scene_pos.y(), margin_rect_scene.bottom()))
+            
+            original_snapped_pos = snapped_moving_corner_scene_pos
+            snapped_moving_corner_scene_pos = QPointF(clamped_x, clamped_y)
+            if original_snapped_pos != snapped_moving_corner_scene_pos:
+                 logger.debug(f"Snapped moving corner SCENE pos CLAMPED to margin: from {original_snapped_pos} to {snapped_moving_corner_scene_pos}") # DEBUG
+        else:
+            logger.warning("handle_moved: Margin rect not available from editor_view, cannot clamp to margin.")
 
         # Déterminer le coin fixe et le nouveau rectangle en SCÈNE
         fixed_corner_scene_pos = QPointF()

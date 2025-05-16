@@ -259,14 +259,22 @@ class LamicoidEditorWidget(QGraphicsView):
         logger.warning("get_grid_origin_offset appelé alors que margin_item n'est pas défini ou la zone de marge est invalide. Retourne QPointF(0,0).")
         return QPointF(0.0, 0.0) # Valeur par défaut si pas de marge
 
+    def get_margin_scene_rect(self) -> QRectF | None:
+        """
+        Retourne le QRectF de la zone de marge en coordonnées de scène.
+        Retourne None si la marge n'est pas définie ou n'est pas visible.
+        """
+        if self.margin_item and self.margin_item.isVisible():
+            # margin_item est un QGraphicsPathItem dont la position est (0,0) dans la scène (car il est centré)
+            # Son chemin (path) est défini dans ses propres coordonnées locales.
+            # Le boundingRect du chemin est ce que nous voulons.
+            # Puisque sa position est (0,0) par rapport à la scène (ou plutôt, il est dessiné autour de (0,0)),
+            # son boundingRect est déjà en "coordonnées de scène effectives" par rapport à son centre.
+            return self.margin_item.boundingRect() # C'est déjà dans le système de coordonnées centré.
+        return None
+
     def clear(self): # Méthode pour effacer l'éditeur si besoin
-        if self.lamicoid_item:
-            self._scene.removeItem(self.lamicoid_item)
-            self.lamicoid_item = None
-        if self.margin_item:
-            self._scene.removeItem(self.margin_item)
-            self.margin_item = None
-        # On pourrait aussi cacher la vue ou afficher un message
+        self._scene.clear()
         logger.debug("Lamicoid editor cleared.")
 
     def resizeEvent(self, event):
