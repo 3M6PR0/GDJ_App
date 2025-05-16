@@ -329,32 +329,42 @@ class DocumentsOpenPage(QWidget):
                     except (ValueError, KeyError, AttributeError, TypeError) as e:
                         logger.warning(f"Date invalide pour nouveau Lamicoid: {date_form_value}, erreur: {e}. Utilisation de la date du jour.")
 
-                    # Pour un nouveau Lamicoid, le nom de fichier est initialement basé sur la référence et la date
-                    # La sauvegarde finale utilisera le titre complet.
-                    # profile_name est déterminé par le système de préférences, non directement ici.
                     # Pour l'instant, laissons Preference s'en charger.
                     
                     # Tentative de récupérer profile_name depuis les données (si passé par DocumentsTypeSelectionController)
                     # Sinon, LamicoidDocument utilisera celui des préférences par défaut.
-                    profile_name = doc_data.get('profile_name', None)
+                    profile_name_from_data = doc_data.get('profile_name', None) # Récupère profile_name s'il existe dans doc_data
 
 
                     base_file_name = f"Lamicoid_{numero_reference}_{date_creation_doc_obj.strftime('%Y-%m-%d')}.json"
                     default_title = f"Lamicoid - {numero_reference} ({date_creation_doc_obj.strftime('%Y-%m-%d')})"
 
-                    document_to_pass = LamicoidDocument(
-                        file_name=base_file_name, # MODIFIÉ: nom_fichier -> file_name
-                        title=default_title,
-                        date_creation_doc=date_creation_doc_obj,
-                        # profile_name est géré par LamicoidDocument via Preference si non fourni ici explicitement
-                        # ou si on l'ajoutait comme argument à LamicoidDocument.__init__
-                    )
-                    if profile_name: # Si le nom du profil a été passé dans doc_data
-                        document_to_pass.profile_name = profile_name
+                    # document_to_pass = LamicoidDocument(
+                    #     file_name=base_file_name, 
+                    #     title=default_title,
+                    #     date_creation_doc=date_creation_doc_obj,
+                    #     profile_name=profile_name_from_data 
+                    # )
+                    # if profile_name_from_data: 
+                    #     document_to_pass.profile_name = profile_name_from_data
                     
-                    tab_title = document_to_pass.title
+                    # tab_title = document_to_pass.title # Devrait être default_title ici
+                    tab_title = default_title # Utiliser le titre généré
 
-                page_widget = LamicoidPage(document=document_to_pass)
+                page_widget = LamicoidPage() 
+                
+                # On garde la création du document pour la sidebar et le titre de l'onglet
+                # mais il n'est plus passé directement à LamicoidPage
+                # Correction de l'instanciation de LamicoidDocument
+                document_for_sidebar_and_title = LamicoidDocument(
+                    file_name=base_file_name, 
+                    title=tab_title, # Utiliser le tab_title généré
+                    date_creation_doc=date_creation_doc_obj, # Extrait de doc_data['date']
+                    profile_name=profile_name_from_data # Extrait de doc_data['profile_name'] ou None
+                )
+                # Associer ce document au widget pour que la sidebar puisse le trouver
+                page_widget.document = document_for_sidebar_and_title
+
 
             # --- GÉRER LES AUTRES TYPES DE DOCUMENTS (PAS ENCORE IMPLÉMENTÉ POUR LE CHARGEMENT) ---
             # elif doc_type == "Ecriture Comptable":
