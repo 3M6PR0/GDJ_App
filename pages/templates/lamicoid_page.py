@@ -158,57 +158,61 @@ class LamicoidPage(QWidget):
         editor_toolbar_layout.addWidget(self.add_image_button)
 
         editor_toolbar_layout.addStretch() # Pousse les boutons à gauche
+
+        # --- Séparateur vertical (initialement masqué) ---
+        self.text_options_separator = QFrame(self)
+        self.text_options_separator.setFrameShape(QFrame.VLine)
+        self.text_options_separator.setFrameShadow(QFrame.Sunken)
+        editor_toolbar_layout.addWidget(self.text_options_separator)
+        self.text_options_separator.setVisible(False)
+
+        # --- Widgets d'options de texte (ajoutés à editor_toolbar, initialement masqués) ---
+        self.bold_button = QPushButton("Gras")
+        self.bold_button.setCheckable(True)
+        editor_toolbar_layout.addWidget(self.bold_button)
+        self.bold_button.setVisible(False)
+
+        self.italic_button = QPushButton("Italique")
+        self.italic_button.setCheckable(True)
+        editor_toolbar_layout.addWidget(self.italic_button)
+        self.italic_button.setVisible(False)
+
+        self.underline_button = QPushButton("Souligné")
+        self.underline_button.setCheckable(True)
+        editor_toolbar_layout.addWidget(self.underline_button)
+        self.underline_button.setVisible(False)
+
+        self.font_combo = QComboBox(self)
+        self.font_combo.addItems(["Arial", "Times New Roman", "Verdana", "Courier New", "Tahoma"])
+        editor_toolbar_layout.addWidget(self.font_combo)
+        self.font_combo.setVisible(False)
+
+        self.size_spinbox = QSpinBox(self)
+        self.size_spinbox.setMinimum(6)
+        self.size_spinbox.setMaximum(72)
+        self.size_spinbox.setValue(10)
+        editor_toolbar_layout.addWidget(self.size_spinbox)
+        self.size_spinbox.setVisible(False)
+
+        self.color_button = QPushButton("Couleur")
+        editor_toolbar_layout.addWidget(self.color_button)
+        self.color_button.setVisible(False)
+
+        self.align_combo = QComboBox(self)
+        self.align_combo.addItem("Gauche", Qt.AlignLeft)
+        self.align_combo.addItem("Centre", Qt.AlignCenter)
+        self.align_combo.addItem("Droite", Qt.AlignRight)
+        editor_toolbar_layout.addWidget(self.align_combo)
+        self.align_combo.setVisible(False)
+        # --- Fin des options de texte ---
         
-        right_panel_content_layout.addWidget(self.editor_toolbar) # AJOUTÉ AVANT LE STACK
+        right_panel_content_layout.addWidget(self.editor_toolbar) # Barre d'outils principale
         # --- Fin Barre d'outils ---
 
         self.right_display_stack = QStackedWidget(self)
         self.lamicoid_editor_widget = LamicoidEditorWidget(self)
         self.right_display_stack.addWidget(self.lamicoid_editor_widget)
         
-        # --- Barre d'outils contextuelle pour les options de texte (initialement masquée) ---
-        self.text_options_toolbar = QFrame(self)
-        self.text_options_toolbar.setObjectName("TextOptionsToolbar")
-        text_options_toolbar_layout = QHBoxLayout(self.text_options_toolbar)
-        text_options_toolbar_layout.setContentsMargins(5, 2, 5, 2)
-        text_options_toolbar_layout.setSpacing(5)
-
-        self.bold_button = QPushButton("Gras")
-        self.bold_button.setCheckable(True)
-        text_options_toolbar_layout.addWidget(self.bold_button)
-
-        self.italic_button = QPushButton("Italique")
-        self.italic_button.setCheckable(True)
-        text_options_toolbar_layout.addWidget(self.italic_button)
-
-        self.underline_button = QPushButton("Souligné")
-        self.underline_button.setCheckable(True)
-        text_options_toolbar_layout.addWidget(self.underline_button)
-
-        self.font_combo = QComboBox(self)
-        self.font_combo.addItems(["Arial", "Times New Roman", "Verdana", "Courier New", "Tahoma"])
-        text_options_toolbar_layout.addWidget(self.font_combo)
-
-        self.size_spinbox = QSpinBox(self)
-        self.size_spinbox.setMinimum(6)
-        self.size_spinbox.setMaximum(72)
-        self.size_spinbox.setValue(10)
-        text_options_toolbar_layout.addWidget(self.size_spinbox)
-
-        self.color_button = QPushButton("Couleur")
-        text_options_toolbar_layout.addWidget(self.color_button)
-
-        self.align_combo = QComboBox(self)
-        self.align_combo.addItem("Gauche", Qt.AlignLeft)
-        self.align_combo.addItem("Centre", Qt.AlignCenter)
-        self.align_combo.addItem("Droite", Qt.AlignRight)
-        text_options_toolbar_layout.addWidget(self.align_combo)
-
-        text_options_toolbar_layout.addStretch()
-        self.text_options_toolbar.setVisible(False) # Masquée par défaut
-        right_panel_content_layout.addWidget(self.text_options_toolbar) # AJOUTÉ AVANT LE STACK D'AFFICHAGE PRINCIPAL
-        # --- Fin Barre d'outils contextuelle ---
-
         right_panel_content_layout.addWidget(self.right_display_stack)
         page_layout.addWidget(right_panel)
         
@@ -301,8 +305,17 @@ class LamicoidPage(QWidget):
             logger.debug("Sélection d'image annulée.")
 
     def _handle_text_item_selected(self, is_selected: bool, selected_item_object: object):
-        """Affiche ou masque la barre d'outils des options de texte et met à jour son état."""
-        self.text_options_toolbar.setVisible(is_selected)
+        """Affiche ou masque les options de texte dans la barre d'outils principale et met à jour son état."""
+        # Visibilité des options de texte et du séparateur
+        self.text_options_separator.setVisible(is_selected)
+        self.bold_button.setVisible(is_selected)
+        self.italic_button.setVisible(is_selected)
+        self.underline_button.setVisible(is_selected)
+        self.font_combo.setVisible(is_selected)
+        self.size_spinbox.setVisible(is_selected)
+        self.color_button.setVisible(is_selected)
+        self.align_combo.setVisible(is_selected)
+
         self.current_selected_text_item = None # Réinitialiser
 
         if is_selected and isinstance(selected_item_object, QGraphicsItem):
@@ -356,9 +369,9 @@ class LamicoidPage(QWidget):
             except AttributeError as e:
                 logger.warning(f"Erreur lors de l'accès aux propriétés de l'item sélectionné: {e}")
         
-        # Si pas d'item texte valide sélectionné, masquer la barre et logger
-        self.text_options_toolbar.setVisible(False)
-        logger.debug("Aucun item texte valide sélectionné ou déselection. Barre d'outils contextuelle masquée.")
+        # Si pas d'item texte valide sélectionné, les options sont déjà masquées par le bloc ci-dessus
+        if not (is_selected and self.current_selected_text_item):
+            logger.debug("Aucun item texte valide sélectionné ou déselection. Options de texte masquées.")
 
     # --- Slots pour appliquer les modifications de texte --- 
     def _get_current_text_g_item(self):
