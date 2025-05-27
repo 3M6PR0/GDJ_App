@@ -82,6 +82,9 @@ class GridRectangleItem(QGraphicsRectItem):
         
         self.handles = {}
         self._create_handles()
+        # Déterminer si c'est un item texte basé sur la présence de l'argument text
+        self.is_text_item = text is not None
+
         # Initialisation des attributs d'image
         self.image_path = image_path
         self.pixmap_item: QGraphicsPixmapItem | None = None # Pour stocker l'item image enfant

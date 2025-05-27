@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QGraphicsPathItem, QGraphicsLineItem
-from PyQt5.QtCore import Qt, QRectF, QPointF
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QGraphicsPathItem, QGraphicsLineItem, QGraphicsItem
+from PyQt5.QtCore import Qt, QRectF, QPointF, pyqtSignal
 from PyQt5.QtGui import QBrush, QPen, QColor, QPainterPath, QTransform, QPainter, QPalette
 import logging
 from typing import List
@@ -19,6 +19,8 @@ def global_pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
     return (pixels / dpi) * INCH_TO_MM
 
 class LamicoidEditorWidget(QGraphicsView):
+    text_item_selected_signal = pyqtSignal(bool, object) # MODIFIÉ: QGraphicsItem -> object
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("LamicoidEditorWidget")
@@ -42,8 +44,23 @@ class LamicoidEditorWidget(QGraphicsView):
         self.setDragMode(QGraphicsView.ScrollHandDrag) # Permettre de "tirer" la vue
         self.centerOn(0,0) # Centrer la vue initialement
 
+        self._scene.selectionChanged.connect(self._handle_selection_changed) # Se connecter au signal de la scène
+
         self._draw_lamicoid()
         logger.debug("LamicoidEditorWidget initialisé avec QGraphicsView.")
+
+    def _handle_selection_changed(self):
+        selected_items = self._scene.selectedItems()
+        if selected_items:
+            current_item = selected_items[0]
+            if isinstance(current_item, GridRectangleItem) and current_item.is_text_item:
+                self.text_item_selected_signal.emit(True, current_item)
+                # logger.debug(f"Item texte sélectionné: {current_item}")
+                return
+        
+        # Si aucun item texte n'est sélectionné, ou si la sélection est vide
+        self.text_item_selected_signal.emit(False, None)
+        # logger.debug("Aucun item texte sélectionné.")
 
     def add_editor_item(self, item_type: str, **kwargs):
         """Ajoute un nouvel item à l'éditeur, basé sur item_type."""

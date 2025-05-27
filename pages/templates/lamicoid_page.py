@@ -1,14 +1,15 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
-                             QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog)
+                             QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog, QGraphicsItem)
 from PyQt5.QtCore import Qt, QDate, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon
 import logging
 
 from ui.components.frame import Frame
 from utils.signals import signals
 from ui.editors.lamicoid_editor_widget import LamicoidEditorWidget
+from utils.icon_loader import get_icon_path
 
 logger = logging.getLogger('GDJ_App')
 
@@ -138,14 +139,21 @@ class LamicoidPage(QWidget):
         editor_toolbar_layout.setSpacing(5)
 
         self.add_text_button = QPushButton("Texte")
-        # add_icon = self.style().standardIcon(QStyle.SP_FileIcon) # Exemple d'icône
-        # self.add_text_button.setIcon(add_icon)
+        add_text_icon_path = get_icon_path("round_title.png")
+        if add_text_icon_path:
+            self.add_text_button.setIcon(QIcon(add_text_icon_path))
         editor_toolbar_layout.addWidget(self.add_text_button)
 
         self.add_rect_button = QPushButton("Rectangle")
+        add_rect_icon_path = get_icon_path("round_rectangle.png")
+        if add_rect_icon_path:
+            self.add_rect_button.setIcon(QIcon(add_rect_icon_path))
         editor_toolbar_layout.addWidget(self.add_rect_button)
 
         self.add_image_button = QPushButton("Image")
+        add_image_icon_path = get_icon_path("round_image.png")
+        if add_image_icon_path:
+            self.add_image_button.setIcon(QIcon(add_image_icon_path))
         editor_toolbar_layout.addWidget(self.add_image_button)
 
         editor_toolbar_layout.addStretch() # Pousse les boutons à gauche
@@ -157,6 +165,34 @@ class LamicoidPage(QWidget):
         self.lamicoid_editor_widget = LamicoidEditorWidget(self)
         self.right_display_stack.addWidget(self.lamicoid_editor_widget)
         
+        # --- Barre d'outils contextuelle pour les options de texte (initialement masquée) ---
+        self.text_options_toolbar = QFrame(self)
+        self.text_options_toolbar.setObjectName("TextOptionsToolbar")
+        text_options_toolbar_layout = QHBoxLayout(self.text_options_toolbar)
+        text_options_toolbar_layout.setContentsMargins(5, 2, 5, 2)
+        text_options_toolbar_layout.setSpacing(5)
+
+        self.bold_button = QPushButton("Gras") # Placeholder
+        # Exemple avec icône si disponible:
+        # bold_icon_path = get_icon_path("format_bold.png") 
+        # if bold_icon_path: self.bold_button.setIcon(QIcon(bold_icon_path))
+        text_options_toolbar_layout.addWidget(self.bold_button)
+
+        self.font_combo = QComboBox(self) # Placeholder
+        self.font_combo.addItems(["Arial", "Times New Roman", "Verdana"]) # Exemples de polices
+        text_options_toolbar_layout.addWidget(self.font_combo)
+
+        self.size_spinbox = QSpinBox(self) # Placeholder
+        self.size_spinbox.setMinimum(6) # Taille min police
+        self.size_spinbox.setMaximum(72) # Taille max police
+        self.size_spinbox.setValue(10) # Taille par défaut
+        text_options_toolbar_layout.addWidget(self.size_spinbox)
+
+        text_options_toolbar_layout.addStretch()
+        self.text_options_toolbar.setVisible(False) # Masquée par défaut
+        right_panel_content_layout.addWidget(self.text_options_toolbar) # AJOUTÉ AVANT LE STACK D'AFFICHAGE PRINCIPAL
+        # --- Fin Barre d'outils contextuelle ---
+
         right_panel_content_layout.addWidget(self.right_display_stack)
         page_layout.addWidget(right_panel)
         
@@ -174,6 +210,10 @@ class LamicoidPage(QWidget):
         self.add_text_button.clicked.connect(self._add_text_item_to_editor)
         self.add_rect_button.clicked.connect(self._add_rect_item_to_editor)
         self.add_image_button.clicked.connect(self._add_image_item_to_editor)
+
+        # Connexion du signal de l'éditeur Lamicoid
+        if self.lamicoid_editor_widget:
+            self.lamicoid_editor_widget.text_item_selected_signal.connect(self._handle_text_item_selected)
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -234,6 +274,20 @@ class LamicoidPage(QWidget):
             self.lamicoid_editor_widget.add_editor_item("image", image_path=file_path)
         else:
             logger.debug("Sélection d'image annulée.")
+
+    def _handle_text_item_selected(self, is_selected: bool, selected_item: QGraphicsItem):
+        """Affiche ou masque la barre d'outils des options de texte."""
+        self.text_options_toolbar.setVisible(is_selected)
+        if is_selected and selected_item:
+            # Ici, vous pourriez charger les propriétés actuelles de selected_item (police, taille, etc.)
+            # dans les widgets de text_options_toolbar.
+            # Par exemple: 
+            # current_font = selected_item.text_item.font()
+            # self.font_combo.setCurrentFont(current_font)
+            # self.size_spinbox.setValue(current_font.pointSize())
+            logger.debug(f"Item texte sélectionné: {selected_item}. Barre d'outils contextuelle affichée.")
+        else:
+            logger.debug("Aucun item texte sélectionné ou déselection. Barre d'outils contextuelle masquée.")
 
     def _ensure_correct_view_for_mode(self, mode: str):
         if mode == "Nouveau Lamicoid":
