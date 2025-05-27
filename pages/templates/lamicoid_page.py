@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
-                             QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog, QGraphicsItem)
+                             QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog, QGraphicsItem,
+                             QColorDialog)
 from PyQt5.QtCore import Qt, QDate, pyqtSignal
-from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtGui import QFont, QIcon, QColor
 import logging
 
 from ui.components.frame import Frame
@@ -172,21 +173,36 @@ class LamicoidPage(QWidget):
         text_options_toolbar_layout.setContentsMargins(5, 2, 5, 2)
         text_options_toolbar_layout.setSpacing(5)
 
-        self.bold_button = QPushButton("Gras") # Placeholder
-        # Exemple avec icône si disponible:
-        # bold_icon_path = get_icon_path("format_bold.png") 
-        # if bold_icon_path: self.bold_button.setIcon(QIcon(bold_icon_path))
+        self.bold_button = QPushButton("Gras")
+        self.bold_button.setCheckable(True)
         text_options_toolbar_layout.addWidget(self.bold_button)
 
-        self.font_combo = QComboBox(self) # Placeholder
-        self.font_combo.addItems(["Arial", "Times New Roman", "Verdana"]) # Exemples de polices
+        self.italic_button = QPushButton("Italique")
+        self.italic_button.setCheckable(True)
+        text_options_toolbar_layout.addWidget(self.italic_button)
+
+        self.underline_button = QPushButton("Souligné")
+        self.underline_button.setCheckable(True)
+        text_options_toolbar_layout.addWidget(self.underline_button)
+
+        self.font_combo = QComboBox(self)
+        self.font_combo.addItems(["Arial", "Times New Roman", "Verdana", "Courier New", "Tahoma"])
         text_options_toolbar_layout.addWidget(self.font_combo)
 
-        self.size_spinbox = QSpinBox(self) # Placeholder
-        self.size_spinbox.setMinimum(6) # Taille min police
-        self.size_spinbox.setMaximum(72) # Taille max police
-        self.size_spinbox.setValue(10) # Taille par défaut
+        self.size_spinbox = QSpinBox(self)
+        self.size_spinbox.setMinimum(6)
+        self.size_spinbox.setMaximum(72)
+        self.size_spinbox.setValue(10)
         text_options_toolbar_layout.addWidget(self.size_spinbox)
+
+        self.color_button = QPushButton("Couleur")
+        text_options_toolbar_layout.addWidget(self.color_button)
+
+        self.align_combo = QComboBox(self)
+        self.align_combo.addItem("Gauche", Qt.AlignLeft)
+        self.align_combo.addItem("Centre", Qt.AlignCenter)
+        self.align_combo.addItem("Droite", Qt.AlignRight)
+        text_options_toolbar_layout.addWidget(self.align_combo)
 
         text_options_toolbar_layout.addStretch()
         self.text_options_toolbar.setVisible(False) # Masquée par défaut
@@ -214,6 +230,15 @@ class LamicoidPage(QWidget):
         # Connexion du signal de l'éditeur Lamicoid
         if self.lamicoid_editor_widget:
             self.lamicoid_editor_widget.text_item_selected_signal.connect(self._handle_text_item_selected)
+        
+        # Connexions pour la barre d'outils contextuelle du texte
+        self.bold_button.toggled.connect(self._apply_text_bold)
+        self.italic_button.toggled.connect(self._apply_text_italic)
+        self.underline_button.toggled.connect(self._apply_text_underline)
+        self.font_combo.currentTextChanged.connect(self._apply_text_font_family)
+        self.size_spinbox.valueChanged.connect(self._apply_text_font_size)
+        self.color_button.clicked.connect(self._select_text_color)
+        self.align_combo.currentIndexChanged.connect(self._apply_text_alignment)
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -275,19 +300,158 @@ class LamicoidPage(QWidget):
         else:
             logger.debug("Sélection d'image annulée.")
 
-    def _handle_text_item_selected(self, is_selected: bool, selected_item: QGraphicsItem):
-        """Affiche ou masque la barre d'outils des options de texte."""
+    def _handle_text_item_selected(self, is_selected: bool, selected_item_object: object):
+        """Affiche ou masque la barre d'outils des options de texte et met à jour son état."""
         self.text_options_toolbar.setVisible(is_selected)
-        if is_selected and selected_item:
-            # Ici, vous pourriez charger les propriétés actuelles de selected_item (police, taille, etc.)
-            # dans les widgets de text_options_toolbar.
-            # Par exemple: 
-            # current_font = selected_item.text_item.font()
-            # self.font_combo.setCurrentFont(current_font)
-            # self.size_spinbox.setValue(current_font.pointSize())
-            logger.debug(f"Item texte sélectionné: {selected_item}. Barre d'outils contextuelle affichée.")
-        else:
-            logger.debug("Aucun item texte sélectionné ou déselection. Barre d'outils contextuelle masquée.")
+        self.current_selected_text_item = None # Réinitialiser
+
+        if is_selected and isinstance(selected_item_object, QGraphicsItem):
+            # Tenter de caster vers GridRectangleItem si c'est bien un QGraphicsItem
+            try:
+                selected_item = selected_item_object # On suppose que c'est déjà le bon type ou None
+                if selected_item and hasattr(selected_item, 'is_text_item') and selected_item.is_text_item:
+                    self.current_selected_text_item = selected_item
+                    text_g_item = selected_item.text_item # Accès au QGraphicsTextItem enfant
+                    current_font = text_g_item.font()
+
+                    # Mettre à jour les contrôles de la barre d'outils (sans émettre leurs propres signaux)
+                    self.bold_button.blockSignals(True)
+                    self.italic_button.blockSignals(True)
+                    self.underline_button.blockSignals(True)
+                    self.font_combo.blockSignals(True)
+                    self.size_spinbox.blockSignals(True)
+                    self.align_combo.blockSignals(True)
+
+                    self.bold_button.setChecked(current_font.bold())
+                    self.italic_button.setChecked(current_font.italic())
+                    self.underline_button.setChecked(current_font.underline())
+                    
+                    font_family_name = current_font.family()
+                    font_index = self.font_combo.findText(font_family_name, Qt.MatchFixedString)
+                    if font_index >= 0:
+                        self.font_combo.setCurrentIndex(font_index)
+                    else:
+                        self.font_combo.setCurrentIndex(0) # Fallback ou ajouter la police si non listée
+                    
+                    self.size_spinbox.setValue(current_font.pointSize() if current_font.pointSize() > 0 else 10) # Assurer une valeur > 0
+                    
+                    # Pour l'alignement, il faut lire depuis le document du QGraphicsTextItem
+                    current_alignment_option = text_g_item.document().defaultTextOption()
+                    current_alignment_flag = current_alignment_option.alignment()
+                    for i in range(self.align_combo.count()):
+                        # itemData retourne Qt.AlignmentFlag, qui peut être comparé directement
+                        if self.align_combo.itemData(i) == current_alignment_flag:
+                            self.align_combo.setCurrentIndex(i)
+                            break
+                    
+                    self.bold_button.blockSignals(False)
+                    self.italic_button.blockSignals(False)
+                    self.underline_button.blockSignals(False)
+                    self.font_combo.blockSignals(False)
+                    self.size_spinbox.blockSignals(False)
+                    self.align_combo.blockSignals(False)
+                    
+                    logger.debug(f"Item texte sélectionné: {selected_item}. Barre d'outils contextuelle mise à jour.")
+                    return # Sortir tôt si l'item est traité
+            except AttributeError as e:
+                logger.warning(f"Erreur lors de l'accès aux propriétés de l'item sélectionné: {e}")
+        
+        # Si pas d'item texte valide sélectionné, masquer la barre et logger
+        self.text_options_toolbar.setVisible(False)
+        logger.debug("Aucun item texte valide sélectionné ou déselection. Barre d'outils contextuelle masquée.")
+
+    # --- Slots pour appliquer les modifications de texte --- 
+    def _get_current_text_g_item(self):
+        if hasattr(self, 'current_selected_text_item') and self.current_selected_text_item and \
+           hasattr(self.current_selected_text_item, 'text_item'):
+            return self.current_selected_text_item.text_item
+        return None
+
+    def _apply_text_bold(self, checked):
+        text_g_item = self._get_current_text_g_item()
+        if text_g_item:
+            font = text_g_item.font()
+            font.setBold(checked)
+            text_g_item.setFont(font)
+            text_g_item.update() # Forcer le redessin
+            if text_g_item.parentItem(): text_g_item.parentItem().update() # Mettre à jour le parent aussi
+
+    def _apply_text_italic(self, checked):
+        text_g_item = self._get_current_text_g_item()
+        if text_g_item:
+            font = text_g_item.font()
+            font.setItalic(checked)
+            text_g_item.setFont(font)
+            text_g_item.update()
+            if text_g_item.parentItem(): text_g_item.parentItem().update()
+
+    def _apply_text_underline(self, checked):
+        text_g_item = self._get_current_text_g_item()
+        if text_g_item:
+            font = text_g_item.font()
+            font.setUnderline(checked)
+            text_g_item.setFont(font)
+            text_g_item.update()
+            if text_g_item.parentItem(): text_g_item.parentItem().update()
+
+    def _apply_text_font_family(self, font_family_name):
+        text_g_item = self._get_current_text_g_item()
+        if text_g_item:
+            font = text_g_item.font()
+            font.setFamily(font_family_name)
+            text_g_item.setFont(font)
+            text_g_item.update()
+            if text_g_item.parentItem(): text_g_item.parentItem().update()
+
+    def _apply_text_font_size(self, size):
+        text_g_item = self._get_current_text_g_item()
+        if text_g_item:
+            font = text_g_item.font()
+            if size > 0:
+                font.setPointSize(size)
+            text_g_item.setFont(font)
+            # Après avoir changé la taille, il est bon d'informer le layout du document
+            text_g_item.document().adjustSize()
+            text_g_item.update()
+            if text_g_item.parentItem(): 
+                # Forcer la mise à jour de la géométrie du texte dans l'item parent si elle existe
+                if hasattr(text_g_item.parentItem(), 'update_text_item_geometry'):
+                    text_g_item.parentItem().update_text_item_geometry()
+                text_g_item.parentItem().update()
+
+    def _select_text_color(self):
+        text_g_item = self._get_current_text_g_item()
+        if text_g_item:
+            current_color = text_g_item.defaultTextColor()
+            new_color = QColorDialog.getColor(current_color, self, "Choisir la couleur du texte")
+            if new_color.isValid():
+                text_g_item.setDefaultTextColor(new_color)
+    
+    def _apply_text_alignment(self, index):
+        text_g_item = self._get_current_text_g_item()
+        if text_g_item:
+            alignment_from_combo = self.align_combo.itemData(index)
+            if alignment_from_combo is not None:
+                # S'assurer que c'est bien un Qt.AlignmentFlag
+                # Normalement, itemData devrait retourner l'objet Qt.Alignment directement
+                # si c'est ce qui a été stocké. L'erreur suggère que non.
+                # Forcer la conversion si c'est un int peut être une solution, 
+                # mais il faut être sûr que l'int correspond bien.
+                # Qt.Alignment est un typedef pour Qt::AlignmentFlags qui est un int.
+                # Essayons de le passer directement, si l'erreur persiste, il faudra caster.
+                actual_alignment = Qt.AlignmentFlag(int(alignment_from_combo)) # Caster explicitement
+
+                doc = text_g_item.document()
+                option = doc.defaultTextOption()
+                option.setAlignment(actual_alignment) # Utiliser la valeur castée
+                doc.setDefaultTextOption(option)
+                doc.adjustSize() # Mettre à jour la taille du document
+                text_g_item.update() # Redessiner l'item texte
+                if text_g_item.parentItem(): 
+                    if hasattr(text_g_item.parentItem(), 'update_text_item_geometry'):
+                        text_g_item.parentItem().update_text_item_geometry()
+                    text_g_item.parentItem().update()
+                logger.debug(f"Alignement appliqué: {actual_alignment}")
 
     def _ensure_correct_view_for_mode(self, mode: str):
         if mode == "Nouveau Lamicoid":
