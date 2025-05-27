@@ -98,7 +98,12 @@ class GridRectangleItem(QGraphicsRectItem):
         self._text = text if text is not None else ""
         self.text_item = QGraphicsTextItem(self) # Enfant du GridRectangleItem
         self.text_item.setPlainText(self._text)
-        self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction) # Permettre l'édition
+        # Rendre le texte non interactif par défaut, l'interaction sera gérée par le parent
+        self.text_item.setTextInteractionFlags(Qt.NoTextInteraction) 
+        # self.text_item.setFocusPolicy(Qt.NoFocus) # SUPPRIMÉ: QGraphicsItem n'a pas cette méthode
+        # Passer les événements de souris non gérés au parent (GridRectangleItem)
+        # self.text_item.setAcceptedMouseButtons(Qt.NoButton) # Ceci pourrait être trop restrictif
+
         self._setup_text_item_properties()
 
         self.update_handles_position() # Assurer que les poignées sont positionnées initialement
@@ -184,7 +189,6 @@ class GridRectangleItem(QGraphicsRectItem):
 
     def show_handles(self, show=True):
         # logger.debug(f"GridRectangleItem show_handles: {show}")
-        if self._is_updating_handles: return
         for handle in self.handles.values():
             handle.setVisible(show)
 
@@ -193,15 +197,25 @@ class GridRectangleItem(QGraphicsRectItem):
         original_value_from_super = super().itemChange(change, value)
 
         if change == QGraphicsItem.ItemSelectedHasChanged:
-            is_selected = bool(value) # ou bool(original_value_from_super) si super le modifie
+            is_selected = bool(value) 
             self._is_selected = is_selected
             self.show_handles(is_selected)
             if is_selected:
                 self._is_updating_handles = True 
                 self.update_handles_position()
-                # self.update_text_item_geometry() # Le texte n'a pas besoin d'être mis à jour ici
                 QTimer.singleShot(0, lambda: setattr(self, '_is_updating_handles', False))
-            return original_value_from_super # Retourner la valeur de super après nos actions
+                # Si c'est un item texte et qu'il est sélectionné, le rendre éditable
+                if self.is_text_item:
+                    self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
+                    self.text_item.setFocus(Qt.MouseFocusReason) # Donner le focus pour l'édition
+            else:
+                # Si désélectionné, rendre non éditable
+                if self.is_text_item:
+                    self.text_item.setTextInteractionFlags(Qt.NoTextInteraction)
+                    # Optionnel: effacer le focus si l'item texte l'a toujours
+                    if self.text_item.hasFocus():
+                        self.text_item.clearFocus()
+            return original_value_from_super
         
         elif change == QGraphicsItem.ItemPositionHasChanged: 
             # Ceci est appelé APRES que la position a changé.
