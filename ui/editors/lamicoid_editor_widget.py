@@ -4,7 +4,6 @@ from PyQt5.QtGui import QBrush, QPen, QColor, QPainterPath, QTransform, QPainter
 import logging
 from typing import List
 
-from ui.items.grid_text_item import GridTextItem
 from ui.items.grid_rectangle_item import GridRectangleItem
 
 logger = logging.getLogger('GDJ_App')
@@ -39,48 +38,42 @@ class LamicoidEditorWidget(QGraphicsView):
         self.grid_spacing_px: float = 20.0 # Sera mis à jour par set_lamicoid_properties
 
         self.setRenderHint(QPainter.Antialiasing)
+        self.setRenderHint(QPainter.SmoothPixmapTransform) # Ajout pour un meilleur rendu des pixmaps transformés par la vue
         self.setDragMode(QGraphicsView.ScrollHandDrag) # Permettre de "tirer" la vue
         self.centerOn(0,0) # Centrer la vue initialement
 
         self._draw_lamicoid()
         logger.debug("LamicoidEditorWidget initialisé avec QGraphicsView.")
 
-    def add_editor_item(self, item_type: str):
+    def add_editor_item(self, item_type: str, **kwargs):
         """Ajoute un nouvel item à l'éditeur, basé sur item_type."""
         if item_type == "texte":
-            text_item = GridTextItem("Texte", editor_view=self)
-            
-            initial_pos = QPointF(0,0) # Position par défaut si pas de marge/grille
+            # La logique d'ajout de texte sera modifiée pour utiliser un GridRectangleItem avec du texte.
+            # Pour l'instant, on ne fait rien ici, cela sera géré dans une étape ultérieure.
             grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
             grid_origin_offset = self.get_grid_origin_offset()
 
-            if self.margin_item and grid_spacing_x > 0 and grid_spacing_y > 0:
-                # Tenter de placer au coin supérieur gauche de la zone de marge, aligné
-                # Coordonnées du coin supérieur gauche de la zone de marge (déjà dans les coordonnées de scène)
-                desired_pos_in_scene = grid_origin_offset 
-                
-                # Coordonnées relatives à l'origine de la grille
-                relative_x = desired_pos_in_scene.x() - grid_origin_offset.x() # Sera 0
-                relative_y = desired_pos_in_scene.y() - grid_origin_offset.y() # Sera 0
+            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item):
+                logger.warning("Impossible d'ajouter un item texte : grille non définie ou marge absente.")
+                return
 
-                # Aligner ces coordonnées relatives (devrait rester 0,0 si desired_pos est bien l'origine de la grille)
-                # Mais si on voulait un autre point, cette logique serait utile.
-                # Pour le coin sup gauche, c'est déjà aligné par définition de grid_origin_offset.
-                snapped_relative_x = round(relative_x / grid_spacing_x) * grid_spacing_x
-                snapped_relative_y = round(relative_y / grid_spacing_y) * grid_spacing_y
-                
-                # Reconvertir en coordonnées de scène
-                initial_pos = QPointF(snapped_relative_x + grid_origin_offset.x(), 
-                                        snapped_relative_y + grid_origin_offset.y())
-            else: # Pas de grille ou marge, on utilise le coin supérieur gauche du lamicoid s'il existe
-                if self.lamicoid_item:
-                    lamicoid_rect_in_scene = self.lamicoid_item.mapToScene(self.lamicoid_item.boundingRect()).boundingRect()
-                    initial_pos = lamicoid_rect_in_scene.topLeft()
+            # Position initiale du coin supérieur gauche de l'item, alignée sur la grille
+            item_start_pos_scene = grid_origin_offset
 
+            # Définir une taille initiale pour le rectangle contenant le texte
+            default_width_mm = 20.0
+            default_height_mm = 10.0
+            rect_width_px = self.mm_to_pixels(default_width_mm)
+            rect_height_px = self.mm_to_pixels(default_height_mm)
+            
+            initial_local_rect = QRectF(0, 0, rect_width_px, rect_height_px)
+            default_text = kwargs.get("text", "Texte") # Prend un texte initial ou "Texte" par défaut
 
-            text_item.setPos(initial_pos) 
-            self._scene.addItem(text_item)
-            logger.debug(f"GridTextItem ajouté à la scène à {initial_pos} (aligné)")
+            text_rect_item = GridRectangleItem(initial_local_rect, editor_view=self, text=default_text)
+            text_rect_item.setPos(item_start_pos_scene)
+            
+            self._scene.addItem(text_rect_item)
+            logger.debug(f"GridRectangleItem (avec texte) ajouté à la scène à {item_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
         elif item_type == "rectangle":
             grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
             grid_origin_offset = self.get_grid_origin_offset()
@@ -94,8 +87,10 @@ class LamicoidEditorWidget(QGraphicsView):
             rect_start_pos_scene = grid_origin_offset
 
             # Définir une taille initiale pour le rectangle, par exemple 2x2 cellules de grille
-            rect_width_px = 2 * grid_spacing_x
-            rect_height_px = 2 * grid_spacing_y
+            default_width_mm = 20.0
+            default_height_mm = 10.0
+            rect_width_px = self.mm_to_pixels(default_width_mm)
+            rect_height_px = self.mm_to_pixels(default_height_mm)
             
             # Le QGraphicsRectItem est défini par son coin sup gauche et sa largeur/hauteur
             # Ses coordonnées sont relatives à sa propre position (self.pos() de l'item).
@@ -191,6 +186,7 @@ class LamicoidEditorWidget(QGraphicsView):
             rect.adjusted(-scene_padding, -scene_padding, scene_padding, scene_padding)
         )
         self.fitInView(self._scene.sceneRect(), Qt.KeepAspectRatio)
+        logger.debug(f"View transform after fitInView: m11={self.transform().m11()}, m22={self.transform().m22()}") # Log du facteur de zoom
 
     def _draw_grid_within_rect(self, rect: QRectF):
         """Dessine une grille à l'intérieur du QRectF fourni."""

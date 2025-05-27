@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
-                             QStackedWidget, QDialog, QDoubleSpinBox)
+                             QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog)
 from PyQt5.QtCore import Qt, QDate, pyqtSignal
 from PyQt5.QtGui import QFont
 import logging
@@ -145,6 +145,9 @@ class LamicoidPage(QWidget):
         self.add_rect_button = QPushButton("Rectangle")
         editor_toolbar_layout.addWidget(self.add_rect_button)
 
+        self.add_image_button = QPushButton("Image")
+        editor_toolbar_layout.addWidget(self.add_image_button)
+
         editor_toolbar_layout.addStretch() # Pousse les boutons à gauche
         
         right_panel_content_layout.addWidget(self.editor_toolbar) # AJOUTÉ AVANT LE STACK
@@ -170,6 +173,7 @@ class LamicoidPage(QWidget):
         self.grid_spacing_spinbox.valueChanged.connect(self._update_lamicoid_editor_params)
         self.add_text_button.clicked.connect(self._add_text_item_to_editor)
         self.add_rect_button.clicked.connect(self._add_rect_item_to_editor)
+        self.add_image_button.clicked.connect(self._add_image_item_to_editor)
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -207,6 +211,29 @@ class LamicoidPage(QWidget):
             self.lamicoid_editor_widget.add_editor_item("rectangle") 
         else:
             logger.warning("LamicoidEditorWidget n'est pas actif, impossible d'ajouter un item rectangle.")
+
+    def _add_image_item_to_editor(self):
+        if not (self.lamicoid_editor_widget and self.right_display_stack.currentWidget() == self.lamicoid_editor_widget):
+            logger.warning("LamicoidEditorWidget n'est pas actif, impossible de sélectionner une image.")
+            return
+
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Sélectionner une image",
+            "", # Répertoire initial (vide pour le répertoire courant ou dernier utilisé)
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif);;Tous les fichiers (*)",
+            options=options
+        )
+
+        if file_path:
+            logger.info(f"Image sélectionnée : {file_path}")
+            # Ici, nous appellerons une méthode de lamicoid_editor_widget
+            # pour ajouter l'item image avec ce chemin.
+            self.lamicoid_editor_widget.add_editor_item("image", image_path=file_path)
+        else:
+            logger.debug("Sélection d'image annulée.")
 
     def _ensure_correct_view_for_mode(self, mode: str):
         if mode == "Nouveau Lamicoid":

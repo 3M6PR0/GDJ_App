@@ -1,1 +1,8 @@
 PyQt5
+Pillow==10.2.0
+numpy==1.26.4
+cairosvg==2.7.1
+pypotrace==0.3.0
+svglib==1.5.1
+reportlab==4.1.0
+scikit-image==0.22.0
