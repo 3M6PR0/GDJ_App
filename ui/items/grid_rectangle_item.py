@@ -76,14 +76,21 @@ class GridRectangleItem(QGraphicsRectItem):
 
         self.setFlags(QGraphicsItem.ItemIsMovable | 
                       QGraphicsItem.ItemIsSelectable |
-                      QGraphicsItem.ItemSendsGeometryChanges |
-                      QGraphicsItem.ItemClipsChildrenToShape)
+                      QGraphicsItem.ItemSendsGeometryChanges)
         self.setFiltersChildEvents(False)
         
         self.handles = {}
         self._create_handles()
         # Déterminer si c'est un item texte basé sur la présence de l'argument text
         self.is_text_item = text is not None
+
+        # Item pour clipper le texte
+        self.text_clipper_item = QGraphicsRectItem(initial_rect_local, self) # Enfant de GridRectangleItem
+        no_pen = QPen()
+        no_pen.setStyle(Qt.NoPen)
+        self.text_clipper_item.setPen(no_pen) # Pas de bordure visible pour le clipper
+        self.text_clipper_item.setFlag(QGraphicsItem.ItemClipsChildrenToShape, True)
+        self.text_clipper_item.setZValue(self.zValue() + 1) # S'assurer qu'il est au-dessus du fond du GridRectangleItem mais sous les poignées
 
         # Initialisation des attributs d'image
         self.image_path = image_path
@@ -96,7 +103,7 @@ class GridRectangleItem(QGraphicsRectItem):
         
         # Initialisation pour le texte
         self._text = text if text is not None else ""
-        self.text_item = QGraphicsTextItem(self) # Enfant du GridRectangleItem
+        self.text_item = QGraphicsTextItem(self.text_clipper_item) # Enfant du TEXT_CLIPPER_ITEM
         self.text_item.setPlainText(self._text)
         # Rendre le texte non interactif par défaut, l'interaction sera gérée par le parent
         self.text_item.setTextInteractionFlags(Qt.NoTextInteraction) 
@@ -125,7 +132,7 @@ class GridRectangleItem(QGraphicsRectItem):
         # Le QGraphicsTextItem lui-même sera positionné à (0,0) dans les coordonnées du parent (GridRectangleItem)
         # et sa largeur sera ajustée. L'alignement interne se fera via les options du document.
         text_option = QTextOption(self.text_item.document().defaultTextOption())
-        text_option.setAlignment(Qt.AlignCenter) # Centre horizontalement et verticalement
+        text_option.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) # Nouveau: Alignement à gauche, centré verticalement
         self.text_item.document().setDefaultTextOption(text_option)
 
     def set_text(self, text: str):
@@ -140,14 +147,20 @@ class GridRectangleItem(QGraphicsRectItem):
         # Le rect du GridRectangleItem est dans ses propres coordonnées (commence à 0,0)
         item_local_rect = self.rect()
         
-        # La position du QGraphicsTextItem est relative au GridRectangleItem.
-        # On le place au coin supérieur gauche du rectangle.
-        self.text_item.setPos(item_local_rect.topLeft())
+        # Mettre à jour le clipper pour qu'il ait la même taille que le GridRectangleItem
+        # Sa position est (0,0) par rapport au GridRectangleItem car il est enfant direct
+        self.text_clipper_item.setRect(QRectF(0, 0, item_local_rect.width(), item_local_rect.height()))
         
-        # Ajuster la largeur du document texte pour qu'il s'adapte au rectangle
-        # Cela active le word-wrapping.
+        # La position du QGraphicsTextItem est relative au text_clipper_item.
+        # On le place au coin supérieur gauche du clipper.
+        self.text_item.setPos(0,0) # Par rapport au text_clipper_item
+        
+        # Ajuster la largeur du document texte pour qu'il s'adapte à la largeur du clipper (donc du GridRectangleItem)
         self.text_item.setTextWidth(item_local_rect.width())
         
+        # Après avoir potentiellement changé la largeur, il est bon de demander au document de recalculer sa taille
+        # self.text_item.document().adjustSize() # COMMENTÉ - Peut réduire la largeur
+
         # Pour centrer verticalement le texte à l'intérieur du rectangle,
         # on peut ajuster la position Y du QGraphicsTextItem.
         # Cela nécessite de connaître la hauteur du bloc de texte.
@@ -165,6 +178,10 @@ class GridRectangleItem(QGraphicsRectItem):
     def setRect(self, rect: QRectF):
         # logger.debug(f"GridRectangleItem setRect: {rect}, current pos: {self.pos()}")
         super().setRect(rect)
+        # Mettre à jour aussi le rectangle du clipper
+        if hasattr(self, 'text_clipper_item'): # S'assurer que text_clipper_item existe
+            self.text_clipper_item.setRect(QRectF(0,0, rect.width(), rect.height())) # Clipper est à (0,0) du parent et a sa taille
+
         self._is_updating_handles = True # Drapeau pour éviter la récursion
         self.update_handles_position()
         self.update_text_item_geometry() # Mettre à jour la géométrie du texte

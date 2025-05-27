@@ -31,8 +31,61 @@ class LamicoidPage(QWidget):
         
         self._init_ui()
         self._connect_signals()
+        self._apply_toolbar_styles()
         self._on_mode_selected(self.mode_selection_combo.currentText()) 
         logger.debug(f"LamicoidPage initialisée.")
+
+    def _apply_toolbar_styles(self):
+        # Style pour les boutons de la barre d'outils principale (ajout d'items)
+        # et les boutons d'options de texte.
+        # On peut cibler par nom d'objet si besoin de plus de spécificité,
+        # mais ici on va cibler les QPushButton dans EditorToolbar et les boutons d'options.
+        # Pour que cela fonctionne bien, il faut s'assurer que les boutons d'options
+        # sont bien enfants de self.editor_toolbar ou ont un nom d'objet distinctif.
+        # Comme ils sont ajoutés au layout de self.editor_toolbar, un sélecteur descendant devrait fonctionner.
+
+        # Donner des noms d'objet aux boutons d'options pour un ciblage QSS plus précis si nécessaire
+        self.bold_button.setObjectName("toolbarOptionButton")
+        self.italic_button.setObjectName("toolbarOptionButton")
+        self.underline_button.setObjectName("toolbarOptionButton")
+        self.color_button.setObjectName("toolbarColorButton") # Différent pour la couleur si besoin
+
+        # Les boutons d'ajout ont déjà self.add_text_button etc. comme identifiants
+        # On peut aussi leur donner un nom d'objet commun
+        self.add_text_button.setObjectName("toolbarActionButton")
+        self.add_rect_button.setObjectName("toolbarActionButton")
+        self.add_image_button.setObjectName("toolbarActionButton")
+
+        qss = """
+            QFrame#EditorToolbar QPushButton#toolbarActionButton,
+            QFrame#EditorToolbar QPushButton#toolbarOptionButton,
+            QFrame#EditorToolbar QPushButton#toolbarColorButton {
+                padding: 4px;
+                border: 1px solid #555; /* Bordure initiale */
+                background-color: #4a4d4e; /* Fond initial, similaire aux cartes */
+            }
+            QFrame#EditorToolbar QPushButton#toolbarActionButton:hover,
+            QFrame#EditorToolbar QPushButton#toolbarOptionButton:hover,
+            QFrame#EditorToolbar QPushButton#toolbarColorButton:hover {
+                background-color: #5a5d5e; /* Fond au survol */
+                border: 1px solid #666;
+            }
+            QFrame#EditorToolbar QPushButton#toolbarActionButton:pressed,
+            QFrame#EditorToolbar QPushButton#toolbarOptionButton:pressed,
+            QFrame#EditorToolbar QPushButton#toolbarColorButton:pressed {
+                background-color: #3a3d3e; /* Fond au clic */
+                border: 1px solid #444;
+            }
+            QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked {
+                background-color: #007ACC; /* Fond pour les boutons checkable cochés (ex: Gras) */
+                color: white;
+                border: 1px solid #005C9C;
+            }
+            QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked:hover {
+                background-color: #008AE6;
+            }
+        """
+        self.editor_toolbar.setStyleSheet(qss)
 
     def _init_ui(self):
         page_layout = QHBoxLayout(self)
@@ -139,22 +192,31 @@ class LamicoidPage(QWidget):
         editor_toolbar_layout.setContentsMargins(5, 2, 5, 2) # Marges fines
         editor_toolbar_layout.setSpacing(5)
 
-        self.add_text_button = QPushButton("Texte")
-        add_text_icon_path = get_icon_path("round_title.png")
+        self.add_text_button = QPushButton("") # Texte initial vide
+        add_text_icon_path = get_icon_path("round_abc.png") # Utilisation de round_abc.png
         if add_text_icon_path:
             self.add_text_button.setIcon(QIcon(add_text_icon_path))
+            self.add_text_button.setToolTip("Ajouter Texte") # Info-bulle pour indiquer l'action
+        else:
+            self.add_text_button.setText("Texte") # Fallback si l'icône n'est pas trouvée
         editor_toolbar_layout.addWidget(self.add_text_button)
 
-        self.add_rect_button = QPushButton("Rectangle")
+        self.add_rect_button = QPushButton("") # Texte initial vide
         add_rect_icon_path = get_icon_path("round_rectangle.png")
         if add_rect_icon_path:
             self.add_rect_button.setIcon(QIcon(add_rect_icon_path))
+            self.add_rect_button.setToolTip("Ajouter Rectangle")
+        else:
+            self.add_rect_button.setText("Rectangle")
         editor_toolbar_layout.addWidget(self.add_rect_button)
 
-        self.add_image_button = QPushButton("Image")
+        self.add_image_button = QPushButton("") # Texte initial vide
         add_image_icon_path = get_icon_path("round_image.png")
         if add_image_icon_path:
             self.add_image_button.setIcon(QIcon(add_image_icon_path))
+            self.add_image_button.setToolTip("Ajouter Image")
+        else:
+            self.add_image_button.setText("Image")
         editor_toolbar_layout.addWidget(self.add_image_button)
 
         editor_toolbar_layout.addStretch() # Pousse les boutons à gauche
@@ -167,18 +229,36 @@ class LamicoidPage(QWidget):
         self.text_options_separator.setVisible(False)
 
         # --- Widgets d'options de texte (ajoutés à editor_toolbar, initialement masqués) ---
-        self.bold_button = QPushButton("Gras")
+        self.bold_button = QPushButton("") # Texte initial vide
         self.bold_button.setCheckable(True)
+        bold_icon_path = get_icon_path("round_format_bold.png")
+        if bold_icon_path:
+            self.bold_button.setIcon(QIcon(bold_icon_path))
+            self.bold_button.setToolTip("Gras")
+        else:
+            self.bold_button.setText("Gras") # Fallback
         editor_toolbar_layout.addWidget(self.bold_button)
         self.bold_button.setVisible(False)
 
-        self.italic_button = QPushButton("Italique")
+        self.italic_button = QPushButton("") # Texte initial vide
         self.italic_button.setCheckable(True)
+        italic_icon_path = get_icon_path("round_format_italic.png")
+        if italic_icon_path:
+            self.italic_button.setIcon(QIcon(italic_icon_path))
+            self.italic_button.setToolTip("Italique")
+        else:
+            self.italic_button.setText("Italique") # Fallback
         editor_toolbar_layout.addWidget(self.italic_button)
         self.italic_button.setVisible(False)
 
-        self.underline_button = QPushButton("Souligné")
+        self.underline_button = QPushButton("") # Texte initial vide
         self.underline_button.setCheckable(True)
+        underline_icon_path = get_icon_path("round_format_underlined.png")
+        if underline_icon_path:
+            self.underline_button.setIcon(QIcon(underline_icon_path))
+            self.underline_button.setToolTip("Souligné")
+        else:
+            self.underline_button.setText("Souligné") # Fallback
         editor_toolbar_layout.addWidget(self.underline_button)
         self.underline_button.setVisible(False)
 
@@ -199,9 +279,31 @@ class LamicoidPage(QWidget):
         self.color_button.setVisible(False)
 
         self.align_combo = QComboBox(self)
-        self.align_combo.addItem("Gauche", Qt.AlignLeft)
-        self.align_combo.addItem("Centre", Qt.AlignCenter)
-        self.align_combo.addItem("Droite", Qt.AlignRight)
+        # self.align_combo.addItem("Gauche", Qt.AlignLeft)
+        # self.align_combo.addItem("Centre", Qt.AlignCenter)
+        # self.align_combo.addItem("Droite", Qt.AlignRight)
+
+        align_left_icon_path = get_icon_path("round_format_align_left.png")
+        if align_left_icon_path:
+            self.align_combo.addItem(QIcon(align_left_icon_path), "", Qt.AlignLeft)
+            self.align_combo.setItemData(self.align_combo.count() - 1, "Aligner à Gauche", Qt.ToolTipRole)
+        else:
+            self.align_combo.addItem("Gauche", Qt.AlignLeft) # Fallback
+
+        align_center_icon_path = get_icon_path("round_format_align_center.png")
+        if align_center_icon_path:
+            self.align_combo.addItem(QIcon(align_center_icon_path), "", Qt.AlignCenter)
+            self.align_combo.setItemData(self.align_combo.count() - 1, "Aligner au Centre", Qt.ToolTipRole)
+        else:
+            self.align_combo.addItem("Centre", Qt.AlignCenter) # Fallback
+
+        align_right_icon_path = get_icon_path("round_format_align_right.png")
+        if align_right_icon_path:
+            self.align_combo.addItem(QIcon(align_right_icon_path), "", Qt.AlignRight)
+            self.align_combo.setItemData(self.align_combo.count() - 1, "Aligner à Droite", Qt.ToolTipRole)
+        else:
+            self.align_combo.addItem("Droite", Qt.AlignRight) # Fallback
+            
         editor_toolbar_layout.addWidget(self.align_combo)
         self.align_combo.setVisible(False)
         # --- Fin des options de texte ---
@@ -461,9 +563,17 @@ class LamicoidPage(QWidget):
                 doc.adjustSize() # Mettre à jour la taille du document
                 text_g_item.update() # Redessiner l'item texte
                 if text_g_item.parentItem(): 
-                    if hasattr(text_g_item.parentItem(), 'update_text_item_geometry'):
-                        text_g_item.parentItem().update_text_item_geometry()
-                    text_g_item.parentItem().update()
+                    # Le parent de text_g_item est text_clipper_item.
+                    # Le parent de text_clipper_item est self.current_selected_text_item (GridRectangleItem)
+                    if self.current_selected_text_item and hasattr(self.current_selected_text_item, 'update_text_item_geometry'):
+                        self.current_selected_text_item.update_text_item_geometry()
+                    if self.current_selected_text_item: # S'assurer que le parent existe pour l'update
+                        self.current_selected_text_item.update()
+                
+                # Forcer la mise à jour de la vue
+                if self.lamicoid_editor_widget and self.lamicoid_editor_widget.viewport():
+                    self.lamicoid_editor_widget.viewport().update()
+
                 logger.debug(f"Alignement appliqué: {actual_alignment}")
 
     def _ensure_correct_view_for_mode(self, mode: str):
