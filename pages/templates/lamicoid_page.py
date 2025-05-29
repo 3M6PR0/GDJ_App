@@ -190,6 +190,19 @@ class LamicoidPage(QWidget):
         left_panel_content_layout.addWidget(self.left_content_stack)
         page_layout.addWidget(left_panel)
 
+        # Supprimer/Neutraliser le style précédemment appliqué à left_panel
+        left_panel.setStyleSheet("") # Appliquer une feuille de style vide pour annuler la précédente
+
+        # Appliquer le style désiré (bordure arrondie, fond transparent) 
+        # UNIQUEMENT à self.lamicoid_params_frame
+        self.lamicoid_params_frame.setStyleSheet("""
+            QFrame#LamicoidParamsFrame {
+                background-color: transparent;
+                border: 1px solid #4A4D4E; /* Couleur de bordure, ex: gris foncé */
+                border-radius: 6px;       /* Rayon des coins */
+            }
+        """)
+
         right_header_widget = QWidget()
         right_header_widget.setObjectName("FrameHeaderContainer")
         right_header_layout = QHBoxLayout(right_header_widget)
