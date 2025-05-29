@@ -155,6 +155,7 @@ class LamicoidPage(QWidget):
 
         self.lamicoid_params_frame = QFrame(self)
         self.lamicoid_params_frame.setObjectName("LamicoidParamsFrame")
+        self.lamicoid_params_frame.setAutoFillBackground(False)
         params_layout = QVBoxLayout(self.lamicoid_params_frame)
         params_layout.setContentsMargins(5,5,5,5)
         params_layout.setSpacing(8)
@@ -190,16 +191,18 @@ class LamicoidPage(QWidget):
         left_panel_content_layout.addWidget(self.left_content_stack)
         page_layout.addWidget(left_panel)
 
-        # Supprimer/Neutraliser le style précédemment appliqué à left_panel
-        left_panel.setStyleSheet("") # Appliquer une feuille de style vide pour annuler la précédente
+        # Assurer que le QStackedWidget est aussi transparent
+        self.left_content_stack.setStyleSheet("QStackedWidget { background-color: transparent; }")
 
-        # Appliquer le style désiré (bordure arrondie, fond transparent) 
-        # UNIQUEMENT à self.lamicoid_params_frame
+        left_panel.setStyleSheet("") # Assure que left_panel utilise son style par défaut ou celui de Frame.
+
+        # Style pour self.lamicoid_params_frame (DANS le left_panel) :
+        # fond transparent ET une bordure arrondie.
         self.lamicoid_params_frame.setStyleSheet("""
             QFrame#LamicoidParamsFrame {
-                background-color: transparent;
-                border: 1px solid #4A4D4E; /* Couleur de bordure, ex: gris foncé */
-                border-radius: 6px;       /* Rayon des coins */
+                background-color: rgba(0,0,0,0); /* Fond transparent explicite */
+                border: 1px solid #4A4D4E; /* Couleur de bordure souhaitée */
+                border-radius: 6px;       /* Rayon des coins souhaité */
             }
         """)
 
@@ -216,6 +219,15 @@ class LamicoidPage(QWidget):
 
         right_panel = Frame(header_widget=right_header_widget, parent=self)
         right_panel_content_layout = right_panel.get_content_layout()
+
+        # Réinitialiser le style du right_panel pour qu'il utilise son style par défaut (de Frame)
+        # et que ses composants internes (comme EditorToolbar) utilisent leurs styles définis ailleurs.
+        right_panel.setStyleSheet("")
+
+        # Il est important que _apply_toolbar_styles() soit appelé APRÈS 
+        # que le style de right_panel et de self.editor_toolbar ait été potentiellement "nettoyé"
+        # pour que les styles spécifiques des boutons de la toolbar s'appliquent correctement.
+        # L'appel à _apply_toolbar_styles est déjà dans __init__ après _init_ui, ce qui est bien.
 
         # --- Barre d'outils pour l'éditeur ---
         self.editor_toolbar = QFrame(self)
