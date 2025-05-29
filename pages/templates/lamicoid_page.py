@@ -61,6 +61,7 @@ class LamicoidPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("LamicoidPage")
+        self.project_variables = [] # Liste pour stocker les variables
         
         self._init_ui()
         self._connect_signals()
@@ -553,10 +554,10 @@ class LamicoidPage(QWidget):
             variable_data = dialog.get_variable_data()
             if variable_data:
                 logger.info(f"Données de la nouvelle variable: {variable_data}")
-                # Ici, vous intégrerez la logique pour réellement ajouter/utiliser cette variable
-                # Par exemple, l'ajouter à une liste, la passer à l'éditeur, etc.
+                self.project_variables.append(variable_data) # Ajouter la variable à la liste
+                self._update_variables_display() # Mettre à jour l'affichage
                 
-                # Placeholder pour l'ajout à l'éditeur (similaire à _add_text_item_to_editor)
+                # Placeholder pour l'ajout à l'éditeur
                 if self.lamicoid_editor_widget and self.right_display_stack.currentWidget() == self.lamicoid_editor_widget:
                     # Vous devrez probablement passer plus d'infos que juste "variable"
                     # et peut-être utiliser un type d'item spécifique pour les variables dans l'éditeur.
@@ -752,18 +753,90 @@ class LamicoidPage(QWidget):
             self.left_content_stack.setCurrentWidget(self.lamicoid_params_frame)
             self.right_panel_title_label.setText("Éditeur Visuel Lamicoid")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget)
+            self._update_variables_display() # Mettre à jour aussi lors du changement de mode si nécessaire
             
         elif mode == "--- Sélectionner ---":
             self.form_title_label.setText("Configuration Lamicoid")
             self.left_content_stack.setCurrentWidget(self.left_placeholder_widget)
             self.right_panel_title_label.setText("Éditeur Lamicoid")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget) 
+            self._update_variables_display() # Afficher les variables même en mode sélection
             
         else:
             self.form_title_label.setText("Configuration Lamicoid")
             self.left_content_stack.setCurrentWidget(self.left_placeholder_widget)
             self.right_panel_title_label.setText("Éditeur Lamicoid")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget)
+            self._update_variables_display() # Afficher les variables
+
+    def _clear_layout(self, layout):
+        """Utilitaire pour vider un layout de tous ses widgets."""
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+                else:
+                    child_layout = item.layout()
+                    if child_layout is not None:
+                        self._clear_layout(child_layout) # Appel récursif pour les sous-layouts
+
+    def _update_variables_display(self):
+        """Met à jour l'affichage des variables dans self.variables_frame."""
+        # Accéder au layout du self.variables_frame. 
+        # Il a été créé avec un QVBoxLayout dans _init_ui.
+        variables_layout = self.variables_frame.layout() 
+        if not variables_layout:
+            logger.error("Layout pour variables_frame non trouvé.")
+            return
+
+        # Vider les anciens widgets de variables, mais garder le titre
+        # On suppose que le titre est le premier widget.
+        # Et le placeholder est le deuxième (ou seul autre) widget.
+        widgets_to_remove = []
+        for i in range(variables_layout.count()):
+            item = variables_layout.itemAt(i)
+            widget = item.widget()
+            # Ne pas supprimer le titre (QLabel avec objectName="VariablesTitle")
+            # ni le placeholder (self.variables_placeholder_label)
+            if widget and widget.objectName() != "VariablesTitle" and widget != self.variables_placeholder_label:
+                widgets_to_remove.append(widget)
+        
+        for widget in widgets_to_remove:
+            variables_layout.removeWidget(widget)
+            widget.deleteLater()
+
+        if not self.project_variables:
+            self.variables_placeholder_label.setVisible(True)
+        else:
+            self.variables_placeholder_label.setVisible(False)
+            for var_data in self.project_variables:
+                var_name_label = QLabel(f"<b>{var_data.get('name', 'N/A')}</b>")
+                var_name_label.setWordWrap(True)
+                variables_layout.addWidget(var_name_label)
+
+                details = [f"  Type: {var_data.get('type', 'N/A')}"]
+                if var_data.get('type') == "Valeur personnalisable" and var_data.get('has_unit'):
+                    details.append(f"  Unité: {var_data.get('unit', 'N/A')}")
+                elif var_data.get('type') == "Valeur sélectionnable":
+                    vals = var_data.get('selectable_values', [])
+                    details.append(f"  Valeurs: {', '.join(vals) if vals else 'Aucune'}")
+                
+                for detail_text in details:
+                    detail_label = QLabel(detail_text)
+                    detail_label.setWordWrap(True)
+                    variables_layout.addWidget(detail_label)
+                
+                # Ajout d'un petit séparateur ou espace
+                line = QFrame()
+                line.setFrameShape(QFrame.HLine)
+                line.setFrameShadow(QFrame.Sunken)
+                line.setFixedHeight(1)
+                line.setStyleSheet("background-color: #555;") # Couleur de la ligne
+                variables_layout.addWidget(line)
+        
+        self.variables_frame.adjustSize()
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
