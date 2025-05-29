@@ -151,6 +151,40 @@ class LamicoidPage(QWidget):
         left_panel.setFixedWidth(350)
         left_panel_content_layout = left_panel.get_content_layout()
 
+        # --- Cadre pour les Variables ---
+        self.variables_frame = QFrame(self)
+        self.variables_frame.setObjectName("VariablesFrame")
+        self.variables_frame.setAutoFillBackground(False) 
+
+        variables_layout = QVBoxLayout(self.variables_frame)
+        variables_layout.setContentsMargins(8, 8, 8, 8) 
+        variables_layout.setSpacing(6)
+
+        variables_title_label = QLabel("Variables")
+        variables_title_label.setObjectName("VariablesTitle") 
+        
+        self.variables_placeholder_label = QLabel("Aucune variable à afficher pour le moment.")
+        # self.variables_placeholder_label.setAlignment(Qt.AlignCenter) # Optionnel
+
+        variables_layout.addWidget(variables_title_label)
+        variables_layout.addWidget(self.variables_placeholder_label)
+        # variables_layout.addStretch(1) # Ne pas ajouter de stretch pour que le cadre s'adapte au contenu
+
+        self.variables_frame.setStyleSheet("""
+            QFrame#VariablesFrame {
+                background-color: rgba(0,0,0,0);
+                border: 1px solid #4A4D4E; /* Même bordure que LamicoidParamsFrame */
+                border-radius: 6px;
+                margin-bottom: 8px; /* Espacement avec le QStackedWidget en dessous */
+            }
+            QLabel#VariablesTitle {
+                font-weight: bold;
+                /* color: #ddeeff; */ /* Décommentez et ajustez pour une couleur de titre spécifique */
+                margin-bottom: 4px; /* Petit espace sous le titre */
+            }
+        """)
+        # --- Fin Cadre pour les Variables ---
+
         self.left_content_stack = QStackedWidget(self)
 
         self.lamicoid_params_frame = QFrame(self)
@@ -188,6 +222,7 @@ class LamicoidPage(QWidget):
         self.left_placeholder_widget.setAlignment(Qt.AlignCenter)
         self.left_content_stack.addWidget(self.left_placeholder_widget)
 
+        left_panel_content_layout.addWidget(self.variables_frame) # Ajouter le nouveau frame ici
         left_panel_content_layout.addWidget(self.left_content_stack)
         page_layout.addWidget(left_panel)
 
