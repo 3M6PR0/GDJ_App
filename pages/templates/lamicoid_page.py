@@ -2,9 +2,9 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
                              QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog, QGraphicsItem,
-                             QColorDialog)
-from PyQt5.QtCore import Qt, QDate, pyqtSignal
-from PyQt5.QtGui import QFont, QIcon, QColor
+                             QColorDialog, QStyledItemDelegate, QStyle)
+from PyQt5.QtCore import Qt, QDate, pyqtSignal, QSize
+from PyQt5.QtGui import QFont, QIcon, QColor, QStandardItemModel, QStandardItem
 import logging
 
 from ui.components.frame import Frame
@@ -23,6 +23,44 @@ def mm_to_pixels(mm: float, dpi: float = DEFAULT_DPI) -> float:
 
 def pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
     return (pixels / dpi) * INCH_TO_MM
+
+class IconOnlyDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.icon_size = QSize(24, 24) # Taille par défaut, peut être rendue configurable
+
+    def paint(self, painter, option, index):
+        # Récupérer l'icône de l'item
+        icon = index.data(Qt.DecorationRole)
+        if not isinstance(icon, QIcon):
+            # Si ce n'est pas une QIcon (ex: si l'icône n'a pas été trouvée et qu'une donnée vide a été mise),
+            # on ne dessine rien ou on dessine un placeholder.
+            # Pour l'instant, on ne dessine rien pour éviter les erreurs.
+            return
+
+        painter.save()
+
+        # Obtenir le rectangle où dessiner
+        rect = option.rect
+
+        # Dessiner l'état de sélection si nécessaire (pour la liste déroulante)
+        if option.state & QStyle.State_Selected:
+            painter.fillRect(rect, option.palette.highlight())
+
+        # Calculer la position pour centrer l'icône
+        pixmap = icon.pixmap(self.icon_size)
+        x = rect.x() + (rect.width() - pixmap.width()) // 2
+        y = rect.y() + (rect.height() - pixmap.height()) // 2
+        
+        painter.drawPixmap(x, y, pixmap)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        # La taille de l'item est juste la taille de l'icône
+        # On peut ajouter un petit padding si on veut que les items soient un peu plus grands que l'icône elle-même.
+        # Pour l'instant, on retourne la taille de l'icône pour un ajustement serré.
+        return self.icon_size
 
 class LamicoidPage(QWidget):
     def __init__(self, parent=None):
@@ -143,12 +181,12 @@ class LamicoidPage(QWidget):
 
         self.radius_spinbox = QDoubleSpinBox()
         self.radius_spinbox.setSuffix(" mm")
-        self.radius_spinbox.setMinimum(0.0); self.radius_spinbox.setMaximum(50.0); self.radius_spinbox.setValue(5.0)
+        self.radius_spinbox.setMinimum(0.0); self.radius_spinbox.setMaximum(50.0); self.radius_spinbox.setValue(2.0)
         params_form_layout.addRow("Rayon Coins:", self.radius_spinbox)
 
         self.margin_spinbox = QDoubleSpinBox()
         self.margin_spinbox.setSuffix(" mm")
-        self.margin_spinbox.setMinimum(0.0); self.margin_spinbox.setMaximum(50.0); self.margin_spinbox.setValue(5.0)
+        self.margin_spinbox.setMinimum(0.0); self.margin_spinbox.setMaximum(50.0); self.margin_spinbox.setValue(2.0)
         params_form_layout.addRow("Marge Intérieure:", self.margin_spinbox)
 
         self.grid_spacing_spinbox = QDoubleSpinBox()
@@ -279,30 +317,43 @@ class LamicoidPage(QWidget):
         self.color_button.setVisible(False)
 
         self.align_combo = QComboBox(self)
-        # self.align_combo.addItem("Gauche", Qt.AlignLeft)
-        # self.align_combo.addItem("Centre", Qt.AlignCenter)
-        # self.align_combo.addItem("Droite", Qt.AlignRight)
+        self.icon_only_delegate = IconOnlyDelegate(self.align_combo) 
+        self.align_combo.setItemDelegate(self.icon_only_delegate)
 
-        align_left_icon_path = get_icon_path("round_format_align_left.png")
-        if align_left_icon_path:
-            self.align_combo.addItem(QIcon(align_left_icon_path), "", Qt.AlignLeft)
-            self.align_combo.setItemData(self.align_combo.count() - 1, "Aligner à Gauche", Qt.ToolTipRole)
-        else:
-            self.align_combo.addItem("Gauche", Qt.AlignLeft) # Fallback
+        # Définir la taille de l'icône pour le QComboBox et le délégué.
+        # Le délégué utilise une taille de 24x24 en interne, s'assurer de la cohérence.
+        icon_size = QSize(24, 24) # Assurez-vous que IconOnlyDelegate.icon_size correspond
+        self.align_combo.setIconSize(icon_size)
 
-        align_center_icon_path = get_icon_path("round_format_align_center.png")
-        if align_center_icon_path:
-            self.align_combo.addItem(QIcon(align_center_icon_path), "", Qt.AlignCenter)
-            self.align_combo.setItemData(self.align_combo.count() - 1, "Aligner au Centre", Qt.ToolTipRole)
-        else:
-            self.align_combo.addItem("Centre", Qt.AlignCenter) # Fallback
+        # Politique pour que le combobox ajuste sa taille à son contenu (géré par le délégué).
+        self.align_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        
+        # Politique de taille générale.
+        self.align_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed) 
 
-        align_right_icon_path = get_icon_path("round_format_align_right.png")
-        if align_right_icon_path:
-            self.align_combo.addItem(QIcon(align_right_icon_path), "", Qt.AlignRight)
-            self.align_combo.setItemData(self.align_combo.count() - 1, "Aligner à Droite", Qt.ToolTipRole)
-        else:
-            self.align_combo.addItem("Droite", Qt.AlignRight) # Fallback
+        align_model = QStandardItemModel(self.align_combo)
+
+        align_options = [
+            ("round_format_align_left.png", "Aligner à Gauche", Qt.AlignLeft),
+            ("round_format_align_center.png", "Aligner au Centre", Qt.AlignCenter),
+            ("round_format_align_right.png", "Aligner à Droite", Qt.AlignRight)
+        ]
+
+        for icon_file, tooltip, align_flag in align_options:
+            icon_path = get_icon_path(icon_file)
+            if icon_path:
+                item = QStandardItem()
+                # Important: L'icône est mise via setData avec Qt.DecorationRole
+                # pour que le délégué puisse la récupérer.
+                item.setData(QIcon(icon_path), Qt.DecorationRole)
+                item.setData(align_flag, Qt.UserRole) # Stocker la valeur d'alignement
+                item.setToolTip(tooltip)
+                align_model.appendRow(item)
+            # Si l'icône n'est pas trouvée, l'item n'est pas ajouté.
+
+        self.align_combo.setModel(align_model)
+        # self.align_combo.view().setTextElideMode(Qt.ElideNone) # Moins pertinent avec le délégué qui ne dessine pas de texte.
+        self.align_combo.adjustSize() # Demander au combobox de s'ajuster après avoir défini le modèle et le délégué
             
         editor_toolbar_layout.addWidget(self.align_combo)
         self.align_combo.setVisible(False)
@@ -453,9 +504,12 @@ class LamicoidPage(QWidget):
                     # Pour l'alignement, il faut lire depuis le document du QGraphicsTextItem
                     current_alignment_option = text_g_item.document().defaultTextOption()
                     current_alignment_flag = current_alignment_option.alignment()
-                    for i in range(self.align_combo.count()):
-                        # itemData retourne Qt.AlignmentFlag, qui peut être comparé directement
-                        if self.align_combo.itemData(i) == current_alignment_flag:
+                    
+                    # Mettre à jour le QComboBox avec le modèle
+                    align_model = self.align_combo.model()
+                    for i in range(align_model.rowCount()):
+                        item = align_model.item(i)
+                        if item and item.data(Qt.UserRole) == current_alignment_flag:
                             self.align_combo.setCurrentIndex(i)
                             break
                     
@@ -545,36 +599,40 @@ class LamicoidPage(QWidget):
     def _apply_text_alignment(self, index):
         text_g_item = self._get_current_text_g_item()
         if text_g_item:
-            alignment_from_combo = self.align_combo.itemData(index)
-            if alignment_from_combo is not None:
-                # S'assurer que c'est bien un Qt.AlignmentFlag
-                # Normalement, itemData devrait retourner l'objet Qt.Alignment directement
-                # si c'est ce qui a été stocké. L'erreur suggère que non.
-                # Forcer la conversion si c'est un int peut être une solution, 
-                # mais il faut être sûr que l'int correspond bien.
-                # Qt.Alignment est un typedef pour Qt::AlignmentFlags qui est un int.
-                # Essayons de le passer directement, si l'erreur persiste, il faudra caster.
-                actual_alignment = Qt.AlignmentFlag(int(alignment_from_combo)) # Caster explicitement
+            # Obtenir la valeur d'alignement à partir de l'item sélectionné dans le modèle
+            align_model = self.align_combo.model()
+            item = align_model.item(index)
+            if not item: # Vérification si l'item existe à cet index
+                logger.warning(f"_apply_text_alignment: Aucun item à l'index {index} du modèle.")
+                return
 
-                doc = text_g_item.document()
-                option = doc.defaultTextOption()
-                option.setAlignment(actual_alignment) # Utiliser la valeur castée
-                doc.setDefaultTextOption(option)
-                doc.adjustSize() # Mettre à jour la taille du document
-                text_g_item.update() # Redessiner l'item texte
-                if text_g_item.parentItem(): 
-                    # Le parent de text_g_item est text_clipper_item.
-                    # Le parent de text_clipper_item est self.current_selected_text_item (GridRectangleItem)
-                    if self.current_selected_text_item and hasattr(self.current_selected_text_item, 'update_text_item_geometry'):
-                        self.current_selected_text_item.update_text_item_geometry()
-                    if self.current_selected_text_item: # S'assurer que le parent existe pour l'update
-                        self.current_selected_text_item.update()
-                
-                # Forcer la mise à jour de la vue
-                if self.lamicoid_editor_widget and self.lamicoid_editor_widget.viewport():
-                    self.lamicoid_editor_widget.viewport().update()
+            alignment_from_combo = item.data(Qt.UserRole)
+            if alignment_from_combo is None: # Vérification si la donnée utilisateur existe
+                logger.warning(f"_apply_text_alignment: Aucune donnée utilisateur pour l'item à l'index {index}.")
+                return
 
-                logger.debug(f"Alignement appliqué: {actual_alignment}")
+            # La donnée est déjà un Qt.AlignmentFlag, pas besoin de caster normalement
+            actual_alignment = alignment_from_combo 
+
+            doc = text_g_item.document()
+            option = doc.defaultTextOption()
+            option.setAlignment(actual_alignment) # Utiliser la valeur castée
+            doc.setDefaultTextOption(option)
+            doc.adjustSize() # Mettre à jour la taille du document
+            text_g_item.update() # Redessiner l'item texte
+            if text_g_item.parentItem(): 
+                # Le parent de text_g_item est text_clipper_item.
+                # Le parent de text_clipper_item est self.current_selected_text_item (GridRectangleItem)
+                if self.current_selected_text_item and hasattr(self.current_selected_text_item, 'update_text_item_geometry'):
+                    self.current_selected_text_item.update_text_item_geometry()
+                if self.current_selected_text_item: # S'assurer que le parent existe pour l'update
+                    self.current_selected_text_item.update()
+            
+            # Forcer la mise à jour de la vue
+            if self.lamicoid_editor_widget and self.lamicoid_editor_widget.viewport():
+                self.lamicoid_editor_widget.viewport().update()
+
+            logger.debug(f"Alignement appliqué: {actual_alignment}")
 
     def _ensure_correct_view_for_mode(self, mode: str):
         if mode == "Nouveau Lamicoid":
