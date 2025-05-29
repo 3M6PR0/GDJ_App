@@ -97,9 +97,8 @@ class ExistingVariablesDialog(QDialog):
         """Émet un signal avec les données de la variable cliquée."""
         print(f"[ExistingVariablesDialog] Bouton cliqué pour variable: {variable_data_dict.get('name')}")
         self.variable_clicked_to_add.emit(variable_data_dict)
-        # On pourrait fermer le dialogue ici si on voulait un ajout unique par ouverture :
-        # self.accept()
-        # Ou le laisser ouvert pour ajouter plusieurs variables.
+        # Fermer le dialogue après l'émission du signal
+        self.accept()
 
     def _handle_add_new_variable(self):
         var_config_dialog = VariableConfigDialog(self)

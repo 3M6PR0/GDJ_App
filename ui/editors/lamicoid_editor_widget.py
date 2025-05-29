@@ -143,7 +143,7 @@ class LamicoidEditorWidget(QGraphicsView):
 
             # Créer un GridRectangleItem avec le nom de la variable comme texte.
             # On pourrait ajouter un drapeau is_variable_item=True si GridRectangleItem doit se comporter différemment.
-            variable_item = GridRectangleItem(initial_local_rect, editor_view=self, text=variable_name)
+            variable_item = GridRectangleItem(initial_local_rect, editor_view=self, text=variable_name, is_variable_item=True)
             variable_item.setPos(item_start_pos_scene)
             
             # Rendre l'item non-éditable par double-clic pour l'instant (si GridRectangleItem gère cela via les flags)

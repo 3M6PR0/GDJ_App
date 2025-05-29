@@ -63,7 +63,7 @@ class GridRectangleItem(QGraphicsRectItem):
             
             return super().itemChange(change, value)
 
-    def __init__(self, initial_rect_local: QRectF, editor_view=None, parent=None, image_path: str = None, text: str = None):
+    def __init__(self, initial_rect_local: QRectF, editor_view=None, parent=None, image_path: str = None, text: str = None, is_variable_item: bool = False):
         super().__init__(initial_rect_local, parent)
         self.editor_view = editor_view
         self._is_selected = False
@@ -83,6 +83,7 @@ class GridRectangleItem(QGraphicsRectItem):
         self._create_handles()
         # Déterminer si c'est un item texte basé sur la présence de l'argument text
         self.is_text_item = text is not None
+        self.is_variable_item = is_variable_item
 
         # Item pour clipper le texte
         self.text_clipper_item = QGraphicsRectItem(initial_rect_local, self) # Enfant de GridRectangleItem
@@ -222,7 +223,7 @@ class GridRectangleItem(QGraphicsRectItem):
                 self.update_handles_position()
                 QTimer.singleShot(0, lambda: setattr(self, '_is_updating_handles', False))
                 # Si c'est un item texte et qu'il est sélectionné, le rendre éditable
-                if self.is_text_item:
+                if self.is_text_item and not self.is_variable_item:
                     self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
                     self.text_item.setFocus(Qt.MouseFocusReason) # Donner le focus pour l'édition
             else:
