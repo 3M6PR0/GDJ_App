@@ -12,6 +12,7 @@ from utils.signals import signals
 from ui.editors.lamicoid_editor_widget import LamicoidEditorWidget
 from utils.icon_loader import get_icon_path
 from widgets.numeric_input_with_unit import NumericInputWithUnit
+from dialogs.variable_config_dialog import VariableConfigDialog
 
 logger = logging.getLogger('GDJ_App')
 
@@ -191,8 +192,14 @@ class LamicoidPage(QWidget):
         self.lamicoid_params_frame.setObjectName("LamicoidParamsFrame")
         self.lamicoid_params_frame.setAutoFillBackground(False)
         params_layout = QVBoxLayout(self.lamicoid_params_frame)
-        params_layout.setContentsMargins(5,5,5,5)
+        params_layout.setContentsMargins(5,5,5,5) # Marges internes du cadre des paramètres
         params_layout.setSpacing(8)
+
+        # --- Titre pour le cadre des paramètres ---
+        params_title_label = QLabel("Paramètres Lamicoid")
+        params_title_label.setObjectName("ParamsTitle")
+        params_layout.addWidget(params_title_label)
+        # --- Fin Titre ---
 
         params_form_layout = QFormLayout()
         params_form_layout.setSpacing(8)
@@ -222,8 +229,9 @@ class LamicoidPage(QWidget):
         self.left_placeholder_widget.setAlignment(Qt.AlignCenter)
         self.left_content_stack.addWidget(self.left_placeholder_widget)
 
-        left_panel_content_layout.addWidget(self.variables_frame) # Ajouter le nouveau frame ici
+        # Inverser l'ordre d'ajout: d'abord le stack des paramètres, ensuite le frame des variables
         left_panel_content_layout.addWidget(self.left_content_stack)
+        left_panel_content_layout.addWidget(self.variables_frame) 
         page_layout.addWidget(left_panel)
 
         # Assurer que le QStackedWidget est aussi transparent
@@ -238,6 +246,11 @@ class LamicoidPage(QWidget):
                 background-color: rgba(0,0,0,0); /* Fond transparent explicite */
                 border: 1px solid #4A4D4E; /* Couleur de bordure souhaitée */
                 border-radius: 6px;       /* Rayon des coins souhaité */
+                /* margin-bottom: 8px; */ /* Plus besoin si le QStackedWidget est au-dessus du frame variables */
+            }
+            QLabel#ParamsTitle { /* Style pour le titre des paramètres */
+                font-weight: bold;
+                margin-bottom: 4px; 
             }
         """)
 
@@ -298,6 +311,16 @@ class LamicoidPage(QWidget):
         else:
             self.add_image_button.setText("Image")
         editor_toolbar_layout.addWidget(self.add_image_button)
+
+        self.add_variable_button = QPushButton("") # Texte initial vide
+        add_variable_icon_path = get_icon_path("round_data_object.png") # Suggestion d'icône
+        if add_variable_icon_path:
+            self.add_variable_button.setIcon(QIcon(add_variable_icon_path))
+            self.add_variable_button.setToolTip("Ajouter Variable")
+        else:
+            self.add_variable_button.setText("Var") # Fallback
+        self.add_variable_button.setObjectName("toolbarActionButton") # Utiliser le même style
+        editor_toolbar_layout.addWidget(self.add_variable_button)
 
         editor_toolbar_layout.addStretch() # Pousse les boutons à gauche
 
@@ -449,6 +472,7 @@ class LamicoidPage(QWidget):
         self.add_text_button.clicked.connect(self._add_text_item_to_editor)
         self.add_rect_button.clicked.connect(self._add_rect_item_to_editor)
         self.add_image_button.clicked.connect(self._add_image_item_to_editor)
+        self.add_variable_button.clicked.connect(self._open_variable_config_dialog)
 
         # Connexion du signal de l'éditeur Lamicoid
         if self.lamicoid_editor_widget:
@@ -522,6 +546,28 @@ class LamicoidPage(QWidget):
             self.lamicoid_editor_widget.add_editor_item("image", image_path=file_path)
         else:
             logger.debug("Sélection d'image annulée.")
+
+    def _open_variable_config_dialog(self):
+        dialog = VariableConfigDialog(self)
+        if dialog.exec_(): # Bloque jusqu'à ce que le dialogue soit fermé
+            variable_data = dialog.get_variable_data()
+            if variable_data:
+                logger.info(f"Données de la nouvelle variable: {variable_data}")
+                # Ici, vous intégrerez la logique pour réellement ajouter/utiliser cette variable
+                # Par exemple, l'ajouter à une liste, la passer à l'éditeur, etc.
+                
+                # Placeholder pour l'ajout à l'éditeur (similaire à _add_text_item_to_editor)
+                if self.lamicoid_editor_widget and self.right_display_stack.currentWidget() == self.lamicoid_editor_widget:
+                    # Vous devrez probablement passer plus d'infos que juste "variable"
+                    # et peut-être utiliser un type d'item spécifique pour les variables dans l'éditeur.
+                    self.lamicoid_editor_widget.add_editor_item("variable_placeholder", data=variable_data)
+                    logger.debug(f"Tentative d'ajout d'un item variable à l'éditeur avec les données: {variable_data}")
+                else:
+                    logger.warning("LamicoidEditorWidget n'est pas actif, variable non ajoutée à l'éditeur.")
+            else:
+                logger.debug("Configuration de la variable annulée ou aucune donnée retournée.")
+        else:
+            logger.debug("Dialogue de configuration de la variable fermé sans validation (Annuler).")
 
     def _handle_text_item_selected(self, is_selected: bool, selected_item_object: object):
         """Affiche ou masque les options de texte dans la barre d'outils principale et met à jour son état."""
