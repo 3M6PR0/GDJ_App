@@ -13,6 +13,7 @@ from ui.editors.lamicoid_editor_widget import LamicoidEditorWidget
 from utils.icon_loader import get_icon_path
 from widgets.numeric_input_with_unit import NumericInputWithUnit
 from dialogs.variable_config_dialog import VariableConfigDialog
+from dialogs.existing_variables_dialog import ExistingVariablesDialog
 
 logger = logging.getLogger('GDJ_App')
 
@@ -473,7 +474,7 @@ class LamicoidPage(QWidget):
         self.add_text_button.clicked.connect(self._add_text_item_to_editor)
         self.add_rect_button.clicked.connect(self._add_rect_item_to_editor)
         self.add_image_button.clicked.connect(self._add_image_item_to_editor)
-        self.add_variable_button.clicked.connect(self._open_variable_config_dialog)
+        self.add_variable_button.clicked.connect(self._open_variables_manager_dialog)
 
         # Connexion du signal de l'éditeur Lamicoid
         if self.lamicoid_editor_widget:
@@ -548,27 +549,56 @@ class LamicoidPage(QWidget):
         else:
             logger.debug("Sélection d'image annulée.")
 
-    def _open_variable_config_dialog(self):
-        dialog = VariableConfigDialog(self)
-        if dialog.exec_(): # Bloque jusqu'à ce que le dialogue soit fermé
-            variable_data = dialog.get_variable_data()
-            if variable_data:
-                logger.info(f"Données de la nouvelle variable: {variable_data}")
-                self.project_variables.append(variable_data) # Ajouter la variable à la liste
-                self._update_variables_display() # Mettre à jour l'affichage
-                
-                # Placeholder pour l'ajout à l'éditeur
-                if self.lamicoid_editor_widget and self.right_display_stack.currentWidget() == self.lamicoid_editor_widget:
-                    # Vous devrez probablement passer plus d'infos que juste "variable"
-                    # et peut-être utiliser un type d'item spécifique pour les variables dans l'éditeur.
-                    self.lamicoid_editor_widget.add_editor_item("variable_placeholder", data=variable_data)
-                    logger.debug(f"Tentative d'ajout d'un item variable à l'éditeur avec les données: {variable_data}")
-                else:
-                    logger.warning("LamicoidEditorWidget n'est pas actif, variable non ajoutée à l'éditeur.")
-            else:
-                logger.debug("Configuration de la variable annulée ou aucune donnée retournée.")
+    def _open_variables_manager_dialog(self):
+        """Ouvre le dialogue de gestion des variables existantes et d'ajout de nouvelles."""
+        # Passe une copie de la liste actuelle des variables au dialogue
+        manager_dialog = ExistingVariablesDialog(list(self.project_variables), self)
+        
+        # Connecter le signal du dialogue à une méthode de LamicoidPage
+        manager_dialog.variable_clicked_to_add.connect(self._add_variable_item_to_editor_from_dialog)
+        
+        if manager_dialog.exec_(): # L'utilisateur a cliqué "Fermer" ou a fermé d'une autre manière acceptée
+            newly_added_this_session = manager_dialog.get_newly_added_variables_this_session()
+
+            # Mettre à jour la liste principale des variables du projet avec celles nouvellement ajoutées
+            if newly_added_this_session:
+                for new_var in newly_added_this_session:
+                    existing_names = [pv.get('name') for pv in self.project_variables]
+                    if new_var.get('name') not in existing_names:
+                        self.project_variables.append(new_var)
+                    else: 
+                        logger.info(f"Variable '{new_var.get('name')}' existe déjà, non ajoutée de nouveau via manager.")
+                self._update_variables_display() # Rafraîchir l'affichage dans LamicoidPage
+            
+            # La logique de "quelle variable a été sélectionnée pour être utilisée" 
+            # est maintenant gérée par le slot connecté au signal variable_clicked_to_add.
+            # Donc, pas besoin de selected_variable_to_use ici après la fermeture du dialogue.
+            logger.debug("Dialogue de gestion des variables fermé.")
         else:
-            logger.debug("Dialogue de configuration de la variable fermé sans validation (Annuler).")
+            # Cela pourrait se produire si le dialogue est fermé d'une manière qui cause reject(),
+            # ou si exec_() retourne 0 pour une autre raison. 
+            # S'il n'y a qu'un bouton "Fermer" qui appelle accept(), cette branche est moins probable.
+            logger.debug("Gestionnaire de variables fermé (potentiellement Annuler ou échec exec).")
+
+    def _add_variable_item_to_editor_from_dialog(self, variable_data):
+        """Slot pour recevoir les données d'une variable cliquée dans ExistingVariablesDialog et l'ajouter à l'éditeur."""
+        logger.info(f"Signal reçu pour ajouter la variable à l'éditeur: {variable_data}")
+        
+        if self.lamicoid_editor_widget and self.right_display_stack.currentWidget() == self.lamicoid_editor_widget:
+            # Ici, nous allons passer le nom de la variable pour qu'il soit affiché
+            # et potentiellement d'autres infos si l'item "variable_rectangle" en a besoin.
+            item_data = {
+                'name': variable_data.get('name', 'N/A'),
+                'type': 'variable_rectangle' # Un type spécifique pour cet item
+                # Vous pourriez ajouter ici d'autres propriétés de la variable si l'item les utilise
+            }
+            self.lamicoid_editor_widget.add_editor_item(
+                "variable_rectangle", 
+                data=item_data
+            )
+            logger.debug(f"Tentative d'ajout de l'item '{item_data.get('name')}' (type: {item_data.get('type')}) à l'éditeur.")
+        else:
+            logger.warning("LamicoidEditorWidget n'est pas actif, variable non ajoutée à l'éditeur.")
 
     def _handle_text_item_selected(self, is_selected: bool, selected_item_object: object):
         """Affiche ou masque les options de texte dans la barre d'outils principale et met à jour son état."""

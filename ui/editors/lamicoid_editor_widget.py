@@ -120,6 +120,45 @@ class LamicoidEditorWidget(QGraphicsView):
             
             self._scene.addItem(rectangle_item)
             logger.debug(f"GridRectangleItem ajouté à la scène à {rect_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
+        elif item_type == "variable_rectangle":
+            variable_data = kwargs.get("data", {})
+            variable_name = variable_data.get("name", "Variable?")
+
+            grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
+            grid_origin_offset = self.get_grid_origin_offset()
+
+            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item):
+                logger.warning("Impossible d'ajouter un item variable : grille non définie ou marge absente.")
+                return
+
+            item_start_pos_scene = grid_origin_offset
+
+            # Définir une taille initiale (peut-être à ajuster en fonction de la longueur du texte plus tard)
+            default_width_mm = 30.0 
+            default_height_mm = 10.0
+            rect_width_px = self.mm_to_pixels(default_width_mm)
+            rect_height_px = self.mm_to_pixels(default_height_mm)
+            
+            initial_local_rect = QRectF(0, 0, rect_width_px, rect_height_px)
+
+            # Créer un GridRectangleItem avec le nom de la variable comme texte.
+            # On pourrait ajouter un drapeau is_variable_item=True si GridRectangleItem doit se comporter différemment.
+            variable_item = GridRectangleItem(initial_local_rect, editor_view=self, text=variable_name)
+            variable_item.setPos(item_start_pos_scene)
+            
+            # Rendre l'item non-éditable par double-clic pour l'instant (si GridRectangleItem gère cela via les flags)
+            # Pour un simple QGraphicsTextItem, on ferait : text_item.setTextInteractionFlags(Qt.NoTextInteraction)
+            # Si GridRectangleItem a un text_item enfant, il faudrait le configurer.
+            # Supposons pour l'instant que le comportement par défaut de GridRectangleItem pour le texte est OK.
+            # Si le texte est un QGraphicsTextItem interne à GridRectangleItem :
+            if hasattr(variable_item, 'text_item') and variable_item.text_item:
+                 variable_item.text_item.setTextInteractionFlags(Qt.NoTextInteraction) # Rendre le texte non interactif
+                 # Pour s'assurer que l'item parent (GridRectangleItem) reste sélectionnable/déplaçable :
+                 variable_item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+                 variable_item.setFlag(QGraphicsItem.ItemIsMovable, True)
+
+            self._scene.addItem(variable_item)
+            logger.debug(f"GridRectangleItem (pour variable '{variable_name}') ajouté à {item_start_pos_scene}")
         else:
             logger.warning(f"Type d'item inconnu demandé pour ajout: {item_type}")
 
