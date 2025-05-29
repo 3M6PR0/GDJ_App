@@ -11,6 +11,7 @@ from ui.components.frame import Frame
 from utils.signals import signals
 from ui.editors.lamicoid_editor_widget import LamicoidEditorWidget
 from utils.icon_loader import get_icon_path
+from widgets.numeric_input_with_unit import NumericInputWithUnit
 
 logger = logging.getLogger('GDJ_App')
 
@@ -162,31 +163,19 @@ class LamicoidPage(QWidget):
         params_form_layout.setSpacing(8)
         params_form_layout.setLabelAlignment(Qt.AlignLeft)
 
-        self.width_spinbox = QDoubleSpinBox()
-        self.width_spinbox.setSuffix(" mm")
-        self.width_spinbox.setMinimum(10.0); self.width_spinbox.setMaximum(1000.0); self.width_spinbox.setValue(100.0)
+        self.width_spinbox = NumericInputWithUnit(unit_text="mm", initial_value=100.0, max_decimals=0, parent=self)
         params_form_layout.addRow("Largeur:", self.width_spinbox)
 
-        self.height_spinbox = QDoubleSpinBox()
-        self.height_spinbox.setSuffix(" mm")
-        self.height_spinbox.setMinimum(10.0); self.height_spinbox.setMaximum(1000.0); self.height_spinbox.setValue(50.0)
+        self.height_spinbox = NumericInputWithUnit(unit_text="mm", initial_value=50.0, max_decimals=0, parent=self)
         params_form_layout.addRow("Hauteur:", self.height_spinbox)
 
-        self.radius_spinbox = QDoubleSpinBox()
-        self.radius_spinbox.setSuffix(" mm")
-        self.radius_spinbox.setMinimum(0.0); self.radius_spinbox.setMaximum(50.0); self.radius_spinbox.setValue(2.0)
+        self.radius_spinbox = NumericInputWithUnit(unit_text="mm", initial_value=2.0, max_decimals=0, parent=self)
         params_form_layout.addRow("Rayon Coins:", self.radius_spinbox)
 
-        self.margin_spinbox = QDoubleSpinBox()
-        self.margin_spinbox.setSuffix(" mm")
-        self.margin_spinbox.setMinimum(0.0); self.margin_spinbox.setMaximum(50.0); self.margin_spinbox.setValue(2.0)
+        self.margin_spinbox = NumericInputWithUnit(unit_text="mm", initial_value=2.0, max_decimals=0, parent=self)
         params_form_layout.addRow("Marge Intérieure:", self.margin_spinbox)
 
-        self.grid_spacing_spinbox = QDoubleSpinBox()
-        self.grid_spacing_spinbox.setSuffix(" mm")
-        self.grid_spacing_spinbox.setMinimum(0.1); self.grid_spacing_spinbox.setMaximum(50.0); self.grid_spacing_spinbox.setValue(1.0)
-        self.grid_spacing_spinbox.setSingleStep(0.1)
-        self.grid_spacing_spinbox.setDecimals(1)
+        self.grid_spacing_spinbox = NumericInputWithUnit(unit_text="mm", initial_value=1.0, max_decimals=0, parent=self)
         params_form_layout.addRow("Espacement Grille:", self.grid_spacing_spinbox)
 
         params_layout.addLayout(params_form_layout)
