@@ -25,42 +25,35 @@ def pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
     return (pixels / dpi) * INCH_TO_MM
 
 class IconOnlyDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, render_size=QSize(28, 28), actual_icon_size=QSize(24, 24)):
         super().__init__(parent)
-        self.icon_size = QSize(24, 24) # Taille par défaut, peut être rendue configurable
+        self.render_size = render_size
+        self.actual_icon_size = actual_icon_size
 
     def paint(self, painter, option, index):
-        # Récupérer l'icône de l'item
         icon = index.data(Qt.DecorationRole)
         if not isinstance(icon, QIcon):
-            # Si ce n'est pas une QIcon (ex: si l'icône n'a pas été trouvée et qu'une donnée vide a été mise),
-            # on ne dessine rien ou on dessine un placeholder.
-            # Pour l'instant, on ne dessine rien pour éviter les erreurs.
             return
 
         painter.save()
-
-        # Obtenir le rectangle où dessiner
         rect = option.rect
 
-        # Dessiner l'état de sélection si nécessaire (pour la liste déroulante)
         if option.state & QStyle.State_Selected:
             painter.fillRect(rect, option.palette.highlight())
 
-        # Calculer la position pour centrer l'icône
-        pixmap = icon.pixmap(self.icon_size)
+        # Dessiner l'icône (à sa taille réelle) centrée dans le rect de l'item.
+        # option.rect sera la zone allouée pour l'item, que ce soit dans le popup
+        # ou dans la partie affichage du QComboBox (qui sera rect total moins espace flèche).
+        pixmap = icon.pixmap(self.actual_icon_size) 
         x = rect.x() + (rect.width() - pixmap.width()) // 2
         y = rect.y() + (rect.height() - pixmap.height()) // 2
         
         painter.drawPixmap(x, y, pixmap)
-
         painter.restore()
 
     def sizeHint(self, option, index):
-        # La taille de l'item est juste la taille de l'icône
-        # On peut ajouter un petit padding si on veut que les items soient un peu plus grands que l'icône elle-même.
-        # Pour l'instant, on retourne la taille de l'icône pour un ajustement serré.
-        return self.icon_size
+        # La taille suggérée pour chaque item (dans le popup et pour le calcul du QComboBox)
+        return self.render_size
 
 class LamicoidPage(QWidget):
     def __init__(self, parent=None):
@@ -317,19 +310,43 @@ class LamicoidPage(QWidget):
         self.color_button.setVisible(False)
 
         self.align_combo = QComboBox(self)
-        self.icon_only_delegate = IconOnlyDelegate(self.align_combo) 
+        
+        combobox_square_size = QSize(30, 30) # Taille carrée cible pour le QComboBox
+        actual_icon_internal_size = QSize(24, 24) # Taille réelle de l'icône
+
+        # Le délégué utilisera la taille carrée pour le rendu des items
+        self.icon_only_delegate = IconOnlyDelegate(self.align_combo, 
+                                                 render_size=combobox_square_size, 
+                                                 actual_icon_size=actual_icon_internal_size)
         self.align_combo.setItemDelegate(self.icon_only_delegate)
 
-        # Définir la taille de l'icône pour le QComboBox et le délégué.
-        # Le délégué utilise une taille de 24x24 en interne, s'assurer de la cohérence.
-        icon_size = QSize(24, 24) # Assurez-vous que IconOnlyDelegate.icon_size correspond
-        self.align_combo.setIconSize(icon_size)
+        # Forcer le QComboBox à avoir une taille fixe carrée
+        self.align_combo.setObjectName("AlignCombo") # Donner un nom d'objet pour le QSS
+        self.align_combo.setFixedSize(combobox_square_size)
+        # self.align_combo.setIconSize(actual_icon_internal_size) # Commenté: le délégué gère le dessin
 
-        # Politique pour que le combobox ajuste sa taille à son contenu (géré par le délégué).
-        self.align_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        
-        # Politique de taille générale.
-        self.align_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed) 
+        # Les politiques de taille et setSizeAdjustPolicy sont moins pertinentes avec setFixedSize
+        # self.align_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        # self.align_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # Appliquer QSS pour minimiser la flèche et le padding
+        self.align_combo.setStyleSheet("""
+            QComboBox#AlignCombo {
+                padding: 1px; /* Garder un petit padding pour l'icône */
+            }
+            QComboBox#AlignCombo::drop-down {
+                /* subcontrol-origin: padding; */ /* Moins pertinent si width est 0 */
+                /* subcontrol-position: top right; */ /* Moins pertinent si width est 0 */
+                width: 0px;  /* Rendre la zone de la flèche invisible */
+                border: none;
+            }
+            QComboBox#AlignCombo::down-arrow {
+                image: none; /* Aucune image pour la flèche */
+                width: 0px;
+                height: 0px;
+                border: none;
+            }
+        """)
 
         align_model = QStandardItemModel(self.align_combo)
 
@@ -353,7 +370,7 @@ class LamicoidPage(QWidget):
 
         self.align_combo.setModel(align_model)
         # self.align_combo.view().setTextElideMode(Qt.ElideNone) # Moins pertinent avec le délégué qui ne dessine pas de texte.
-        self.align_combo.adjustSize() # Demander au combobox de s'ajuster après avoir défini le modèle et le délégué
+        # self.align_combo.adjustSize() # Supprimé car setFixedSize est utilisé
             
         editor_toolbar_layout.addWidget(self.align_combo)
         self.align_combo.setVisible(False)
@@ -611,8 +628,8 @@ class LamicoidPage(QWidget):
                 logger.warning(f"_apply_text_alignment: Aucune donnée utilisateur pour l'item à l'index {index}.")
                 return
 
-            # La donnée est déjà un Qt.AlignmentFlag, pas besoin de caster normalement
-            actual_alignment = alignment_from_combo 
+            # Convertir la valeur récupérée (qui peut être un int) en Qt.AlignmentFlag
+            actual_alignment = Qt.AlignmentFlag(alignment_from_combo)
 
             doc = text_g_item.document()
             option = doc.defaultTextOption()
