@@ -44,7 +44,7 @@ class GridRectangleItem(QGraphicsRectItem):
                 super().mouseMoveEvent(event)
 
         def mouseReleaseEvent(self, event):
-            super().mouseReleaseEvent(event) 
+            super().mouseReleaseEvent(event)
             self._is_being_dragged = False
             # logger.debug(f"ResizeHandle MOUSE RELEASE: {self.position_type}, is_dragging={self._is_being_dragged}")
 
@@ -215,7 +215,7 @@ class GridRectangleItem(QGraphicsRectItem):
         original_value_from_super = super().itemChange(change, value)
 
         if change == QGraphicsItem.ItemSelectedHasChanged:
-            is_selected = bool(value) 
+            is_selected = bool(value)
             self._is_selected = is_selected
             self.show_handles(is_selected)
             if is_selected:
@@ -283,7 +283,7 @@ class GridRectangleItem(QGraphicsRectItem):
         # logger.debug(f"GridRectangleItem handle_moved: type={handle_type}, new_handle_pos={new_handle_local_pos}")
         if self._is_updating_handles: 
             # logger.debug(f"GridRectangleItem.handle_moved sortie précoce: _is_updating_handles={self._is_updating_handles}")
-            return
+             return
 
         self.prepareGeometryChange() 
         self._is_resizing_via_handle = True 

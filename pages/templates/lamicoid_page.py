@@ -142,10 +142,11 @@ class LamicoidPage(QWidget):
         type_lamicoid_combo_container = QWidget()
         type_lamicoid_combo_layout = QHBoxLayout(type_lamicoid_combo_container)
         type_lamicoid_combo_layout.setContentsMargins(0,0,0,0)
-        type_lamicoid_label = QLabel("Action:")
+        type_lamicoid_label = QLabel("Nouveau:")
         self.mode_selection_combo = QComboBox()
         self.mode_selection_combo.addItem("--- Sélectionner ---")
-        self.mode_selection_combo.addItem("Nouveau Lamicoid")
+        self.mode_selection_combo.addItem("Modele")
+        self.mode_selection_combo.addItem("Lamicoid")
         self.mode_selection_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         type_lamicoid_combo_layout.addWidget(type_lamicoid_label)
         type_lamicoid_combo_layout.addWidget(self.mode_selection_combo, 1)
@@ -360,7 +361,7 @@ class LamicoidPage(QWidget):
         editor_toolbar_layout.addWidget(self.add_variable_button)
 
         editor_toolbar_layout.addStretch() # Pousse les boutons à gauche
-
+        
         # --- Séparateur vertical (initialement masqué) ---
         self.text_options_separator = QFrame(self)
         self.text_options_separator.setFrameShape(QFrame.VLine)
@@ -530,11 +531,14 @@ class LamicoidPage(QWidget):
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
         self._ensure_correct_view_for_mode(selected_mode)
-        if selected_mode == "Nouveau Lamicoid":
-            self._update_lamicoid_editor_params() 
+        if selected_mode == "Modele":
+            self._update_lamicoid_editor_params()
+        elif selected_mode == "Lamicoid":
+            # Action spécifique pour Lamicoid si nécessaire, pour l'instant, pas de mise à jour des params de l'éditeur
+            pass
 
     def _update_lamicoid_editor_params(self):
-        if self.mode_selection_combo.currentText() == "Nouveau Lamicoid":
+        if self.mode_selection_combo.currentText() == "Modele":
             width_mm = self.width_spinbox.value()
             height_mm = self.height_spinbox.value()
             radius_mm = self.radius_spinbox.value()
@@ -549,6 +553,10 @@ class LamicoidPage(QWidget):
                 grid_spacing_px=mm_to_pixels(grid_spacing_mm)
             )
             logger.debug(f"Lamicoid editor params updated: W={width_mm}mm, H={height_mm}mm, R={radius_mm}mm, M={margin_mm}mm, Grid={grid_spacing_mm}mm")
+        # Si Lamicoid doit aussi mettre à jour les paramètres, ajouter une condition ici
+        # elif self.mode_selection_combo.currentText() == "Lamicoid":
+            # self.lamicoid_editor_widget.set_lamicoid_properties(...) # avec les valeurs appropriées
+            # logger.debug("Lamicoid editor params updated for Lamicoid mode.")
 
     def _add_text_item_to_editor(self):
         if self.lamicoid_editor_widget and self.right_display_stack.currentWidget() == self.lamicoid_editor_widget:
@@ -816,24 +824,33 @@ class LamicoidPage(QWidget):
             logger.debug(f"Alignement appliqué: {actual_alignment}")
 
     def _ensure_correct_view_for_mode(self, mode: str):
-        if mode == "Nouveau Lamicoid":
-            self.form_title_label.setText("Paramètres du Lamicoid")
+        if mode == "Modele":
+            self.form_title_label.setText("Paramètres du Modèle")
             self.left_content_stack.setCurrentWidget(self.lamicoid_params_frame)
-            self.right_panel_title_label.setText("Éditeur Visuel Lamicoid")
+            self.right_panel_title_label.setText("Éditeur Modèle")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget)
             self._update_variables_display() # Mettre à jour aussi lors du changement de mode si nécessaire
             
+        elif mode == "Lamicoid": # Gestion de la vue pour Lamicoid
+            self.form_title_label.setText("Configuration Lamicoid") # Ou un titre spécifique
+            # Par défaut, on peut afficher le placeholder ou une vue spécifique pour Lamicoid
+            self.left_content_stack.setCurrentWidget(self.left_placeholder_widget) 
+            self.right_panel_title_label.setText("Visualisation Lamicoid") # Ou un titre spécifique
+            # Afficher l'éditeur ou un widget de visualisation spécifique si différent
+            self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget) 
+            self._update_variables_display()
+            
         elif mode == "--- Sélectionner ---":
-            self.form_title_label.setText("Configuration Lamicoid")
+            self.form_title_label.setText("Configuration Modèle")
             self.left_content_stack.setCurrentWidget(self.left_placeholder_widget)
-            self.right_panel_title_label.setText("Éditeur Lamicoid")
+            self.right_panel_title_label.setText("Éditeur Modèle")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget) 
             self._update_variables_display() # Afficher les variables même en mode sélection
             
         else:
-            self.form_title_label.setText("Configuration Lamicoid")
+            self.form_title_label.setText("Configuration Modèle")
             self.left_content_stack.setCurrentWidget(self.left_placeholder_widget)
-            self.right_panel_title_label.setText("Éditeur Lamicoid")
+            self.right_panel_title_label.setText("Éditeur Modèle")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget)
             self._update_variables_display() # Afficher les variables
 
