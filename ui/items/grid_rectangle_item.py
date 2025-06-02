@@ -462,3 +462,24 @@ class GridRectangleItem(QGraphicsRectItem):
         except Exception as e: # Fallback en cas d'erreur (ex: editor_view non initialisé complètement)
             # logger.warning(f"Erreur dans boundingRect de GridRectangleItem: {e}")
             return base.adjusted(-5, -5, 5, 5) # Petit padding fixe 
+
+    def setAppearance(self, show_border: bool, show_background: bool):
+        """Contrôle la visibilité de la bordure et du fond de l'item."""
+        current_pen = self.pen()
+        current_brush = self.brush()
+
+        if show_border:
+            current_pen.setColor(QColor("navy"))
+            current_pen.setStyle(Qt.SolidLine)
+            current_pen.setWidth(1)
+        else:
+            current_pen.setStyle(Qt.NoPen)
+        self.setPen(current_pen)
+
+        if show_background:
+            current_brush.setColor(QColor(180, 180, 255, 150))
+            current_brush.setStyle(Qt.SolidPattern) # Assurer que le style est solide pour la couleur
+        else:
+            current_brush.setStyle(Qt.NoBrush)
+        self.setBrush(current_brush)
+        self.update() # Forcer le redessin 

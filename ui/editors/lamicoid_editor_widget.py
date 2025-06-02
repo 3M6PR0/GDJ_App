@@ -47,6 +47,8 @@ class LamicoidEditorWidget(QGraphicsView):
         self.setDragMode(QGraphicsView.ScrollHandDrag) # Permettre de "tirer" la vue
         self.centerOn(0,0) # Centrer la vue initialement
 
+        self._is_interactive_mode = True # Initialiser l'état d'interactivité
+
         self._scene.selectionChanged.connect(self._handle_selection_changed) # Se connecter au signal de la scène
 
         self._draw_lamicoid()
@@ -55,6 +57,8 @@ class LamicoidEditorWidget(QGraphicsView):
 
     def setInteractive(self, interactive: bool):
         """Contrôle l'interactivité de la vue et de ses items."""
+        self._is_interactive_mode = interactive # Mettre à jour l'état
+
         if interactive:
             self.setDragMode(QGraphicsView.ScrollHandDrag)
             # Réactiver l'interaction pour les items (si nécessaire)
@@ -65,10 +69,15 @@ class LamicoidEditorWidget(QGraphicsView):
                     item.setFlag(QGraphicsItem.ItemIsSelectable, True)
                     item.setFlag(QGraphicsItem.ItemIsMovable, True)
                     item.show_handles(True) # Afficher les poignées de redimensionnement
+                    item.setAppearance(show_border=True, show_background=True) # Rétablir l'apparence
                     # Gérer l'interaction du texte si GridRectangleItem a un item de texte interne
                     if hasattr(item, 'text_item') and item.text_item:
                         item.text_item.setTextInteractionFlags(Qt.TextEditorInteraction) # Ou la valeur par défaut appropriée
                 # Pour d'autres types d'items génériques, on pourrait vouloir des comportements différents.
+            
+            # Afficher la grille en mode interactif
+            for line in self.grid_lines:
+                line.setVisible(True)
         else:
             self.setDragMode(QGraphicsView.NoDrag)
             self._scene.clearSelection() # Désélectionner tout
@@ -78,12 +87,17 @@ class LamicoidEditorWidget(QGraphicsView):
                     item.setFlag(QGraphicsItem.ItemIsSelectable, False)
                     item.setFlag(QGraphicsItem.ItemIsMovable, False)
                     item.show_handles(False) # Cacher les poignées
+                    item.setAppearance(show_border=False, show_background=False) # Rendre invisible bordure/fond
                     if hasattr(item, 'text_item') and item.text_item:
                         item.text_item.setTextInteractionFlags(Qt.NoTextInteraction)
                 elif isinstance(item, (QGraphicsPathItem, QGraphicsLineItem)): 
-                    # Pour le lamicoid_item, margin_item, grid_lines, ils ne devraient jamais être interactifs
+                    # Pour le lamicoid_item, margin_item, ils ne devraient jamais être interactifs
                     item.setFlag(QGraphicsItem.ItemIsSelectable, False)
                     item.setFlag(QGraphicsItem.ItemIsMovable, False)
+            
+            # Cacher la grille en mode non interactif
+            for line in self.grid_lines:
+                line.setVisible(False)
         
         logger.debug(f"LamicoidEditorWidget interactif réglé sur : {interactive}")
 
@@ -304,6 +318,7 @@ class LamicoidEditorWidget(QGraphicsView):
             line = QGraphicsLineItem(current_x, y_top, current_x, y_bottom)
             line.setPen(grid_pen)
             line.setZValue(-8) # <<< Grille au-dessus de la marge mais sous les items
+            line.setVisible(self._is_interactive_mode) # Définir la visibilité initiale
             self._scene.addItem(line)
             self.grid_lines.append(line)
             current_x += self.grid_spacing_px
@@ -314,11 +329,12 @@ class LamicoidEditorWidget(QGraphicsView):
             line = QGraphicsLineItem(x_start, current_y, x_end, current_y)
             line.setPen(grid_pen)
             line.setZValue(-8) # <<< Grille au-dessus de la marge mais sous les items
+            line.setVisible(self._is_interactive_mode) # Définir la visibilité initiale
             self._scene.addItem(line)
             self.grid_lines.append(line)
             current_y += self.grid_spacing_px
         
-        logger.debug(f"Grille dessinée à l'intérieur de {rect} avec espacement {self.grid_spacing_px}px")
+        logger.debug(f"Grille dessinée à l'intérieur de {rect} avec espacement {self.grid_spacing_px}px. Visible: {self._is_interactive_mode}")
 
     def get_grid_spacing(self) -> tuple[float, float]:
         """Retourne l'espacement actuel de la grille (x, y) en pixels."""
