@@ -229,6 +229,24 @@ class LamicoidPage(QWidget):
         
         self.left_content_stack.addWidget(self.lamicoid_params_frame)
 
+        # --- Nouveau Cadre pour la sélection de modèle en mode Lamicoid ---
+        self.lamicoid_mode_frame = QFrame(self)
+        self.lamicoid_mode_frame.setObjectName("LamicoidModeFrame")
+        lamicoid_mode_layout = QVBoxLayout(self.lamicoid_mode_frame)
+        lamicoid_mode_layout.setContentsMargins(5, 5, 5, 5)
+        lamicoid_mode_layout.setSpacing(8)
+
+        template_selection_label = QLabel("Sélectionner Modèle:")
+        lamicoid_mode_layout.addWidget(template_selection_label)
+
+        self.template_selection_combo = QComboBox()
+        self.template_selection_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        lamicoid_mode_layout.addWidget(self.template_selection_combo)
+        lamicoid_mode_layout.addStretch(1) # Pour pousser les éléments vers le haut
+
+        self.left_content_stack.addWidget(self.lamicoid_mode_frame)
+        # --- Fin Nouveau Cadre ---
+
         self.left_placeholder_widget = QLabel("Sélectionnez une action.")
         self.left_placeholder_widget.setAlignment(Qt.AlignCenter)
         self.left_content_stack.addWidget(self.left_placeholder_widget)
@@ -284,11 +302,19 @@ class LamicoidPage(QWidget):
                 background-color: rgba(0,0,0,0); /* Fond transparent explicite */
                 border: 1px solid #4A4D4E; /* Couleur de bordure souhaitée */
                 border-radius: 6px;       /* Rayon des coins souhaité */
-                /* margin-bottom: 8px; */ /* Plus besoin si le QStackedWidget est au-dessus du frame variables */
             }
             QLabel#ParamsTitle { /* Style pour le titre des paramètres */
                 font-weight: bold;
                 margin-bottom: 4px; 
+            }
+        """)
+
+        # Style pour self.lamicoid_mode_frame
+        self.lamicoid_mode_frame.setStyleSheet("""
+            QFrame#LamicoidModeFrame {
+                background-color: rgba(0,0,0,0);
+                border: 1px solid #4A4D4E; 
+                border-radius: 6px;
             }
         """)
 
@@ -527,6 +553,7 @@ class LamicoidPage(QWidget):
 
         # Connexion pour le nouveau bouton Créer (template)
         self.create_button.clicked.connect(self._save_lamicoid_template)
+        self.template_selection_combo.currentTextChanged.connect(self._on_template_selected)
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -832,11 +859,10 @@ class LamicoidPage(QWidget):
             self._update_variables_display() # Mettre à jour aussi lors du changement de mode si nécessaire
             
         elif mode == "Lamicoid": # Gestion de la vue pour Lamicoid
-            self.form_title_label.setText("Configuration Lamicoid") # Ou un titre spécifique
-            # Par défaut, on peut afficher le placeholder ou une vue spécifique pour Lamicoid
-            self.left_content_stack.setCurrentWidget(self.left_placeholder_widget) 
+            self.form_title_label.setText("Charger Lamicoid depuis Modèle") 
+            self._populate_template_combobox()
+            self.left_content_stack.setCurrentWidget(self.lamicoid_mode_frame) 
             self.right_panel_title_label.setText("Visualisation Lamicoid") # Ou un titre spécifique
-            # Afficher l'éditeur ou un widget de visualisation spécifique si différent
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget) 
             self._update_variables_display()
             
@@ -1081,6 +1107,45 @@ class LamicoidPage(QWidget):
 
         logger.debug(f"{len(items_data)} items d'éditeur collectés pour la sauvegarde.")
         return items_data
+
+    # --- Nouvelles méthodes pour la sélection de template ---
+    def _populate_template_combobox(self):
+        self.template_selection_combo.blockSignals(True)
+        self.template_selection_combo.clear()
+        self.template_selection_combo.addItem("--- Choisir un modèle ---")
+
+        try:
+            current_script_path = os.path.abspath(__file__)
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_script_path)))
+            templates_dir = os.path.join(project_root, "project_templates")
+
+            if not os.path.exists(templates_dir):
+                logger.warning(f"Le dossier des modèles '{templates_dir}' n'existe pas.")
+                self.template_selection_combo.blockSignals(False)
+                return
+
+            models = [f for f in os.listdir(templates_dir) if f.endswith(".json")]
+            if not models:
+                logger.info(f"Aucun modèle trouvé dans '{templates_dir}'.")
+            else:
+                for model_file in sorted(models):
+                    self.template_selection_combo.addItem(model_file[:-5]) # Retirer .json
+            
+        except Exception as e:
+            logger.error(f"Erreur lors du chargement des modèles: {e}")
+            # Afficher un message à l'utilisateur via le combobox peut-être ?
+            self.template_selection_combo.addItem("Erreur chargement modèles")
+        
+        self.template_selection_combo.blockSignals(False)
+
+    def _on_template_selected(self, template_name: str):
+        if template_name and template_name != "--- Choisir un modèle ---" and template_name != "Erreur chargement modèles":
+            logger.info(f"Modèle sélectionné: {template_name}.json")
+            # Ici, vous implémenterez la logique pour charger le template.
+            # Par exemple: self._load_template_data(template_name + ".json")
+            # Et ensuite, appliquer les données à l'éditeur et aux champs de paramètres.
+        else:
+            logger.debug(f"Sélection de modèle réinitialisée ou invalide: {template_name}")
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
