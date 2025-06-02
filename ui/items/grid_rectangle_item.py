@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsItem, QGraphicsEllipseItem, QApplication, QGraphicsPixmapItem, QGraphicsTextItem
-from PyQt5.QtCore import QRectF, Qt, QPointF, QTimer
+from PyQt5.QtCore import QRectF, Qt, QPointF, QTimer, QSizeF
 from PyQt5.QtGui import QBrush, QPen, QColor, QPixmap, QImage, QPainter, QTextOption, QFont
 import logging
+from typing import Optional
 
 logger = logging.getLogger('GDJ_App')
 
@@ -63,7 +64,7 @@ class GridRectangleItem(QGraphicsRectItem):
             
             return super().itemChange(change, value)
 
-    def __init__(self, initial_rect_local: QRectF, editor_view=None, parent=None, image_path: str = None, text: str = None, is_variable_item: bool = False):
+    def __init__(self, initial_rect_local: QRectF, editor_view=None, parent=None, item_properties: Optional[dict] = None):
         super().__init__(initial_rect_local, parent)
         self.editor_view = editor_view
         self._is_selected = False
@@ -81,9 +82,42 @@ class GridRectangleItem(QGraphicsRectItem):
         
         self.handles = {}
         self._create_handles()
-        # Déterminer si c'est un item texte basé sur la présence de l'argument text
-        self.is_text_item = text is not None
-        self.is_variable_item = is_variable_item
+
+        # Initialisation à partir de item_properties
+        text_content = None
+        self.image_path = None
+        self.is_variable_item = False
+        font_props = {}
+        text_color = QColor("black") # Couleur par défaut
+        text_alignment = Qt.AlignLeft | Qt.AlignVCenter # Alignement par défaut
+
+        if item_properties:
+            self.setZValue(item_properties.get('z_value', 0))
+            text_content = item_properties.get('text') # Peut être None si pas un item texte
+            self.image_path = item_properties.get('image_path')
+            self.is_variable_item = item_properties.get('item_subtype') == 'variable_text' # ou une clé dédiée comme 'is_variable'
+            
+            font_props['family'] = item_properties.get('font_family', "Arial")
+            font_props['size_pt'] = item_properties.get('font_size_pt', 10)
+            font_props['bold'] = item_properties.get('font_bold', False)
+            font_props['italic'] = item_properties.get('font_italic', False)
+            font_props['underline'] = item_properties.get('font_underline', False)
+            
+            text_color_rgba = item_properties.get('text_color_rgba')
+            if text_color_rgba:
+                # QColor peut prendre un QRgba (uint) ou des composants int
+                # Supposons que c'est un uint si c'est un seul nombre, ou une liste/tuple [r,g,b,a]
+                if isinstance(text_color_rgba, (list, tuple)) and len(text_color_rgba) == 4:
+                    text_color = QColor(*text_color_rgba)
+                elif isinstance(text_color_rgba, int): # Supposons QRgba
+                    text_color = QColor.fromRgba(text_color_rgba) 
+                # else: logger.warning pour format de couleur non reconnu
+
+            alignment_value = item_properties.get('text_alignment')
+            if alignment_value is not None:
+                text_alignment = Qt.AlignmentFlag(alignment_value) # S'assurer que c'est un int valide
+
+        self.is_text_item = text_content is not None or (item_properties and (item_properties.get('item_subtype') == 'text' or item_properties.get('item_subtype') == 'variable_text'))
 
         # Item pour clipper le texte
         self.text_clipper_item = QGraphicsRectItem(initial_rect_local, self) # Enfant de GridRectangleItem
@@ -94,7 +128,6 @@ class GridRectangleItem(QGraphicsRectItem):
         self.text_clipper_item.setZValue(self.zValue() + 1) # S'assurer qu'il est au-dessus du fond du GridRectangleItem mais sous les poignées
 
         # Initialisation des attributs d'image
-        self.image_path = image_path
         self.pixmap_item: QGraphicsPixmapItem | None = None # Pour stocker l'item image enfant
         self.original_pil_image: Image.Image | None = None
         self.cached_qimage: QImage | None = None
@@ -102,38 +135,36 @@ class GridRectangleItem(QGraphicsRectItem):
         if self.image_path:
             self.load_image(self.image_path)
         
-        # Initialisation pour le texte
-        self._text = text if text is not None else ""
-        self.text_item = QGraphicsTextItem(self.text_clipper_item) # Enfant du TEXT_CLIPPER_ITEM
+        self._text = text_content if text_content is not None else ""
+        self.text_item = QGraphicsTextItem(self.text_clipper_item)
         self.text_item.setPlainText(self._text)
-        # Rendre le texte non interactif par défaut, l'interaction sera gérée par le parent
         self.text_item.setTextInteractionFlags(Qt.NoTextInteraction) 
-        # self.text_item.setFocusPolicy(Qt.NoFocus) # SUPPRIMÉ: QGraphicsItem n'a pas cette méthode
-        # Passer les événements de souris non gérés au parent (GridRectangleItem)
-        # self.text_item.setAcceptedMouseButtons(Qt.NoButton) # Ceci pourrait être trop restrictif
 
-        self._setup_text_item_properties()
+        self._setup_text_item_properties(font_props, text_color, text_alignment)
 
-        self.update_handles_position() # Assurer que les poignées sont positionnées initialement
-        self.update_text_item_geometry() # Positionner et dimensionner le texte initialement
+        self.update_handles_position()
+        self.update_text_item_geometry()
 
-    def _setup_text_item_properties(self):
-        # Définir des propriétés de base pour le texte
-        font = QFont("Arial", 10) # Police et taille par défaut
+    def _setup_text_item_properties(self, font_props: Optional[dict] = None, 
+                                    text_color: Optional[QColor] = None, 
+                                    text_align: Optional[Qt.AlignmentFlag] = None):
+        font = self.text_item.font() # Obtenir la police actuelle pour la modifier
+
+        if font_props:
+            font.setFamily(font_props.get('family', "Arial"))
+            font.setPointSize(font_props.get('size_pt', 10))
+            font.setBold(font_props.get('bold', False))
+            font.setItalic(font_props.get('italic', False))
+            font.setUnderline(font_props.get('underline', False))
+        else: # Valeurs par défaut si pas de font_props
+            font.setFamily("Arial")
+            font.setPointSize(10)
+        
         self.text_item.setFont(font)
-        self.text_item.setDefaultTextColor(QColor("black"))
+        self.text_item.setDefaultTextColor(text_color if text_color else QColor("black"))
         
-        # Centrer le texte verticalement et horizontalement par défaut
-        # Qt.AlignVCenter pour le vertical, Qt.AlignHCenter pour l'horizontal
-        # Note: Pour QGraphicsTextItem, le contrôle fin du layout se fait souvent
-        # en ajustant son rect et en utilisant document().setTextWidth()
-        # ou en utilisant QGraphicsSimpleTextItem pour un alignement plus direct.
-        # Ici, nous allons gérer la position et la largeur du document.
-        
-        # Le QGraphicsTextItem lui-même sera positionné à (0,0) dans les coordonnées du parent (GridRectangleItem)
-        # et sa largeur sera ajustée. L'alignement interne se fera via les options du document.
         text_option = QTextOption(self.text_item.document().defaultTextOption())
-        text_option.setAlignment(Qt.AlignLeft | Qt.AlignVCenter) # Nouveau: Alignement à gauche, centré verticalement
+        text_option.setAlignment(text_align if text_align is not None else (Qt.AlignLeft | Qt.AlignVCenter))
         self.text_item.document().setDefaultTextOption(text_option)
 
     def set_text(self, text: str):
@@ -222,15 +253,14 @@ class GridRectangleItem(QGraphicsRectItem):
                 self._is_updating_handles = True 
                 self.update_handles_position()
                 QTimer.singleShot(0, lambda: setattr(self, '_is_updating_handles', False))
-                # Si c'est un item texte et qu'il est sélectionné, le rendre éditable
-                if self.is_text_item and not self.is_variable_item:
+                # Si c'est un item texte et qu'il est sélectionné ET que l'éditeur est interactif
+                editor_interactive = getattr(self.editor_view, 'is_interactive', lambda: True)() # Supposition d'une méthode is_interactive
+                if self.is_text_item and not self.is_variable_item and editor_interactive:
                     self.text_item.setTextInteractionFlags(Qt.TextEditorInteraction)
-                    self.text_item.setFocus(Qt.MouseFocusReason) # Donner le focus pour l'édition
+                    self.text_item.setFocus(Qt.MouseFocusReason)
             else:
-                # Si désélectionné, rendre non éditable
                 if self.is_text_item:
                     self.text_item.setTextInteractionFlags(Qt.NoTextInteraction)
-                    # Optionnel: effacer le focus si l'item texte l'a toujours
                     if self.text_item.hasFocus():
                         self.text_item.clearFocus()
             return original_value_from_super

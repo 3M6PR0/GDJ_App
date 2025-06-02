@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QGraphicsPathItem, QGraphicsLineItem, QGraphicsItem
-from PyQt5.QtCore import Qt, QRectF, QPointF, pyqtSignal
+from PyQt5.QtCore import Qt, QRectF, QPointF, pyqtSignal, QSizeF
 from PyQt5.QtGui import QBrush, QPen, QColor, QPainterPath, QTransform, QPainter, QPalette
 import logging
 from typing import List
@@ -50,7 +50,42 @@ class LamicoidEditorWidget(QGraphicsView):
         self._scene.selectionChanged.connect(self._handle_selection_changed) # Se connecter au signal de la scène
 
         self._draw_lamicoid()
+        self.setInteractive(True) # Par défaut, l'éditeur est interactif
         logger.debug("LamicoidEditorWidget initialisé avec QGraphicsView.")
+
+    def setInteractive(self, interactive: bool):
+        """Contrôle l'interactivité de la vue et de ses items."""
+        if interactive:
+            self.setDragMode(QGraphicsView.ScrollHandDrag)
+            # Réactiver l'interaction pour les items (si nécessaire)
+            # Pour l'instant, on suppose que les items sont interactifs par défaut
+            # et que seul le mode de la vue et les flags globaux des items importent.
+            for item in self._scene.items():
+                if isinstance(item, GridRectangleItem): # Cible spécifiquement nos items personnalisés
+                    item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+                    item.setFlag(QGraphicsItem.ItemIsMovable, True)
+                    item.show_handles(True) # Afficher les poignées de redimensionnement
+                    # Gérer l'interaction du texte si GridRectangleItem a un item de texte interne
+                    if hasattr(item, 'text_item') and item.text_item:
+                        item.text_item.setTextInteractionFlags(Qt.TextEditorInteraction) # Ou la valeur par défaut appropriée
+                # Pour d'autres types d'items génériques, on pourrait vouloir des comportements différents.
+        else:
+            self.setDragMode(QGraphicsView.NoDrag)
+            self._scene.clearSelection() # Désélectionner tout
+            # Rendre les items non interactifs
+            for item in self._scene.items():
+                if isinstance(item, GridRectangleItem):
+                    item.setFlag(QGraphicsItem.ItemIsSelectable, False)
+                    item.setFlag(QGraphicsItem.ItemIsMovable, False)
+                    item.show_handles(False) # Cacher les poignées
+                    if hasattr(item, 'text_item') and item.text_item:
+                        item.text_item.setTextInteractionFlags(Qt.NoTextInteraction)
+                elif isinstance(item, (QGraphicsPathItem, QGraphicsLineItem)): 
+                    # Pour le lamicoid_item, margin_item, grid_lines, ils ne devraient jamais être interactifs
+                    item.setFlag(QGraphicsItem.ItemIsSelectable, False)
+                    item.setFlag(QGraphicsItem.ItemIsMovable, False)
+        
+        logger.debug(f"LamicoidEditorWidget interactif réglé sur : {interactive}")
 
     def _handle_selection_changed(self):
         selected_items = self._scene.selectedItems()
@@ -66,102 +101,106 @@ class LamicoidEditorWidget(QGraphicsView):
         # logger.debug("Aucun item texte sélectionné.")
 
     def add_editor_item(self, item_type: str, **kwargs):
-        """Ajoute un nouvel item à l'éditeur, basé sur item_type."""
+        """Ajoute un nouvel item à l'éditeur, basé sur item_type et les propriétés fournies via kwargs."""
+        
+        grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
+        grid_origin_offset = self.get_grid_origin_offset()
+
+        # Déterminer la position initiale
+        # Si 'pos' est dans kwargs (chargement depuis template), l'utiliser.
+        # Sinon (nouvel item), utiliser grid_origin_offset.
+        item_start_pos_scene = kwargs.get('pos', grid_origin_offset)
+        if isinstance(item_start_pos_scene, dict): # Au cas où pos serait un dict {x:val, y:val}
+            item_start_pos_scene = QPointF(item_start_pos_scene.get('x',0), item_start_pos_scene.get('y',0))
+        elif not isinstance(item_start_pos_scene, QPointF):
+             # Fallback si le format de 'pos' n'est pas QPointF ou dict attendu
+            logger.warning(f"Format de position inattendu: {item_start_pos_scene}, utilisation de grid_origin_offset.")
+            item_start_pos_scene = grid_origin_offset
+
+        # Déterminer la taille initiale
+        # Si 'size' est dans kwargs (chargement depuis template), l'utiliser.
+        # Sinon (nouvel item), utiliser les tailles par défaut.
+        initial_size_qsizef = kwargs.get('size')
+        if isinstance(initial_size_qsizef, dict): # Au cas où size serait un dict {width:val, height:val}
+            rect_width_px = self.mm_to_pixels(initial_size_qsizef.get('width', 20.0)) # Supposons mm si dict
+            rect_height_px = self.mm_to_pixels(initial_size_qsizef.get('height', 10.0))
+        elif isinstance(initial_size_qsizef, QSizeF):
+            rect_width_px = initial_size_qsizef.width() # Supposons déjà en pixels si QSizeF
+            rect_height_px = initial_size_qsizef.height()
+        else: # Nouvel item ou 'size' non fourni/incorrect
+            if item_type == "texte" or item_type == "variable_rectangle":
+                default_width_mm = 20.0 if item_type == "texte" else 30.0
+                default_height_mm = 10.0
+            elif item_type == "rectangle":
+                default_width_mm = 20.0
+                default_height_mm = 10.0
+            elif item_type == "image":
+                default_width_mm = 30.0 # Taille par défaut pour une image avant chargement
+                default_height_mm = 20.0
+            else:
+                default_width_mm = 10.0
+                default_height_mm = 10.0
+            rect_width_px = self.mm_to_pixels(default_width_mm)
+            rect_height_px = self.mm_to_pixels(default_height_mm)
+
+        initial_local_rect = QRectF(0, 0, rect_width_px, rect_height_px)
+        
+        # Préparer les item_properties pour GridRectangleItem
+        # Elles contiendront toutes les kwargs, y compris potentiellement celles utilisées ci-dessus
+        # et celles spécifiques au type (texte, image_path, etc.)
+        properties_for_item = {**kwargs} # Copie de tous les kwargs
+
         if item_type == "texte":
-            # La logique d'ajout de texte sera modifiée pour utiliser un GridRectangleItem avec du texte.
-            # Pour l'instant, on ne fait rien ici, cela sera géré dans une étape ultérieure.
-            grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
-            grid_origin_offset = self.get_grid_origin_offset()
-
-            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item):
-                logger.warning("Impossible d'ajouter un item texte : grille non définie ou marge absente.")
+            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item) and not kwargs.get('pos'): # Si pas de grille et pas de pos fournie
+                logger.warning("Impossible d'ajouter un item texte : grille non définie et position non fournie.")
                 return
-
-            # Position initiale du coin supérieur gauche de l'item, alignée sur la grille
-            item_start_pos_scene = grid_origin_offset
-
-            # Définir une taille initiale pour le rectangle contenant le texte
-            default_width_mm = 20.0
-            default_height_mm = 10.0
-            rect_width_px = self.mm_to_pixels(default_width_mm)
-            rect_height_px = self.mm_to_pixels(default_height_mm)
+            # 'text' sera dans properties_for_item si fourni via kwargs
+            if 'text' not in properties_for_item:
+                properties_for_item['text'] = "Texte" # Texte par défaut si non spécifié
             
-            initial_local_rect = QRectF(0, 0, rect_width_px, rect_height_px)
-            default_text = kwargs.get("text", "Texte") # Prend un texte initial ou "Texte" par défaut
+            actual_item = GridRectangleItem(initial_local_rect, editor_view=self, item_properties=properties_for_item)
+            actual_item.setPos(item_start_pos_scene)
+            self._scene.addItem(actual_item)
+            logger.debug(f"GridRectangleItem (type: {item_type}) ajouté à {item_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
 
-            text_rect_item = GridRectangleItem(initial_local_rect, editor_view=self, text=default_text)
-            text_rect_item.setPos(item_start_pos_scene)
-            
-            self._scene.addItem(text_rect_item)
-            logger.debug(f"GridRectangleItem (avec texte) ajouté à la scène à {item_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
         elif item_type == "rectangle":
-            grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
-            grid_origin_offset = self.get_grid_origin_offset()
-
-            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item):
-                logger.warning("Impossible d'ajouter un rectangle : grille non définie ou marge absente.")
+            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item) and not kwargs.get('pos'):
+                logger.warning("Impossible d'ajouter un rectangle : grille non définie et position non fournie.")
                 return
+            actual_item = GridRectangleItem(initial_local_rect, editor_view=self, item_properties=properties_for_item)
+            actual_item.setPos(item_start_pos_scene)
+            self._scene.addItem(actual_item)
+            logger.debug(f"GridRectangleItem (type: {item_type}) ajouté à {item_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
 
-            # Position initiale du coin supérieur gauche du rectangle, alignée sur la grille
-            # (identique à la logique pour GridTextItem)
-            rect_start_pos_scene = grid_origin_offset
-
-            # Définir une taille initiale pour le rectangle, par exemple 2x2 cellules de grille
-            default_width_mm = 20.0
-            default_height_mm = 10.0
-            rect_width_px = self.mm_to_pixels(default_width_mm)
-            rect_height_px = self.mm_to_pixels(default_height_mm)
-            
-            # Le QGraphicsRectItem est défini par son coin sup gauche et sa largeur/hauteur
-            # Ses coordonnées sont relatives à sa propre position (self.pos() de l'item).
-            # Si on veut que le rect_start_pos_scene soit le coin sup gauche du rectangle DANS LA SCENE,
-            # alors le QRectF de construction doit avoir son topLeft à (0,0) et on setPos() l'item.
-            initial_local_rect = QRectF(0, 0, rect_width_px, rect_height_px)
-            
-            rectangle_item = GridRectangleItem(initial_local_rect, editor_view=self)
-            rectangle_item.setPos(rect_start_pos_scene)
-            
-            self._scene.addItem(rectangle_item)
-            logger.debug(f"GridRectangleItem ajouté à la scène à {rect_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
         elif item_type == "variable_rectangle":
-            variable_data = kwargs.get("data", {})
-            variable_name = variable_data.get("name", "Variable?")
-
-            grid_spacing_x, grid_spacing_y = self.get_grid_spacing()
-            grid_origin_offset = self.get_grid_origin_offset()
-
-            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item):
-                logger.warning("Impossible d'ajouter un item variable : grille non définie ou marge absente.")
+            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item) and not kwargs.get('pos'):
+                logger.warning("Impossible d'ajouter un item variable : grille non définie et position non fournie.")
                 return
-
-            item_start_pos_scene = grid_origin_offset
-
-            # Définir une taille initiale (peut-être à ajuster en fonction de la longueur du texte plus tard)
-            default_width_mm = 30.0 
-            default_height_mm = 10.0
-            rect_width_px = self.mm_to_pixels(default_width_mm)
-            rect_height_px = self.mm_to_pixels(default_height_mm)
+            # Le nom de la variable devrait être dans kwargs sous la clé 'name' ou 'text'
+            # GridRectangleItem le gérera via item_properties
+            if 'text' not in properties_for_item: # Assurer que 'text' (pour affichage) est là
+                properties_for_item['text'] = properties_for_item.get('name', "Variable?")
+            properties_for_item['is_variable_item'] = True # Marquer explicitement
             
-            initial_local_rect = QRectF(0, 0, rect_width_px, rect_height_px)
-
-            # Créer un GridRectangleItem avec le nom de la variable comme texte.
-            # On pourrait ajouter un drapeau is_variable_item=True si GridRectangleItem doit se comporter différemment.
-            variable_item = GridRectangleItem(initial_local_rect, editor_view=self, text=variable_name, is_variable_item=True)
-            variable_item.setPos(item_start_pos_scene)
+            actual_item = GridRectangleItem(initial_local_rect, editor_view=self, item_properties=properties_for_item)
+            actual_item.setPos(item_start_pos_scene)
+            self._scene.addItem(actual_item)
+            logger.debug(f"GridRectangleItem (type: {item_type}) ajouté à {item_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
+        
+        elif item_type == "image":
+            if not (grid_spacing_x > 0 and grid_spacing_y > 0 and self.margin_item) and not kwargs.get('pos'):
+                logger.warning("Impossible d'ajouter un item image : grille non définie et position non fournie.")
+                return
+            # 'image_path' doit être dans properties_for_item (provenant de kwargs)
+            if 'image_path' not in properties_for_item:
+                logger.error("Tentative d'ajout d'item image sans image_path.")
+                return
             
-            # Rendre l'item non-éditable par double-clic pour l'instant (si GridRectangleItem gère cela via les flags)
-            # Pour un simple QGraphicsTextItem, on ferait : text_item.setTextInteractionFlags(Qt.NoTextInteraction)
-            # Si GridRectangleItem a un text_item enfant, il faudrait le configurer.
-            # Supposons pour l'instant que le comportement par défaut de GridRectangleItem pour le texte est OK.
-            # Si le texte est un QGraphicsTextItem interne à GridRectangleItem :
-            if hasattr(variable_item, 'text_item') and variable_item.text_item:
-                 variable_item.text_item.setTextInteractionFlags(Qt.NoTextInteraction) # Rendre le texte non interactif
-                 # Pour s'assurer que l'item parent (GridRectangleItem) reste sélectionnable/déplaçable :
-                 variable_item.setFlag(QGraphicsItem.ItemIsSelectable, True)
-                 variable_item.setFlag(QGraphicsItem.ItemIsMovable, True)
+            actual_item = GridRectangleItem(initial_local_rect, editor_view=self, item_properties=properties_for_item)
+            actual_item.setPos(item_start_pos_scene)
+            self._scene.addItem(actual_item)
+            logger.debug(f"GridRectangleItem (type: {item_type}) ajouté à {item_start_pos_scene} avec taille {rect_width_px}x{rect_height_px}")
 
-            self._scene.addItem(variable_item)
-            logger.debug(f"GridRectangleItem (pour variable '{variable_name}') ajouté à {item_start_pos_scene}")
         else:
             logger.warning(f"Type d'item inconnu demandé pour ajout: {item_type}")
 
@@ -330,7 +369,10 @@ class LamicoidEditorWidget(QGraphicsView):
 
     def clear(self): # Méthode pour effacer l'éditeur si besoin
         self._scene.clear()
-        logger.debug("Lamicoid editor cleared.")
+        self.lamicoid_item = None # Explicitement remis à None
+        self.margin_item = None   # Explicitement remis à None
+        self.grid_lines.clear() # Vider aussi la liste des lignes de la grille
+        logger.debug("Lamicoid editor cleared and internal references reset.")
 
     def resizeEvent(self, event):
         # S'assurer que la vue est bien ajustée après un redimensionnement de la fenêtre

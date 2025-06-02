@@ -3,10 +3,11 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
                              QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog, QGraphicsItem,
                              QColorDialog, QStyledItemDelegate, QStyle, QInputDialog)
-from PyQt5.QtCore import Qt, QDate, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, QDate, pyqtSignal, QSize, QPointF, QSizeF
 from PyQt5.QtGui import QFont, QIcon, QColor, QStandardItemModel, QStandardItem
 import logging
 import os
+import json
 
 from ui.components.frame import Frame
 from utils.signals import signals
@@ -15,6 +16,8 @@ from utils.icon_loader import get_icon_path
 from widgets.numeric_input_with_unit import NumericInputWithUnit
 from dialogs.variable_config_dialog import VariableConfigDialog
 from dialogs.existing_variables_dialog import ExistingVariablesDialog
+from models.documents.lamicoid.lamicoid import LamicoidDocument
+from models.documents.lamicoid.lamicoid_item import LamicoidItem
 
 logger = logging.getLogger('GDJ_App')
 
@@ -68,7 +71,15 @@ class LamicoidPage(QWidget):
         self._init_ui()
         self._connect_signals()
         self._apply_toolbar_styles()
-        self._on_mode_selected(self.mode_selection_combo.currentText()) 
+
+        # Définir le mode par défaut et s'assurer que la vue est mise à jour
+        default_mode = "Lamicoid"
+        if self.mode_selection_combo.findText(default_mode) != -1:
+            self.mode_selection_combo.setCurrentText(default_mode)
+        elif self.mode_selection_combo.count() > 0: # Fallback si "Lamicoid" n'est pas trouvé
+            self.mode_selection_combo.setCurrentIndex(0)
+        
+        self._on_mode_selected(self.mode_selection_combo.currentText()) # S'assurer que la vue initiale est correcte
         logger.debug(f"LamicoidPage initialisée.")
 
     def _apply_toolbar_styles(self):
@@ -144,7 +155,6 @@ class LamicoidPage(QWidget):
         type_lamicoid_combo_layout.setContentsMargins(0,0,0,0)
         type_lamicoid_label = QLabel("Nouveau:")
         self.mode_selection_combo = QComboBox()
-        self.mode_selection_combo.addItem("--- Sélectionner ---")
         self.mode_selection_combo.addItem("Modele")
         self.mode_selection_combo.addItem("Lamicoid")
         self.mode_selection_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -523,7 +533,6 @@ class LamicoidPage(QWidget):
         page_layout.addWidget(right_panel)
         
         self.setLayout(page_layout)
-        self.mode_selection_combo.setCurrentIndex(0)
         self._ensure_correct_view_for_mode(self.mode_selection_combo.currentText())
 
     def _connect_signals(self):
@@ -557,12 +566,26 @@ class LamicoidPage(QWidget):
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
+
+        if selected_mode == "Modele":
+            if self.lamicoid_editor_widget: # S'assurer que l'widget existe
+                self.lamicoid_editor_widget.clear() # Vider l'éditeur avant toute autre opération pour le mode Modèle
+        
         self._ensure_correct_view_for_mode(selected_mode)
+        
         if selected_mode == "Modele":
             self._update_lamicoid_editor_params()
         elif selected_mode == "Lamicoid":
-            # Action spécifique pour Lamicoid si nécessaire, pour l'instant, pas de mise à jour des params de l'éditeur
-            pass
+            # Si un template est déjà sélectionné dans le combobox, le charger
+            current_template = self.template_selection_combo.currentText()
+            NON_MODEL_ITEMS = ["Erreur chargement modèles", "Aucun modèle disponible", "Dossier modèles absent"]
+            if current_template and current_template not in NON_MODEL_ITEMS:
+                logger.debug(f"Mode Lamicoid: Rechargement du template '{current_template}' si déjà sélectionné.")
+                self._on_template_selected(current_template) # Appelle _load_template_into_editor
+            else:
+                # Si aucun template valide n'est sélectionné, s'assurer que l'éditeur est vide
+                if self.lamicoid_editor_widget:
+                    self.lamicoid_editor_widget.clear()
 
     def _update_lamicoid_editor_params(self):
         if self.mode_selection_combo.currentText() == "Modele":
@@ -856,29 +879,42 @@ class LamicoidPage(QWidget):
             self.left_content_stack.setCurrentWidget(self.lamicoid_params_frame)
             self.right_panel_title_label.setText("Éditeur Modèle")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget)
-            self._update_variables_display() # Mettre à jour aussi lors du changement de mode si nécessaire
+            self.lamicoid_editor_widget.clear() # Ajout crucial ici
+            self.lamicoid_editor_widget.setInteractive(True) # Assurer que l'éditeur est interactif
+            self._update_variables_display() 
             
-        elif mode == "Lamicoid": # Gestion de la vue pour Lamicoid
+        elif mode == "Lamicoid": 
             self.form_title_label.setText("Charger Lamicoid depuis Modèle") 
             self._populate_template_combobox()
             self.left_content_stack.setCurrentWidget(self.lamicoid_mode_frame) 
-            self.right_panel_title_label.setText("Visualisation Lamicoid") # Ou un titre spécifique
-            self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget) 
-            self._update_variables_display()
-            
+            self.right_panel_title_label.setText("Aperçu du Modèle") 
+            self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget) # Afficher l'éditeur pour l'aperçu
+            self.lamicoid_editor_widget.setInteractive(False) # Mode aperçu seulement
+            # Le contenu sera chargé par _on_template_selected_for_lamicoid
+            # On peut clearer ici au cas où on arrive sans sélection de template au préalable
+            if self.template_selection_combo.currentIndex() <= 0 : # Si "Sélectionner" ou rien
+                 self.lamicoid_editor_widget.clear() 
+            else:
+                # Si un modèle est déjà sélectionné, le recharger ou s'assurer qu'il est affiché
+                self._on_template_selected(self.template_selection_combo.currentText())
+
         elif mode == "--- Sélectionner ---":
             self.form_title_label.setText("Configuration Modèle")
             self.left_content_stack.setCurrentWidget(self.left_placeholder_widget)
-            self.right_panel_title_label.setText("Éditeur Modèle")
+            self.right_panel_title_label.setText("Éditeur Modèle") # Par défaut, montrer l'éditeur
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget) 
-            self._update_variables_display() # Afficher les variables même en mode sélection
+            self.lamicoid_editor_widget.clear() # Effacer l'éditeur
+            self.lamicoid_editor_widget.setInteractive(True) # Permettre l'édition si on revient à "Sélectionner" puis "Modèle"
+            self._update_variables_display()
             
-        else:
+        else: # Cas par défaut ou inconnu
             self.form_title_label.setText("Configuration Modèle")
             self.left_content_stack.setCurrentWidget(self.left_placeholder_widget)
             self.right_panel_title_label.setText("Éditeur Modèle")
             self.right_display_stack.setCurrentWidget(self.lamicoid_editor_widget)
-            self._update_variables_display() # Afficher les variables
+            self.lamicoid_editor_widget.clear() # Effacer l'éditeur
+            self.lamicoid_editor_widget.setInteractive(True) # Permettre l'édition si on revient à "Sélectionner" puis "Modèle"
+            self._update_variables_display()
 
     def _clear_layout(self, layout):
         """Utilitaire pour vider un layout de tous ses widgets."""
@@ -1112,7 +1148,9 @@ class LamicoidPage(QWidget):
     def _populate_template_combobox(self):
         self.template_selection_combo.blockSignals(True)
         self.template_selection_combo.clear()
-        self.template_selection_combo.addItem("--- Choisir un modèle ---")
+
+        initial_item_selected_for_handler = False
+        selected_template_name_for_handler = None
 
         try:
             current_script_path = os.path.abspath(__file__)
@@ -1121,31 +1159,176 @@ class LamicoidPage(QWidget):
 
             if not os.path.exists(templates_dir):
                 logger.warning(f"Le dossier des modèles '{templates_dir}' n'existe pas.")
-                self.template_selection_combo.blockSignals(False)
-                return
-
-            models = [f for f in os.listdir(templates_dir) if f.endswith(".json")]
-            if not models:
-                logger.info(f"Aucun modèle trouvé dans '{templates_dir}'.")
+                self.template_selection_combo.addItem("Dossier modèles absent")
             else:
-                for model_file in sorted(models):
-                    self.template_selection_combo.addItem(model_file[:-5]) # Retirer .json
+                models = [f for f in os.listdir(templates_dir) if f.endswith(".json")]
+                if not models:
+                    logger.info(f"Aucun modèle trouvé dans '{templates_dir}'.")
+                    self.template_selection_combo.addItem("Aucun modèle disponible")
+                else:
+                    for model_file in sorted(models):
+                        self.template_selection_combo.addItem(model_file[:-5]) # Retirer .json
+                    
+                    if self.template_selection_combo.count() > 0:
+                        # Vérifier que l'item à l'index 0 n'est pas un message d'erreur/info
+                        first_item_text = self.template_selection_combo.itemText(0)
+                        NON_MODEL_ITEMS_FOR_POPULATE = ["Aucun modèle disponible", "Dossier modèles absent", "Erreur chargement modèles"]
+                        if first_item_text not in NON_MODEL_ITEMS_FOR_POPULATE:
+                            self.template_selection_combo.setCurrentIndex(0)
+                            selected_template_name_for_handler = self.template_selection_combo.currentText()
+                            initial_item_selected_for_handler = True
             
         except Exception as e:
             logger.error(f"Erreur lors du chargement des modèles: {e}")
-            # Afficher un message à l'utilisateur via le combobox peut-être ?
             self.template_selection_combo.addItem("Erreur chargement modèles")
         
         self.template_selection_combo.blockSignals(False)
 
+        if initial_item_selected_for_handler and selected_template_name_for_handler:
+            self._on_template_selected(selected_template_name_for_handler)
+        elif self.template_selection_combo.count() > 0:
+            self._on_template_selected(self.template_selection_combo.currentText())
+        else: 
+            self._clear_editor_and_params() # Si aucun modèle à sélectionner, effacer l'éditeur
+
     def _on_template_selected(self, template_name: str):
-        if template_name and template_name != "--- Choisir un modèle ---" and template_name != "Erreur chargement modèles":
-            logger.info(f"Modèle sélectionné: {template_name}.json")
-            # Ici, vous implémenterez la logique pour charger le template.
-            # Par exemple: self._load_template_data(template_name + ".json")
-            # Et ensuite, appliquer les données à l'éditeur et aux champs de paramètres.
+        NON_MODEL_ITEMS = ["Erreur chargement modèles", "Aucun modèle disponible", "Dossier modèles absent"]
+        if template_name and template_name not in NON_MODEL_ITEMS:
+            logger.info(f"Modèle sélectionné pour chargement: {template_name}.json")
+            self._load_template_into_editor(template_name + ".json")
         else:
             logger.debug(f"Sélection de modèle réinitialisée ou invalide: {template_name}")
+            self._clear_editor_and_params()
+
+    def _load_template_into_editor(self, template_file_name_with_ext: str):
+        try:
+            current_script_path = os.path.abspath(__file__)
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_script_path)))
+            templates_dir = os.path.join(project_root, "project_templates")
+            file_path = os.path.join(templates_dir, template_file_name_with_ext)
+
+            if not os.path.exists(file_path):
+                logger.error(f"Fichier modèle non trouvé: {file_path}")
+                self._clear_editor_and_params()
+                return
+
+            with open(file_path, 'r', encoding='utf-8') as f:
+                template_data = json.load(f)
+            logger.debug(f"Contenu brut du template JSON ('{template_file_name_with_ext}'): {template_data}")
+            
+            self._clear_editor_and_params() # Effacer avant de charger
+
+            # 1. Charger les paramètres du Lamicoid
+            params = template_data.get('lamicoid_parameters', {})
+            logger.debug(f"Paramètres Lamicoid du JSON: {params}")
+            
+            # Utiliser les méthodes de conversion de LamicoidEditorWidget ou les globales si besoin.
+            # Assumons ici que les méthodes mm_to_pixels sont accessibles via self.lamicoid_editor_widget
+            # ou que les fonctions globales mm_to_pixels sont utilisées (ce qui est le cas ici).
+            width_px_lam = mm_to_pixels(params.get('width_mm', 100.0))
+            height_px_lam = mm_to_pixels(params.get('height_mm', 50.0))
+            corner_radius_px_lam = mm_to_pixels(params.get('corner_radius_mm', 0.0))
+            margin_px_lam = mm_to_pixels(params.get('margin_mm', 0.0))
+            grid_spacing_px_lam = mm_to_pixels(params.get('grid_spacing_mm', 5.0))
+
+            logger.debug(f"Conversion des paramètres Lamicoid en pixels: "
+                         f"W={width_px_lam}, H={height_px_lam}, R={corner_radius_px_lam}, "
+                         f"M={margin_px_lam}, Grid={grid_spacing_px_lam}")
+
+            self.lamicoid_editor_widget.set_lamicoid_properties(
+                width_px_lam, height_px_lam, corner_radius_px_lam, margin_px_lam, grid_spacing_px_lam
+            )
+
+            # 2. Charger les variables du projet
+            self.project_variables = template_data.get('project_variables', [])
+            self._update_variables_display()
+
+            # 3. Charger les items de l'éditeur
+            editor_items_data = template_data.get('editor_items', [])
+            logger.debug(f"Nombre d'items à charger depuis le template: {len(editor_items_data)}")
+            if self.lamicoid_editor_widget:
+                for i, item_data in enumerate(editor_items_data):
+                    logger.debug(f"Chargement item template #{i} - Données JSON brutes: {item_data}")
+                    item_subtype = item_data.get('item_subtype', 'simple_rectangle') # rectangle, texte, image, variable_rectangle
+                    
+                    item_type_for_add = item_subtype # Valeur par défaut
+                    if item_subtype == 'variable_text':
+                        item_type_for_add = 'variable_rectangle'
+                    elif item_subtype == 'simple_rectangle':
+                        item_type_for_add = 'rectangle'
+                    elif item_subtype == 'text': # Ajout de ce cas
+                        item_type_for_add = 'texte'
+                    # 'image' est déjà géré car item_type_for_add == item_subtype par défaut.
+                    
+                    # Les valeurs pos_x, pos_y, width, height du JSON sont déjà en PIXELS
+                    pos_x_px = item_data.get('pos_x', 0.0)
+                    pos_y_px = item_data.get('pos_y', 0.0)
+                    width_px = item_data.get('width', 50.0)  # Valeur par défaut en pixels si absente
+                    height_px = item_data.get('height', 30.0) # Valeur par défaut en pixels si absente
+                    logger.debug(f"  Item #{i}: pos (px)=({pos_x_px}, {pos_y_px}), size (px)=({width_px}, {height_px})")
+
+                    full_item_data = {
+                        'pos': QPointF(pos_x_px, pos_y_px),       # En pixels
+                        'size': QSizeF(width_px, height_px),     # En pixels
+                        'z_value': item_data.get('z_value', 0)
+                    }
+                    if item_subtype == 'text' or item_subtype == 'variable_text':
+                        full_item_data['text'] = item_data.get('text_content', 'Texte')
+                        full_item_data['font_family'] = item_data.get('font_family', 'Arial')
+                        full_item_data['font_size_pt'] = item_data.get('font_size_pt', 10)
+                        full_item_data['font_bold'] = item_data.get('font_bold', False)
+                        full_item_data['font_italic'] = item_data.get('font_italic', False)
+                        full_item_data['font_underline'] = item_data.get('font_underline', False)
+                        full_item_data['text_color_rgba'] = item_data.get('text_color_rgba') 
+                        full_item_data['text_alignment'] = Qt.AlignmentFlag(item_data.get('text_alignment', Qt.AlignLeft))
+                        if item_subtype == 'variable_text':
+                            full_item_data['variable_name'] = item_data.get('text_content', 'VAR_NAME') 
+
+                    elif item_subtype == 'image':
+                        full_item_data['image_path'] = item_data.get('image_path')
+                    
+                    logger.debug(f"  Item #{i}: full_item_data préparé pour add_editor_item: {full_item_data}")
+                    self.lamicoid_editor_widget.add_editor_item(
+                        item_type_for_add, 
+                        **full_item_data # Déballer full_item_data en arguments mot-clé
+                    )
+
+            logger.info(f"Modèle '{template_file_name_with_ext}' chargé dans l'éditeur (ou tentative).")
+            # Assurer que l'éditeur est en mode non interactif après chargement si c'est un aperçu
+            if self.mode_selection_combo.currentText() == "Lamicoid":
+                 self.lamicoid_editor_widget.setInteractive(False)
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Erreur de décodage JSON pour le modèle '{template_file_name_with_ext}': {e}")
+            self._clear_editor_and_params()
+        except Exception as e:
+            logger.error(f"Erreur inattendue lors du chargement du modèle '{template_file_name_with_ext}' dans l'éditeur: {e}")
+            self._clear_editor_and_params()
+
+    def _clear_editor_and_params(self):
+        if self.lamicoid_editor_widget:
+            self.lamicoid_editor_widget.clear()
+        
+        # Réinitialiser les spinbox à des valeurs par défaut (optionnel)
+        # self.width_spinbox.setValue(100.0)
+        # self.height_spinbox.setValue(50.0)
+        # ... autres spinboxes ...
+        # self._update_lamicoid_editor_params() # Mettre à jour l'éditeur avec ces valeurs par défaut
+
+        self.project_variables = []
+        self._update_variables_display()
+        logger.debug("Éditeur et paramètres réinitialisés.")
+        
+    def _update_editor_with_current_template(self):
+        if self.template_selection_combo.count() > 0:
+            current_template_name = self.template_selection_combo.currentText()
+            self._on_template_selected(current_template_name)
+        else:
+            self._clear_editor_and_params()
+
+    def _create_new_lamicoid_from_template(self):
+        # ... existing code ...
+        pass # Ajout pour corriger l'IndentationError
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
