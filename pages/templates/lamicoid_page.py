@@ -234,6 +234,40 @@ class LamicoidPage(QWidget):
         # Inverser l'ordre d'ajout: d'abord le stack des paramètres, ensuite le frame des variables
         left_panel_content_layout.addWidget(self.left_content_stack)
         left_panel_content_layout.addWidget(self.variables_frame) 
+
+        # --- Cadre pour les Actions (Effacer, Créer) ---
+        self.actions_frame = QFrame(self)
+        self.actions_frame.setObjectName("ActionsFrame")
+        actions_layout = QHBoxLayout(self.actions_frame) # Utiliser QHBoxLayout pour les boutons sur une ligne
+        actions_layout.setContentsMargins(8, 8, 8, 8) 
+        actions_layout.setSpacing(6)
+
+        self.clear_button = QPushButton("Effacer")
+        self.clear_button.setIcon(QIcon(get_icon_path("round_delete_sweep.png"))) # Exemple d'icône
+        self.clear_button.setObjectName("ActionButton")
+        actions_layout.addWidget(self.clear_button)
+
+        self.create_button = QPushButton("Créer")
+        self.create_button.setIcon(QIcon(get_icon_path("round_add_circle.png"))) # Exemple d'icône
+        self.create_button.setObjectName("ActionButton")
+        actions_layout.addWidget(self.create_button)
+        
+        # Style pour actions_frame similaire à variables_frame
+        self.actions_frame.setStyleSheet("""
+            QFrame#ActionsFrame {
+                background-color: rgba(0,0,0,0);
+                border: 1px solid #4A4D4E;
+                border-radius: 6px;
+                margin-top: 8px; /* Espacement avec le frame des variables au-dessus */
+            }
+            QPushButton#ActionButton {
+                /* Style pour les boutons si nécessaire, sinon ils prendront le style global */
+                padding: 5px; 
+            }
+        """)
+        left_panel_content_layout.addWidget(self.actions_frame)
+        # --- Fin Cadre pour les Actions ---
+
         page_layout.addWidget(left_panel)
 
         # Assurer que le QStackedWidget est aussi transparent
