@@ -1,0 +1,36 @@
+{
+    "lamicoid_parameters": {
+        "width_mm": 100.0,
+        "height_mm": 50.0,
+        "corner_radius_mm": 2.0,
+        "margin_mm": 2.0,
+        "grid_spacing_mm": 1.0
+    },
+    "editor_items": [
+        {
+            "type": "grid_rectangle",
+            "pos_x": 68.53149606299213,
+            "pos_y": 49.63385826771653,
+            "width": 113.38582677165356,
+            "height": 37.795275590551185,
+            "z_value": 0.0,
+            "item_subtype": "variable_text",
+            "text_content": "test",
+            "font_family": "Arial",
+            "font_size_pt": 10,
+            "font_bold": false,
+            "font_italic": false,
+            "font_underline": false,
+            "text_color_rgba": 4278190080,
+            "text_alignment": 129
+        }
+    ],
+    "project_variables": [
+        {
+            "name": "test",
+            "type": "Valeur personnalisable",
+            "has_unit": false,
+            "unit": null
+        }
+    ]
+}

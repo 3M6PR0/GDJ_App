@@ -2,10 +2,11 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
                              QFrame, QScrollArea, QFormLayout, QDateEdit, 
                              QLineEdit, QSpinBox, QComboBox, QSizePolicy, QMessageBox,
                              QStackedWidget, QDialog, QDoubleSpinBox, QFileDialog, QGraphicsItem,
-                             QColorDialog, QStyledItemDelegate, QStyle)
+                             QColorDialog, QStyledItemDelegate, QStyle, QInputDialog)
 from PyQt5.QtCore import Qt, QDate, pyqtSignal, QSize
 from PyQt5.QtGui import QFont, QIcon, QColor, QStandardItemModel, QStandardItem
 import logging
+import os
 
 from ui.components.frame import Frame
 from utils.signals import signals
@@ -523,6 +524,9 @@ class LamicoidPage(QWidget):
         self.color_button.clicked.connect(self._select_text_color)
         self.align_combo.currentIndexChanged.connect(self._apply_text_alignment)
 
+        # Connexion pour le nouveau bouton Créer (template)
+        self.create_button.clicked.connect(self._save_lamicoid_template)
+
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
         self._ensure_correct_view_for_mode(selected_mode)
@@ -901,6 +905,165 @@ class LamicoidPage(QWidget):
                 variables_layout.addWidget(line)
         
         self.variables_frame.adjustSize()
+
+    def _save_lamicoid_template(self):
+        """Sauvegarde la configuration actuelle du Lamicoid en tant que template JSON."""
+        import json # Pour la sauvegarde
+        from PyQt5.QtWidgets import QInputDialog # Pour demander le nom du template
+
+        # Définir le dossier des templates (par exemple, à la racine du projet)
+        # Idéalement, ce chemin pourrait être configuré de manière plus globale.
+        # Pour l'instant, nous utilisons un chemin relatif au script principal.
+        # Cela suppose que votre script principal est à la racine du projet.
+        # Si ce n'est pas le cas, vous devrez ajuster 'Path(__file__).resolve().parent.parent'
+        # ou utiliser une méthode plus robuste pour obtenir le répertoire racine de l'application.
+        try:
+            # Essayer d'obtenir le répertoire du script principal de l'application
+            # Cela peut être complexe si le script est packagé ou lancé de différentes manières.
+            # Une approche simple est de supposer une structure.
+            # Si votre main.py est à la racine:
+            # app_root_dir = os.path.dirname(os.path.abspath(sys.argv[0])) # Moins fiable
+            # Alternative plus courante si la structure est connue:
+            current_script_path = os.path.abspath(__file__)
+            # Si lamicoid_page.py est dans pages/templates/, remonter de deux niveaux pour la racine du projet
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_script_path)))
+            templates_dir = os.path.join(project_root, "project_templates")
+        except Exception:
+            # Fallback si la détection du chemin échoue
+            logger.warning("Impossible de déterminer le chemin racine du projet dynamiquement, utilisation d'un chemin relatif.")
+            templates_dir = "project_templates"
+
+        # Créer le dossier des templates s'il n'existe pas
+        if not os.path.exists(templates_dir):
+            try:
+                os.makedirs(templates_dir)
+                logger.info(f"Dossier des templates créé : {templates_dir}")
+            except OSError as e:
+                logger.error(f"Impossible de créer le dossier des templates '{templates_dir}': {e}")
+                QMessageBox.critical(self, "Erreur de Création de Dossier", 
+                                     f"Impossible de créer le dossier des templates:\n{templates_dir}\nErreur: {e}")
+                return
+
+        # Demander un nom de fichier pour le template
+        template_name, ok = QInputDialog.getText(self, "Nom du Template", 
+                                                 "Entrez un nom pour le template (sans extension):")
+        
+        if not (ok and template_name):
+            logger.info("Sauvegarde du template annulée par l'utilisateur (pas de nom fourni).")
+            return
+
+        # Nettoyer le nom de fichier (éviter les caractères invalides, bien que QInputDialog soit généralement sûr)
+        # Pour plus de robustesse, on pourrait utiliser une fonction pour "slugifier" le nom.
+        safe_template_name = "".join(c for c in template_name if c.isalnum() or c in (' ', '_', '-')).rstrip()
+        if not safe_template_name: # Si le nom devient vide après nettoyage
+            safe_template_name = "template_sans_nom"
+        
+        file_name = safe_template_name + ".json"
+        file_path = os.path.join(templates_dir, file_name)
+
+        # Vérifier si le fichier existe déjà
+        if os.path.exists(file_path):
+            reply = QMessageBox.question(self, "Fichier Existant", 
+                                         f"Le template '{file_name}' existe déjà.\nVoulez-vous le remplacer ?",
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.No:
+                logger.info(f"Sauvegarde du template '{file_name}' annulée (ne pas remplacer).")
+                return
+
+        logger.info(f"Début de la sauvegarde du template Lamicoid vers: {file_path}")
+
+        template_data = {}
+
+        # 1. Collecter les paramètres du Lamicoid
+        template_data['lamicoid_parameters'] = self._collect_lamicoid_parameters()
+
+        # 2. Collecter les items de l'éditeur
+        template_data['editor_items'] = self._collect_editor_items()
+
+        # 3. Collecter les variables du projet
+        template_data['project_variables'] = list(self.project_variables) # Créer une copie
+
+        # 4. Écrire dans le fichier JSON
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(template_data, f, ensure_ascii=False, indent=4)
+            logger.info(f"Template Lamicoid sauvegardé avec succès dans {file_path}")
+            QMessageBox.information(self, "Sauvegarde Réussie", f"Le template a été sauvegardé dans:\n{file_path}")
+        except IOError as e:
+            logger.error(f"Erreur d'écriture lors de la sauvegarde du template: {e}")
+            QMessageBox.critical(self, "Erreur de Sauvegarde", f"Impossible de sauvegarder le template.\nErreur: {e}")
+        except Exception as e:
+            logger.error(f"Erreur inattendue lors de la sauvegarde du template: {e}")
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur inattendue s'est produite lors de la sauvegarde.\n{e}")
+
+    def _collect_lamicoid_parameters(self) -> dict:
+        """Collecte les paramètres dimensionnels et de grille du Lamicoid."""
+        params = {
+            'width_mm': self.width_spinbox.value(),
+            'height_mm': self.height_spinbox.value(),
+            'corner_radius_mm': self.radius_spinbox.value(),
+            'margin_mm': self.margin_spinbox.value(),
+            'grid_spacing_mm': self.grid_spacing_spinbox.value()
+        }
+        logger.debug(f"Paramètres Lamicoid collectés: {params}")
+        return params
+
+    def _collect_editor_items(self) -> list:
+        """Collecte les informations de tous les items graphiques pertinents dans l'éditeur."""
+        # Supprimer l'importation locale problématique
+        # from ui.editors.lamicoid_editor_widget import ExportedGridRectangleItemType
+
+        items_data = []
+        if not (self.lamicoid_editor_widget and hasattr(self.lamicoid_editor_widget, '_scene')):
+            logger.warning("_collect_editor_items: LamicoidEditorWidget ou sa scène n'est pas disponible.")
+            return items_data
+
+        scene_items = self.lamicoid_editor_widget._scene.items()
+        for item in scene_items:
+            # Vérifier le type par le nom de la classe pour éviter les problèmes d'importation circulaire
+            if item.__class__.__name__ == 'GridRectangleItem':
+                # Le reste de la logique pour extraire les informations de item...
+                # Assurez-vous que les attributs comme item.is_text_item, item.text_item, item.image_path 
+                # sont toujours accessibles directement sur l'objet 'item'.
+                item_info = {
+                    'type': 'grid_rectangle', 
+                    'pos_x': item.pos().x(),
+                    'pos_y': item.pos().y(),
+                    'width': item.rect().width(),
+                    'height': item.rect().height(),
+                    'z_value': item.zValue()
+                }
+
+                if hasattr(item, 'is_text_item') and item.is_text_item:
+                    item_info['item_subtype'] = 'text'
+                    if hasattr(item, 'text_item') and item.text_item:
+                        text_g_item = item.text_item
+                        font = text_g_item.font()
+                        doc_options = text_g_item.document().defaultTextOption()
+
+                        item_info['text_content'] = text_g_item.toPlainText()
+                        item_info['font_family'] = font.family()
+                        item_info['font_size_pt'] = font.pointSize()
+                        item_info['font_bold'] = font.bold()
+                        item_info['font_italic'] = font.italic()
+                        item_info['font_underline'] = font.underline()
+                        item_info['text_color_rgba'] = text_g_item.defaultTextColor().rgba()
+                        item_info['text_alignment'] = int(doc_options.alignment())
+
+                        if hasattr(item, 'is_variable_item') and item.is_variable_item:
+                            item_info['item_subtype'] = 'variable_text'
+                
+                elif hasattr(item, 'image_path') and item.image_path:
+                    item_info['item_subtype'] = 'image'
+                    item_info['image_path'] = item.image_path
+                
+                else:
+                    item_info['item_subtype'] = 'simple_rectangle'
+
+                items_data.append(item_info)
+
+        logger.debug(f"{len(items_data)} items d'éditeur collectés pour la sauvegarde.")
+        return items_data
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication

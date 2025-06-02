@@ -6,6 +6,9 @@ from typing import List
 
 from ui.items.grid_rectangle_item import GridRectangleItem
 
+# Rendre le type GridRectangleItem accessible pour d'autres modules si nécessaire
+ExportedGridRectangleItemType = GridRectangleItem 
+
 logger = logging.getLogger('GDJ_App')
 
 # Conversion (peut être déplacé dans un fichier utils plus tard)
