@@ -26,8 +26,22 @@ def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
     # Ces dimensions correspondent au viewBox du SVG.
     lamicoid_width_px = mm_to_pixels(width_mm)
     lamicoid_height_px = mm_to_pixels(height_mm)
+    logger.debug(f"Dimensions Lamicoid pour SVG: width_mm={width_mm}, height_mm={height_mm}, radius_mm={corner_radius_mm}")
+    logger.debug(f"Dimensions Lamicoid en pixels pour conversion interne: width_px={lamicoid_width_px}, height_px={lamicoid_height_px}")
 
-    svg_parts.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{width_mm}" height="{height_mm}" version="1.1" viewBox="0 0 {width_mm} {height_mm}">')
+    # Conversion des dimensions mm en pixels pour les attributs width/height du SVG
+    svg_attr_width_px = mm_to_pixels(width_mm, DEFAULT_DPI) 
+    svg_attr_height_px = mm_to_pixels(height_mm, DEFAULT_DPI)
+    logger.debug(f"Attributs width/height du SVG (pixels@ {DEFAULT_DPI} DPI): {svg_attr_width_px:.2f}px, {svg_attr_height_px:.2f}px")
+
+    # Le viewBox définit l'espace de coordonnées en unités qui représentent des mm.
+    # Les attributs width/height du SVG sont en pixels.
+    svg_parts.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'width="{svg_attr_width_px:.2f}" '
+        f'height="{svg_attr_height_px:.2f}" '
+        f'version="1.1" viewBox="0 0 {width_mm} {height_mm}">'
+    )
     svg_parts.append('  <g id="LamicoidContent">')
 
     # Éléments texte pour la gravure
@@ -38,16 +52,19 @@ def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
             item_pos_y_scene_px = item_data.get('pos_y', 0.0)
             item_width_px = item_data.get('width', 10.0)
             item_height_px = item_data.get('height', 5.0)
+            logger.debug(f"  Item texte brut: pos_scene_px=({item_pos_x_scene_px}, {item_pos_y_scene_px}), size_px=({item_width_px}, {item_height_px})")
 
             # Conversion des coordonnées du coin supérieur gauche de l'item (scène -> lamicoid)
             item_top_left_lamicoid_px_x = item_pos_x_scene_px + (lamicoid_width_px / 2.0)
             item_top_left_lamicoid_px_y = item_pos_y_scene_px + (lamicoid_height_px / 2.0)
+            logger.debug(f"    Item TL converti (Lamicoid px): ({item_top_left_lamicoid_px_x}, {item_top_left_lamicoid_px_y})")
 
             # Conversion en mm pour SVG (dimensions et position du coin sup-gauche)
             svg_item_x_base_mm = pixels_to_mm(item_top_left_lamicoid_px_x)
             svg_item_y_base_mm = pixels_to_mm(item_top_left_lamicoid_px_y)
             item_width_svg_mm = pixels_to_mm(item_width_px)
             item_height_svg_mm = pixels_to_mm(item_height_px)
+            logger.debug(f"    Item TL en mm (SVG base): ({svg_item_x_base_mm}, {svg_item_y_base_mm}), size_mm=({item_width_svg_mm}, {item_height_svg_mm})")
             
             text_content = item_data.get('text_content', 'N/A')
             font_size_pt = item_data.get('font_size_pt', 10)
@@ -110,6 +127,7 @@ def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
             # Pour "text-before-edge" (AlignTop), y_for_svg reste svg_item_y_base_mm
 
             svg_parts.append(f'    <text x="{x_for_svg:.2f}" y="{y_for_svg:.2f}" text-anchor="{text_anchor_svg}" dominant-baseline="{dominant_baseline_svg}" style="{style_attr}">{safe_text_content}</text>')
+            logger.debug(f"    SVG Text Output: x={x_for_svg:.2f}, y={y_for_svg:.2f}, anchor={text_anchor_svg}, baseline={dominant_baseline_svg}")
 
     # Chemin de découpe pour le contour du Lamicoid
     r = corner_radius_mm
