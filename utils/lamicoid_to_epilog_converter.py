@@ -2,20 +2,23 @@ import logging
 import xml.sax.saxutils
 from PyQt5.QtCore import Qt # Pour les flags d'alignement
 
+# Importer les utilitaires de conversion partagés
+from .epilog_converter_utils import mm_to_pixels, pixels_to_mm, points_to_mm
+
 logger = logging.getLogger(__name__) # Utiliser le nom du module courant pour le logger
 
-# Constantes de conversion (peuvent être centralisées plus tard si nécessaire)
-DEFAULT_DPI = 96.0
-INCH_TO_MM = 25.4
+# # Constantes de conversion (MAINTENANT DANS epilog_converter_utils.py)
+# DEFAULT_DPI = 96.0
+# INCH_TO_MM = 25.4
 
-def mm_to_pixels(mm: float, dpi: float = DEFAULT_DPI) -> float:
-    return (mm / INCH_TO_MM) * dpi
+# def mm_to_pixels(mm: float, dpi: float = DEFAULT_DPI) -> float:
+#     return (mm / INCH_TO_MM) * dpi
 
-def pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
-    return (pixels / dpi) * INCH_TO_MM
+# def pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
+#     return (pixels / dpi) * INCH_TO_MM
 
-def points_to_mm(points: float) -> float:
-    return (points / 72.0) * INCH_TO_MM
+# def points_to_mm(points: float) -> float:
+#     return (points / 72.0) * INCH_TO_MM
 
 def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
     logger.debug(f"Début génération SVG. Params: {lamicoid_params}, Items: {len(editor_items)}")
@@ -70,8 +73,14 @@ def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
             font_size_pt = item_data.get('font_size_pt', 12)
             font_size_mm = points_to_mm(font_size_pt)
             
-            # ESSAI: Spécifier font-size sans unité, en espérant qu'elle soit interprétée dans l'espace utilisateur (mm)
-            style_parts = [f"font-size:{font_size_mm:.2f};", f"font-family:'{xml.sax.saxutils.escape(font_family)}';"]
+            # --- TEST TAILLE: Forcer une font-size plus petite (3mm) AVEC unité mm explicitement ---
+            forced_font_size_mm_for_test = 3.0
+            logger.warning(f"  TESTING FONT SIZE: Original font_size_mm={font_size_mm:.2f}mm, Forcée à {forced_font_size_mm_for_test:.2f}mm pour ce test.")
+            current_font_size_for_style = forced_font_size_mm_for_test
+            # --- FIN TEST TAILLE ---
+            
+            # Utiliser la taille de police (potentiellement forcée) pour le style
+            style_parts = [f"font-size:{current_font_size_for_style:.2f}mm;", f"font-family:'{xml.sax.saxutils.escape(font_family)}';"]
             if item_data.get('font_bold'): style_parts.append("font-weight:bold;")
             if item_data.get('font_italic'): style_parts.append("font-style:italic;")
             # text-decoration:underline; n'est souvent pas bien géré pour la gravure, on le laisse de côté pour l'instant
@@ -122,17 +131,15 @@ def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
 
             logger.debug(f"  SVG Text attributes (avant calcul Y par ligne): x={svg_x_final:.2f}, anchor={text_anchor}")
             logger.debug(f"  Text lines ({num_lines}): {text_lines}")
-            logger.debug(f"  Font size (pour style): {font_size_mm:.2f} (unité implicite de l'espace utilisateur, mm), Calculated line height factor: {line_height_em}")
+            logger.debug(f"  Font size (pour style): {current_font_size_for_style:.2f}mm (unité explicite), Calculated line height factor: {line_height_em}")
 
-            actual_line_height_mm = font_size_mm * line_height_em # Calcul de l'interligne en mm
-            logger.debug(f"    Actual line height for text elements: {actual_line_height_mm:.2f}mm")
+            # Recalculer actual_line_height_mm avec la taille de police (potentiellement forcée) utilisée pour le style
+            actual_line_height_mm = current_font_size_for_style * line_height_em 
+            logger.debug(f"    Font size for calculation (actual): {current_font_size_for_style:.2f}mm, Actual line height: {actual_line_height_mm:.2f}mm")
 
             # Nouvelle logique pour le centrage vertical du bloc de texte
             # Chaque ligne aura dominant-baseline="middle"
             dominant_baseline = "middle" # Pour chaque ligne de texte
-
-            actual_line_height_mm = font_size_mm * line_height_em # Calcul de l'interligne en mm (basé sur font_size_mm potentiellement forcée)
-            logger.debug(f"    Font size for calculation: {font_size_mm:.2f}mm, Actual line height: {actual_line_height_mm:.2f}mm")
 
             # Calcul du Y pour la ligne centrale de la première ligne de texte,
             # de manière à ce que le bloc entier de texte soit centré verticalement dans item_height_mm.

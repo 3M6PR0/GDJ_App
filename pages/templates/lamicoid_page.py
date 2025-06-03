@@ -22,6 +22,7 @@ from models.documents.lamicoid.lamicoid import LamicoidDocument
 from models.documents.lamicoid.lamicoid_item import LamicoidItem
 from utils.epilog_printer import send_lamicoid_to_epilog
 from utils.lamicoid_to_epilog_converter import generate_svg_for_epilog, generate_settings_json_for_custom_lamicoid # Ajout de l'import
+from utils.lamicoid_to_svg_paths_converter import generate_svg_with_text_as_paths # NOUVEL IMPORT
 
 logger = logging.getLogger('GDJ_App')
 
@@ -321,6 +322,11 @@ class LamicoidPage(QWidget):
         self.send_custom_lamicoid_button.setToolTip("Envoyer le Lamicoid actuel à l'imprimante")
         actions_layout.addWidget(self.send_custom_lamicoid_button)
         
+        self.print_test_paths_button = QPushButton("Test Impression (Texte en Chemins)")
+        self.print_test_paths_button.setObjectName("PrintTestPathsButton")
+        self.print_test_paths_button.setIcon(QIcon(get_icon_path("vector_square.svg"))) # Choisir une icône appropriée
+        actions_layout.addWidget(self.print_test_paths_button)
+
         # Style pour actions_frame similaire à variables_frame
         self.actions_frame.setStyleSheet("""
             QFrame#ActionsFrame {
@@ -607,6 +613,8 @@ class LamicoidPage(QWidget):
         # Connexion du nouveau bouton
         if hasattr(self, 'send_custom_lamicoid_button') and self.send_custom_lamicoid_button is not None:
             self.send_custom_lamicoid_button.clicked.connect(self._handle_send_custom_lamicoid_to_epilog)
+
+        self.print_test_paths_button.clicked.connect(self._handle_print_test_epilog_text_as_paths) # NOUVELLE CONNEXION
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -1564,6 +1572,86 @@ class LamicoidPage(QWidget):
         except Exception as e:
             logger.error(f"Erreur inattendue lors de l'envoi du Lamicoid personnalisé: {e}", exc_info=True)
             QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue: {e}")
+
+    def _handle_print_test_epilog_text_as_paths(self):
+        logger.info("Début du test d'impression Epilog avec texte en chemins.")
+        try:
+            logger.info("Début du test d'impression Epilog avec texte en chemins.")
+            
+            # Configuration du logger pour utils.lamicoid_to_svg_paths_converter
+            converter_logger = logging.getLogger('utils.lamicoid_to_svg_paths_converter')
+            original_level = converter_logger.level
+            converter_logger.setLevel(logging.DEBUG)
+            # S'assurer qu'un handler est présent si aucun n'est configuré au niveau racine
+            if not converter_logger.handlers and not logging.getLogger().handlers:
+                # Ajouter un handler de base si aucun n'est configuré pour ce logger ou le logger racine
+                # Cela peut être nécessaire si les logs DEBUG ne s'affichent toujours pas.
+                # Pour l'instant, on se contente de setLevel.
+                # console_handler = logging.StreamHandler()
+                # console_handler.setLevel(logging.DEBUG)
+                # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                # console_handler.setFormatter(formatter)
+                # converter_logger.addHandler(console_handler)
+                # converter_logger.propagate = False # Pour éviter la double journalisation si le root a aussi un handler
+                pass
+
+
+            lamicoid_params = self._collect_lamicoid_parameters()
+            editor_items = self._collect_editor_items()
+
+            if not editor_items:
+                QMessageBox.warning(self, "Aucun contenu", "Le Lamicoid est vide. Ajoutez des éléments avant d'envoyer.")
+                logger.warning("Tentative d'envoi d'un Lamicoid vide (texte en chemins).")
+                return
+
+            # Générer le SVG avec le texte converti en chemins
+            svg_content = generate_svg_with_text_as_paths(lamicoid_params, editor_items)
+            logger.debug(f"SVG généré pour test (texte en chemins):\n{svg_content}")
+
+            # Générer le JSON de settings
+            # Déterminer si on a besoin d'un processus de gravure (si items texte présents)
+            has_text_items = any(item.get('item_subtype') == 'text' or item.get('item_subtype') == 'variable_text' for item in editor_items)
+            
+            # Pour ce test, on assume qu'on veut toujours un processus de découpe pour le contour.
+            # Les couleurs sont définies dans generate_svg_with_text_as_paths (blue pour texte, aqua pour découpe)
+            job_name = "TestLamicoidPaths"
+            firmware_version = "1.0.8.7" # À rendre configurable ou à récupérer des settings globaux
+            laser_ip_address = "192.168.100.211" # À rendre configurable
+            machine_model_name = "fusionmaker24" # À rendre configurable
+
+            settings_dict = generate_settings_json_for_custom_lamicoid(
+                job_name=job_name,
+                firmware_version=firmware_version,
+                has_engrave_process=has_text_items, # Le chemin texte sera géré par un filtre sur 'blue'
+                has_cut_process=True # Le chemin de découpe est toujours 'aqua'
+            )
+            logger.info(f"Settings JSON pour test (texte en chemins): {settings_dict}")
+
+            # Envoyer à l'imprimante
+            send_lamicoid_to_epilog(
+                svg_content=svg_content,
+                test_settings=settings_dict, # Correction ici
+                machine_model_name=machine_model_name,
+                laser_ip_address=laser_ip_address
+            )
+            logger.info("Test d'impression Epilog avec texte en chemins envoyé.")
+            QMessageBox.information(self, "Test Impression Epilog", "Tâche d'impression (texte en chemins) envoyée.")
+
+            # Restaurer le niveau de logging original après l'appel
+            converter_logger.setLevel(original_level)
+            # if 'console_handler' in locals() and console_handler in converter_logger.handlers:
+            #     converter_logger.removeHandler(console_handler)
+            #     converter_logger.propagate = True
+
+
+            if not svg_content:
+                QMessageBox.warning(self, "Erreur d'impression", "La génération du SVG a échoué.")
+                logger.error("Erreur lors de la génération du SVG pour le test d'impression.")
+                return
+
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi du test Lamicoid (texte en chemins) à Epilog: {e}", exc_info=True)
+            QMessageBox.critical(self, "Erreur d'impression", f"Une erreur est survenue :\n{e}")
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
