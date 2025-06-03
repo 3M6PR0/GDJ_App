@@ -21,6 +21,7 @@ from dialogs.existing_variables_dialog import ExistingVariablesDialog
 from models.documents.lamicoid.lamicoid import LamicoidDocument
 from models.documents.lamicoid.lamicoid_item import LamicoidItem
 from utils.epilog_printer import send_lamicoid_to_epilog
+from utils.lamicoid_to_epilog_converter import generate_svg_for_epilog, generate_settings_json_for_custom_lamicoid # Ajout de l'import
 
 logger = logging.getLogger('GDJ_App')
 
@@ -237,7 +238,28 @@ class LamicoidPage(QWidget):
         self.grid_spacing_spinbox = NumericInputWithUnit(unit_text="mm", initial_value=1.0, max_decimals=0, parent=self)
         params_form_layout.addRow("Espacement Grille:", self.grid_spacing_spinbox)
 
-        params_layout.addLayout(params_form_layout)
+        params_layout.addLayout(params_form_layout) # <<< CETTE LIGNE DOIT ÊTRE RESTAURÉE
+
+        params_layout.addStretch(1)
+        
+        self.left_content_stack.addWidget(self.lamicoid_params_frame)
+
+        # Bouton pour envoyer le Lamicoid personnalisé -- SUPPRIMER D'ICI
+        # self.send_custom_lamicoid_button = QPushButton("Envoyer Lamicoid à l'imprimante")
+        # self.send_custom_lamicoid_button.setObjectName("SendCustomLamicoidButton")
+        # self.send_custom_lamicoid_button.setIcon(QIcon(get_icon_path("laser_beam.svg"))) 
+        # params_layout.addWidget(self.send_custom_lamicoid_button)
+        
+        # Bouton de test Epilog (s'il est ici) - S'assurer que le bouton de test est toujours là si besoin
+        # Si le bouton de test est géré ailleurs, cet ajout est indépendant.
+        # Pour l'exemple, je vais supposer que le bouton de test est aussi ici ou que nous pouvons ajouter un nouveau groupe de boutons.
+        
+        # Si vous avez un bouton de test existant comme self.print_test_button, vous pouvez l'ajouter ici aussi
+        # Exemple:
+        # self.print_test_button = QPushButton("Test Epilog (Exemple SVG/JSON)")
+        # self.print_test_button.setIcon(QIcon(get_icon_path("play.svg"))) # Icône exemple
+        # params_layout.addWidget(self.print_test_button)
+
         params_layout.addStretch(1)
         
         self.left_content_stack.addWidget(self.lamicoid_params_frame)
@@ -291,6 +313,13 @@ class LamicoidPage(QWidget):
             self.print_test_button.setIcon(QIcon(print_icon))
         self.print_test_button.setObjectName("ActionButton")
         actions_layout.addWidget(self.print_test_button)
+        
+        # AJOUTER LE BOUTON D'ENVOI PERSONNALISÉ ICI
+        self.send_custom_lamicoid_button = QPushButton("Envoyer Lamicoid") # Texte raccourci pour la place
+        self.send_custom_lamicoid_button.setObjectName("ActionButton") # Utiliser le même style que les autres boutons d'action
+        self.send_custom_lamicoid_button.setIcon(QIcon(get_icon_path("laser_beam.svg")))
+        self.send_custom_lamicoid_button.setToolTip("Envoyer le Lamicoid actuel à l'imprimante")
+        actions_layout.addWidget(self.send_custom_lamicoid_button)
         
         # Style pour actions_frame similaire à variables_frame
         self.actions_frame.setStyleSheet("""
@@ -574,6 +603,10 @@ class LamicoidPage(QWidget):
         self.create_button.clicked.connect(self._save_lamicoid_template)
         self.template_selection_combo.currentTextChanged.connect(self._on_template_selected)
         self.print_test_button.clicked.connect(self._handle_print_test_epilog)
+
+        # Connexion du nouveau bouton
+        if hasattr(self, 'send_custom_lamicoid_button') and self.send_custom_lamicoid_button is not None:
+            self.send_custom_lamicoid_button.clicked.connect(self._handle_send_custom_lamicoid_to_epilog)
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -1451,6 +1484,77 @@ class LamicoidPage(QWidget):
         else:
             logger.error(f"Échec du test de gravure Epilog (avec SVG exemple) : {message_or_data}")
             QMessageBox.critical(self, "Échec du test Epilog (Gravure)", f"Le test de gravure Epilog a échoué :\\n{message_or_data}")
+
+    def _handle_send_custom_lamicoid_to_epilog(self):
+        logger.info("Tentative d'envoi du Lamicoid personnalisé à l'imprimante Epilog.")
+        try:
+            # 1. Récupérer les paramètres du Lamicoid
+            # On utilise les valeurs actuelles des spinbox pour les dimensions
+            lamicoid_params = {
+                'width_mm': self.width_spinbox.value(),
+                'height_mm': self.height_spinbox.value(),
+                'corner_radius_mm': self.radius_spinbox.value(),
+                # La marge n'est pas directement utilisée pour le SVG/JSON Epilog, mais peut l'être pour la position des items.
+                # 'margin_mm': self.margin_spinbox.value() 
+            }
+            logger.debug(f"Paramètres Lamicoid pour envoi: {lamicoid_params}")
+
+            # 2. Récupérer les items de l'éditeur
+            editor_items_data = self._collect_editor_items()
+            if not editor_items_data:
+                logger.warning("Aucun item texte à graver.")
+                # On pourrait permettre de n'envoyer qu'une découpe, mais pour l'instant, on s'attend à du texte.
+            
+            has_engrave_items = any(item.get('item_subtype') == 'text' or item.get('item_subtype') == 'variable_text' for item in editor_items_data)
+
+            # 3. Générer le contenu SVG
+            # Note: generate_svg_for_epilog attend les items_data et les paramètres du lamicoid
+            svg_content = generate_svg_for_epilog(lamicoid_params, editor_items_data)
+            if not svg_content:
+                QMessageBox.critical(self, "Erreur SVG", "La génération du contenu SVG a échoué.")
+                return
+
+            # 4. Générer le JSON de configuration
+            # Mettre en dur les infos pour l'instant
+            job_name = "Custom_Lamicoid_Print"
+            firmware_version = "1.0.8.7" # Assurez-vous que c'est la bonne version
+            
+            # La découpe est toujours présente pour le contour du Lamicoid
+            settings_json = generate_settings_json_for_custom_lamicoid(
+                job_name=job_name,
+                firmware_version=firmware_version,
+                has_engrave_process=has_engrave_items, # Vrai s'il y a du texte
+                has_cut_process=True # Toujours découper le contour
+            )
+            if not settings_json:
+                QMessageBox.critical(self, "Erreur JSON", "La génération du JSON de configuration a échoué.")
+                return
+
+            # 5. Envoyer à l'imprimante
+            # Mettre en dur l'IP et le modèle pour l'instant
+            laser_ip_address = "192.168.100.211" # À CONFIGURER
+            machine_model_name = "fusionmaker24" # À CONFIGURER
+
+            logger.debug(f"SVG à envoyer:\\n{svg_content}")
+            logger.debug(f"JSON à envoyer:\\n{json.dumps(settings_json, indent=2)}")
+
+            success, message = send_lamicoid_to_epilog(
+                svg_content=svg_content,
+                test_settings=settings_json, # <<< CORRIGÉ ICI
+                laser_ip_address=laser_ip_address,
+                machine_model_name=machine_model_name
+            )
+
+            if success:
+                QMessageBox.information(self, "Envoi Réussi", f"Lamicoid envoyé avec succès à l'imprimante {laser_ip_address}.\\nDonnées PRN: {message}")
+                logger.info(f"Envoi réussi: {message}")
+            else:
+                QMessageBox.critical(self, "Erreur d'Envoi", f"Échec de l'envoi à l'imprimante :\\n{message}")
+                logger.error(f"Échec de l'envoi: {message}")
+
+        except Exception as e:
+            logger.error(f"Erreur inattendue lors de l'envoi du Lamicoid personnalisé: {e}", exc_info=True)
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue: {e}")
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
