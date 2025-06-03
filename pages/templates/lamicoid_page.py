@@ -8,6 +8,8 @@ from PyQt5.QtGui import QFont, QIcon, QColor, QStandardItemModel, QStandardItem
 import logging
 import os
 import json
+import subprocess
+import tempfile
 
 from ui.components.frame import Frame
 from utils.signals import signals
@@ -18,6 +20,7 @@ from dialogs.variable_config_dialog import VariableConfigDialog
 from dialogs.existing_variables_dialog import ExistingVariablesDialog
 from models.documents.lamicoid.lamicoid import LamicoidDocument
 from models.documents.lamicoid.lamicoid_item import LamicoidItem
+from utils.epilog_printer import send_lamicoid_to_epilog
 
 logger = logging.getLogger('GDJ_App')
 
@@ -265,22 +268,29 @@ class LamicoidPage(QWidget):
         left_panel_content_layout.addWidget(self.left_content_stack)
         left_panel_content_layout.addWidget(self.variables_frame) 
 
-        # --- Cadre pour les Actions (Effacer, Créer) ---
+        # --- Cadre pour les Actions (Effacer, Créer, Print Test) ---
         self.actions_frame = QFrame(self)
         self.actions_frame.setObjectName("ActionsFrame")
-        actions_layout = QHBoxLayout(self.actions_frame) # Utiliser QHBoxLayout pour les boutons sur une ligne
+        actions_layout = QHBoxLayout(self.actions_frame)
         actions_layout.setContentsMargins(8, 8, 8, 8) 
         actions_layout.setSpacing(6)
 
         self.clear_button = QPushButton("Effacer")
-        self.clear_button.setIcon(QIcon(get_icon_path("round_delete_sweep.png"))) # Exemple d'icône
+        self.clear_button.setIcon(QIcon(get_icon_path("round_delete_sweep.png")))
         self.clear_button.setObjectName("ActionButton")
         actions_layout.addWidget(self.clear_button)
 
-        self.create_button = QPushButton("Créer")
-        self.create_button.setIcon(QIcon(get_icon_path("round_add_circle.png"))) # Exemple d'icône
+        self.create_button = QPushButton("Créer Modèle") # Renommé pour clarté vs Print Test
+        self.create_button.setIcon(QIcon(get_icon_path("round_add_circle.png")))
         self.create_button.setObjectName("ActionButton")
         actions_layout.addWidget(self.create_button)
+
+        self.print_test_button = QPushButton("Print Test Epilog") # <<< NOUVEAU BOUTON
+        print_icon = get_icon_path("round_print.png") # Essayer de charger une icône d'impression
+        if print_icon:
+            self.print_test_button.setIcon(QIcon(print_icon))
+        self.print_test_button.setObjectName("ActionButton")
+        actions_layout.addWidget(self.print_test_button)
         
         # Style pour actions_frame similaire à variables_frame
         self.actions_frame.setStyleSheet("""
@@ -563,6 +573,7 @@ class LamicoidPage(QWidget):
         # Connexion pour le nouveau bouton Créer (template)
         self.create_button.clicked.connect(self._save_lamicoid_template)
         self.template_selection_combo.currentTextChanged.connect(self._on_template_selected)
+        self.print_test_button.clicked.connect(self._handle_print_test_epilog)
 
     def _on_mode_selected(self, selected_mode: str):
         logger.debug(f"Mode sélectionné: {selected_mode}")
@@ -1329,6 +1340,102 @@ class LamicoidPage(QWidget):
     def _create_new_lamicoid_from_template(self):
         # ... existing code ...
         pass # Ajout pour corriger l'IndentationError
+
+    def _handle_print_test_epilog(self):
+        logger.info("Bouton Print Test Epilog cliqué.")
+
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        epilog_examples_base_path = os.path.join(
+            project_root,
+            "Others", "epilog-print-api-release-latest", "epilog-print-api-release-latest",
+            "svg-json-examples", "vector-only"
+        )
+        
+        svg_example_file_path = os.path.join(epilog_examples_base_path, "Multi-Process-Vector.svg")
+        # Nous chargeons toujours le JSON d'exemple pour en extraire le premier processus
+        json_example_file_path = os.path.join(epilog_examples_base_path, "Multi-Process-Vector-Processes.json")
+
+        logger.info(f"Tentative de chargement du SVG d'exemple : {svg_example_file_path}")
+        logger.info(f"Tentative de chargement du JSON d'exemple (pour extraire un processus) : {json_example_file_path}")
+
+        svg_data_str = None
+        settings_dict = None # Ce sera notre dictionnaire simplifié
+
+        try:
+            with open(svg_example_file_path, 'r', encoding='utf-8') as f:
+                svg_data_str = f.read()
+            logger.info(f"Contenu SVG d'exemple ({len(svg_data_str)} octets) chargé avec succès.")
+        except Exception as e:
+            logger.error(f"Erreur lors de la lecture du fichier SVG d'exemple : {e}")
+            QMessageBox.critical(self, "Erreur Fichier SVG", f"Impossible de lire le fichier SVG d'exemple :\\\\n{e}")
+            return
+
+        try:
+            with open(json_example_file_path, 'r', encoding='utf-8') as f:
+                example_full_settings = json.load(f)
+            
+            if example_full_settings and "processes" in example_full_settings and len(example_full_settings["processes"]) > 0:
+                first_process = example_full_settings["processes"][0].copy() # Copier pour éviter de modifier l'original si réutilisé
+                logger.info(f"Extraction du premier processus de l'exemple : {first_process.get('name', 'N/A')}")
+
+                # Tentative: Supprimer 'offset' du processus individuel
+                if "offset" in first_process:
+                    logger.info(f"Suppression de la clé 'offset' du processus '{first_process.get('name')}'")
+                    del first_process["offset"]
+
+                # Construire un nouveau dictionnaire de settings simplifié
+                settings_dict = {
+                    "job_name": "SingleProcessTest_LamicoidPage", # Nom de job simplifié
+                    "firmware_version": "1.0.8.7", # Version du firmware fournie par l'utilisateur
+                    "autofocus": example_full_settings.get("autofocus", "off"),
+                    "copies": example_full_settings.get("copies", 1),
+                    "processes": [first_process] # Uniquement le premier processus
+                }
+                logger.info(f"Paramètres JSON simplifiés créés : {settings_dict}")
+            else:
+                logger.error("Impossible d'extraire le premier processus du JSON d'exemple.")
+                QMessageBox.critical(self, "Erreur JSON Exemple", "Le fichier JSON d'exemple est mal formé ou ne contient pas de processus.")
+                return
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la lecture ou de la simplification du fichier JSON d'exemple : {e}")
+            QMessageBox.critical(self, "Erreur Fichier JSON", f"Impossible de lire ou simplifier le fichier JSON d'exemple :\\\\n{e}")
+            return
+
+        if not svg_data_str or not settings_dict:
+            QMessageBox.warning(self, "Données manquantes", "Les données SVG ou JSON (simplifiées) n'ont pas pu être préparées pour le test Epilog.")
+            return
+
+        machine_model_str = "fusionmaker24"
+        printer_ip = "192.168.100.221" 
+        
+        logger.info(f"Envoi du job d'exemple Epilog (SVG: {len(svg_data_str)} octets, JSON SIMPLIFIÉ: {settings_dict.get('job_name')}) à {printer_ip} pour machine {machine_model_str}")
+
+        success, message_or_data = send_lamicoid_to_epilog(
+            svg_content=svg_data_str,
+            machine_model_name=machine_model_str,
+            laser_ip_address=printer_ip,
+            test_settings=settings_dict # Utiliser le dictionnaire JSON simplifié
+        )
+
+        if success:
+            logger.info(f"Test d'impression Epilog (avec exemples) semble avoir réussi. Données reçues: {len(message_or_data)} octets")
+            # Proposer de sauvegarder les données binaires
+            save_path, _ = QFileDialog.getSaveFileName(self, "Sauvegarder les données d'impression", "", "Fichiers Binaires (*.bin)")
+            if save_path:
+                try:
+                    with open(save_path, 'wb') as f:
+                        f.write(message_or_data)
+                    QMessageBox.information(self, "Succès", f"Données d'impression sauvegardées dans {save_path}")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la sauvegarde des données d'impression : {e}")
+                    QMessageBox.critical(self, "Erreur Sauvegarde", f"Impossible de sauvegarder les données :\\n{e}")
+            else:
+                QMessageBox.information(self, "Succès", "Le test d'impression Epilog (avec exemples) a réussi, mais les données n'ont pas été sauvegardées.")
+        else:
+            logger.error(f"Échec du test d'impression Epilog (avec exemples) : {message_or_data}")
+            QMessageBox.critical(self, "Échec du test Epilog", f"Le test d'impression Epilog (avec exemples) a échoué :\\n{message_or_data}")
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
