@@ -1408,7 +1408,7 @@ class LamicoidPage(QWidget):
             return
 
         machine_model_str = "fusionmaker24"
-        printer_ip = "192.168.100.221" 
+        printer_ip = "192.168.100.211" # CORRIGÉ: IP de la machine d'après la photo
         
         logger.info(f"Envoi du job d'exemple Epilog (SVG: {len(svg_data_str)} octets, JSON SIMPLIFIÉ: {settings_dict.get('job_name')}) à {printer_ip} pour machine {machine_model_str}")
 
