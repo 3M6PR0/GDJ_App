@@ -1499,12 +1499,21 @@ class LamicoidPage(QWidget):
             }
             logger.debug(f"Paramètres Lamicoid pour envoi: {lamicoid_params}")
 
-            # 2. Récupérer les items de l'éditeur
+            # 2. Collecter les items de l'éditeur
             editor_items_data = self._collect_editor_items()
-            if not editor_items_data:
-                logger.warning("Aucun item texte à graver.")
-                # On pourrait permettre de n'envoyer qu'une découpe, mais pour l'instant, on s'attend à du texte.
-            
+            logger.info(f"Nombre d'items collectés depuis l'éditeur pour l'envoi: {len(editor_items_data)}") # LOG AJOUTÉ
+            if editor_items_data:
+                # Utiliser default=str pour sérialiser les objets non-JSONifiables comme QPointF, QSizeF
+                try:
+                    editor_items_str = json.dumps(editor_items_data, indent=2, default=str)
+                    logger.debug(f"Données des items collectés pour l'envoi:\n{editor_items_str}") # LOG AJOUTÉ
+                except TypeError as e:
+                    logger.error(f"Erreur lors de la sérialisation JSON des items collectés: {e}")
+                    logger.debug(f"Données brutes des items (problème de sérialisation): {editor_items_data}")
+
+
+            # Déterminer si on a des éléments à graver (texte) pour inclure le processus de gravure
+            # S'assurer ici que l'on vérifie bien le bon champ (ex: 'item_subtype')
             has_engrave_items = any(item.get('item_subtype') == 'text' or item.get('item_subtype') == 'variable_text' for item in editor_items_data)
 
             # 3. Générer le contenu SVG

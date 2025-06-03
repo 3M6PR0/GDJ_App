@@ -14,6 +14,9 @@ def mm_to_pixels(mm: float, dpi: float = DEFAULT_DPI) -> float:
 def pixels_to_mm(pixels: float, dpi: float = DEFAULT_DPI) -> float:
     return (pixels / dpi) * INCH_TO_MM
 
+def points_to_mm(points: float) -> float:
+    return (points / 72.0) * INCH_TO_MM
+
 def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
     logger.debug(f"Début génération SVG. Params: {lamicoid_params}, Items: {len(editor_items)}")
     
@@ -29,17 +32,12 @@ def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
     logger.debug(f"Dimensions Lamicoid pour SVG: width_mm={width_mm}, height_mm={height_mm}, radius_mm={corner_radius_mm}")
     logger.debug(f"Dimensions Lamicoid en pixels pour conversion interne: width_px={lamicoid_width_px}, height_px={lamicoid_height_px}")
 
-    # Conversion des dimensions mm en pixels pour les attributs width/height du SVG
-    svg_attr_width_px = mm_to_pixels(width_mm, DEFAULT_DPI) 
-    svg_attr_height_px = mm_to_pixels(height_mm, DEFAULT_DPI)
-    logger.debug(f"Attributs width/height du SVG (pixels@ {DEFAULT_DPI} DPI): {svg_attr_width_px:.2f}px, {svg_attr_height_px:.2f}px")
-
     # Le viewBox définit l'espace de coordonnées en unités qui représentent des mm.
-    # Les attributs width/height du SVG sont en pixels.
+    # Les attributs width/height du SVG utilisent maintenant les valeurs mm (sans unité), comme le viewBox.
     svg_parts.append(
-        f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'width="{svg_attr_width_px:.2f}" '
-        f'height="{svg_attr_height_px:.2f}" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" ' 
+        f'width="{width_mm}mm" ' # On réessaye avec les unités mm explicites
+        f'height="{height_mm}mm" ' # On réessaye avec les unités mm explicites
         f'version="1.1" viewBox="0 0 {width_mm} {height_mm}">'
     )
     svg_parts.append('  <g id="LamicoidContent">')
@@ -60,74 +58,110 @@ def generate_svg_for_epilog(lamicoid_params: dict, editor_items: list) -> str:
             logger.debug(f"    Item TL converti (Lamicoid px): ({item_top_left_lamicoid_px_x}, {item_top_left_lamicoid_px_y})")
 
             # Conversion en mm pour SVG (dimensions et position du coin sup-gauche)
+            # Ces valeurs de base sont pour le coin supérieur gauche du rectangle de l'item
             svg_item_x_base_mm = pixels_to_mm(item_top_left_lamicoid_px_x)
             svg_item_y_base_mm = pixels_to_mm(item_top_left_lamicoid_px_y)
-            item_width_svg_mm = pixels_to_mm(item_width_px)
-            item_height_svg_mm = pixels_to_mm(item_height_px)
-            logger.debug(f"    Item TL en mm (SVG base): ({svg_item_x_base_mm}, {svg_item_y_base_mm}), size_mm=({item_width_svg_mm}, {item_height_svg_mm})")
-            
-            text_content = item_data.get('text_content', 'N/A')
-            font_size_pt = item_data.get('font_size_pt', 10)
-            font_size_mm = font_size_pt * (INCH_TO_MM / 72.0)
+            item_width_mm = pixels_to_mm(item_width_px)
+            item_height_mm = pixels_to_mm(item_height_px)
+
+            logger.debug(f"  Item SVG base (mm): x_base={svg_item_x_base_mm:.2f}, y_base={svg_item_y_base_mm:.2f}, w_mm={item_width_mm:.2f}, h_mm={item_height_mm:.2f}")
+
             font_family = item_data.get('font_family', 'Arial')
+            font_size_pt = item_data.get('font_size_pt', 12)
+            font_size_mm = points_to_mm(font_size_pt)
             
-            style_parts = [
-                f"font-size:{font_size_mm:.2f}mm;",
-                f"font-family:'{xml.sax.saxutils.escape(font_family)}';",
-                "fill:none;", # Style en ligne
-                "stroke:blue;", # Style en ligne
-                "stroke-width:0.1;" # Style en ligne
-            ]
+            # ESSAI: Spécifier font-size sans unité, en espérant qu'elle soit interprétée dans l'espace utilisateur (mm)
+            style_parts = [f"font-size:{font_size_mm:.2f};", f"font-family:'{xml.sax.saxutils.escape(font_family)}';"]
             if item_data.get('font_bold'): style_parts.append("font-weight:bold;")
             if item_data.get('font_italic'): style_parts.append("font-style:italic;")
-            
-            text_decoration_parts = []
-            if item_data.get('font_underline'): text_decoration_parts.append("underline")
-            # Ajoutez d'autres décorations si nécessaire (ex: line-through)
-            if text_decoration_parts:
-                style_parts.append(f"text-decoration:{' '.join(text_decoration_parts)};")
-            else:
-                style_parts.append("text-decoration:none;") # Assure qu'il n'y a pas de déco héritée
+            # text-decoration:underline; n'est souvent pas bien géré pour la gravure, on le laisse de côté pour l'instant
+            # ou s'assurer qu'il est bien 'none' si pas souligné
+            style_parts.append("text-decoration:none;")
+
+
+            style_parts.extend(["fill:none;", "stroke:blue;", "stroke-width:0.1;"]) # Styles pour la gravure
             
             style_attr = " ".join(style_parts)
             
-            # Nettoyage du contenu texte : remplacer les sauts de ligne par des espaces, réduire les espaces multiples, et strip.
-            cleaned_text_content = ' '.join(text_content.split()).strip()
-            safe_text_content = xml.sax.saxutils.escape(cleaned_text_content)
+            text_content_raw = item_data.get('text_content', '')
+            text_lines = [line.strip() for line in text_content_raw.split('\n')]
+            text_lines = [line for line in text_lines if line] # Filtrer les lignes vides
+
+            if not text_lines:
+                logger.warning(f"  Item texte {item_data.get('uuid', 'N/A')} n'a pas de contenu textuel après nettoyage, il sera ignoré.")
+                continue
+
+            num_lines = len(text_lines)
+            line_height_em = 1.2 # Facteur d'interligne standard
+
+            # Calcul des coordonnées SVG pour l'élément <text> parent
+            # Le point (svg_x_final, svg_y_final) sera le point d'ancrage du bloc de texte.
+            svg_x_final = 0.0
+            svg_y_final = 0.0
+            text_anchor = "start" # par défaut
+            # dominant_baseline = "auto" # par défaut, ou "text-before-edge" ou "hanging"
+
+            qt_alignment = item_data.get('text_alignment', Qt.AlignLeft | Qt.AlignTop) # Défaut à gauche et en haut
+
+            # Alignement Horizontal
+            if qt_alignment & Qt.AlignHCenter:
+                text_anchor = "middle"
+                svg_x_final = svg_item_x_base_mm + (item_width_mm / 2.0)
+            elif qt_alignment & Qt.AlignRight:
+                text_anchor = "end"
+                svg_x_final = svg_item_x_base_mm + item_width_mm
+            else: # Qt.AlignLeft ou par défaut
+                text_anchor = "start"
+                svg_x_final = svg_item_x_base_mm
             
-            qt_alignment = item_data.get('text_alignment', Qt.AlignLeft | Qt.AlignVCenter) 
-            
-            # Détermination de text-anchor pour SVG
-            text_anchor_svg = "start" # Défaut pour AlignLeft
-            if qt_alignment & Qt.AlignRight: text_anchor_svg = "end"
-            elif qt_alignment & Qt.AlignHCenter: text_anchor_svg = "middle"
+            # # --- MODIFICATION POUR TEST: Forcer l'alignement vertical en HAUT --- (OBSOLÈTE ET SUPPRIMÉ)
+            # dominant_baseline = "hanging" # Ou "text-before-edge". "hanging" est souvent plus simple pour le premier tspan.
+            # svg_y_final = svg_item_y_base_mm # y du <text> est le haut du rectangle de l'item.
+            # logger.debug(f"  ALIGNEMENT VERTICAL FORCÉ EN HAUT: dominant-baseline='{dominant_baseline}', y_text={svg_y_final:.2f}")
+            # # --- FIN MODIFICATION POUR TEST ---
 
-            # Détermination de dominant-baseline pour SVG
-            dominant_baseline_svg = "middle" # Défaut pour AlignVCenter
-            # Note: Qt.AlignTop, AlignBottom, AlignVCenter affectent la position verticale DANS le rect.
-            # dominant-baseline="middle" est un bon équivalent pour le centrage vertical.
-            # Pour un alignement strict en haut/bas du *texte lui-même* (pas de son bounding box):
-            if qt_alignment & Qt.AlignTop: dominant_baseline_svg = "text-before-edge"
-            elif qt_alignment & Qt.AlignBottom: dominant_baseline_svg = "text-after-edge"
-            # Qt.AlignVCenter est le plus courant avec text-anchor: middle et dominant-baseline: middle
-            # si le texte doit être centré dans son bounding box.
+            logger.debug(f"  SVG Text attributes (avant calcul Y par ligne): x={svg_x_final:.2f}, anchor={text_anchor}")
+            logger.debug(f"  Text lines ({num_lines}): {text_lines}")
+            logger.debug(f"  Font size (pour style): {font_size_mm:.2f} (unité implicite de l'espace utilisateur, mm), Calculated line height factor: {line_height_em}")
 
-            # Calcul des coordonnées x, y pour SVG en fonction de l'ancrage et de la baseline
-            x_for_svg = svg_item_x_base_mm
-            if text_anchor_svg == "middle":
-                x_for_svg += item_width_svg_mm / 2.0
-            elif text_anchor_svg == "end":
-                x_for_svg += item_width_svg_mm
+            actual_line_height_mm = font_size_mm * line_height_em # Calcul de l'interligne en mm
+            logger.debug(f"    Actual line height for text elements: {actual_line_height_mm:.2f}mm")
 
-            y_for_svg = svg_item_y_base_mm
-            if dominant_baseline_svg == "middle":
-                y_for_svg += item_height_svg_mm / 2.0
-            elif dominant_baseline_svg == "text-after-edge": # AlignBottom
-                y_for_svg += item_height_svg_mm
-            # Pour "text-before-edge" (AlignTop), y_for_svg reste svg_item_y_base_mm
+            # Nouvelle logique pour le centrage vertical du bloc de texte
+            # Chaque ligne aura dominant-baseline="middle"
+            dominant_baseline = "middle" # Pour chaque ligne de texte
 
-            svg_parts.append(f'    <text x="{x_for_svg:.2f}" y="{y_for_svg:.2f}" text-anchor="{text_anchor_svg}" dominant-baseline="{dominant_baseline_svg}" style="{style_attr}">{safe_text_content}</text>')
-            logger.debug(f"    SVG Text Output: x={x_for_svg:.2f}, y={y_for_svg:.2f}, anchor={text_anchor_svg}, baseline={dominant_baseline_svg}")
+            actual_line_height_mm = font_size_mm * line_height_em # Calcul de l'interligne en mm (basé sur font_size_mm potentiellement forcée)
+            logger.debug(f"    Font size for calculation: {font_size_mm:.2f}mm, Actual line height: {actual_line_height_mm:.2f}mm")
+
+            # Calcul du Y pour la ligne centrale de la première ligne de texte,
+            # de manière à ce que le bloc entier de texte soit centré verticalement dans item_height_mm.
+            total_block_height_approx = num_lines * actual_line_height_mm # Hauteur approximative du bloc
+            # Pour un meilleur centrage, on peut considérer la hauteur réelle d'une ligne et l'espacement
+            # Mais pour dominant-baseline=middle, on centre la baseline de la ligne du milieu du bloc.
+
+            y_center_of_item_box_mm = svg_item_y_base_mm + (item_height_mm / 2.0)
+            # Le y de la première ligne (sa baseline centrale) :
+            y_baseline_first_line_mm = y_center_of_item_box_mm - ((num_lines - 1) / 2.0) * actual_line_height_mm
+
+            logger.debug(f"  Centrage vertical: y_center_of_item={y_center_of_item_box_mm:.2f}mm, y_baseline_first_line={y_baseline_first_line_mm:.2f}mm for {num_lines} lines")
+
+            # current_y_mm_for_text_line = svg_y_final # Plus utilisé
+
+            for i, line_content in enumerate(text_lines):
+                safe_line_content = xml.sax.saxutils.escape(line_content)
+                
+                current_line_center_y_mm = y_baseline_first_line_mm + (i * actual_line_height_mm)
+
+                # Chaque ligne est un élément <text> séparé
+                svg_line_element = (
+                    f'    <text x="{svg_x_final:.2f}" y="{current_line_center_y_mm:.2f}" '
+                    f'text-anchor="{text_anchor}" dominant-baseline="{dominant_baseline}" style="{style_attr}">'
+                    f'{safe_line_content}'
+                    f'</text>'
+                )
+                svg_parts.append(svg_line_element)
+                logger.debug(f"      Line {i}: content='{safe_line_content}', y_center={current_line_center_y_mm:.2f}mm, dominant-baseline='{dominant_baseline}'")
 
     # Chemin de découpe pour le contour du Lamicoid
     r = corner_radius_mm
