@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="100mm" height="120mm" version="1.1"
+    style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+    viewBox="0 0 100 120">
+    <defs>
+        <style type="text/css">
+            <![CDATA[
+            .engraveText {
+                font-family: Arial, sans-serif;
+                font-size: 10px; /* Taille en unités SVG, sera interprétée par l'API */
+                fill: none; /* Important pour la gravure basée sur le stroke */
+                stroke: blue; /* Couleur pour la gravure */
+                stroke-width: 0.1; /* Trait fin pour la gravure */
+            }
+            .cutRectangle {
+                fill: none;
+                stroke: aqua; /* Couleur pour la découpe */
+                stroke-width: 0.1; /* Trait fin, l'épaisseur n'importe pas trop pour la découpe */
+            }
+            ]]>
+        </style>
+    </defs>
+    <g id="Layer_1">
+        <!-- Ancien design (simulation pour référence de position) -->
+        <!-- <rect x="10" y="5" width="80" height="40" stroke-dasharray="0.5 0.5" stroke="grey" fill="none"/> -->
+        <!-- <text x="50" y="25" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="grey">Ancienne Position</text> -->
+
+        <!-- Texte à graver - Déplacé vers le bas -->
+        <text x="50" y="85" text-anchor="middle" dominant-baseline="middle" class="engraveText">TEST LAMICOID</text>
+
+        <!-- Rectangle de découpe autour du texte - Déplacé vers le bas -->
+        <rect x="10" y="65" width="80" height="40" class="cutRectangle"/>
+    </g>
+</svg> 

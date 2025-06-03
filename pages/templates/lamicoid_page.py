@@ -1352,7 +1352,7 @@ class LamicoidPage(QWidget):
             "svg-json-examples", "vector-only" # Nous utilisons toujours le SVG de ce dossier
         )
         
-        svg_example_file_path = os.path.join(epilog_examples_base_path, "Multi-Process-Vector.svg")
+        svg_example_file_path = os.path.join(epilog_examples_base_path, "test_lamicoid_engrave_cut.svg") # MODIFIÉ pour nouveau SVG
         # Le fichier JSON d'exemple n'est plus utilisé directement, nous construisons le nôtre.
 
         logger.info(f"Tentative de chargement du SVG d'exemple : {svg_example_file_path}")
@@ -1376,7 +1376,7 @@ class LamicoidPage(QWidget):
             "processes": [
                 {
                     "_of": "engrave_process",
-                    "name": "P1_Engrave_Blue_Stroke",
+                    "name": "P1_Engrave_Test_Text", # MODIFIÉ
                     "speed": 70,  # Pourcentage, à ajuster
                     "power": 50,  # Pourcentage, à ajuster
                     "resolution": 300, # DPI
@@ -1396,6 +1396,24 @@ class LamicoidPage(QWidget):
                     # "offset": {"_of": "offset_settings", "x": 0.0, "y": 0.0}, # Généralement pas pour la gravure
                     # "center_engraving": False, # Optionnel
                     # "ppi_mode": False # Optionnel
+                },
+                {
+                    "_of": "vector_process",
+                    "name": "P2_Cut_Outer_Rectangle", # MODIFIÉ
+                    "speed": 10,  # Pourcentage, EXEMPLE À AJUSTER POUR LA DÉCOUPE
+                    "power": 90,  # Pourcentage, EXEMPLE À AJUSTER POUR LA DÉCOUPE
+                    "frequency": 50, # Hz, EXEMPLE À AJUSTER (peut dépendre du matériau et de l'effet souhaité)
+                    "laser_type": "co2",
+                    "air_assist": False, # Changé à False car non disponible pour maker24
+                    "cycles": 1,
+                    "offset": 0, 
+                    "beziers": True, # Si votre SVG contient des courbes de Bézier
+                    "vector_sorting": "inside_out", # ou "off", "outside_in"
+                    "filter": {
+                        "_of": "color_filter",
+                        "colors": ["aqua"], # Cible les traits aqua/cyan du SVG
+                        "color_filter_type": "stroke"
+                    }
                 }
             ]
         }

@@ -1,0 +1,36 @@
+{
+    "lamicoid_parameters": {
+        "width_mm": 100.0,
+        "height_mm": 50.0,
+        "corner_radius_mm": 2.0,
+        "margin_mm": 2.0,
+        "grid_spacing_mm": 1.0
+    },
+    "editor_items": [
+        {
+            "type": "grid_rectangle",
+            "pos_x": -181.9173228346457,
+            "pos_y": -87.42913385826772,
+            "width": 363.8346456692914,
+            "height": 174.85826771653544,
+            "z_value": 0.0,
+            "item_subtype": "text",
+            "text_content": "\nCECI EST UN TEST\nText + Decoupe ",
+            "font_family": "Arial",
+            "font_size_pt": 21,
+            "font_bold": false,
+            "font_italic": false,
+            "font_underline": false,
+            "text_color_rgba": 4278190080,
+            "text_alignment": 132
+        }
+    ],
+    "project_variables": [
+        {
+            "name": "test",
+            "type": "Valeur personnalisable",
+            "has_unit": false,
+            "unit": null
+        }
+    ]
+}
