@@ -1349,19 +1349,15 @@ class LamicoidPage(QWidget):
         epilog_examples_base_path = os.path.join(
             project_root,
             "Others", "epilog-print-api-release-latest", "epilog-print-api-release-latest",
-            "svg-json-examples", "vector-only"
+            "svg-json-examples", "vector-only" # Nous utilisons toujours le SVG de ce dossier
         )
         
         svg_example_file_path = os.path.join(epilog_examples_base_path, "Multi-Process-Vector.svg")
-        # Nous chargeons toujours le JSON d'exemple pour en extraire le premier processus
-        json_example_file_path = os.path.join(epilog_examples_base_path, "Multi-Process-Vector-Processes.json")
+        # Le fichier JSON d'exemple n'est plus utilisé directement, nous construisons le nôtre.
 
         logger.info(f"Tentative de chargement du SVG d'exemple : {svg_example_file_path}")
-        logger.info(f"Tentative de chargement du JSON d'exemple (pour extraire un processus) : {json_example_file_path}")
-
+        
         svg_data_str = None
-        settings_dict = None # Ce sera notre dictionnaire simplifié
-
         try:
             with open(svg_example_file_path, 'r', encoding='utf-8') as f:
                 svg_data_str = f.read()
@@ -1371,71 +1367,72 @@ class LamicoidPage(QWidget):
             QMessageBox.critical(self, "Erreur Fichier SVG", f"Impossible de lire le fichier SVG d'exemple :\\\\n{e}")
             return
 
-        try:
-            with open(json_example_file_path, 'r', encoding='utf-8') as f:
-                example_full_settings = json.load(f)
-            
-            if example_full_settings and "processes" in example_full_settings and len(example_full_settings["processes"]) > 0:
-                first_process = example_full_settings["processes"][0].copy() # Copier pour éviter de modifier l'original si réutilisé
-                logger.info(f"Extraction du premier processus de l'exemple : {first_process.get('name', 'N/A')}")
-
-                # Tentative: Supprimer 'offset' du processus individuel
-                if "offset" in first_process:
-                    logger.info(f"Suppression de la clé 'offset' du processus '{first_process.get('name')}'")
-                    del first_process["offset"]
-
-                # Construire un nouveau dictionnaire de settings simplifié
-                settings_dict = {
-                    "job_name": "SingleProcessTest_LamicoidPage", # Nom de job simplifié
-                    "firmware_version": "1.0.8.7", # Version du firmware fournie par l'utilisateur
-                    "autofocus": example_full_settings.get("autofocus", "off"),
-                    "copies": example_full_settings.get("copies", 1),
-                    "processes": [first_process] # Uniquement le premier processus
+        # Construire le dictionnaire de settings pour la gravure
+        settings_dict = {
+            "job_name": "TestEngraveBlue_LamicoidPage",
+            "firmware_version": "1.0.8.7", # Votre version de firmware
+            "autofocus": "off", # Ou "plunger" / "thickness" si applicable et configuré
+            "copies": 1,
+            "processes": [
+                {
+                    "_of": "engrave_process",
+                    "name": "P1_Engrave_Blue_Stroke",
+                    "speed": 70,  # Pourcentage, à ajuster
+                    "power": 50,  # Pourcentage, à ajuster
+                    "resolution": 300, # DPI
+                    "dithering": "none", # Changé de floyd_steinberg à none (comme exemple)
+                    "engrave_direction": "down", # Changé de top_down à down (comme exemple)
+                    "unidirectional": False, # Ajouté pour correspondre à l'exemple
+                    "precision_sync": False, # Ajouté pour correspondre à l'exemple
+                    "laser_type": "co2",
+                    "air_assist": False, # Mettre à True si vous utilisez l'assistance d'air pour la gravure
+                    "cycles": 1, # Ajouté pour correspondre à l'exemple
+                    "offset": 0, # Ajouté pour correspondre à l'exemple (nombre simple)
+                    "filter": {
+                        "_of": "color_filter",
+                        "colors": ["blue"], # Cible les traits bleus du SVG
+                        # "color_filter_type": "stroke", # Important pour cibler le trait
+                    }
+                    # "offset": {"_of": "offset_settings", "x": 0.0, "y": 0.0}, # Généralement pas pour la gravure
+                    # "center_engraving": False, # Optionnel
+                    # "ppi_mode": False # Optionnel
                 }
-                logger.info(f"Paramètres JSON simplifiés créés : {settings_dict}")
-            else:
-                logger.error("Impossible d'extraire le premier processus du JSON d'exemple.")
-                QMessageBox.critical(self, "Erreur JSON Exemple", "Le fichier JSON d'exemple est mal formé ou ne contient pas de processus.")
-                return
+            ]
+        }
+        logger.info(f"Paramètres JSON pour la gravure (test) créés : {settings_dict}")
             
-        except Exception as e:
-            logger.error(f"Erreur lors de la lecture ou de la simplification du fichier JSON d'exemple : {e}")
-            QMessageBox.critical(self, "Erreur Fichier JSON", f"Impossible de lire ou simplifier le fichier JSON d'exemple :\\\\n{e}")
-            return
-
-        if not svg_data_str or not settings_dict:
-            QMessageBox.warning(self, "Données manquantes", "Les données SVG ou JSON (simplifiées) n'ont pas pu être préparées pour le test Epilog.")
+        if not svg_data_str: # Juste une vérification, devrait déjà être géré
+            QMessageBox.warning(self, "Données manquantes", "Les données SVG n'ont pas pu être préparées pour le test Epilog.")
             return
 
         machine_model_str = "fusionmaker24"
-        printer_ip = "192.168.100.211" # CORRIGÉ: IP de la machine d'après la photo
+        printer_ip = "192.168.100.211" # IP corrigée de la machine
         
-        logger.info(f"Envoi du job d'exemple Epilog (SVG: {len(svg_data_str)} octets, JSON SIMPLIFIÉ: {settings_dict.get('job_name')}) à {printer_ip} pour machine {machine_model_str}")
+        logger.info(f"Envoi du job de gravure test (SVG: {len(svg_data_str)} octets, JSON: {settings_dict.get('job_name')}) à {printer_ip} pour machine {machine_model_str}")
 
         success, message_or_data = send_lamicoid_to_epilog(
             svg_content=svg_data_str,
             machine_model_name=machine_model_str,
             laser_ip_address=printer_ip,
-            test_settings=settings_dict # Utiliser le dictionnaire JSON simplifié
+            test_settings=settings_dict # Utiliser le dictionnaire JSON pour la gravure
         )
 
         if success:
-            logger.info(f"Test d'impression Epilog (avec exemples) semble avoir réussi. Données reçues: {len(message_or_data)} octets")
-            # Proposer de sauvegarder les données binaires
-            save_path, _ = QFileDialog.getSaveFileName(self, "Sauvegarder les données d'impression", "", "Fichiers Binaires (*.bin)")
+            logger.info(f"Test de gravure Epilog (avec SVG exemple) semble avoir réussi. Données PRN reçues: {len(message_or_data)} octets")
+            save_path, _ = QFileDialog.getSaveFileName(self, "Sauvegarder les données de gravure", "", "Fichiers PRN (*.prn)")
             if save_path:
                 try:
                     with open(save_path, 'wb') as f:
                         f.write(message_or_data)
-                    QMessageBox.information(self, "Succès", f"Données d'impression sauvegardées dans {save_path}")
+                    QMessageBox.information(self, "Succès", f"Données de gravure sauvegardées dans {save_path}")
                 except Exception as e:
-                    logger.error(f"Erreur lors de la sauvegarde des données d'impression : {e}")
+                    logger.error(f"Erreur lors de la sauvegarde des données de gravure : {e}")
                     QMessageBox.critical(self, "Erreur Sauvegarde", f"Impossible de sauvegarder les données :\\n{e}")
             else:
-                QMessageBox.information(self, "Succès", "Le test d'impression Epilog (avec exemples) a réussi, mais les données n'ont pas été sauvegardées.")
+                QMessageBox.information(self, "Succès", "Le test de gravure Epilog a réussi, mais les données PRN n'ont pas été sauvegardées.\\n\\nLe job devrait être sur la machine.")
         else:
-            logger.error(f"Échec du test d'impression Epilog (avec exemples) : {message_or_data}")
-            QMessageBox.critical(self, "Échec du test Epilog", f"Le test d'impression Epilog (avec exemples) a échoué :\\n{message_or_data}")
+            logger.error(f"Échec du test de gravure Epilog (avec SVG exemple) : {message_or_data}")
+            QMessageBox.critical(self, "Échec du test Epilog (Gravure)", f"Le test de gravure Epilog a échoué :\\n{message_or_data}")
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
