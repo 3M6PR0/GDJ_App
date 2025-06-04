@@ -107,36 +107,47 @@ class LamicoidPage(QWidget):
         self.add_text_button.setObjectName("toolbarActionButton")
         self.add_rect_button.setObjectName("toolbarActionButton")
         self.add_image_button.setObjectName("toolbarActionButton")
+        
+        button_size = 26 # Taille pour les boutons carrés (réduite de 28 à 26)
+        icon_padding = 3 # Padding pour l'icône à l'intérieur du bouton (réduit de 4 à 3)
 
-        qss = """
-            QFrame#EditorToolbar QPushButton#toolbarActionButton,
-            QFrame#EditorToolbar QPushButton#toolbarOptionButton,
-            QFrame#EditorToolbar QPushButton#toolbarColorButton {
-                padding: 4px;
-                border: 1px solid #555; /* Bordure initiale */
-                background-color: #4a4d4e; /* Fond initial, similaire aux cartes */
-            }
-            QFrame#EditorToolbar QPushButton#toolbarActionButton:hover,
-            QFrame#EditorToolbar QPushButton#toolbarOptionButton:hover,
-            QFrame#EditorToolbar QPushButton#toolbarColorButton:hover {
-                background-color: #5a5d5e; /* Fond au survol */
-                border: 1px solid #666;
-            }
-            QFrame#EditorToolbar QPushButton#toolbarActionButton:pressed,
-            QFrame#EditorToolbar QPushButton#toolbarOptionButton:pressed,
-            QFrame#EditorToolbar QPushButton#toolbarColorButton:pressed {
-                background-color: #3a3d3e; /* Fond au clic */
-                border: 1px solid #444;
-            }
-            QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked {
-                background-color: #007ACC; /* Fond pour les boutons checkable cochés (ex: Gras) */
-                color: white;
-                border: 1px solid #005C9C;
-            }
-            QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked:hover {
-                background-color: #008AE6;
-            }
-        """
+        # Définir le contenu de la feuille de style en utilisant la concaténation de chaînes littérales
+        style_sheet_template = (
+            "QFrame#EditorToolbar QPushButton#toolbarActionButton,"
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton,"
+            "QFrame#EditorToolbar QPushButton#toolbarColorButton {{"
+            "min-width: {btn_size}px;"
+            "max-width: {btn_size}px;"
+            "min-height: {btn_size}px;"
+            "max-height: {btn_size}px;"
+            "padding: {pad_size}px;"
+            "border: 1px solid #555;"
+            "background-color: #4a4d4e;"
+            "border-radius: 8px;"
+            "color: #ddeeff;"
+            "}}"
+            "QFrame#EditorToolbar QPushButton#toolbarActionButton:hover,"
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:hover,"
+            "QFrame#EditorToolbar QPushButton#toolbarColorButton:hover {{"
+            "background-color: #5a5d5e;"
+            "border: 1px solid #666;"
+            "}}"
+            "QFrame#EditorToolbar QPushButton#toolbarActionButton:pressed,"
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:pressed,"
+            "QFrame#EditorToolbar QPushButton#toolbarColorButton:pressed {{"
+            "background-color: #3a3d3e;"
+            "border: 1px solid #444;"
+            "}}"
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked {{"
+            "background-color: #007ACC;"
+            "color: white;"
+            "border: 1px solid #005C9C;"
+            "}}"
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked:hover {{"
+            "background-color: #008AE6;"
+            "}}"
+        )
+        qss = style_sheet_template.format(btn_size=button_size, pad_size=icon_padding)
         self.editor_toolbar.setStyleSheet(qss)
 
     def _init_ui(self):
