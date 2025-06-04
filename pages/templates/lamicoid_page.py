@@ -113,41 +113,46 @@ class LamicoidPage(QWidget):
 
         # Définir le contenu de la feuille de style en utilisant la concaténation de chaînes littérales
         style_sheet_template = (
-            "QFrame#EditorToolbar QPushButton#toolbarActionButton,"
-            "QFrame#EditorToolbar QPushButton#toolbarOptionButton,"
-            "QFrame#EditorToolbar QPushButton#toolbarColorButton {{"
-            "min-width: {btn_size}px;"
-            "max-width: {btn_size}px;"
-            "min-height: {btn_size}px;"
-            "max-height: {btn_size}px;"
-            "padding: {pad_size}px;"
-            "border: 1px solid #555;"
-            "background-color: #4a4d4e;"
-            "border-radius: 8px;"
-            "color: #ddeeff;"
-            "}}"
-            "QFrame#EditorToolbar QPushButton#toolbarActionButton:hover,"
-            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:hover,"
-            "QFrame#EditorToolbar QPushButton#toolbarColorButton:hover {{"
-            "background-color: #5a5d5e;"
-            "border: 1px solid #666;"
-            "}}"
-            "QFrame#EditorToolbar QPushButton#toolbarActionButton:pressed,"
-            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:pressed,"
-            "QFrame#EditorToolbar QPushButton#toolbarColorButton:pressed {{"
-            "background-color: #3a3d3e;"
-            "border: 1px solid #444;"
-            "}}"
-            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked {{"
-            "background-color: #007ACC;"
-            "color: white;"
-            "border: 1px solid #005C9C;"
-            "}}"
-            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked:hover {{"
-            "background-color: #008AE6;"
-            "}}"
+            "QFrame#EditorToolbar {{ ",            # Accolades doublées
+            "  background-color: transparent;",
+            "}}",                               # Accolades doublées
+            "QFrame#EditorToolbar QPushButton#toolbarActionButton,",
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton,",
+            "QFrame#EditorToolbar QPushButton#toolbarColorButton {{ ", # Accolades doublées
+            "min-width: {btn_size}px;",             # Placeholder (accolades simples)
+            "max-width: {btn_size}px;",
+            "min-height: {btn_size}px;",
+            "max-height: {btn_size}px;",
+            "padding: {pad_size}px;",             # Placeholder (accolades simples)
+            "border: 1px solid #555;",
+            "background-color: #4a4d4e;",
+            "border-radius: 8px;",
+            "color: #ddeeff;",
+            "}}",                               # Accolades doublées
+            "QFrame#EditorToolbar QPushButton#toolbarActionButton:hover,",
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:hover,",
+            "QFrame#EditorToolbar QPushButton#toolbarColorButton:hover {{ ", # Accolades doublées
+            "background-color: #5a5d5e;",
+            "border: 1px solid #666;",
+            "}}",                               # Accolades doublées
+            "QFrame#EditorToolbar QPushButton#toolbarActionButton:pressed,",
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:pressed,",
+            "QFrame#EditorToolbar QPushButton#toolbarColorButton:pressed {{ ", # Accolades doublées
+            "background-color: #3a3d3e;",
+            "border: 1px solid #444;",
+            "}}",                               # Accolades doublées
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked {{ ",    # Accolades doublées
+            "background-color: #007ACC;",
+            "color: white;",
+            "border: 1px solid #005C9C;",
+            "}}",                               # Accolades doublées
+            "QFrame#EditorToolbar QPushButton#toolbarOptionButton:checked:hover {{ ", # Accolades doublées
+            "background-color: #008AE6;",
+            "}}"                                # Accolades doublées
         )
-        qss = style_sheet_template.format(btn_size=button_size, pad_size=icon_padding)
+        # Joindre le tuple de chaînes en une seule chaîne avant d'appeler .format()
+        single_string_template = "".join(style_sheet_template)
+        qss = single_string_template.format(btn_size=button_size, pad_size=icon_padding)
         self.editor_toolbar.setStyleSheet(qss)
 
     def _init_ui(self):
