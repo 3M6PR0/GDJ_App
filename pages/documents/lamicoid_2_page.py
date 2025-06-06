@@ -5,7 +5,7 @@ import logging
 import uuid
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
                              QPushButton, QFrame, QLineEdit, QListWidget)
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon
 from typing import Dict, Optional
 
@@ -35,12 +35,20 @@ class Lamicoid2Page(QWidget):
         self.variable_inputs: Dict[str, QLineEdit] = {}
         self.selected_template: Optional[TemplateLamicoid] = None
         self.feuille_lamicoid = FeuilleLamicoid(largeur_feuille_mm=600, hauteur_feuille_mm=300)
+        self._is_first_show = True
         
         self._init_ui()
         self._connect_signals()
         
         self._populate_template_combobox()
         self.feuille_view.display_feuille(self.feuille_lamicoid)
+
+    def showEvent(self, event):
+        """Appelé lorsque le widget est affiché."""
+        super().showEvent(event)
+        if self._is_first_show:
+            QTimer.singleShot(0, self.feuille_view.zoom_to_fit)
+            self._is_first_show = False
 
     def _init_ui(self):
         """Initialise l'interface utilisateur principale avec deux panneaux personnalisés."""
@@ -106,6 +114,19 @@ class Lamicoid2Page(QWidget):
         toolbar_layout.addWidget(self.zoom_in_button)
         toolbar_layout.addWidget(self.zoom_out_button)
         toolbar_layout.addWidget(self.zoom_to_fit_button)
+
+        # Séparateur vertical
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        toolbar_layout.addWidget(separator)
+
+        # ComboBox pour la couleur de la feuille
+        toolbar_layout.addWidget(QLabel("Couleur feuille:"))
+        self.color_combo = QComboBox()
+        self.color_combo.addItems(["Gris", "Rouge", "Bleu", "Vert", "Jaune", "Blanc", "Noir"])
+        toolbar_layout.addWidget(self.color_combo)
+        
         toolbar_layout.addStretch()
         right_panel_content_layout.addLayout(toolbar_layout)
 
@@ -124,6 +145,7 @@ class Lamicoid2Page(QWidget):
         self.zoom_in_button.clicked.connect(self.feuille_view.zoom_in)
         self.zoom_out_button.clicked.connect(self.feuille_view.zoom_out)
         self.zoom_to_fit_button.clicked.connect(self.feuille_view.zoom_to_fit)
+        self.color_combo.currentTextChanged.connect(self.feuille_view.set_sheet_color)
 
     def _populate_template_combobox(self):
         """Peuple le ComboBox avec les noms des modèles disponibles."""

@@ -19,6 +19,10 @@ class SheetItem(QGraphicsRectItem):
         self.minor_pen = QPen(QColor(240, 240, 240), 0)  # Gris très clair pour la grille de 1mm
         self.major_pen = QPen(QColor(210, 210, 210), 0)  # Gris plus foncé pour la grille de 10mm
 
+    def set_background_color(self, color: QColor):
+        """Définit la couleur de fond de la feuille."""
+        self.setBrush(QBrush(color))
+
     def paint(self, painter: QPainter, option, widget=None):
         """Dessine la feuille puis la grille appropriée en fonction du niveau de zoom."""
         # 1. Dessiner le fond blanc et la bordure de la feuille
@@ -66,9 +70,12 @@ class FeuilleLamicoidView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
         self.setInteractive(True)
+        self.setDragMode(QGraphicsView.ScrollHandDrag)
         
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
+        
+        self.sheet_item = None
         
         self._setup_ui()
         
@@ -84,11 +91,10 @@ class FeuilleLamicoidView(QGraphicsView):
         
         self.scene.setSceneRect(0, 0, feuille.largeur_feuille_mm, feuille.hauteur_feuille_mm)
 
-        # Utiliser notre nouvel item personnalisé pour la feuille
-        sheet_item = SheetItem(0, 0, feuille.largeur_feuille_mm, feuille.hauteur_feuille_mm)
-        sheet_item.setBrush(QBrush(Qt.white))
-        sheet_item.setPen(QPen(Qt.black, 1, Qt.SolidLine))
-        self.scene.addItem(sheet_item)
+        self.sheet_item = SheetItem(0, 0, feuille.largeur_feuille_mm, feuille.hauteur_feuille_mm)
+        self.sheet_item.set_background_color(QColor("#B0B0B0")) # Gris par défaut
+        self.sheet_item.setPen(QPen(Qt.black, 1, Qt.SolidLine))
+        self.scene.addItem(self.sheet_item)
         
         logger.info(f"Affichage de la feuille {feuille.largeur_feuille_mm}x{feuille.hauteur_feuille_mm} mm avec grille.")
         
@@ -97,6 +103,24 @@ class FeuilleLamicoidView(QGraphicsView):
     def clear_view(self):
         """Nettoie la scène."""
         self.scene.clear()
+        self.sheet_item = None
+
+    def set_sheet_color(self, color_name: str):
+        """Change la couleur de fond de la feuille."""
+        if not self.sheet_item:
+            return
+
+        color_map = {
+            "Gris": QColor("#B0B0B0"),
+            "Rouge": QColor("#B82B2B"),
+            "Bleu": QColor("#3B5998"),
+            "Vert": QColor("#5A8A3E"),
+            "Jaune": QColor(Qt.yellow),
+            "Blanc": QColor(Qt.white),
+            "Noir": QColor(Qt.black)
+        }
+        color = color_map.get(color_name, QColor("#B0B0B0"))
+        self.sheet_item.set_background_color(color)
 
     def zoom_in(self):
         """Zoome sur la vue."""
@@ -123,6 +147,4 @@ class FeuilleLamicoidView(QGraphicsView):
 
     def resizeEvent(self, event):
         """Ajuste la vue lorsque le widget est redimensionné."""
-        super().resizeEvent(event)
-        # Ne pas appeler fitInView ici pour préserver le zoom manuel.
-        # La vue conserve son échelle actuelle, mais le contenu est redessiné. 
+        super().resizeEvent(event) 
