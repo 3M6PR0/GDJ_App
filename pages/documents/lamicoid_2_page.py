@@ -5,7 +5,8 @@ import logging
 import uuid
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
                              QPushButton, QFrame, QLineEdit, QListWidget)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QIcon
 from typing import Dict, Optional
 
 from ui.components.frame import Frame
@@ -16,6 +17,7 @@ from models.documents.lamicoid_2.feuille_lamicoid import FeuilleLamicoid, Lamico
 from models.documents.lamicoid_2.elements import ElementVariable
 
 from .lamicoid_2.feuille_lamicoid_view import FeuilleLamicoidView
+from utils.icon_loader import get_icon_path
 
 logger = logging.getLogger('GDJ_App')
 
@@ -87,6 +89,26 @@ class Lamicoid2Page(QWidget):
         right_panel = Frame(header_widget=right_header_widget, parent=self)
         right_panel_content_layout = right_panel.get_content_layout()
 
+        # Barre d'outils pour le zoom
+        toolbar_layout = QHBoxLayout()
+        self.zoom_in_button = QPushButton()
+        self.zoom_in_button.setIcon(QIcon(get_icon_path("round_zoom_in.png")))
+        self.zoom_in_button.setIconSize(QSize(24, 24))
+        
+        self.zoom_out_button = QPushButton()
+        self.zoom_out_button.setIcon(QIcon(get_icon_path("round_zoom_out.png")))
+        self.zoom_out_button.setIconSize(QSize(24, 24))
+
+        self.zoom_to_fit_button = QPushButton()
+        self.zoom_to_fit_button.setIcon(QIcon(get_icon_path("round_fit_screen.png")))
+        self.zoom_to_fit_button.setIconSize(QSize(24, 24))
+
+        toolbar_layout.addWidget(self.zoom_in_button)
+        toolbar_layout.addWidget(self.zoom_out_button)
+        toolbar_layout.addWidget(self.zoom_to_fit_button)
+        toolbar_layout.addStretch()
+        right_panel_content_layout.addLayout(toolbar_layout)
+
         self.feuille_view = FeuilleLamicoidView(self)
         right_panel_content_layout.addWidget(self.feuille_view)
 
@@ -99,6 +121,9 @@ class Lamicoid2Page(QWidget):
         self.manage_templates_button.clicked.connect(self._open_template_manager)
         self.template_combobox.currentTextChanged.connect(self._on_template_selected)
         self.add_lamicoid_button.clicked.connect(self._create_lamicoid_instance)
+        self.zoom_in_button.clicked.connect(self.feuille_view.zoom_in)
+        self.zoom_out_button.clicked.connect(self.feuille_view.zoom_out)
+        self.zoom_to_fit_button.clicked.connect(self.feuille_view.zoom_to_fit)
 
     def _populate_template_combobox(self):
         """Peuple le ComboBox avec les noms des modèles disponibles."""
