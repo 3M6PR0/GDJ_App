@@ -6,7 +6,7 @@ import uuid
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
                              QPushButton, QFrame, QLineEdit, QListWidget)
 from PyQt5.QtCore import Qt, QSize, QTimer
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QColor, QPixmap
 from typing import Dict, Optional
 
 from ui.components.frame import Frame
@@ -18,6 +18,7 @@ from models.documents.lamicoid_2.elements import ElementVariable
 
 from .lamicoid_2.feuille_lamicoid_view import FeuilleLamicoidView
 from utils.icon_loader import get_icon_path
+from ui.delegates.icon_only_delegate import IconOnlyDelegate
 
 logger = logging.getLogger('GDJ_App')
 
@@ -124,7 +125,45 @@ class Lamicoid2Page(QWidget):
         # ComboBox pour la couleur de la feuille
         toolbar_layout.addWidget(QLabel("Couleur feuille:"))
         self.color_combo = QComboBox()
-        self.color_combo.addItems(["Gris", "Rouge", "Bleu", "Vert", "Jaune", "Blanc", "Noir"])
+        self.color_combo.setObjectName("ColorComboBox")
+        self.color_combo.setItemDelegate(IconOnlyDelegate(self.color_combo, actual_icon_size=QSize(20, 20)))
+        self.color_combo.setIconSize(QSize(20, 20))
+        self.color_combo.setFixedWidth(35)
+        self.color_combo.setStyleSheet("""
+            QComboBox#ColorComboBox {
+                border: 1px solid #8f8f91;
+                border-radius: 4px;
+                padding: 6px; /* (35px width - 2px border - 20px icon) / 2 = 6.5px */
+            }
+            QComboBox#ColorComboBox::drop-down {
+                border: 0px;
+                width: 0px;
+            }
+            QComboBox#ColorComboBox::down-arrow {
+                image: none;
+                border: 0px;
+                width: 0px;
+                height: 0px;
+            }
+        """)
+        
+        colors = {
+            "Gris": QColor("#B0B0B0"),
+            "Rouge": QColor("#B82B2B"),
+            "Bleu": QColor("#3B5998"),
+            "Vert": QColor("#5A8A3E"),
+            "Jaune": QColor(Qt.yellow),
+            "Blanc": QColor(Qt.white),
+            "Noir": QColor(Qt.black)
+        }
+
+        for name, color in colors.items():
+            pixmap = QPixmap(20, 20)
+            pixmap.fill(color)
+            self.color_combo.addItem(QIcon(pixmap), "") # Texte vide
+            # L'index 0 est le rôle d'affichage (texte), on stocke le nom de la couleur dans un autre rôle
+            self.color_combo.setItemData(self.color_combo.count() - 1, name, Qt.UserRole)
+            
         toolbar_layout.addWidget(self.color_combo)
         
         toolbar_layout.addStretch()
@@ -145,7 +184,7 @@ class Lamicoid2Page(QWidget):
         self.zoom_in_button.clicked.connect(self.feuille_view.zoom_in)
         self.zoom_out_button.clicked.connect(self.feuille_view.zoom_out)
         self.zoom_to_fit_button.clicked.connect(self.feuille_view.zoom_to_fit)
-        self.color_combo.currentTextChanged.connect(self.feuille_view.set_sheet_color)
+        self.color_combo.currentIndexChanged.connect(self._on_color_selected)
 
     def _populate_template_combobox(self):
         """Peuple le ComboBox avec les noms des modèles disponibles."""
@@ -280,6 +319,13 @@ class Lamicoid2Page(QWidget):
         #     self._populate_template_combobox()
         # except Exception as e:
         #     logger.error(f"Erreur lors de l'ouverture du gestionnaire de templates: {e}", exc_info=True)
+
+    def _on_color_selected(self, index):
+        """Appelé lorsque l'utilisateur sélectionne une couleur."""
+        # Récupérer le nom de la couleur à partir des données de l'item
+        color_name = self.color_combo.itemData(index, Qt.UserRole)
+        if color_name:
+            self.feuille_view.set_sheet_color(color_name)
 
     def get_document_data(self):
         """Méthode pour que la fenêtre parente puisse récupérer les données."""
