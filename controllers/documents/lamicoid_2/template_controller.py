@@ -7,67 +7,67 @@ from typing import List, Dict, Optional, Type
 
 from utils.paths import get_user_data_path
 from models.documents.lamicoid_2 import (
-    ElementTemplateBase, ElementTexte, ElementImage, ElementVariable,
+    ElementTemplateBase, ElementTexte, # ElementImage, ElementVariable,
     TemplateLamicoid
 )
-from models.documents.lamicoid_2.elements import ElementTemplateBase, ElementTexte, ElementImage, ElementVariable
+from models.documents.lamicoid_2.elements import ElementTemplateBase, ElementTexte #, ElementImage, ElementVariable
 
 logger = logging.getLogger('GDJ_App')
 
 # Mapper les noms de type aux classes pour la désérialisation
 ELEMENT_TYPE_MAP: Dict[str, Type[ElementTemplateBase]] = {
     "Texte": ElementTexte,
-    "Image": ElementImage,
-    "Variable": ElementVariable,
+    # "Image": ElementImage,
+    # "Variable": ElementVariable,
 }
 
-def create_demo_template() -> TemplateLamicoid:
-    """Crée un template de démonstration pré-rempli."""
-    template_id = str(uuid.uuid4())
-    demo_template = TemplateLamicoid(
-        template_id=template_id,
-        nom_template="Template de Démonstration",
-        largeur_mm=85,
-        hauteur_mm=55,
-        rayon_coin_mm=3.5
-    )
-    
-    # Ajout des éléments
-    logo_element = ElementImage(
-        element_id=str(uuid.uuid4()),
-        position_x_mm=5,
-        position_y_mm=5,
-        largeur_mm=20,
-        hauteur_mm=10,
-        chemin_image_defaut="resources/images/logo-jacmar-gdj.png"
-    )
-    
-    nom_employe_element = ElementVariable(
-        element_id=str(uuid.uuid4()),
-        position_x_mm=5,
-        position_y_mm=25,
-        largeur_mm=75,
-        hauteur_mm=10,
-        nom_variable="nom_employe",
-        label_descriptif="Nom de l'employé",
-        contenu_texte="<Nom de l'employé>", # Texte affiché dans l'éditeur
-        taille_police=12
-    )
-    
-    poste_element = ElementVariable(
-        element_id=str(uuid.uuid4()),
-        position_x_mm=5,
-        position_y_mm=38,
-        largeur_mm=75,
-        hauteur_mm=8,
-        nom_variable="poste",
-        label_descriptif="Poste occupé",
-        contenu_texte="<Poste>",
-        taille_police=8
-    )
-
-    demo_template.elements = [logo_element, nom_employe_element, poste_element]
-    return demo_template
+# def create_demo_template() -> TemplateLamicoid:
+#     """Crée un template de démonstration pré-rempli."""
+#     template_id = str(uuid.uuid4())
+#     demo_template = TemplateLamicoid(
+#         template_id=template_id,
+#         nom_template="Template de Démonstration",
+#         largeur_mm=85,
+#         hauteur_mm=55,
+#         rayon_coin_mm=3.5
+#     )
+#     
+#     # Ajout des éléments
+#     logo_element = ElementImage(
+#         element_id=str(uuid.uuid4()),
+#         position_x_mm=5,
+#         position_y_mm=5,
+#         largeur_mm=20,
+#         hauteur_mm=10,
+#         chemin_image_defaut="resources/images/logo-jacmar-gdj.png"
+#     )
+#     
+#     nom_employe_element = ElementVariable(
+#         element_id=str(uuid.uuid4()),
+#         position_x_mm=5,
+#         position_y_mm=25,
+#         largeur_mm=75,
+#         hauteur_mm=10,
+#         nom_variable="nom_employe",
+#         label_descriptif="Nom de l'employé",
+#         contenu_texte="<Nom de l'employé>", # Texte affiché dans l'éditeur
+#         taille_police=12
+#     )
+#     
+#     poste_element = ElementVariable(
+#         element_id=str(uuid.uuid4()),
+#         position_x_mm=5,
+#         position_y_mm=38,
+#         largeur_mm=75,
+#         hauteur_mm=8,
+#         nom_variable="poste",
+#         label_descriptif="Poste occupé",
+#         contenu_texte="<Poste>",
+#         taille_police=8
+#     )
+#
+#     demo_template.elements = [logo_element, nom_employe_element, poste_element]
+#     return demo_template
 
 class TemplateController:
     """
@@ -102,20 +102,20 @@ class TemplateController:
     def load_templates(self):
         """Charge les templates depuis le fichier JSON, ou en crée un de démo."""
         if not os.path.exists(self.templates_file_path):
-            logger.warning(f"Fichier de templates non trouvé. Création d'un fichier de démo.")
-            demo = create_demo_template()
-            self.templates = {demo.template_id: demo}
-            self.save_templates() # Sauvegarder immédiatement le fichier de démo
+            logger.warning(f"Fichier de templates non trouvé. Création d'un fichier vide.")
+            # demo = create_demo_template()
+            self.templates = {} # {demo.template_id: demo}
+            self.save_templates() # Sauvegarder immédiatement le fichier
             return
 
         try:
             with open(self.templates_file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 if not data: # Si le fichier est vide
-                    logger.warning("Le fichier de templates est vide. Création d'un template de démo.")
-                    demo = create_demo_template()
-                    self.templates = {demo.template_id: demo}
-                    self.save_templates()
+                    logger.warning("Le fichier de templates est vide.")
+                    # demo = create_demo_template()
+                    self.templates = {} # {demo.template_id: demo}
+                    # self.save_templates()
                     return
 
             loaded_templates = {}
@@ -149,8 +149,8 @@ class TemplateController:
 
         element_class_map = {
             "texte": ElementTexte,
-            "image": ElementImage,
-            "variable": ElementVariable,
+            # "image": ElementImage,
+            # "variable": ElementVariable,
         }
         
         element_class = element_class_map.get(elem_type)

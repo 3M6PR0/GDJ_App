@@ -10,7 +10,7 @@ from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QPainterPath, QFont
 
 from controllers.documents.lamicoid_2 import TemplateController
 from models.documents.lamicoid_2 import (
-    TemplateLamicoid, ElementTemplateBase, ElementTexte, ElementImage, ElementVariable
+    TemplateLamicoid, ElementTemplateBase, ElementTexte #, ElementImage, ElementVariable
 )
 
 logger = logging.getLogger('GDJ_App')
@@ -187,27 +187,26 @@ class TemplateEditorView(QGraphicsView):
         pos_x_px = _mm_to_pixels(element.x_mm) + offset_x
         pos_y_px = _mm_to_pixels(element.y_mm) + offset_y
 
-        if isinstance(element, (ElementTexte, ElementVariable)):
+        if isinstance(element, ElementTexte):
             font = QFont(element.nom_police, element.taille_police_pt)
             
             text_item = QGraphicsTextItem()
-            text_to_display = element.nom_variable if isinstance(element, ElementVariable) else element.contenu
-            text_item.setPlainText(text_to_display)
+            text_item.setPlainText(element.contenu)
             text_item.setFont(font)
             text_item.setDefaultTextColor(QColor("#000000")) # À dynamiser plus tard
             text_item.setPos(pos_x_px, pos_y_px)
             self._scene.addItem(text_item)
         
-        elif isinstance(element, ElementImage):
-            width = _mm_to_pixels(element.largeur_mm)
-            height = _mm_to_pixels(element.hauteur_mm)
-            rect_item = QGraphicsRectItem(pos_x_px, pos_y_px, width, height)
-            rect_item.setBrush(QBrush(QColor("#CCCCCC")))
-            rect_item.setPen(QPen(Qt.black, 1, Qt.DashLine))
-            self._scene.addItem(rect_item)
+        # elif isinstance(element, ElementImage):
+        #     width = _mm_to_pixels(element.largeur_mm)
+        #     height = _mm_to_pixels(element.hauteur_mm)
+        #     rect_item = QGraphicsRectItem(pos_x_px, pos_y_px, width, height)
+        #     rect_item.setBrush(QBrush(QColor("#CCCCCC")))
+        #     rect_item.setPen(QPen(Qt.black, 1, Qt.DashLine))
+        #     self._scene.addItem(rect_item)
             
-            text_label = QGraphicsTextItem("Image", parent=rect_item)
-            text_label.setPos(pos_x_px, pos_y_px)
+        #     text_label = QGraphicsTextItem("Image", parent=rect_item)
+        #     text_label.setPos(pos_x_px, pos_y_px)
 
     def get_scene_items_rect(self):
         """Calcule le rectangle englobant de tous les items, avec une marge."""
