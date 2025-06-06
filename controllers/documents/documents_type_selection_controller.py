@@ -78,7 +78,7 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
             
             # 1. --- MODIFICATION: Hardcoder les types de documents --- 
             # self.document_types = config.document_types # <- SUPPRIMÉ
-            self.document_types = ["Rapport de depense", "CSA", "Lamicoid"] # <- HARDCODÉ avec CSA
+            self.document_types = ["Rapport de depense", "CSA", "Lamicoid", "Lamicoid 2"] # <- AJOUT LAMICOID 2
             logger.debug(f"  TypeSelectionController: Types récupérés de ConfigData: {self.document_types}")
             logger.debug(f"  DTSC: Types HARDCODÉS: {self.document_types}")
             # --------------------------------------------------------
@@ -229,6 +229,9 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
             fields_structure_list = [
                 "date", "numero_reference" # Champs pour Lamicoid
             ]
+        elif selected_type == "Lamicoid 2":
+            logger.debug(f"Détermination des champs pour: {selected_type} (aucun champ requis initialement)")
+            fields_structure_list = [] # Aucun champ pour Lamicoid 2 dans cette vue
         else:
             # Cas où le type sélectionné n'est pas géré ici (ou si la string est vide)
             if selected_type:
@@ -248,7 +251,7 @@ class DocumentsTypeSelectionController(QObject): # <- Nom de classe mis à jour
             try:
                  self.view.update_content_area(fields_structure_list, default_values, jacmar_data)
             except Exception as e_update:
-                 logger.error(f"ERROR: Erreur lors de la mise à jour du formulaire dynamique: {e_update}", exc_info=True)
+                 logger.error(f"ERREUR lors de la mise à jour des champs pour '{selected_type}': {e_update}", exc_info=True)
                  import traceback
                  traceback.print_exc()
         else:

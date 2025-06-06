@@ -24,6 +24,7 @@ from ui.components.draggable_tab_bar import DraggableTabBar
 # (Il faudra les importer dynamiquement ou tous les importer ici)
 from pages.templates.rapport_depense_page import RapportDepensePage
 from pages.templates.lamicoid_page import LamicoidPage # AJOUT IMPORT
+from pages.documents.lamicoid_2_page import Lamicoid2Page # AJOUT IMPORT LAMICOID 2
 # from pages.templates.ecriture_comptable_page import EcritureComptablePage # Exemple
 # ... autres imports ...
 
@@ -365,6 +366,10 @@ class DocumentsOpenPage(QWidget):
                 # Associer ce document au widget pour que la sidebar puisse le trouver
                 page_widget.document = document_for_sidebar_and_title
 
+            elif doc_type == "Lamicoid 2":
+                logger.debug(f"Création de la page pour: {doc_type}")
+                page_widget = Lamicoid2Page()
+                tab_title = "Nouveau Lamicoid"
 
             # --- GÉRER LES AUTRES TYPES DE DOCUMENTS (PAS ENCORE IMPLÉMENTÉ POUR LE CHARGEMENT) ---
             # elif doc_type == "Ecriture Comptable":

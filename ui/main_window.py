@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
 
         # Autres menus
         options_menu = menu_bar.addMenu("Options")
+        
         aide_menu = menu_bar.addMenu("Aide")
 
         # --- Ajout de l'action Notes de version ---
