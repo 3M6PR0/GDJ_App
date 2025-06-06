@@ -185,7 +185,7 @@ class EditorPage(QWidget):
         self.current_template.elements.append(new_element)
 
         # 3. Demander à la vue de se redessiner complètement
-        self.editor_view.update_template_view()
+        self.editor_view.load_template_object(self.current_template)
 
     def set_template(self, template: TemplateLamicoid):
         """Reçoit le template à éditer et met à jour l'UI."""
@@ -199,12 +199,6 @@ class EditorPage(QWidget):
         self.radius_spinbox.setValue(template.rayon_coin_mm)
         self.margin_spinbox.setValue(template.marge_mm)
         self.grid_spacing_spinbox.setValue(template.espacement_grille_mm)
-
-        # Afficher également les éléments existants
-        for element in template.elements:
-            if isinstance(element, ElementTexte):
-                item = TexteItem(element)
-                self.editor_view.scene.addItem(item)
 
     def _update_template_properties(self):
         """Met à jour les propriétés du template à partir des champs de l'UI."""

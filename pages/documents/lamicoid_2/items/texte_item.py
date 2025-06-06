@@ -1,35 +1,54 @@
 """Définit l'item graphique pour un élément de texte."""
 
-from PyQt5.QtWidgets import QGraphicsTextItem, QGraphicsItem
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtCore import Qt
 
 from models.documents.lamicoid_2.elements import ElementTexte
+from .base_item import EditableItemBase
 
-class TexteItem(QGraphicsTextItem):
+class TexteItem(EditableItemBase):
     """
-    Un QGraphicsTextItem qui représente un ElementTexte et peut être
-    déplacé dans la scène.
+    Un item éditable qui affiche un élément de texte.
+    La boîte englobante est gérée par EditableItemBase.
     """
-    def __init__(self, element_texte: ElementTexte, parent=None):
-        super().__init__(parent)
-        self.element_data = element_texte
-
-        self.setPlainText(self.element_data.contenu)
+    def __init__(self, element_texte: ElementTexte, parent: QGraphicsItem = None):
+        super().__init__(model_item=element_texte, parent=parent)
         
-        font = QFont(self.element_data.nom_police, self.element_data.taille_police_pt)
-        self.setFont(font)
+        self.setPos(self.model_item.x_mm, self.model_item.y_mm)
+        
+        # Mettre à jour la géométrie de la boîte en fonction du texte
+        self._update_bounding_box()
 
-        self.setPos(self.element_data.x_mm, self.element_data.y_mm)
+    def _update_bounding_box(self):
+        """Ajuste le rectangle de l'item à la taille du texte."""
+        font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
+        # Utiliser un QGraphicsTextItem temporaire pour calculer la taille
+        temp_text_item = QGraphicsTextItem(self.model_item.contenu)
+        temp_text_item.setFont(font)
+        text_rect = temp_text_item.boundingRect()
+        self.setRect(0, 0, text_rect.width(), text_rect.height())
 
-        # Rendre l'item déplaçable
-        self.setFlag(QGraphicsItem.ItemIsMovable)
-        self.setFlag(QGraphicsItem.ItemIsSelectable)
-    
-    def mouseReleaseEvent(self, event):
-        """Met à jour les coordonnées dans le modèle de données après un déplacement."""
-        super().mouseReleaseEvent(event)
-        if event.button() == Qt.LeftButton:
-            self.element_data.x_mm = self.x()
-            self.element_data.y_mm = self.y()
-            print(f"Nouvelle position pour {self.element_data.element_id}: ({self.element_data.x_mm}, {self.element_data.y_mm})") 
+    def paint(self, painter, option, widget=None):
+        # 1. Laisser la classe de base dessiner le cadre de sélection si nécessaire
+        super().paint(painter, option, widget)
+
+        # 2. Dessiner le texte
+        painter.setPen(QColor(Qt.black))
+        font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
+        painter.setFont(font)
+        
+        # Dessiner le texte à l'intérieur du rectangle de l'item
+        painter.drawText(self.rect(), Qt.AlignCenter, self.model_item.contenu)
+
+    def itemChange(self, change, value):
+        """Surcharge pour mettre à jour le modèle après un déplacement."""
+        if change == QGraphicsItem.ItemPositionHasChanged:
+            # La nouvelle position est 'value' (un QPointF)
+            # NOTE: Pour l'instant, on met à jour avec les coordonnées de la scène (pixels)
+            # La conversion en mm se fera plus tard.
+            self.model_item.x_mm = value.x()
+            self.model_item.y_mm = value.y()
+        
+        # Appeler l'implémentation de la classe de base pour gérer la sélection, etc.
+        return super().itemChange(change, value) 

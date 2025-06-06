@@ -12,6 +12,7 @@ from controllers.documents.lamicoid_2 import TemplateController
 from models.documents.lamicoid_2 import (
     TemplateLamicoid, ElementTemplateBase, ElementTexte #, ElementImage, ElementVariable
 )
+from .items.texte_item import TexteItem
 
 logger = logging.getLogger('GDJ_App')
 
@@ -179,34 +180,22 @@ class TemplateEditorView(QGraphicsView):
         self._scene.addItem(self.margin_grid_item)
 
     def _draw_element(self, element: ElementTemplateBase):
+        """Crée et ajoute l'item graphique approprié à la scène."""
         lamicoid_width_px = _mm_to_pixels(self.current_template.largeur_mm)
         lamicoid_height_px = _mm_to_pixels(self.current_template.hauteur_mm)
-        offset_x = -lamicoid_width_px / 2
-        offset_y = -lamicoid_height_px / 2
-        
-        pos_x_px = _mm_to_pixels(element.x_mm) + offset_x
-        pos_y_px = _mm_to_pixels(element.y_mm) + offset_y
 
         if isinstance(element, ElementTexte):
-            font = QFont(element.nom_police, element.taille_police_pt)
-            
-            text_item = QGraphicsTextItem()
-            text_item.setPlainText(element.contenu)
-            text_item.setFont(font)
-            text_item.setDefaultTextColor(QColor("#000000")) # À dynamiser plus tard
-            text_item.setPos(pos_x_px, pos_y_px)
-            self._scene.addItem(text_item)
+            item = TexteItem(element)
+            # Positionne l'item par rapport au coin haut-gauche de la scène (0,0),
+            # puis l'offset du lamicoid centre le tout.
+            pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
+            pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
+            item.setPos(pos_x_px, pos_y_px)
+            self._scene.addItem(item)
         
+        # Le code pour d'autres types d'éléments (Image, etc.) viendra ici
         # elif isinstance(element, ElementImage):
-        #     width = _mm_to_pixels(element.largeur_mm)
-        #     height = _mm_to_pixels(element.hauteur_mm)
-        #     rect_item = QGraphicsRectItem(pos_x_px, pos_y_px, width, height)
-        #     rect_item.setBrush(QBrush(QColor("#CCCCCC")))
-        #     rect_item.setPen(QPen(Qt.black, 1, Qt.DashLine))
-        #     self._scene.addItem(rect_item)
-            
-        #     text_label = QGraphicsTextItem("Image", parent=rect_item)
-        #     text_label.setPos(pos_x_px, pos_y_px)
+        #     pass
 
     def get_scene_items_rect(self):
         """Calcule le rectangle englobant de tous les items, avec une marge."""
