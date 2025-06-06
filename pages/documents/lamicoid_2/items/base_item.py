@@ -142,19 +142,35 @@ class EditableItemBase(QGraphicsRectItem):
 
     def interactive_resize(self, mouse_pos: QPointF):
         """Met à jour le rectangle de l'item pendant un redimensionnement interactif."""
-        rect = self.rect()
+        rect = QRectF(self.mouse_press_rect)
         diff = mouse_pos - self.mouse_press_pos
+        min_size = 1.0  # Taille minimale pour éviter une inversion
 
         self.prepareGeometryChange()
 
         if self.current_handle == 'top_left':
-            rect.setTopLeft(self.mouse_press_rect.topLeft() + diff)
+            new_top_left = self.mouse_press_rect.topLeft() + diff
+            new_top_left.setX(min(new_top_left.x(), self.mouse_press_rect.right() - min_size))
+            new_top_left.setY(min(new_top_left.y(), self.mouse_press_rect.bottom() - min_size))
+            rect.setTopLeft(new_top_left)
+
         elif self.current_handle == 'top_right':
-            rect.setTopRight(self.mouse_press_rect.topRight() + diff)
+            new_top_right = self.mouse_press_rect.topRight() + diff
+            new_top_right.setX(max(new_top_right.x(), self.mouse_press_rect.left() + min_size))
+            new_top_right.setY(min(new_top_right.y(), self.mouse_press_rect.bottom() - min_size))
+            rect.setTopRight(new_top_right)
+
         elif self.current_handle == 'bottom_left':
-            rect.setBottomLeft(self.mouse_press_rect.bottomLeft() + diff)
+            new_bottom_left = self.mouse_press_rect.bottomLeft() + diff
+            new_bottom_left.setX(min(new_bottom_left.x(), self.mouse_press_rect.right() - min_size))
+            new_bottom_left.setY(max(new_bottom_left.y(), self.mouse_press_rect.top() + min_size))
+            rect.setBottomLeft(new_bottom_left)
+
         elif self.current_handle == 'bottom_right':
-            rect.setBottomRight(self.mouse_press_rect.bottomRight() + diff)
+            new_bottom_right = self.mouse_press_rect.bottomRight() + diff
+            new_bottom_right.setX(max(new_bottom_right.x(), self.mouse_press_rect.left() + min_size))
+            new_bottom_right.setY(max(new_bottom_right.y(), self.mouse_press_rect.top() + min_size))
+            rect.setBottomRight(new_bottom_right)
 
         self.setRect(rect)
         self.update_handles_pos()
