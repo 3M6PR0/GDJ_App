@@ -123,35 +123,11 @@ class EditorPage(QWidget):
         editor_toolbar_layout.setSpacing(5)
 
         # Boutons d'ajout
-        self.add_text_button = QPushButton("Txt")
-        self.add_rect_button = QPushButton(QIcon(get_icon_path("round_check_box_outline_blank.png")), "")
+        self.add_text_button = QPushButton(QIcon(get_icon_path("round_abc.png")), "")
         self.add_image_button = QPushButton(QIcon(get_icon_path("round_image.png")), "")
         editor_toolbar_layout.addWidget(self.add_text_button)
-        editor_toolbar_layout.addWidget(self.add_rect_button)
         editor_toolbar_layout.addWidget(self.add_image_button)
-
-        # Séparateur
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        editor_toolbar_layout.addWidget(separator)
-
-        # Boutons de style de texte
-        self.bold_button = QPushButton(QIcon(get_icon_path("round_format_bold.png")), "")
-        self.italic_button = QPushButton(QIcon(get_icon_path("round_format_italic.png")), "")
-        self.underline_button = QPushButton(QIcon(get_icon_path("round_format_underlined.png")), "")
-        self.color_button = QPushButton(QIcon(get_icon_path("round_format_color_text.png")), "")
-        editor_toolbar_layout.addWidget(self.bold_button)
-        editor_toolbar_layout.addWidget(self.italic_button)
-        editor_toolbar_layout.addWidget(self.underline_button)
-        editor_toolbar_layout.addWidget(self.color_button)
-
-        self.more_options_button = QPushButton("...")
-        self.text_mode_button = QPushButton("Txt")
-        self.var_mode_button = QPushButton("Var")
-        editor_toolbar_layout.addWidget(self.more_options_button)
-        editor_toolbar_layout.addWidget(self.text_mode_button)
-        editor_toolbar_layout.addWidget(self.var_mode_button)
+        editor_toolbar_layout.addStretch()
 
         right_panel_layout.addWidget(self.editor_toolbar)
 
@@ -163,37 +139,9 @@ class EditorPage(QWidget):
 
         self._connect_signals()
 
-        # Appliquer les styles et états initiaux
-        self._setup_toolbar()
-
-    def _setup_toolbar(self):
-        """Configure les boutons de la barre d'outils et applique le style."""
-        # Groupe de boutons pour l'exclusivité
-        self.mode_button_group = QButtonGroup(self)
-        self.mode_button_group.setExclusive(True)
-        self.mode_button_group.addButton(self.text_mode_button)
-        self.mode_button_group.addButton(self.var_mode_button)
-        
-        # Rendre les boutons de mode 'checkable'
-        self.text_mode_button.setCheckable(True)
-        self.var_mode_button.setCheckable(True)
-
-        # Désactiver les boutons non implémentés
-        self.add_rect_button.setEnabled(False)
-        self.add_image_button.setEnabled(False)
-        
-        # Cacher les outils de texte par défaut
-        self.bold_button.setVisible(False)
-        self.italic_button.setVisible(False)
-        self.underline_button.setVisible(False)
-        self.color_button.setVisible(False)
-
-        # Appliquer le style QSS
+        # Appliquer le style QSS directement
         button_size = 28
         qss = f"""
-            QFrame#EditorToolbar {{
-                background-color: transparent;
-            }}
             QFrame#EditorToolbar QPushButton {{
                 min-width: {button_size}px;
                 max-width: {button_size}px;
@@ -216,7 +164,7 @@ class EditorPage(QWidget):
                 border: 1px solid #005C9C;
             }}
         """
-        self.editor_toolbar.setStyleSheet(qss) 
+        self.editor_toolbar.setStyleSheet(qss)
 
     def _add_new_text_element(self):
         """Ajoute un nouvel élément de texte au template et met à jour la vue."""
@@ -272,15 +220,6 @@ class EditorPage(QWidget):
         
         self.editor_view.load_template_object(self.current_template)
 
-    def _set_text_mode(self, checked):
-        """Active ou désactive le mode d'édition de texte."""
-        self.text_properties_groupbox.setVisible(checked)
-        # Rendre visibles les outils de style texte
-        self.bold_button.setVisible(checked)
-        self.italic_button.setVisible(checked)
-        self.underline_button.setVisible(checked)
-        self.color_button.setVisible(checked)
-
     def _connect_signals(self):
         """Connecte les signaux des boutons."""
         # -- Signaux du formulaire de paramètres --
@@ -292,9 +231,7 @@ class EditorPage(QWidget):
         self.grid_spacing_spinbox.valueChanged.connect(self._update_template_properties)
         
         # -- Signaux de la barre d'outils --
-        self.text_mode_button.toggled.connect(self._set_text_mode)
-        # La connexion du bouton d'ajout de texte sera modifiée plus tard
-        # pour fonctionner avec le mode sélectionné
+        self.add_text_button.clicked.connect(self._add_new_text_element)
 
     def showEvent(self, event):
         """Appelé lorsque le widget est affiché pour la première fois."""
@@ -303,56 +240,4 @@ class EditorPage(QWidget):
             # La logique de zoom initial est maintenant gérée directement
             # par la TemplateEditorView elle-même. Cet appel n'est plus nécessaire.
             # QTimer.singleShot(0, self.editor_view.initial_view_setup)
-            self._is_first_show = False
-
-    def _setup_toolbar(self):
-        """Configure les boutons de la barre d'outils et applique le style."""
-        # Groupe de boutons pour l'exclusivité
-        self.mode_button_group = QButtonGroup(self)
-        self.mode_button_group.setExclusive(True)
-        self.mode_button_group.addButton(self.text_mode_button)
-        self.mode_button_group.addButton(self.var_mode_button)
-        
-        # Rendre les boutons de mode 'checkable'
-        self.text_mode_button.setCheckable(True)
-        self.var_mode_button.setCheckable(True)
-
-        # Désactiver les boutons non implémentés
-        self.add_rect_button.setEnabled(False)
-        self.add_image_button.setEnabled(False)
-        
-        # Cacher les outils de texte par défaut
-        self.bold_button.setVisible(False)
-        self.italic_button.setVisible(False)
-        self.underline_button.setVisible(False)
-        self.color_button.setVisible(False)
-
-        # Appliquer le style QSS
-        button_size = 28
-        qss = f"""
-            QFrame#EditorToolbar {{
-                background-color: transparent;
-            }}
-            QFrame#EditorToolbar QPushButton {{
-                min-width: {button_size}px;
-                max-width: {button_size}px;
-                min-height: {button_size}px;
-                max-height: {button_size}px;
-                background-color: #4a4d4e;
-                border: 1px solid #555;
-                border-radius: 8px;
-                color: #ddeeff;
-            }}
-            QFrame#EditorToolbar QPushButton:hover {{
-                background-color: #5a5d5e;
-                border: 1px solid #666;
-            }}
-            QFrame#EditorToolbar QPushButton:pressed {{
-                background-color: #3a3d3e;
-            }}
-            QFrame#EditorToolbar QPushButton:checked {{
-                background-color: #007ACC;
-                border: 1px solid #005C9C;
-            }}
-        """
-        self.editor_toolbar.setStyleSheet(qss) 
+            self._is_first_show = False 
