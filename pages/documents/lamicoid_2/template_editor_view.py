@@ -3,7 +3,8 @@ Vue pour l'édition d'un template de lamicoid.
 """
 
 import logging
-from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPathItem, QGraphicsTextItem, QGraphicsRectItem
+from PyQt5.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsPathItem, 
+                             QGraphicsTextItem, QGraphicsRectItem, QGraphicsDropShadowEffect)
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QPainterPath, QFont
 
@@ -24,79 +25,6 @@ def _mm_to_pixels(mm: float) -> float:
 def _pixels_to_mm(pixels: float) -> float:
     return (pixels / DEFAULT_DPI) * INCH_TO_MM
 
-class LamicoidCanvasItem(QGraphicsPathItem):
-    """
-    Item représentant le canevas du lamicoid (fond, marge, grille).
-    """
-    def __init__(self, template: TemplateLamicoid, parent=None):
-        super().__init__(parent)
-        self.template = template
-        self.setPath(self._create_path())
-        self.setBrush(Qt.white)
-        self.setPen(QPen(Qt.black, 0.5))
-
-    def _create_path(self):
-        width_px = _mm_to_pixels(self.template.largeur_mm)
-        height_px = _mm_to_pixels(self.template.hauteur_mm)
-        radius_px = _mm_to_pixels(self.template.rayon_coin_mm)
-        rect = QRectF(-width_px / 2, -height_px / 2, width_px, height_px)
-        path = QPainterPath()
-        path.addRoundedRect(rect, radius_px, radius_px)
-        return path
-
-    def paint(self, painter: QPainter, option, widget=None):
-        super().paint(painter, option, widget) # Dessine le fond et la bordure
-        
-        painter.save()
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setClipPath(self.path())
-
-        self._draw_grid(painter)
-        self._draw_margin(painter)
-
-        painter.restore()
-
-    def _draw_grid(self, painter: QPainter):
-        grid_spacing_px = _mm_to_pixels(self.template.espacement_grille_mm)
-        if grid_spacing_px <= 0: return
-
-        width_px = _mm_to_pixels(self.template.largeur_mm)
-        height_px = _mm_to_pixels(self.template.hauteur_mm)
-        
-        grid_pen = QPen(QColor("#E0E0E0"), 0.5)
-        painter.setPen(grid_pen)
-        
-        # Lignes verticales depuis le centre
-        x = 0
-        while x < width_px / 2:
-            painter.drawLine(int(x), int(-height_px / 2), int(x), int(height_px / 2))
-            painter.drawLine(int(-x), int(-height_px / 2), int(-x), int(height_px / 2))
-            x += grid_spacing_px
-        
-        # Lignes horizontales depuis le centre
-        y = 0
-        while y < height_px / 2:
-            painter.drawLine(int(-width_px / 2), int(y), int(width_px / 2), int(y))
-            painter.drawLine(int(-width_px / 2), int(-y), int(width_px / 2), int(-y))
-            y += grid_spacing_px
-
-    def _draw_margin(self, painter: QPainter):
-        margin_px = _mm_to_pixels(self.template.marge_mm)
-        if margin_px <= 0: return
-
-        width_px = _mm_to_pixels(self.template.largeur_mm)
-        height_px = _mm_to_pixels(self.template.hauteur_mm)
-
-        margin_rect = QRectF(
-            -width_px / 2 + margin_px, -height_px / 2 + margin_px,
-            width_px - 2 * margin_px, height_px - 2 * margin_px
-        )
-        margin_pen = QPen(Qt.gray, 1, Qt.DashLine)
-        painter.setPen(margin_pen)
-        painter.setBrush(Qt.NoBrush)
-        painter.drawRect(margin_rect)
-
-
 class TemplateEditorView(QGraphicsView):
     """
     Vue d'édition visuelle pour un TemplateLamicoid.
@@ -111,7 +39,9 @@ class TemplateEditorView(QGraphicsView):
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
         
-        self.lamicoid_canvas_item: LamicoidCanvasItem | None = None
+        self.lamicoid_item: QGraphicsPathItem | None = None
+        self.margin_item: QGraphicsPathItem | None = None
+        self.grid_lines: list = []
         
         self._setup_view_properties()
         
@@ -119,7 +49,7 @@ class TemplateEditorView(QGraphicsView):
         """Configure les propriétés de la QGraphicsView."""
         self.setRenderHint(QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setBackgroundBrush(QBrush(QColor("#E0E0E0")))
+        self.setBackgroundBrush(QBrush(QColor("#F0F0F0"))) # Couleur exacte de l'ancienne version
         self.centerOn(0, 0)
 
     def load_template_object(self, template: TemplateLamicoid | None):
@@ -136,20 +66,101 @@ class TemplateEditorView(QGraphicsView):
     def clear_view(self):
         """Nettoie la scène de tous les éléments."""
         self._scene.clear()
-        self.lamicoid_canvas_item = None
+        self.lamicoid_item = None
+        self.margin_item = None
+        self.grid_lines = []
         
     def _draw_template(self):
         """Dessine le canevas du lamicoid et ses éléments."""
         if not self.current_template: return
             
-        self.lamicoid_canvas_item = LamicoidCanvasItem(self.current_template)
-        self.lamicoid_canvas_item.setZValue(-10)
-        self._scene.addItem(self.lamicoid_canvas_item)
+        # 1. Dessiner le Lamicoid avec son ombre
+        self._draw_lamicoid_base()
+
+        # 2. Dessiner la marge et la grille
+        self._draw_grid_and_margin()
         
+        # 3. Dessiner les éléments
         for element in self.current_template.elements:
             self._draw_element(element)
             
+        self._scene.setSceneRect(self.get_scene_items_rect())
         self.fitInView(self.get_scene_items_rect(), Qt.KeepAspectRatio)
+
+    def _draw_lamicoid_base(self):
+        """Prépare le fond blanc du lamicoid avec son ombre."""
+        width_px = _mm_to_pixels(self.current_template.largeur_mm)
+        height_px = _mm_to_pixels(self.current_template.hauteur_mm)
+        radius_px = _mm_to_pixels(self.current_template.rayon_coin_mm)
+        
+        path = QPainterPath()
+        rect = QRectF(-width_px / 2, -height_px / 2, width_px, height_px)
+        path.addRoundedRect(rect, radius_px, radius_px)
+        
+        self.lamicoid_item = QGraphicsPathItem(path)
+        self.lamicoid_item.setBrush(Qt.white)
+        self.lamicoid_item.setPen(QPen(QColor("#BDBDBD"), 1))
+        self.lamicoid_item.setZValue(-10)
+
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(15)
+        shadow.setColor(QColor(0, 0, 0, 80))
+        shadow.setOffset(2, 2)
+        self.lamicoid_item.setGraphicsEffect(shadow)
+        
+        self._scene.addItem(self.lamicoid_item)
+
+    def _draw_grid_and_margin(self):
+        """Dessine la grille et la marge en respectant les spécificités de l'ancienne version."""
+        width_px = _mm_to_pixels(self.current_template.largeur_mm)
+        height_px = _mm_to_pixels(self.current_template.hauteur_mm)
+        margin_px = _mm_to_pixels(self.current_template.marge_mm)
+        radius_px = _mm_to_pixels(self.current_template.rayon_coin_mm)
+        grid_spacing_px = _mm_to_pixels(self.current_template.espacement_grille_mm)
+
+        margin_rect = QRectF(-width_px/2 + margin_px, -height_px/2 + margin_px, width_px - 2*margin_px, height_px - 2*margin_px)
+
+        # Marge bleue avec coins arrondis
+        if margin_px > 0:
+            margin_path = QPainterPath()
+            margin_corner_radius = max(0, radius_px - margin_px)
+            margin_path.addRoundedRect(margin_rect, margin_corner_radius, margin_corner_radius)
+            
+            margin_pen = QPen(QColor("#3B5998"), 1, Qt.DashLine)
+            margin_pen.setDashPattern([3, 2])
+            self.margin_item = self._scene.addPath(margin_path, margin_pen)
+            self.margin_item.setZValue(-9)
+
+        # Grille cosmétique à l'intérieur de la marge
+        if grid_spacing_px > 0:
+            grid_pen = QPen(QColor("#E0E0E0"), 0.5)
+            grid_pen.setCosmetic(True)
+
+            # Lignes verticales centrées
+            x = grid_spacing_px
+            while x < margin_rect.width() / 2:
+                line = self._scene.addLine(x, margin_rect.top(), x, margin_rect.bottom(), grid_pen)
+                line.setZValue(-9); self.grid_lines.append(line)
+                line = self._scene.addLine(-x, margin_rect.top(), -x, margin_rect.bottom(), grid_pen)
+                line.setZValue(-9); self.grid_lines.append(line)
+                x += grid_spacing_px
+            
+            # Lignes horizontales centrées
+            y = grid_spacing_px
+            while y < margin_rect.height() / 2:
+                line = self._scene.addLine(margin_rect.left(), y, margin_rect.right(), y, grid_pen)
+                line.setZValue(-9); self.grid_lines.append(line)
+                line = self._scene.addLine(margin_rect.left(), -y, margin_rect.right(), -y, grid_pen)
+                line.setZValue(-9); self.grid_lines.append(line)
+                y += grid_spacing_px
+
+            # Ligne centrale (si l'espacement n'est pas parfaitement divisible)
+            center_line_pen = QPen(QColor("#CCCCCC"), 0.5) # Un peu plus sombre
+            center_line_pen.setCosmetic(True)
+            line = self._scene.addLine(0, margin_rect.top(), 0, margin_rect.bottom(), center_line_pen)
+            line.setZValue(-9); self.grid_lines.append(line)
+            line = self._scene.addLine(margin_rect.left(), 0, margin_rect.right(), 0, center_line_pen)
+            line.setZValue(-9); self.grid_lines.append(line)
 
     def _draw_element(self, element: ElementTemplateBase):
         lamicoid_width_px = _mm_to_pixels(self.current_template.largeur_mm)
