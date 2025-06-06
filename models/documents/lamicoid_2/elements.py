@@ -1,4 +1,4 @@
-"""Définit les classes pour les éléments de contenu d'un TemplateLamicoid."""
+"""Définit les différents types d'éléments pouvant composer un TemplateLamicoid."""
 
 from dataclasses import dataclass, field
 from typing import Literal
@@ -6,28 +6,31 @@ from typing import Literal
 @dataclass
 class ElementTemplateBase:
     """Classe de base pour tous les éléments d'un template."""
-    # Note: L'utilisation de dataclasses simplifie la déclaration des classes de données.
     element_id: str
-    position_x_mm: float
-    position_y_mm: float
-    largeur_mm: float
-    hauteur_mm: float
-    type_element: str = field(init=False)
+    x_mm: float
+    y_mm: float
+    # Le champ 'type' est retiré de la base et géré directement par chaque 
+    # classe enfant pour résoudre le conflit d'initialisation des dataclasses.
 
 @dataclass
 class ElementTexte(ElementTemplateBase):
-    """Un bloc de texte avec des propriétés de police."""
-    contenu_texte: str
+    """Représente un élément de texte dans un template."""
+    contenu: str = "Nouveau Texte"
     nom_police: str = "Arial"
-    taille_police: int = 12
-    alignement: Literal['gauche', 'centre', 'droite'] = 'gauche'
-    type_element: str = field(init=False, default="Texte")
+    taille_police_pt: int = 12
+    est_variable: bool = False
+    nom_variable: str = ""
+    # En déplaçant 'type' à la fin, on s'assure qu'il ne précède
+    # aucun champ non-défaut dans d'éventuelles futures classes enfants.
+    type: Literal["texte"] = "texte"
 
 @dataclass
 class ElementImage(ElementTemplateBase):
     """Un conteneur pour une image."""
-    chemin_image_defaut: str
-    type_element: str = field(init=False, default="Image")
+    chemin_fichier: str
+    largeur_mm: float
+    hauteur_mm: float
+    type: Literal["image"] = "image"
 
 @dataclass
 class ElementVariable(ElementTexte):
@@ -35,7 +38,8 @@ class ElementVariable(ElementTexte):
     Un bloc de texte spécial dont le contenu est une variable.
     Hérite des propriétés de ElementTexte pour le style.
     """
-    nom_variable: str = "variable_sans_nom"
     label_descriptif: str = "Description manquante"
     valeur_par_defaut: str = ""
-    type_element: str = field(init=False, default="Variable") 
+    type_element: str = field(init=False, default="Variable")
+
+# D'autres éléments (Image, CodeBarres, etc.) pourront être ajoutés ici plus tard. 

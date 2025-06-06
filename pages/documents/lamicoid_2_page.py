@@ -57,7 +57,9 @@ class Lamicoid2Page(QWidget):
         """Appelé lorsque le widget est affiché."""
         super().showEvent(event)
         if self._is_first_show:
+            # Zoom pour la vue de la feuille
             QTimer.singleShot(0, self.feuille_view.zoom_to_fit)
+            # Le zoom de l'éditeur est maintenant géré par l'EditorPage elle-même
             self._is_first_show = False
 
     def _setup_sheet_view(self, container_widget):
@@ -156,7 +158,7 @@ class Lamicoid2Page(QWidget):
             largeur_mm=100,
             hauteur_mm=50
         )
-        self.editor_page.editor_view.display_template(default_template)
+        self.editor_page.set_template(default_template)
 
     def _connect_signals(self):
         """Connecte les signaux pour la navigation et les actions."""

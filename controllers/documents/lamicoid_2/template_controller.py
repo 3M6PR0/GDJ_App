@@ -10,6 +10,7 @@ from models.documents.lamicoid_2 import (
     ElementTemplateBase, ElementTexte, ElementImage, ElementVariable,
     TemplateLamicoid
 )
+from models.documents.lamicoid_2.elements import ElementTemplateBase, ElementTexte, ElementImage, ElementVariable
 
 logger = logging.getLogger('GDJ_App')
 
@@ -131,20 +132,41 @@ class TemplateController:
             logger.error(f"Erreur lors du chargement ou de la désérialisation de {self.templates_file_path}: {e}", exc_info=True)
             self.templates = {}
 
-    def _create_element_from_dict(self, data: dict) -> ElementTemplateBase:
-        """Crée la bonne instance d'ElementTemplate en fonction de son type."""
-        element_type_name = data.pop('type_element', None)
-        
-        if not element_type_name:
-            raise ValueError("Donnée d'élément sans 'type_element'")
-            
-        element_class = ELEMENT_TYPE_MAP.get(element_type_name)
-        if not element_class:
-            raise ValueError(f"Type d'élément inconnu: {element_type_name}")
+    def _create_element_from_dict(self, elem_data: dict) -> ElementTemplateBase | None:
+        """Crée une instance d'élément à partir d'un dictionnaire de données."""
+        elem_type = elem_data.pop('type', None)
+        if not elem_type:
+            return None
 
-        # Les dataclasses sont pratiques : on peut passer un dictionnaire directement.
-        # Il faut juste s'assurer que les clés du dict correspondent aux champs.
-        return element_class(**data)
+        # --- Remappage des clés pour la compatibilité ---
+        if 'position_x_mm' in elem_data:
+            elem_data['x_mm'] = elem_data.pop('position_x_mm')
+        if 'position_y_mm' in elem_data:
+            elem_data['y_mm'] = elem_data.pop('position_y_mm')
+        if 'contenu_texte' in elem_data:
+            elem_data['contenu'] = elem_data.pop('contenu_texte')
+        # ... (ajoutez d'autres remappages si nécessaire) ...
+
+        element_class_map = {
+            "texte": ElementTexte,
+            "image": ElementImage,
+            "variable": ElementVariable,
+        }
+        
+        element_class = element_class_map.get(elem_type)
+        if not element_class:
+            logger.warning(f"Type d'élément inconnu lors du chargement: {elem_type}")
+            return None
+        
+        try:
+            # On ne passe que les arguments que la classe connaît
+            import inspect
+            sig = inspect.signature(element_class.__init__)
+            known_args = {k: v for k, v in elem_data.items() if k in sig.parameters}
+            return element_class(**known_args)
+        except (TypeError, KeyError) as e:
+            logger.error(f"Erreur lors de la création de l'élément '{elem_type}': {e}. Données: {elem_data}")
+            return None
 
     def save_templates(self):
         """Sauvegarde tous les templates en mémoire vers le fichier JSON."""
