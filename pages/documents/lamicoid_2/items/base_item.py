@@ -90,19 +90,31 @@ class EditableItemBase(QGraphicsRectItem):
             if content_rect.isEmpty():
                  return self._snap_point_to_grid(value)
 
-            # Contrainte de déplacement
+            # Magnétiser la position proposée
             snapped_pos = self._snap_point_to_grid(value)
+            current_rect_local = self.rect()
             
-            item_w = self.rect().width()
-            item_h = self.rect().height()
-            
-            # Calcule la zone valide pour le coin supérieur gauche de l'item
-            valid_pos_rect = content_rect.adjusted(0, 0, -item_w, -item_h)
-            
-            if valid_pos_rect.width() < 0 or valid_pos_rect.height() < 0:
-                 return self.pos() # Annule le mouvement si l'item est trop grand
+            # Rectangle de l'item proposé dans les coordonnées de la scène
+            proposed_item_scene_rect = current_rect_local.translated(snapped_pos)
 
-            return self._constrain_point_to_boundary(snapped_pos, valid_pos_rect)
+            # Annuler le mouvement si l'item est plus grand que la zone de contenu
+            if proposed_item_scene_rect.width() > content_rect.width() or \
+               proposed_item_scene_rect.height() > content_rect.height():
+                return self.pos()
+
+            # Contraindre la position pour que le rectangle de l'item reste dans les limites
+            constrained_pos = snapped_pos
+            if proposed_item_scene_rect.left() < content_rect.left():
+                constrained_pos.setX(content_rect.left() - current_rect_local.left())
+            elif proposed_item_scene_rect.right() > content_rect.right():
+                constrained_pos.setX(content_rect.right() - current_rect_local.right())
+                
+            if proposed_item_scene_rect.top() < content_rect.top():
+                constrained_pos.setY(content_rect.top() - current_rect_local.top())
+            elif proposed_item_scene_rect.bottom() > content_rect.bottom():
+                constrained_pos.setY(content_rect.bottom() - current_rect_local.bottom())
+                
+            return constrained_pos
             
         return super().itemChange(change, value)
 
@@ -210,51 +222,58 @@ class EditableItemBase(QGraphicsRectItem):
 
     def interactive_resize(self, mouse_pos: QPointF):
         """Met à jour le rectangle de l'item pendant un redimensionnement interactif."""
-        rect = QRectF(self.mouse_press_rect)
-        diff_item_coords = mouse_pos - self.mouse_press_pos
-        min_size = self.handle_size * 2
+        min_size = self.handle_size
 
         self.prepareGeometryChange()
 
-        new_corner_pos_item = QPointF()
-        if self.current_handle == 'top_left':
+        # 1. Calculer la nouvelle position du coin (item coords)
+        diff_item_coords = mouse_pos - self.mouse_press_pos
+        handle_type = self.current_handle
+        
+        if handle_type == 'top_left':
             new_corner_pos_item = self.mouse_press_rect.topLeft() + diff_item_coords
-        elif self.current_handle == 'top_right':
+        elif handle_type == 'top_right':
             new_corner_pos_item = self.mouse_press_rect.topRight() + diff_item_coords
-        elif self.current_handle == 'bottom_left':
+        elif handle_type == 'bottom_left':
             new_corner_pos_item = self.mouse_press_rect.bottomLeft() + diff_item_coords
-        elif self.current_handle == 'bottom_right':
+        elif handle_type == 'bottom_right':
             new_corner_pos_item = self.mouse_press_rect.bottomRight() + diff_item_coords
-            
-        # Magnétisme et contrainte
+        else: return
+
+        # 2. Magnétiser et contraindre cette position
         view = self.scene().views()[0]
-        snapped_scene_pos = self._snap_point_to_grid(self.mapToScene(new_corner_pos_item))
-
-        # Contrainte du coin à l'intérieur de la zone de contenu
         content_rect = view.content_rect_px
+        
+        snapped_scene_pos = self._snap_point_to_grid(self.mapToScene(new_corner_pos_item))
         constrained_scene_pos = self._constrain_point_to_boundary(snapped_scene_pos, content_rect)
-        
-        snapped_item_pos = self.mapFromScene(constrained_scene_pos)
-        
-        # Application de la position magnétisée et contrainte
-        if self.current_handle == 'top_left':
-            snapped_item_pos.setX(min(snapped_item_pos.x(), rect.right() - min_size))
-            snapped_item_pos.setY(min(snapped_item_pos.y(), rect.bottom() - min_size))
-            rect.setTopLeft(snapped_item_pos)
-        elif self.current_handle == 'top_right':
-            snapped_item_pos.setX(max(snapped_item_pos.x(), rect.left() + min_size))
-            snapped_item_pos.setY(min(snapped_item_pos.y(), rect.bottom() - min_size))
-            rect.setTopRight(snapped_item_pos)
-        elif self.current_handle == 'bottom_left':
-            snapped_item_pos.setX(min(snapped_item_pos.x(), rect.right() - min_size))
-            snapped_item_pos.setY(max(snapped_item_pos.y(), rect.top() + min_size))
-            rect.setBottomLeft(snapped_item_pos)
-        elif self.current_handle == 'bottom_right':
-            snapped_item_pos.setX(max(snapped_item_pos.x(), rect.left() + min_size))
-            snapped_item_pos.setY(max(snapped_item_pos.y(), rect.top() + min_size))
-            rect.setBottomRight(snapped_item_pos)
+        final_corner_pos_item = self.mapFromScene(constrained_scene_pos)
 
-        self.setRect(rect)
+        # 3. Reconstruire le rectangle à partir d'un coin fixe et du nouveau coin mobile
+        final_rect = QRectF()
+        if handle_type == 'top_left':
+            fixed_corner = self.mouse_press_rect.bottomRight()
+            final_rect = QRectF(final_corner_pos_item, fixed_corner)
+        elif handle_type == 'top_right':
+            fixed_corner = self.mouse_press_rect.bottomLeft()
+            final_rect = QRectF(fixed_corner, final_corner_pos_item)
+        elif handle_type == 'bottom_left':
+            fixed_corner = self.mouse_press_rect.topRight()
+            # On doit construire le rect avec les bons points
+            final_rect = QRectF(QPointF(final_corner_pos_item.x(), fixed_corner.y()), 
+                                QPointF(fixed_corner.x(), final_corner_pos_item.y()))
+        elif handle_type == 'bottom_right':
+            fixed_corner = self.mouse_press_rect.topLeft()
+            final_rect = QRectF(fixed_corner, final_corner_pos_item)
+
+        # 4. Normaliser et s'assurer de la taille minimale
+        final_rect = final_rect.normalized()
+        
+        if final_rect.width() < min_size:
+            final_rect.setWidth(min_size)
+        if final_rect.height() < min_size:
+            final_rect.setHeight(min_size)
+
+        self.setRect(final_rect)
         self.update_handles_pos()
         self.update()
 
