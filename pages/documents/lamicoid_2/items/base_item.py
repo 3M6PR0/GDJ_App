@@ -80,9 +80,10 @@ class EditableItemBase(QGraphicsRectItem):
         """Appelé lorsque l'état de l'item change, notamment la sélection."""
         if change == QGraphicsItem.ItemSelectedChange:
             self.update_selection_visuals(bool(value))
-        elif change == QGraphicsItem.ItemPositionChange and self.isSelected():
-            # Mettre à jour la position des poignées lors du déplacement
-            self.update_handles_pos()
+        elif change == QGraphicsItem.ItemPositionChange and self.isSelected() and self.scene():
+            # Magnétisme de la position sur la grille. 'value' est la nouvelle QPointF.
+            return self._snap_point_to_grid(value)
+            
         return super().itemChange(change, value)
 
     def update_selection_visuals(self, is_selected: bool):
