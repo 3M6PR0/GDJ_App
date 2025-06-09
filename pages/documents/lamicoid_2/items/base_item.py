@@ -15,7 +15,7 @@ class EditableItemBase(QGraphicsRectItem):
     def __init__(self, model_item: ElementTemplateBase, parent: QGraphicsItem = None):
         super().__init__(parent)
         self.model_item = model_item
-        self.handle_size = 8.0
+        self.handle_size = 6.0
         self.handles = {}
         self.current_handle = None
         self.mouse_press_pos = None
@@ -74,7 +74,7 @@ class EditableItemBase(QGraphicsRectItem):
             painter.setPen(QPen(QColor(Qt.white), 1))
 
             for handle, rect in self.handles.items():
-                painter.drawRect(rect)
+                painter.drawEllipse(rect)
 
     def itemChange(self, change, value):
         """Appelé lorsque l'état de l'item change, notamment la sélection."""
@@ -89,7 +89,7 @@ class EditableItemBase(QGraphicsRectItem):
     def update_selection_visuals(self, is_selected: bool):
         """Met à jour l'apparence de l'item en fonction de son état de sélection."""
         if is_selected:
-            selection_pen = QPen(QColor("#007ACC"), 1.5)
+            selection_pen = QPen(QColor("#007ACC"), 0.5)
             selection_pen.setStyle(Qt.DashLine)
             self.setPen(selection_pen)
         else:
