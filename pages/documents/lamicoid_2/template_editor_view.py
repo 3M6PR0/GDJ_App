@@ -5,7 +5,7 @@ Vue pour l'édition d'un template de lamicoid.
 import logging
 from PyQt5.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsPathItem, 
                              QGraphicsTextItem, QGraphicsRectItem, QGraphicsDropShadowEffect, QGraphicsItem)
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import Qt, QRectF, QPointF
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QPainterPath, QFont
 
 from controllers.documents.lamicoid_2 import TemplateController
@@ -116,6 +116,26 @@ class TemplateEditorView(QGraphicsView):
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.viewport().setAutoFillBackground(False)
         self.centerOn(0, 0)
+
+    @property
+    def grid_spacing(self) -> float:
+        """Retourne l'espacement de la grille en pixels. Retourne 0 si non applicable."""
+        if self.current_template and self.current_template.espacement_grille_mm > 0:
+            return _mm_to_pixels(self.current_template.espacement_grille_mm)
+        return 0.0
+
+    @property
+    def grid_offset(self) -> QPointF:
+        """Retourne le décalage (coin supérieur gauche) de la zone de la grille."""
+        if self.current_template:
+            width_px = _mm_to_pixels(self.current_template.largeur_mm)
+            height_px = _mm_to_pixels(self.current_template.hauteur_mm)
+            margin_px = _mm_to_pixels(self.current_template.marge_mm)
+            
+            offset_x = -width_px / 2 + margin_px
+            offset_y = -height_px / 2 + margin_px
+            return QPointF(offset_x, offset_y)
+        return QPointF(0, 0)
 
     def load_template_object(self, template: TemplateLamicoid | None):
         """Charge et dessine un objet TemplateLamicoid."""

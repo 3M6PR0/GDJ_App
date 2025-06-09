@@ -152,37 +152,74 @@ class EditableItemBase(QGraphicsRectItem):
                 return handle
         return None
 
+    def _snap_point_to_grid(self, point: QPointF) -> QPointF:
+        """Aligne un point sur la grille de la vue, si elle existe."""
+        if not self.scene() or not self.scene().views():
+            return point
+        
+        view = self.scene().views()[0]
+        # Vérifie si la vue a les propriétés nécessaires (duck typing)
+        if not hasattr(view, 'grid_spacing') or not hasattr(view, 'grid_offset'):
+            return point
+
+        grid_spacing = view.grid_spacing
+        if grid_spacing <= 0:
+            return point
+        
+        # Convertir le point de la scène en coordonnées locales de l'item parent (la grille)
+        # Ici on suppose que l'item est un enfant direct de la scène, ce qui est le cas.
+        # Les coordonnées de la grille sont déjà dans le système de la scène.
+        grid_offset = view.grid_offset
+        
+        # Coordonnées relatives à l'origine de la grille
+        relative_point = point - grid_offset
+        
+        # Calculer les coordonnées alignées
+        snapped_x = round(relative_point.x() / grid_spacing) * grid_spacing
+        snapped_y = round(relative_point.y() / grid_spacing) * grid_spacing
+
+        # Reconvertir en coordonnées de la scène
+        return QPointF(snapped_x, snapped_y) + grid_offset
+
     def interactive_resize(self, mouse_pos: QPointF):
         """Met à jour le rectangle de l'item pendant un redimensionnement interactif."""
         rect = QRectF(self.mouse_press_rect)
-        diff = mouse_pos - self.mouse_press_pos
-        min_size = 1.0  # Taille minimale pour éviter une inversion
+        diff_item_coords = mouse_pos - self.mouse_press_pos
+        min_size = 1.0
 
         self.prepareGeometryChange()
 
+        new_corner_pos_item = QPointF()
         if self.current_handle == 'top_left':
-            new_top_left = self.mouse_press_rect.topLeft() + diff
-            new_top_left.setX(min(new_top_left.x(), self.mouse_press_rect.right() - min_size))
-            new_top_left.setY(min(new_top_left.y(), self.mouse_press_rect.bottom() - min_size))
-            rect.setTopLeft(new_top_left)
-
+            new_corner_pos_item = self.mouse_press_rect.topLeft() + diff_item_coords
         elif self.current_handle == 'top_right':
-            new_top_right = self.mouse_press_rect.topRight() + diff
-            new_top_right.setX(max(new_top_right.x(), self.mouse_press_rect.left() + min_size))
-            new_top_right.setY(min(new_top_right.y(), self.mouse_press_rect.bottom() - min_size))
-            rect.setTopRight(new_top_right)
-
+            new_corner_pos_item = self.mouse_press_rect.topRight() + diff_item_coords
         elif self.current_handle == 'bottom_left':
-            new_bottom_left = self.mouse_press_rect.bottomLeft() + diff
-            new_bottom_left.setX(min(new_bottom_left.x(), self.mouse_press_rect.right() - min_size))
-            new_bottom_left.setY(max(new_bottom_left.y(), self.mouse_press_rect.top() + min_size))
-            rect.setBottomLeft(new_bottom_left)
-
+            new_corner_pos_item = self.mouse_press_rect.bottomLeft() + diff_item_coords
         elif self.current_handle == 'bottom_right':
-            new_bottom_right = self.mouse_press_rect.bottomRight() + diff
-            new_bottom_right.setX(max(new_bottom_right.x(), self.mouse_press_rect.left() + min_size))
-            new_bottom_right.setY(max(new_bottom_right.y(), self.mouse_press_rect.top() + min_size))
-            rect.setBottomRight(new_bottom_right)
+            new_corner_pos_item = self.mouse_press_rect.bottomRight() + diff_item_coords
+            
+        # Magnétisme
+        snapped_scene_pos = self._snap_point_to_grid(self.mapToScene(new_corner_pos_item))
+        snapped_item_pos = self.mapFromScene(snapped_scene_pos)
+        
+        # Application de la position magnétisée
+        if self.current_handle == 'top_left':
+            snapped_item_pos.setX(min(snapped_item_pos.x(), rect.right() - min_size))
+            snapped_item_pos.setY(min(snapped_item_pos.y(), rect.bottom() - min_size))
+            rect.setTopLeft(snapped_item_pos)
+        elif self.current_handle == 'top_right':
+            snapped_item_pos.setX(max(snapped_item_pos.x(), rect.left() + min_size))
+            snapped_item_pos.setY(min(snapped_item_pos.y(), rect.bottom() - min_size))
+            rect.setTopRight(snapped_item_pos)
+        elif self.current_handle == 'bottom_left':
+            snapped_item_pos.setX(min(snapped_item_pos.x(), rect.right() - min_size))
+            snapped_item_pos.setY(max(snapped_item_pos.y(), rect.top() + min_size))
+            rect.setBottomLeft(snapped_item_pos)
+        elif self.current_handle == 'bottom_right':
+            snapped_item_pos.setX(max(snapped_item_pos.x(), rect.left() + min_size))
+            snapped_item_pos.setY(max(snapped_item_pos.y(), rect.top() + min_size))
+            rect.setBottomRight(snapped_item_pos)
 
         self.setRect(rect)
         self.update_handles_pos()
