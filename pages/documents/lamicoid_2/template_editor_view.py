@@ -118,6 +118,22 @@ class TemplateEditorView(QGraphicsView):
         self.centerOn(0, 0)
 
     @property
+    def content_rect_px(self) -> QRectF:
+        """Retourne le rectangle de contenu (intérieur des marges) en coordonnées de scène."""
+        if self.current_template:
+            width_px = _mm_to_pixels(self.current_template.largeur_mm)
+            height_px = _mm_to_pixels(self.current_template.hauteur_mm)
+            margin_px = _mm_to_pixels(self.current_template.marge_mm)
+            
+            left = -width_px / 2 + margin_px
+            top = -height_px / 2 + margin_px
+            content_width = width_px - 2 * margin_px
+            content_height = height_px - 2 * margin_px
+            
+            return QRectF(left, top, content_width, content_height)
+        return QRectF()
+
+    @property
     def grid_spacing(self) -> float:
         """Retourne l'espacement de la grille en pixels. Retourne 0 si non applicable."""
         if self.current_template and self.current_template.espacement_grille_mm > 0:

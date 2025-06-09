@@ -80,9 +80,29 @@ class EditableItemBase(QGraphicsRectItem):
         """Appelé lorsque l'état de l'item change, notamment la sélection."""
         if change == QGraphicsItem.ItemSelectedChange:
             self.update_selection_visuals(bool(value))
-        elif change == QGraphicsItem.ItemPositionChange and self.isSelected() and self.scene():
-            # Magnétisme de la position sur la grille. 'value' est la nouvelle QPointF.
-            return self._snap_point_to_grid(value)
+
+        elif change == QGraphicsItem.ItemPositionChange and self.isSelected() and self.scene() and self.scene().views():
+            view = self.scene().views()[0]
+            if not hasattr(view, 'content_rect_px'):
+                return self._snap_point_to_grid(value)
+
+            content_rect = view.content_rect_px
+            if content_rect.isEmpty():
+                 return self._snap_point_to_grid(value)
+
+            # Contrainte de déplacement
+            snapped_pos = self._snap_point_to_grid(value)
+            
+            item_w = self.rect().width()
+            item_h = self.rect().height()
+            
+            # Calcule la zone valide pour le coin supérieur gauche de l'item
+            valid_pos_rect = content_rect.adjusted(0, 0, -item_w, -item_h)
+            
+            if valid_pos_rect.width() < 0 or valid_pos_rect.height() < 0:
+                 return self.pos() # Annule le mouvement si l'item est trop grand
+
+            return self._constrain_point_to_boundary(snapped_pos, valid_pos_rect)
             
         return super().itemChange(change, value)
 
@@ -153,6 +173,12 @@ class EditableItemBase(QGraphicsRectItem):
                 return handle
         return None
 
+    def _constrain_point_to_boundary(self, point: QPointF, boundary: QRectF) -> QPointF:
+        """Contraint un point à rester à l'intérieur d'un rectangle de délimitation."""
+        new_x = max(boundary.left(), min(point.x(), boundary.right()))
+        new_y = max(boundary.top(), min(point.y(), boundary.bottom()))
+        return QPointF(new_x, new_y)
+
     def _snap_point_to_grid(self, point: QPointF) -> QPointF:
         """Aligne un point sur la grille de la vue, si elle existe."""
         if not self.scene() or not self.scene().views():
@@ -186,7 +212,7 @@ class EditableItemBase(QGraphicsRectItem):
         """Met à jour le rectangle de l'item pendant un redimensionnement interactif."""
         rect = QRectF(self.mouse_press_rect)
         diff_item_coords = mouse_pos - self.mouse_press_pos
-        min_size = 1.0
+        min_size = self.handle_size * 2
 
         self.prepareGeometryChange()
 
@@ -200,11 +226,17 @@ class EditableItemBase(QGraphicsRectItem):
         elif self.current_handle == 'bottom_right':
             new_corner_pos_item = self.mouse_press_rect.bottomRight() + diff_item_coords
             
-        # Magnétisme
+        # Magnétisme et contrainte
+        view = self.scene().views()[0]
         snapped_scene_pos = self._snap_point_to_grid(self.mapToScene(new_corner_pos_item))
-        snapped_item_pos = self.mapFromScene(snapped_scene_pos)
+
+        # Contrainte du coin à l'intérieur de la zone de contenu
+        content_rect = view.content_rect_px
+        constrained_scene_pos = self._constrain_point_to_boundary(snapped_scene_pos, content_rect)
         
-        # Application de la position magnétisée
+        snapped_item_pos = self.mapFromScene(constrained_scene_pos)
+        
+        # Application de la position magnétisée et contrainte
         if self.current_handle == 'top_left':
             snapped_item_pos.setX(min(snapped_item_pos.x(), rect.right() - min_size))
             snapped_item_pos.setY(min(snapped_item_pos.y(), rect.bottom() - min_size))
