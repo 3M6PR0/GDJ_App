@@ -1,7 +1,7 @@
 import logging
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsItem, QStyle
 from PyQt5.QtCore import Qt, QRectF, QPointF
-from PyQt5.QtGui import QPen, QBrush, QColor, QPainter
+from PyQt5.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath
 
 from models.documents.lamicoid_2.elements import ElementTemplateBase
 
@@ -51,6 +51,18 @@ class EditableItemBase(QGraphicsRectItem):
 
         # Et on l'ajuste pour inclure les marges
         return base_rect.adjusted(-margin, -margin, margin, margin)
+
+    def shape(self) -> QPainterPath:
+        """
+        Définit la forme de collision de l'item.
+        Inclut le rectangle principal et les poignées si sélectionné.
+        """
+        path = QPainterPath()
+        path.addRect(self.rect())
+        if self.isSelected():
+            for handle_rect in self.handles.values():
+                path.addRect(handle_rect)
+        return path
 
     def paint(self, painter: QPainter, option, widget=None):
         """Dessine l'item et ses poignées de redimensionnement si sélectionné."""
