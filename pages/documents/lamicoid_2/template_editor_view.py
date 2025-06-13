@@ -218,22 +218,32 @@ class TemplateEditorView(QGraphicsView):
         self._scene.addItem(self.margin_grid_item)
 
     def _draw_element(self, element: ElementTemplateBase):
-        """Crée et ajoute l'item graphique approprié à la scène."""
+        """Crée et ajoute l'item graphique approprié à la scène, centré sur le lamicoid uniquement à la création."""
         lamicoid_width_px = _mm_to_pixels(self.current_template.largeur_mm)
         lamicoid_height_px = _mm_to_pixels(self.current_template.hauteur_mm)
 
         if isinstance(element, ElementTexte):
             item = TexteItem(element)
-            pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
-            pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
-            item.setPos(pos_x_px, pos_y_px)
+            if hasattr(element, '_just_added') and element._just_added:
+                # Centrer uniquement à la création
+                if hasattr(item, '_update_bounding_box'):
+                    item._update_bounding_box()
+                bounding = item.boundingRect()
+                pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
+                pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
+                item.setPos(pos_x_px - bounding.width() / 2, pos_y_px - bounding.height() / 2)
+                delattr(element, '_just_added')
+            else:
+                # Utiliser la position du modèle sans recentrage
+                pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
+                pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
+                item.setPos(pos_x_px, pos_y_px)
             item.setFlag(QGraphicsItem.ItemIsSelectable, True)
             item.setFlag(QGraphicsItem.ItemIsMovable, True)
             item.signal_helper.element_selected.connect(
                 lambda selected_item: self.text_item_selected.emit(bool(selected_item), selected_item)
             )
             self._scene.addItem(item)
-        
         # Le code pour d'autres types d'éléments (Image, etc.) viendra ici
         # elif isinstance(element, ElementImage):
         #     pass

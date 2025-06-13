@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QFrame, QFormLayout, QSizePolicy, QStackedWidget, QDialog, QFileDialog)
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtGui import QFont, QIcon, QFontMetrics
 
 from ui.components.frame import Frame
 from .template_editor_view import TemplateEditorView # La nouvelle vue d'édition
@@ -277,66 +277,78 @@ class LamicoidEditorPage(QWidget):
                 self._add_variable_item_to_editor(variable_data)
 
     def _add_variable_item_to_editor(self, variable_data: dict):
-        """Ajoute un élément variable à la scène."""
+        """Ajoute un élément variable centré selon sa taille réelle."""
         if not self.current_template:
             return
-
-        new_variable_element = ElementVariable(
-            nom_variable=variable_data.get('name', 'N/A'),
-            # On utilise les valeurs du template pour la police par défaut,
-            # car une variable n'a pas de style propre au départ.
-            nom_police="Arial", 
-            taille_police_mm=3.0, # Taille par défaut
-            couleur_texte="#000000",
-            position_x_mm=self.current_template.largeur_mm / 2, # Centré
-            position_y_mm=self.current_template.hauteur_mm / 2, # Centré
+        contenu = variable_data.get('name', 'N/A')
+        police = "Arial"
+        taille_pt = 12
+        font = QFont(police, taille_pt)
+        metrics = QFontMetrics(font)
+        largeur_texte = metrics.horizontalAdvance(contenu)
+        hauteur_texte = metrics.height()
+        x = (self.current_template.largeur_mm - largeur_texte) / 2
+        y = (self.current_template.hauteur_mm - hauteur_texte) / 2
+        new_variable_element = ElementTexte(
+            contenu=contenu,
+            nom_police=police,
+            taille_police_pt=taille_pt,
+            x_mm=x,
+            y_mm=y
         )
-
+        new_variable_element._just_added = True
         self.current_template.elements.append(new_variable_element)
         self.editor_view.update_template_view()
 
     def _add_text_item_to_editor(self):
-        """Ajoute un nouvel élément texte avec des valeurs par défaut au centre du lamicoid."""
+        """Ajoute un nouvel élément texte centré selon sa taille réelle."""
         if not self.current_template:
             return
-
-        # Créer un nouvel élément texte
+        # Définir les propriétés du texte
+        contenu = "Nouveau Texte"
+        police = "Arial"
+        taille_pt = 12
+        font = QFont(police, taille_pt)
+        metrics = QFontMetrics(font)
+        largeur_texte = metrics.horizontalAdvance(contenu)
+        hauteur_texte = metrics.height()
+        # Centrage
+        x = (self.current_template.largeur_mm - largeur_texte) / 2
+        y = (self.current_template.hauteur_mm - hauteur_texte) / 2
         new_text_element = ElementTexte(
-            contenu_texte="Nouveau Texte",
-            position_x_mm=self.current_template.largeur_mm / 2, # Centré
-            position_y_mm=self.current_template.hauteur_mm / 2, # Centré
+            contenu=contenu,
+            nom_police=police,
+            taille_police_pt=taille_pt,
+            x_mm=x,
+            y_mm=y
         )
-
-        # L'ajouter à la liste des éléments du template
+        new_text_element._just_added = True
         self.current_template.elements.append(new_text_element)
-
-        # Mettre à jour la vue
         self.editor_view.update_template_view()
 
     def _add_image_item_to_editor(self):
-        """Ouvre un dialogue pour choisir une image et l'ajoute à la scène."""
+        """Ouvre un dialogue pour choisir une image et l'ajoute centrée selon sa taille réelle."""
         if not self.current_template:
             return
-
-        # Ouvrir le dialogue de fichier
-        # Le répertoire initial pourrait être mémorisé ou être celui du projet
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Choisir une image",
-            "", # Répertoire initial
+            "",
             "Images (*.png *.jpg *.jpeg *.bmp *.svg)"
         )
-
         if file_path:
-            # Créer l'élément image
+            largeur_image = 20
+            hauteur_image = 20
+            x = (self.current_template.largeur_mm - largeur_image) / 2
+            y = (self.current_template.hauteur_mm - hauteur_image) / 2
             new_image_element = ElementImage(
                 chemin_fichier=file_path,
-                largeur_mm=20, # Largeur par défaut
-                hauteur_mm=20, # Hauteur par défaut
-                position_x_mm=self.current_template.largeur_mm / 2, # Centré
-                position_y_mm=self.current_template.hauteur_mm / 2, # Centré
+                largeur_mm=largeur_image,
+                hauteur_mm=hauteur_image,
+                x_mm=x,
+                y_mm=y
             )
-
+            new_image_element._just_added = True
             self.current_template.elements.append(new_image_element)
             self.editor_view.update_template_view()
 

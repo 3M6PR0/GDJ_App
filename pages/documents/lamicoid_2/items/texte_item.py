@@ -55,13 +55,19 @@ class TexteItem(EditableItemBase):
             print(f"[DEBUG] TexteItem sélection changée : {value}")
             self.signal_helper.element_selected.emit(self if value else None)
         if change == QGraphicsItem.ItemPositionHasChanged:
-            # La nouvelle position est 'value' (un QPointF)
-            # NOTE: Pour l'instant, on met à jour avec les coordonnées de la scène (pixels)
-            # La conversion en mm se fera plus tard.
-            self.model_item.x_mm = value.x()
-            self.model_item.y_mm = value.y()
-        
-        # Appeler l'implémentation de la classe de base pour gérer la sélection, etc.
+            # Mettre à jour x_mm/y_mm en fonction de la position réelle de l'item dans la scène
+            scene = self.scene()
+            if scene and hasattr(scene.parent(), 'current_template') and scene.parent().current_template:
+                from pages.documents.lamicoid_2.template_editor_view import _pixels_to_mm
+                lamicoid_width = scene.parent().current_template.largeur_mm
+                lamicoid_height = scene.parent().current_template.hauteur_mm
+                # La position de l'item est relative au centre de la scène
+                pos = self.pos()
+                # On veut x_mm = (position en mm depuis le centre du lamicoid) + centre du lamicoid
+                x_mm = lamicoid_width / 2 + _pixels_to_mm(pos.x())
+                y_mm = lamicoid_height / 2 + _pixels_to_mm(pos.y())
+                self.model_item.x_mm = x_mm
+                self.model_item.y_mm = y_mm
         return super().itemChange(change, value)
 
     def set_alignment(self, alignment):
