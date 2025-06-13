@@ -27,8 +27,8 @@ class EditableItemBase(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
 
-        # Définir le style par défaut (bordure solide)
-        self._default_pen = QPen(QColor(Qt.black), 1, Qt.SolidLine)
+        # Définir le style par défaut (bordure invisible)
+        self._default_pen = QPen(Qt.transparent, 1, Qt.SolidLine)
         self.setPen(self._default_pen)
 
     def boundingRect(self) -> QRectF:

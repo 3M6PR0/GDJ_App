@@ -1,6 +1,6 @@
 """Définit l'item graphique pour un élément de texte."""
 
-from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem, QInputDialog, QLineEdit, QGraphicsProxyWidget
 from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
 
@@ -24,28 +24,30 @@ class TexteItem(EditableItemBase):
         self._update_bounding_box()
 
     def _update_bounding_box(self):
-        """Ajuste le rectangle de l'item à la taille du texte."""
+        """Ajuste le rectangle de l'item à la taille du texte, en tenant compte du word wrap."""
         font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
-        # Utiliser un QGraphicsTextItem temporaire pour calculer la taille
+        # Largeur cible = largeur actuelle de l'élément
+        width = self.rect().width() if self.rect().width() > 0 else 100
         temp_text_item = QGraphicsTextItem(self.model_item.contenu)
         temp_text_item.setFont(font)
+        temp_text_item.setTextWidth(width)
         text_rect = temp_text_item.boundingRect()
-        self.setRect(0, 0, text_rect.width(), text_rect.height())
+        self.setRect(0, 0, width, text_rect.height())
 
     def paint(self, painter, option, widget=None):
         # 1. Laisser la classe de base dessiner le cadre de sélection si nécessaire
         super().paint(painter, option, widget)
 
-        # 2. Dessiner le texte
+        # 2. Dessiner le texte avec word wrap
         painter.setPen(QColor(Qt.black))
         font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
         font.setBold(getattr(self.model_item, 'bold', False))
         font.setItalic(getattr(self.model_item, 'italic', False))
         font.setUnderline(getattr(self.model_item, 'underline', False))
         painter.setFont(font)
-        # Utiliser l'alignement du modèle
         align = getattr(self.model_item, 'align', Qt.AlignHCenter)
-        painter.drawText(self.rect(), align | Qt.AlignVCenter, self.model_item.contenu)
+        flags = align | Qt.AlignVCenter | Qt.TextWordWrap
+        painter.drawText(self.rect(), flags, self.model_item.contenu)
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
         """Surcharge pour mettre à jour le modèle après un déplacement."""
@@ -66,3 +68,48 @@ class TexteItem(EditableItemBase):
         """Définit l'alignement du texte."""
         self.model_item.align = alignment
         self.update()  # Force le redessinage de l'item 
+
+    def mouseDoubleClickEvent(self, event):
+        # Édition inline avec QLineEdit ajouté à la scène
+        scene = self.scene()
+        if not scene:
+            return
+        # Créer le QLineEdit
+        editor = QLineEdit(self.model_item.contenu)
+        editor.setFrame(False)
+        editor.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
+        font.setBold(getattr(self.model_item, 'bold', False))
+        font.setItalic(getattr(self.model_item, 'italic', False))
+        font.setUnderline(getattr(self.model_item, 'underline', False))
+        editor.setFont(font)
+        # Ajouter à la scène
+        proxy = QGraphicsProxyWidget(self)
+        proxy.setWidget(editor)
+        rect = self.rect()
+        proxy.setPos(rect.x(), rect.y())
+        proxy.resize(rect.width(), rect.height())
+        editor.setFocus()
+        editor.selectAll()
+        # Fonction de validation
+        def finish_edit():
+            new_text = editor.text()
+            if new_text != self.model_item.contenu:
+                self.model_item.contenu = new_text
+                self._update_bounding_box()
+                self.update()
+            proxy.setParentItem(None)
+            proxy.deleteLater()
+        editor.editingFinished.connect(finish_edit)
+        # Pour perte de focus
+        old_focus_out = editor.focusOutEvent
+        def custom_focus_out(event):
+            finish_edit()
+            old_focus_out(event)
+        editor.focusOutEvent = custom_focus_out
+        # Empêcher propagation du double-clic
+        event.accept()
+
+    def set_underline(self, value):
+        self.model_item.underline = value
+        self.update() 
