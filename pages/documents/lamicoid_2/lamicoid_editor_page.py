@@ -285,10 +285,13 @@ class LamicoidEditorPage(QWidget):
         taille_pt = 12
         font = QFont(police, taille_pt)
         metrics = QFontMetrics(font)
-        largeur_texte = metrics.horizontalAdvance(contenu)
-        hauteur_texte = metrics.height()
-        x = (self.current_template.largeur_mm - largeur_texte) / 2
-        y = (self.current_template.hauteur_mm - hauteur_texte) / 2
+        largeur_texte_px = metrics.horizontalAdvance(contenu)
+        hauteur_texte_px = metrics.height()
+        from pages.documents.lamicoid_2.template_editor_view import _pixels_to_mm
+        largeur_texte_mm = _pixels_to_mm(largeur_texte_px)
+        hauteur_texte_mm = _pixels_to_mm(hauteur_texte_px)
+        x = self.current_template.largeur_mm / 2 - largeur_texte_mm / 2
+        y = self.current_template.hauteur_mm / 2 - hauteur_texte_mm / 2
         new_variable_element = ElementTexte(
             contenu=contenu,
             nom_police=police,
@@ -310,11 +313,13 @@ class LamicoidEditorPage(QWidget):
         taille_pt = 12
         font = QFont(police, taille_pt)
         metrics = QFontMetrics(font)
-        largeur_texte = metrics.horizontalAdvance(contenu)
-        hauteur_texte = metrics.height()
-        # Centrage
-        x = (self.current_template.largeur_mm - largeur_texte) / 2
-        y = (self.current_template.hauteur_mm - hauteur_texte) / 2
+        largeur_texte_px = metrics.horizontalAdvance(contenu)
+        hauteur_texte_px = metrics.height()
+        from pages.documents.lamicoid_2.template_editor_view import _pixels_to_mm
+        largeur_texte_mm = _pixels_to_mm(largeur_texte_px)
+        hauteur_texte_mm = _pixels_to_mm(hauteur_texte_px)
+        x = self.current_template.largeur_mm / 2 - largeur_texte_mm / 2
+        y = self.current_template.hauteur_mm / 2 - hauteur_texte_mm / 2
         new_text_element = ElementTexte(
             contenu=contenu,
             nom_police=police,
@@ -339,8 +344,8 @@ class LamicoidEditorPage(QWidget):
         if file_path:
             largeur_image = 20
             hauteur_image = 20
-            x = (self.current_template.largeur_mm - largeur_image) / 2
-            y = (self.current_template.hauteur_mm - hauteur_image) / 2
+            x = self.current_template.largeur_mm / 2 - largeur_image / 2
+            y = self.current_template.hauteur_mm / 2 - hauteur_image / 2
             new_image_element = ElementImage(
                 chemin_fichier=file_path,
                 largeur_mm=largeur_image,

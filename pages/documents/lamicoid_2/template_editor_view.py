@@ -224,20 +224,13 @@ class TemplateEditorView(QGraphicsView):
 
         if isinstance(element, ElementTexte):
             item = TexteItem(element)
-            if hasattr(element, '_just_added') and element._just_added:
-                # Centrer uniquement à la création
-                if hasattr(item, '_update_bounding_box'):
-                    item._update_bounding_box()
-                bounding = item.boundingRect()
-                pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
-                pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
-                item.setPos(pos_x_px - bounding.width() / 2, pos_y_px - bounding.height() / 2)
+            if hasattr(item, '_update_bounding_box'):
+                item._update_bounding_box()
+            pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
+            pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
+            item.setPos(pos_x_px, pos_y_px)
+            if hasattr(element, '_just_added'):
                 delattr(element, '_just_added')
-            else:
-                # Utiliser la position du modèle sans recentrage
-                pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
-                pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
-                item.setPos(pos_x_px, pos_y_px)
             item.setFlag(QGraphicsItem.ItemIsSelectable, True)
             item.setFlag(QGraphicsItem.ItemIsMovable, True)
             item.signal_helper.element_selected.connect(
