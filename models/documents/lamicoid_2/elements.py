@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import Literal
+from PyQt5.QtCore import Qt
 
 @dataclass
 class ElementTemplateBase:
@@ -23,6 +24,7 @@ class ElementTexte(ElementTemplateBase):
     bold: bool = False
     italic: bool = False
     underline: bool = False
+    align: int = Qt.AlignHCenter
     # En déplaçant 'type' à la fin, on s'assure qu'il ne précède
     # aucun champ non-défaut dans d'éventuelles futures classes enfants.
     type: Literal["texte"] = "texte"

@@ -43,9 +43,9 @@ class TexteItem(EditableItemBase):
         font.setItalic(getattr(self.model_item, 'italic', False))
         font.setUnderline(getattr(self.model_item, 'underline', False))
         painter.setFont(font)
-        
-        # Dessiner le texte à l'intérieur du rectangle de l'item
-        painter.drawText(self.rect(), Qt.AlignCenter, self.model_item.contenu)
+        # Utiliser l'alignement du modèle
+        align = getattr(self.model_item, 'align', Qt.AlignHCenter)
+        painter.drawText(self.rect(), align | Qt.AlignVCenter, self.model_item.contenu)
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
         """Surcharge pour mettre à jour le modèle après un déplacement."""
@@ -60,4 +60,9 @@ class TexteItem(EditableItemBase):
             self.model_item.y_mm = value.y()
         
         # Appeler l'implémentation de la classe de base pour gérer la sélection, etc.
-        return super().itemChange(change, value) 
+        return super().itemChange(change, value)
+
+    def set_alignment(self, alignment):
+        """Définit l'alignement du texte."""
+        self.model_item.align = alignment
+        self.update()  # Force le redessinage de l'item 
