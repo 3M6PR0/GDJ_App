@@ -13,6 +13,7 @@ from models.documents.lamicoid_2.elements import ElementTexte, ElementVariable, 
 from dialogs.existing_variables_dialog import ExistingVariablesDialog
 from dialogs.variable_config_dialog import VariableConfigDialog
 from utils.signals import signals
+from .image_selection_dialog import ImageSelectionDialog
 
 class LamicoidEditorPage(QWidget):
     """
@@ -25,12 +26,20 @@ class LamicoidEditorPage(QWidget):
         
         self.project_variables = [] # Initialiser la liste
         self.current_template = TemplateLamicoid(template_id="virtual", nom_template="Édition en cours")
+        self.imported_images = []  # Liste des chemins d'images importées
         
         self._init_ui()
         self._connect_signals()
         
+        print("[DEBUG] État initial de la barre d'outils:")
+        print(f"[DEBUG] editor_toolbar visible: {self.editor_toolbar.isVisible()}")
+        print(f"[DEBUG] add_image_button visible: {self.add_image_button.isVisible()}")
+        print(f"[DEBUG] add_image_button enabled: {self.add_image_button.isEnabled()}")
+        print(f"[DEBUG] add_image_button isWidgetType: {self.add_image_button.isWidgetType()}")
+        print(f"[DEBUG] add_image_button parent: {self.add_image_button.parent()}")
+        
         self.left_content_stack.setCurrentWidget(self.lamicoid_params_frame)
-        self.editor_toolbar.hide() # Cachée par défaut
+        self.editor_toolbar.show() # Rendre visible par défaut
         self.editor_view.load_template_object(self.current_template) # Charger le template initial
         
     def _init_ui(self):
@@ -168,23 +177,27 @@ class LamicoidEditorPage(QWidget):
 
     def _create_editor_toolbar(self):
         """Crée la barre d'outils d'édition (Ajouter Texte, etc.)."""
+        print("[DEBUG] Création de la barre d'outils d'édition...")
         toolbar = QFrame()
         toolbar.setObjectName("EditorToolbar")
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(5, 5, 5, 5)
         toolbar_layout.setSpacing(8)
 
+        print("[DEBUG] Création du bouton texte...")
         self.add_text_button = QPushButton(QIcon(get_icon_path("type.svg")), "")
         self.add_text_button.setToolTip("Ajouter un Texte")
-        
-        self.add_variable_button = QPushButton(QIcon(get_icon_path("at.svg")), "")
-        self.add_variable_button.setToolTip("Ajouter une Variable")
-
-        self.add_image_button = QPushButton(QIcon(get_icon_path("image.svg")), "")
-        self.add_image_button.setToolTip("Ajouter une Image")
-
         toolbar_layout.addWidget(self.add_text_button)
-        toolbar_layout.addWidget(self.add_variable_button)
+
+        print("[DEBUG] Suppression et recréation du bouton image...")
+        try:
+            del self.add_image_button
+        except AttributeError:
+            pass
+        self.add_image_button = QPushButton()
+        self.add_image_button.setIcon(QIcon(get_icon_path("image.svg")))
+        self.add_image_button.setToolTip("Ajouter une Image")
+        self.add_image_button.clicked.connect(lambda: print("[DEBUG] BOUTON IMAGE RECRÉÉ ET CLIQUÉ !!!!!!!!!!!"))
         toolbar_layout.addWidget(self.add_image_button)
         
         # Ajout des boutons d'édition de texte dans un conteneur à droite
@@ -219,20 +232,26 @@ class LamicoidEditorPage(QWidget):
         return toolbar
 
     def _connect_signals(self):
-        """Connecte les signaux des widgets à leurs slots."""
-        self.switch_to_feuille_btn.clicked.connect(self._on_switch_view)
-        self.switch_to_editor_btn.clicked.connect(self._on_switch_view)
-        
-        # Connexion des changements de paramètres du lamicoid
+        """Connecte tous les signaux de la page."""
+        # Connexions pour les paramètres du lamicoid
         self.width_spinbox.valueChanged.connect(self._on_lamicoid_params_changed)
         self.height_spinbox.valueChanged.connect(self._on_lamicoid_params_changed)
         self.radius_spinbox.valueChanged.connect(self._on_lamicoid_params_changed)
         self.margin_spinbox.valueChanged.connect(self._on_lamicoid_params_changed)
         
-        # Connexion des boutons de la barre d'outils d'édition
+        # Connexions pour les boutons de la barre d'outils
+        self.switch_to_feuille_btn.clicked.connect(lambda: self._on_switch_view("feuille"))
+        self.switch_to_editor_btn.clicked.connect(lambda: self._on_switch_view("editor"))
+        
+        # Connexions pour les boutons d'ajout
         self.add_text_button.clicked.connect(self._add_text_item_to_editor)
         self.add_variable_button.clicked.connect(self._open_add_variable_dialog)
         self.add_image_button.clicked.connect(self._add_image_item_to_editor)
+        
+        # Connexions pour les options de texte
+        self.bold_button.toggled.connect(self._apply_text_bold)
+        self.italic_button.toggled.connect(self._apply_text_italic)
+        self.underline_button.toggled.connect(self._apply_text_underline)
         
         # Se connecter au signal global qui met à jour les variables
         signals.variables_updated.connect(self.update_project_variables)
@@ -251,16 +270,13 @@ class LamicoidEditorPage(QWidget):
         # Demander à la vue de se redessiner avec le template mis à jour
         self.editor_view.update_template_view()
 
-    def _on_switch_view(self):
+    def _on_switch_view(self, view_type):
         """Bascule entre la vue "Feuille" et la vue "Éditeur"."""
-        sender = self.sender()
-        is_editor_view = (sender == self.switch_to_editor_btn)
+        self.view_stack.setCurrentWidget(self.editor_view if view_type == "editor" else self.feuille_view)
+        self.editor_toolbar.setVisible(view_type == "editor")
         
-        self.view_stack.setCurrentWidget(self.editor_view if is_editor_view else self.feuille_view)
-        self.editor_toolbar.setVisible(is_editor_view)
-        
-        self.switch_to_editor_btn.setChecked(is_editor_view)
-        self.switch_to_feuille_btn.setChecked(not is_editor_view)
+        self.switch_to_editor_btn.setChecked(view_type == "editor")
+        self.switch_to_feuille_btn.setChecked(view_type == "feuille")
 
     def update_project_variables(self, variables: list):
         """Met à jour la liste des variables du projet."""
@@ -332,30 +348,33 @@ class LamicoidEditorPage(QWidget):
         self.editor_view.update_template_view()
 
     def _add_image_item_to_editor(self):
-        """Ouvre un dialogue pour choisir une image et l'ajoute centrée selon sa taille réelle."""
+        print("[DEBUG] _add_image_item_to_editor appelée")
         if not self.current_template:
+            print("[DEBUG] Pas de template courant")
             return
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Choisir une image",
-            "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.svg)"
-        )
-        if file_path:
-            largeur_image = 20
-            hauteur_image = 20
-            x = self.current_template.largeur_mm / 2 - largeur_image / 2
-            y = self.current_template.hauteur_mm / 2 - hauteur_image / 2
-            new_image_element = ElementImage(
-                chemin_fichier=file_path,
-                largeur_mm=largeur_image,
-                hauteur_mm=hauteur_image,
-                x_mm=x,
-                y_mm=y
-            )
-            new_image_element._just_added = True
-            self.current_template.elements.append(new_image_element)
-            self.editor_view.update_template_view()
+        print("[DEBUG] Ouverture du dialog ImageSelectionDialog...")
+        dialog = ImageSelectionDialog(self.imported_images, self)
+        if dialog.exec_() == QDialog.Accepted:
+            img_path = dialog.get_selected_image()
+            print(f"[DEBUG] Image sélectionnée : {img_path}")
+            if img_path:
+                largeur_image = 20
+                hauteur_image = 20
+                x = self.current_template.largeur_mm / 2 - largeur_image / 2
+                y = self.current_template.hauteur_mm / 2 - hauteur_image / 2
+                from models.documents.lamicoid_2.elements import ElementImage
+                new_image_element = ElementImage(
+                    chemin_fichier=img_path,
+                    largeur_mm=largeur_image,
+                    hauteur_mm=hauteur_image,
+                    x_mm=x,
+                    y_mm=y
+                )
+                new_image_element._just_added = True
+                self.current_template.elements.append(new_image_element)
+                self.editor_view.update_template_view()
+        else:
+            print("[DEBUG] Dialog annulé ou fermé sans sélection")
 
     def load_document(self, document_id: str):
         """Charge un document Lamicoid existant dans les vues."""
@@ -371,4 +390,13 @@ class LamicoidEditorPage(QWidget):
     def _on_text_item_selected(self, is_selected, item):
         print("SELECTION TEXTE", is_selected)
         self.editor_toolbar.show()
-        self.text_style_container.setVisible(bool(is_selected)) 
+        self.text_style_container.setVisible(bool(is_selected))
+
+    def _apply_text_bold(self, is_checked):
+        self.editor_view.apply_text_bold(is_checked)
+
+    def _apply_text_italic(self, is_checked):
+        self.editor_view.apply_text_italic(is_checked)
+
+    def _apply_text_underline(self, is_checked):
+        self.editor_view.apply_text_underline(is_checked) 

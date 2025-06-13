@@ -2,15 +2,16 @@
 
 import logging
 import uuid
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFrame, QDoubleSpinBox, QLineEdit, QFormLayout, QGroupBox, QFontComboBox, QSpinBox, QButtonGroup, QComboBox, QStyledItemDelegate, QStyle, QStyleOptionComboBox
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFrame, QDoubleSpinBox, QLineEdit, QFormLayout, QGroupBox, QFontComboBox, QSpinBox, QButtonGroup, QComboBox, QStyledItemDelegate, QStyle, QStyleOptionComboBox, QFileDialog, QDialog
 from PyQt5.QtCore import QSize, QTimer, Qt
 from PyQt5.QtGui import QIcon, QFont, QPainter
 from ui.components.frame import Frame # Importer le Frame personnalisé
 from utils.icon_loader import get_icon_path
 from .template_editor_view import TemplateEditorView
 from models.documents.lamicoid_2.template_lamicoid import TemplateLamicoid
-from models.documents.lamicoid_2.elements import ElementTexte
+from models.documents.lamicoid_2.elements import ElementTexte, ElementImage
 from .items.texte_item import TexteItem
+from .image_selection_dialog import ImageSelectionDialog
 
 logger = logging.getLogger('GDJ_App')
 
@@ -43,6 +44,7 @@ class EditorPage(QWidget):
         self.current_template = None
         self._is_first_show = True
         self.selected_text_item = None  # Pour garder l'élément texte sélectionné
+        self.imported_images = []  # Liste des chemins d'images importées
         
         # Layout principal
         main_layout = QVBoxLayout(self)
@@ -381,6 +383,7 @@ class EditorPage(QWidget):
 
         # -- Signaux des boutons d'ajout --
         self.add_text_button.clicked.connect(self._add_new_text_element)
+        self.add_image_button.clicked.connect(self._on_add_image_clicked)
 
         # Connexion du signal de sélection d'un texte
         self.editor_view.text_item_selected.connect(self._on_text_item_selected)
@@ -469,4 +472,32 @@ class EditorPage(QWidget):
     def _set_selected_text_size(self, value):
         if self.selected_text_item and hasattr(self.selected_text_item.model_item, 'taille_police_pt'):
             self.selected_text_item.model_item.taille_police_pt = value
-            self.selected_text_item.update() 
+            self.selected_text_item.update()
+
+    def _on_add_image_clicked(self):
+        dialog = ImageSelectionDialog(self.imported_images, self)
+        if dialog.exec_() == QDialog.Accepted:
+            img_path = dialog.get_selected_image()
+            print(f"[DEBUG] Image sélectionnée : {img_path}")
+            if not self.current_template:
+                print("[DEBUG] Aucun template courant, impossible d'ajouter l'image.")
+                return
+            # Taille par défaut de l'image (en mm)
+            largeur_image = 20
+            hauteur_image = 20
+            x = self.current_template.largeur_mm / 2 - largeur_image / 2
+            y = self.current_template.hauteur_mm / 2 - hauteur_image / 2
+            new_image_element = ElementImage(
+                element_id=str(uuid.uuid4()),
+                chemin_fichier=img_path,
+                largeur_mm=largeur_image,
+                hauteur_mm=hauteur_image,
+                x_mm=x,
+                y_mm=y
+            )
+            new_image_element._just_added = True
+            self.current_template.elements.append(new_image_element)
+            self.editor_view.load_template_object(self.current_template)
+            print("[DEBUG] Image ajoutée au template et vue rafraîchie.")
+        else:
+            print("[DEBUG] Dialog annulé ou fermé sans sélection") 

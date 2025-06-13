@@ -13,6 +13,7 @@ from models.documents.lamicoid_2 import (
     TemplateLamicoid, ElementTemplateBase, ElementTexte #, ElementImage, ElementVariable
 )
 from .items.texte_item import TexteItem
+from .items.image_item import ImageItem
 
 logger = logging.getLogger('GDJ_App')
 
@@ -237,9 +238,12 @@ class TemplateEditorView(QGraphicsView):
                 lambda selected_item: self.text_item_selected.emit(bool(selected_item), selected_item)
             )
             self._scene.addItem(item)
-        # Le code pour d'autres types d'éléments (Image, etc.) viendra ici
-        # elif isinstance(element, ElementImage):
-        #     pass
+        elif hasattr(element, 'type') and getattr(element, 'type', None) == 'image':
+            item = ImageItem(element)
+            pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
+            pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
+            item.setPos(pos_x_px, pos_y_px)
+            self._scene.addItem(item)
 
     def get_scene_items_rect(self):
         """Calcule le rectangle englobant de tous les items, avec une marge."""
