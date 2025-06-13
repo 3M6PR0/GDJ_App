@@ -2,10 +2,13 @@
 
 from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem
 from PyQt5.QtGui import QFont, QColor
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QObject, pyqtSignal
 
 from models.documents.lamicoid_2.elements import ElementTexte
 from .base_item import EditableItemBase
+
+class SelectionSignalHelper(QObject):
+    element_selected = pyqtSignal(object)
 
 class TexteItem(EditableItemBase):
     """
@@ -14,7 +17,7 @@ class TexteItem(EditableItemBase):
     """
     def __init__(self, element_texte: ElementTexte, parent: QGraphicsItem = None):
         super().__init__(model_item=element_texte, parent=parent)
-        
+        self.signal_helper = SelectionSignalHelper()
         self.setPos(self.model_item.x_mm, self.model_item.y_mm)
         
         # Mettre à jour la géométrie de la boîte en fonction du texte
@@ -36,13 +39,19 @@ class TexteItem(EditableItemBase):
         # 2. Dessiner le texte
         painter.setPen(QColor(Qt.black))
         font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
+        font.setBold(getattr(self.model_item, 'bold', False))
+        font.setItalic(getattr(self.model_item, 'italic', False))
+        font.setUnderline(getattr(self.model_item, 'underline', False))
         painter.setFont(font)
         
         # Dessiner le texte à l'intérieur du rectangle de l'item
         painter.drawText(self.rect(), Qt.AlignCenter, self.model_item.contenu)
 
-    def itemChange(self, change, value):
+    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
         """Surcharge pour mettre à jour le modèle après un déplacement."""
+        if change == QGraphicsItem.ItemSelectedChange:
+            print(f"[DEBUG] TexteItem sélection changée : {value}")
+            self.signal_helper.element_selected.emit(self if value else None)
         if change == QGraphicsItem.ItemPositionHasChanged:
             # La nouvelle position est 'value' (un QPointF)
             # NOTE: Pour l'instant, on met à jour avec les coordonnées de la scène (pixels)

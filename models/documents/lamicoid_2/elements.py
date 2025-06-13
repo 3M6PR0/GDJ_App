@@ -20,6 +20,9 @@ class ElementTexte(ElementTemplateBase):
     taille_police_pt: int = 12
     est_variable: bool = False
     nom_variable: str = ""
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
     # En déplaçant 'type' à la fin, on s'assure qu'il ne précède
     # aucun champ non-défaut dans d'éventuelles futures classes enfants.
     type: Literal["texte"] = "texte"

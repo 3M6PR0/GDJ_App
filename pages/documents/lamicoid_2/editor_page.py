@@ -4,7 +4,7 @@ import logging
 import uuid
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFrame, QDoubleSpinBox, QLineEdit, QFormLayout, QGroupBox, QFontComboBox, QSpinBox, QButtonGroup
 from PyQt5.QtCore import QSize, QTimer
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QFont
 from ui.components.frame import Frame # Importer le Frame personnalisé
 from utils.icon_loader import get_icon_path
 from .template_editor_view import TemplateEditorView
@@ -21,9 +21,11 @@ class EditorPage(QWidget):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
+        print("[DEBUG] CONSTRUCTEUR EditorPage appelé !")
         self.setObjectName("LamicoidEditorPage")
         self.current_template = None
         self._is_first_show = True
+        self.selected_text_item = None  # Pour garder l'élément texte sélectionné
         
         # Layout principal
         main_layout = QVBoxLayout(self)
@@ -118,6 +120,7 @@ class EditorPage(QWidget):
         # -- Barre d'outils de l'éditeur --
         self.editor_toolbar = QFrame()
         self.editor_toolbar.setObjectName("EditorToolbar")
+        self.editor_toolbar.setFixedHeight(60)  # Force une hauteur visible
         editor_toolbar_layout = QHBoxLayout(self.editor_toolbar)
         editor_toolbar_layout.setContentsMargins(5, 5, 5, 5)
         editor_toolbar_layout.setSpacing(5)
@@ -127,6 +130,30 @@ class EditorPage(QWidget):
         self.add_image_button = QPushButton(QIcon(get_icon_path("round_image.png")), "")
         editor_toolbar_layout.addWidget(self.add_text_button)
         editor_toolbar_layout.addWidget(self.add_image_button)
+
+        # Conteneur pour les boutons de style texte
+        self.text_style_container = QWidget(self.editor_toolbar)
+        text_style_layout = QHBoxLayout(self.text_style_container)
+        text_style_layout.setContentsMargins(0, 0, 0, 0)
+        text_style_layout.setSpacing(2)
+
+        self.bold_button = QPushButton(QIcon(get_icon_path("round_format_bold.png")), "", self.text_style_container)
+        self.bold_button.setToolTip("Gras")
+        self.bold_button.setCheckable(True)
+        text_style_layout.addWidget(self.bold_button)
+
+        self.italic_button = QPushButton(QIcon(get_icon_path("round_format_italic.png")), "", self.text_style_container)
+        self.italic_button.setToolTip("Italique")
+        self.italic_button.setCheckable(True)
+        text_style_layout.addWidget(self.italic_button)
+
+        self.underline_button = QPushButton(QIcon(get_icon_path("round_format_underlined.png")), "", self.text_style_container)
+        self.underline_button.setToolTip("Souligné")
+        self.underline_button.setCheckable(True)
+        text_style_layout.addWidget(self.underline_button)
+
+        self.text_style_container.setVisible(False)  # Masqué par défaut
+        editor_toolbar_layout.addWidget(self.text_style_container)
         editor_toolbar_layout.addStretch()
 
         right_panel_layout.addWidget(self.editor_toolbar)
@@ -227,6 +254,13 @@ class EditorPage(QWidget):
         # -- Signaux de la barre d'outils --
         self.add_text_button.clicked.connect(self._add_new_text_element)
 
+        # Connexion du signal de sélection d'un texte
+        self.editor_view.text_item_selected.connect(self._on_text_item_selected)
+
+        self.bold_button.clicked.connect(self._on_bold_clicked)
+        self.italic_button.clicked.connect(self._on_italic_clicked)
+        self.underline_button.clicked.connect(self._on_underline_clicked)
+
     def showEvent(self, event):
         """Appelé lorsque le widget est affiché pour la première fois."""
         super().showEvent(event)
@@ -235,3 +269,28 @@ class EditorPage(QWidget):
             # par la TemplateEditorView elle-même. Cet appel n'est plus nécessaire.
             # QTimer.singleShot(0, self.editor_view.initial_view_setup)
             self._is_first_show = False 
+
+    def _on_text_item_selected(self, is_selected, item):
+        self.text_style_container.setVisible(bool(is_selected))
+        self.selected_text_item = item if is_selected else None
+
+    def _on_bold_clicked(self):
+        if self.selected_text_item:
+            font = self.selected_text_item.model_item.nom_police
+            size = self.selected_text_item.model_item.taille_police_pt
+            qfont = QFont(font, size)
+            qfont.setBold(self.bold_button.isChecked())
+            qfont.setItalic(self.italic_button.isChecked())
+            qfont.setUnderline(self.underline_button.isChecked())
+            self.selected_text_item.model_item.nom_police = qfont.family()
+            self.selected_text_item.model_item.taille_police_pt = qfont.pointSize()
+            self.selected_text_item.model_item.bold = self.bold_button.isChecked()
+            self.selected_text_item.model_item.italic = self.italic_button.isChecked()
+            self.selected_text_item.model_item.underline = self.underline_button.isChecked()
+            self.selected_text_item.update()
+
+    def _on_italic_clicked(self):
+        self._on_bold_clicked()
+
+    def _on_underline_clicked(self):
+        self._on_bold_clicked() 

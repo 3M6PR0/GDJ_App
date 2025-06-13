@@ -187,36 +187,37 @@ class LamicoidEditorPage(QWidget):
         toolbar_layout.addWidget(self.add_variable_button)
         toolbar_layout.addWidget(self.add_image_button)
         
-        # --- Options de texte (sera affiché/caché) ---
-        self.text_options_widget = self._create_text_options_widget()
-        toolbar_layout.addWidget(self.text_options_widget)
-        self.text_options_widget.hide() # Caché par défaut
+        # Ajout des boutons d'édition de texte dans un conteneur à droite
+        self.text_style_container = QWidget(toolbar)
+        text_style_layout = QHBoxLayout(self.text_style_container)
+        text_style_layout.setContentsMargins(0, 0, 0, 0)
+        text_style_layout.setSpacing(2)
 
+        self.bold_button = QPushButton(QIcon(get_icon_path("round_format_bold.png")), "", self.text_style_container)
+        self.bold_button.setToolTip("Gras")
+        self.bold_button.setCheckable(True)
+        text_style_layout.addWidget(self.bold_button)
+
+        self.italic_button = QPushButton(QIcon(get_icon_path("round_format_italic.png")), "", self.text_style_container)
+        self.italic_button.setToolTip("Italique")
+        self.italic_button.setCheckable(True)
+        text_style_layout.addWidget(self.italic_button)
+
+        self.underline_button = QPushButton(QIcon(get_icon_path("round_format_underlined.png")), "", self.text_style_container)
+        self.underline_button.setToolTip("Souligné")
+        self.underline_button.setCheckable(True)
+        text_style_layout.addWidget(self.underline_button)
+
+        # Le conteneur est visible par défaut pour le test
+        self.text_style_container.setVisible(True)
+
+        # Ajout d'un bouton TEST pour vérifier le layout
+        toolbar_layout.addWidget(self.text_style_container)
+        toolbar_layout.addWidget(QPushButton("TEST"))
         toolbar_layout.addStretch(1)
+
         return toolbar
 
-    def _create_text_options_widget(self):
-        """Crée le widget contenant les options de formatage de texte."""
-        widget = QWidget()
-        layout = QHBoxLayout(widget)
-        layout.setContentsMargins(10, 0, 0, 0)
-        layout.setSpacing(5)
-
-        self.bold_button = QPushButton(QIcon(get_icon_path("bold.svg")), "")
-        self.bold_button.setCheckable(True)
-        self.italic_button = QPushButton(QIcon(get_icon_path("italic.svg")), "")
-        self.italic_button.setCheckable(True)
-        self.underline_button = QPushButton(QIcon(get_icon_path("underline.svg")), "")
-        self.underline_button.setCheckable(True)
-        self.color_button = QPushButton(QIcon(get_icon_path("droplet.svg")), "")
-        
-        layout.addWidget(self.bold_button)
-        layout.addWidget(self.italic_button)
-        layout.addWidget(self.underline_button)
-        layout.addWidget(self.color_button)
-
-        return widget
-        
     def _connect_signals(self):
         """Connecte les signaux des widgets à leurs slots."""
         self.switch_to_feuille_btn.clicked.connect(self._on_switch_view)
@@ -235,6 +236,7 @@ class LamicoidEditorPage(QWidget):
         
         # Se connecter au signal global qui met à jour les variables
         signals.variables_updated.connect(self.update_project_variables)
+        self.editor_view.text_item_selected.connect(self._on_text_item_selected)
 
     def _on_lamicoid_params_changed(self):
         """Met à jour le template en mémoire et redessine l'éditeur."""
@@ -347,4 +349,9 @@ class LamicoidEditorPage(QWidget):
         """Initialise la page pour un nouveau document vierge."""
         self.feuille_view.clear_view()
         self.editor_view.clear_view()
-        pass 
+        pass
+
+    def _on_text_item_selected(self, is_selected, item):
+        print("SELECTION TEXTE", is_selected)
+        self.editor_toolbar.show()
+        self.text_style_container.setVisible(bool(is_selected)) 

@@ -5,7 +5,7 @@ Vue pour l'édition d'un template de lamicoid.
 import logging
 from PyQt5.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsPathItem, 
                              QGraphicsTextItem, QGraphicsRectItem, QGraphicsDropShadowEffect, QGraphicsItem)
-from PyQt5.QtCore import Qt, QRectF, QPointF
+from PyQt5.QtCore import Qt, QRectF, QPointF, pyqtSignal
 from PyQt5.QtGui import QPainter, QBrush, QPen, QColor, QPainterPath, QFont
 
 from controllers.documents.lamicoid_2 import TemplateController
@@ -95,6 +95,8 @@ class TemplateEditorView(QGraphicsView):
     """
     Vue d'édition visuelle pour un TemplateLamicoid.
     """
+    text_item_selected = pyqtSignal(bool, object)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("TemplateEditorView")
@@ -113,7 +115,7 @@ class TemplateEditorView(QGraphicsView):
     def _setup_view_properties(self):
         """Configure les propriétés de la QGraphicsView."""
         self.setRenderHint(QPainter.Antialiasing)
-        self.setDragMode(QGraphicsView.ScrollHandDrag)
+        self.setDragMode(QGraphicsView.RubberBandDrag)
         self.viewport().setAutoFillBackground(False)
         self.centerOn(0, 0)
 
@@ -222,11 +224,14 @@ class TemplateEditorView(QGraphicsView):
 
         if isinstance(element, ElementTexte):
             item = TexteItem(element)
-            # Positionne l'item par rapport au coin haut-gauche de la scène (0,0),
-            # puis l'offset du lamicoid centre le tout.
             pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
             pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
             item.setPos(pos_x_px, pos_y_px)
+            item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+            item.setFlag(QGraphicsItem.ItemIsMovable, True)
+            item.signal_helper.element_selected.connect(
+                lambda selected_item: self.text_item_selected.emit(bool(selected_item), selected_item)
+            )
             self._scene.addItem(item)
         
         # Le code pour d'autres types d'éléments (Image, etc.) viendra ici
