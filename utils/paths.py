@@ -92,6 +92,21 @@ def get_user_data_path(subfolder: str = None) -> Path:
             pass # Si même le fallback échoue, on ne peut plus faire grand chose ici.
         return fallback_path
 
+_paths = {
+    'lamicoid_templates': get_user_data_path('lamicoid_templates')
+}
+
+def get_path(key: str) -> str:
+    """
+    Retourne le chemin absolu pour une clé de ressource donnée.
+    Crée le dossier s'il n'existe pas.
+    """
+    path_obj = _paths.get(key)
+    if path_obj:
+        # La création du dossier est déjà gérée par get_user_data_path
+        return str(path_obj)
+    raise KeyError(f"La clé de chemin '{key}' n'est pas définie.")
+
 # Exemple d'utilisation (à ne pas laisser dans le code final ici) :
 # if __name__ == '__main__':
 #     BASE_PATH = get_base_path()

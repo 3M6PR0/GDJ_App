@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFrame, QDoubleSpinBox, QLineEdit, QFormLayout, QGroupBox, QFontComboBox, QSpinBox, QButtonGroup, QComboBox, QStyledItemDelegate, QStyle, QStyleOptionComboBox, QFileDialog, QDialog
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFrame, QDoubleSpinBox, QLineEdit, QFormLayout, QGroupBox, QFontComboBox, QSpinBox, QButtonGroup, QComboBox, QStyledItemDelegate, QStyle, QStyleOptionComboBox, QFileDialog, QDialog, QMessageBox
 from PyQt5.QtCore import QSize, QTimer, Qt
 from PyQt5.QtGui import QIcon, QFont, QPainter
 from ui.components.frame import Frame # Importer le Frame personnalisé
@@ -12,6 +12,7 @@ from models.documents.lamicoid_2.template_lamicoid import TemplateLamicoid
 from models.documents.lamicoid_2.elements import ElementTexte, ElementImage
 from .items.texte_item import TexteItem
 from .image_selection_dialog import ImageSelectionDialog
+from utils import paths # Importer le module paths
 
 logger = logging.getLogger('GDJ_App')
 
@@ -320,15 +321,19 @@ class EditorPage(QWidget):
         if not self.current_template:
             return
 
-        # 1. Créer le modèle de données
+        # Créer le modèle de données pour le nouvel élément
         new_element = ElementTexte(
             element_id=str(uuid.uuid4()),
-            x_mm=self.current_template.largeur_mm / 2,
-            y_mm=self.current_template.hauteur_mm / 2,
-            contenu="Texte",
-            nom_police="Arial",
+            x_mm=10,
+            y_mm=10,
+            largeur_mm=50,  # Ajout de la largeur par défaut
+            hauteur_mm=20,   # Ajout de la hauteur par défaut
+            contenu="Nouveau Texte",
             taille_police_pt=12
         )
+
+        # Créer l'item graphique
+        item = TexteItem(new_element)
 
         # 2. L'ajouter à la liste d'éléments du template
         self.current_template.elements.append(new_element)
@@ -373,6 +378,9 @@ class EditorPage(QWidget):
         self.radius_spinbox.valueChanged.connect(self._update_template_properties)
         self.margin_spinbox.valueChanged.connect(self._update_template_properties)
         self.grid_spacing_spinbox.valueChanged.connect(self._update_template_properties)
+        
+        # -- Signaux du bouton d'enregistrement --
+        self.save_button.clicked.connect(self._on_save_template)
         
         # -- Signaux des boutons de style texte --
         self.bold_button.clicked.connect(self._on_bold_clicked)
@@ -448,6 +456,31 @@ class EditorPage(QWidget):
             self.underline_button.blockSignals(False)
             self.font_size_spinbox.blockSignals(False)
             self.align_combo.blockSignals(False)
+
+    def _on_save_template(self):
+        """Action déclenchée par le bouton 'Enregistrer'."""
+        if not self.current_template:
+            logger.warning("Aucun template à sauvegarder.")
+            QMessageBox.warning(self, "Erreur", "Aucun template n'est actuellement chargé.")
+            return
+
+        # S'assurer que les propriétés du template sont à jour
+        self._update_template_properties()
+
+        # Le modèle `self.current_template` devrait déjà contenir les éléments
+        # mis à jour en temps réel par les interactions avec la scène.
+        
+        try:
+            # Le chemin est maintenant géré via le module paths
+            save_dir = paths.get_path('lamicoid_templates')
+            self.current_template.save(save_dir)
+            QMessageBox.information(self, "Succès", f"Template '{self.current_template.nom_template}' sauvegardé avec succès.")
+        except ValueError as ve:
+            logger.error(f"Erreur de validation lors de la sauvegarde : {ve}")
+            QMessageBox.critical(self, "Erreur de validation", str(ve))
+        except Exception as e:
+            logger.error(f"Erreur inattendue lors de la sauvegarde du template : {e}")
+            QMessageBox.critical(self, "Erreur", f"Une erreur est survenue lors de la sauvegarde : {e}")
 
     def _on_bold_clicked(self):
         """Met en gras tous les éléments de texte sélectionnés."""

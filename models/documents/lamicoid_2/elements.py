@@ -1,6 +1,6 @@
 """Définit les différents types d'éléments pouvant composer un TemplateLamicoid."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Literal
 from PyQt5.QtCore import Qt
 
@@ -10,8 +10,13 @@ class ElementTemplateBase:
     element_id: str
     x_mm: float
     y_mm: float
-    # Le champ 'type' est retiré de la base et géré directement par chaque 
-    # classe enfant pour résoudre le conflit d'initialisation des dataclasses.
+    largeur_mm: float
+    hauteur_mm: float
+    rotation: float = 0.0
+
+    def to_dict(self):
+        """Sérialise l'objet en dictionnaire."""
+        return asdict(self)
 
 @dataclass
 class ElementTexte(ElementTemplateBase):
@@ -25,17 +30,21 @@ class ElementTexte(ElementTemplateBase):
     italic: bool = False
     underline: bool = False
     align: int = Qt.AlignHCenter
-    # En déplaçant 'type' à la fin, on s'assure qu'il ne précède
-    # aucun champ non-défaut dans d'éventuelles futures classes enfants.
     type: Literal["texte"] = "texte"
+
+    def to_dict(self):
+        """Sérialise l'objet en dictionnaire."""
+        return asdict(self)
 
 @dataclass
 class ElementImage(ElementTemplateBase):
     """Un conteneur pour une image."""
-    chemin_fichier: str
-    largeur_mm: float
-    hauteur_mm: float
+    chemin_fichier: str = field(kw_only=True)
     type: Literal["image"] = "image"
+
+    def to_dict(self):
+        """Sérialise l'objet en dictionnaire."""
+        return asdict(self)
 
 @dataclass
 class ElementVariable(ElementTexte):
