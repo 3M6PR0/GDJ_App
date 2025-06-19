@@ -387,8 +387,8 @@ class EditorPage(QWidget):
         self.add_text_button.clicked.connect(self._add_new_text_element)
         self.add_image_button.clicked.connect(self._on_add_image_clicked)
 
-        # Connexion du signal de sélection d'un élément
-        self.editor_view.element_selected.connect(self._on_item_selected)
+        # Connexion du signal de sélection de la scène
+        self.editor_view.scene().selectionChanged.connect(self._update_ui_for_selection)
 
         # -- Signaux des boutons de rotation --
         self.rotate_left_button.clicked.connect(lambda: self._rotate_selected_item(-90))
@@ -403,85 +403,120 @@ class EditorPage(QWidget):
             # QTimer.singleShot(0, self.editor_view.initial_view_setup)
             self._is_first_show = False 
 
-    def _on_item_selected(self, is_selected, item):
-        """Gère la sélection d'un élément (texte ou image)."""
-        self.selected_item = item if is_selected else None
-        
-        # Détecter le type d'élément
-        is_text = is_selected and hasattr(item, 'model_item') and hasattr(item.model_item, 'contenu')
-        is_image = is_selected and hasattr(item, 'model_item') and hasattr(item.model_item, 'type') and item.model_item.type == 'image'
-        
-        # Afficher/masquer les éléments de l'interface selon le type
-        self.text_style_container.setVisible(is_text)
-        self.rotate_left_button.setVisible(is_selected)  # Rotation pour tous les éléments
-        self.rotate_right_button.setVisible(is_selected)  # Rotation pour tous les éléments
-        self.decrease_font_button.setVisible(is_text)
-        self.increase_font_button.setVisible(is_text)
-        self.font_size_spinbox.setVisible(is_text)
-        
-        # Mettre à jour l'interface pour les éléments texte
-        if is_text and item:
+    def _update_ui_for_selection(self):
+        """Met à jour l'état de l'interface en fonction de la sélection actuelle."""
+        selected_items = self.editor_view.scene().selectedItems()
+        self.selected_item = selected_items[0] if selected_items else None
+
+        has_selection = bool(selected_items)
+        self.rotate_left_button.setVisible(has_selection)
+        self.rotate_right_button.setVisible(has_selection)
+
+        # Si rien n'est sélectionné, on s'assure que le panneau de texte est caché.
+        if not has_selection:
+            self.text_style_container.setVisible(False)
+            return
+
+        # Le panneau de texte n'est visible que si TOUS les éléments sélectionnés sont des textes.
+        all_items_are_text = all(isinstance(item, TexteItem) for item in selected_items)
+        self.text_style_container.setVisible(all_items_are_text)
+
+        if all_items_are_text:
+            # Baser l'état de l'UI sur le premier élément de texte
+            first_text_item = selected_items[0]
+            model = first_text_item.model_item
+
+            self.bold_button.blockSignals(True)
+            self.italic_button.blockSignals(True)
+            self.underline_button.blockSignals(True)
             self.font_size_spinbox.blockSignals(True)
-            self.font_size_spinbox.setValue(item.model_item.taille_police_pt)
-            self.font_size_spinbox.blockSignals(False)
-            # Mettre à jour l'état des boutons de style
-            self.bold_button.setChecked(item.model_item.bold)
-            self.italic_button.setChecked(item.model_item.italic)
-            self.underline_button.setChecked(item.model_item.underline)
+            self.align_combo.blockSignals(True)
+
+            self.bold_button.setChecked(getattr(model, 'bold', False))
+            self.italic_button.setChecked(getattr(model, 'italic', False))
+            self.underline_button.setChecked(getattr(model, 'underline', False))
+            self.font_size_spinbox.setValue(model.taille_police_pt)
             
-            # Mettre à jour l'alignement
-            current_align = item.model_item.align
+            alignment = getattr(model, 'align', Qt.AlignLeft)
             for i in range(self.align_combo.count()):
-                if self.align_combo.itemData(i) == current_align:
+                if self.align_combo.itemData(i) == alignment:
                     self.align_combo.setCurrentIndex(i)
                     break
+            
+            self.bold_button.blockSignals(False)
+            self.italic_button.blockSignals(False)
+            self.underline_button.blockSignals(False)
+            self.font_size_spinbox.blockSignals(False)
+            self.align_combo.blockSignals(False)
 
     def _on_bold_clicked(self):
-        if self.selected_item:
-            font = self.selected_item.model_item.nom_police
-            size = self.selected_item.model_item.taille_police_pt
-            qfont = QFont(font, size)
-            qfont.setBold(self.bold_button.isChecked())
-            qfont.setItalic(self.italic_button.isChecked())
-            qfont.setUnderline(self.underline_button.isChecked())
-            self.selected_item.model_item.nom_police = qfont.family()
-            self.selected_item.model_item.taille_police_pt = qfont.pointSize()
-            self.selected_item.model_item.bold = self.bold_button.isChecked()
-            self.selected_item.model_item.italic = self.italic_button.isChecked()
-            self.selected_item.model_item.underline = self.underline_button.isChecked()
-            self.selected_item.update()
+        """Met en gras tous les éléments de texte sélectionnés."""
+        is_checked = self.bold_button.isChecked()
+        selected_items = self.editor_view.scene().selectedItems()
+        for item in selected_items:
+            if isinstance(item, TexteItem):
+                item.model_item.bold = is_checked
+                item.update()
 
     def _on_italic_clicked(self):
-        self._on_bold_clicked()
+        """Met en italique tous les éléments de texte sélectionnés."""
+        is_checked = self.italic_button.isChecked()
+        selected_items = self.editor_view.scene().selectedItems()
+        for item in selected_items:
+            if isinstance(item, TexteItem):
+                item.model_item.italic = is_checked
+                item.update()
 
     def _on_underline_clicked(self):
-        if self.selected_item:
-            self.selected_item.set_underline(self.underline_button.isChecked())
+        """Souligne tous les éléments de texte sélectionnés."""
+        is_checked = self.underline_button.isChecked()
+        selected_items = self.editor_view.scene().selectedItems()
+        for item in selected_items:
+            if isinstance(item, TexteItem):
+                item.model_item.underline = is_checked
+                item.update()
 
     def _on_align_changed(self, index):
-        if self.selected_item:
-            alignment = self.align_combo.itemData(index)
-            self.selected_item.set_alignment(alignment)
+        """Change l'alignement de tous les éléments de texte sélectionnés."""
+        alignment = self.align_combo.itemData(index)
+        selected_items = self.editor_view.scene().selectedItems()
+        for item in selected_items:
+            if isinstance(item, TexteItem):
+                item.set_alignment(alignment)
 
     def _rotate_selected_item(self, angle):
-        if self.selected_item:
-            current_angle = self.selected_item.rotation() if hasattr(self.selected_item, 'rotation') else 0
-            self.selected_item.setRotation(current_angle + angle)
+        """Applique une rotation à tous les éléments sélectionnés."""
+        selected_items = self.editor_view.scene().selectedItems()
+        for item in selected_items:
+            current_angle = item.rotation() if hasattr(item, 'rotation') else 0
+            item.setRotation(current_angle + angle)
 
     def _change_selected_text_size(self, delta):
-        if self.selected_item and hasattr(self.selected_item.model_item, 'taille_police_pt'):
-            current_size = self.selected_item.model_item.taille_police_pt
-            new_size = max(6, min(200, current_size + delta))
-            self.selected_item.model_item.taille_police_pt = new_size
+        """Change la taille de la police de tous les éléments de texte sélectionnés."""
+        selected_items = self.editor_view.scene().selectedItems()
+        # Si on ne change qu'un item, on peut se baser sur sa taille.
+        # Sinon, on ne fait qu'incrémenter/décrémenter.
+        new_size = None
+        for item in selected_items:
+            if isinstance(item, TexteItem):
+                current_size = item.model_item.taille_police_pt
+                new_size = max(6, min(200, current_size + delta))
+                item.model_item.taille_police_pt = new_size
+                item.update()
+        
+        # Mettre à jour le spinbox si une taille a été calculée
+        if new_size is not None:
             self.font_size_spinbox.blockSignals(True)
             self.font_size_spinbox.setValue(new_size)
             self.font_size_spinbox.blockSignals(False)
-            self.selected_item.update()
 
     def _set_selected_text_size(self, value):
-        if self.selected_item and hasattr(self.selected_item.model_item, 'taille_police_pt'):
-            self.selected_item.model_item.taille_police_pt = value
-            self.selected_item.update()
+        """Définit la taille de la police pour tous les éléments de texte sélectionnés."""
+        selected_items = self.editor_view.scene().selectedItems()
+        for item in selected_items:
+            if isinstance(item, TexteItem):
+                item.model_item.taille_police_pt = value
+                item.update()
 
     def _on_add_image_clicked(self):
         dialog = ImageSelectionDialog(self)
