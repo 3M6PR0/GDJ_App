@@ -81,7 +81,7 @@ class EditableItemBase(QGraphicsRectItem):
         if change == QGraphicsItem.ItemSelectedChange:
             self.update_selection_visuals(bool(value))
 
-        elif change == QGraphicsItem.ItemPositionChange and self.isSelected() and self.scene() and self.scene().views():
+        elif change == QGraphicsItem.ItemPositionChange and self.scene() and self.scene().views():
             view = self.scene().views()[0]
             if not hasattr(view, 'content_rect_px'):
                 return self._snap_point_to_grid(value)
@@ -272,6 +272,25 @@ class EditableItemBase(QGraphicsRectItem):
             final_rect.setWidth(min_size)
         if final_rect.height() < min_size:
             final_rect.setHeight(min_size)
+
+        # 5. Vérifier que le rectangle final reste dans les limites de la zone de contenu
+        final_scene_rect = self.mapRectToScene(final_rect)
+        if final_scene_rect.left() < content_rect.left():
+            # Ajuster la position pour rester dans les limites
+            offset_x = content_rect.left() - final_scene_rect.left()
+            final_rect.translate(offset_x, 0)
+        if final_scene_rect.right() > content_rect.right():
+            # Ajuster la position pour rester dans les limites
+            offset_x = content_rect.right() - final_scene_rect.right()
+            final_rect.translate(offset_x, 0)
+        if final_scene_rect.top() < content_rect.top():
+            # Ajuster la position pour rester dans les limites
+            offset_y = content_rect.top() - final_scene_rect.top()
+            final_rect.translate(0, offset_y)
+        if final_scene_rect.bottom() > content_rect.bottom():
+            # Ajuster la position pour rester dans les limites
+            offset_y = content_rect.bottom() - final_scene_rect.bottom()
+            final_rect.translate(0, offset_y)
 
         self.setRect(final_rect)
         self.update_handles_pos()
