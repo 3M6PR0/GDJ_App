@@ -43,8 +43,9 @@ class EditorPage(QWidget):
         self.setObjectName("LamicoidEditorPage")
         self.current_template = None
         self._is_first_show = True
-        self.selected_text_item = None  # Pour garder l'élément texte sélectionné
-        self.imported_images = []  # Liste des chemins d'images importées
+        self.selected_item = None  # Pour garder l'élément sélectionné (texte ou image)
+        self.editor_toolbar = None
+        self.text_style_container = None
         
         # Layout principal
         main_layout = QVBoxLayout(self)
@@ -386,8 +387,8 @@ class EditorPage(QWidget):
         self.add_text_button.clicked.connect(self._add_new_text_element)
         self.add_image_button.clicked.connect(self._on_add_image_clicked)
 
-        # Connexion du signal de sélection d'un texte
-        self.editor_view.text_item_selected.connect(self._on_text_item_selected)
+        # Connexion du signal de sélection d'un élément
+        self.editor_view.element_selected.connect(self._on_item_selected)
 
         # -- Signaux des boutons de rotation --
         self.rotate_left_button.clicked.connect(lambda: self._rotate_selected_item(-90))
@@ -402,16 +403,23 @@ class EditorPage(QWidget):
             # QTimer.singleShot(0, self.editor_view.initial_view_setup)
             self._is_first_show = False 
 
-    def _on_text_item_selected(self, is_selected, item):
-        """Gère la sélection d'un élément texte."""
-        self.selected_text_item = item if is_selected else None
+    def _on_item_selected(self, is_selected, item):
+        """Gère la sélection d'un élément (texte ou image)."""
+        self.selected_item = item if is_selected else None
+        
+        # Détecter le type d'élément
         is_text = is_selected and hasattr(item, 'model_item') and hasattr(item.model_item, 'contenu')
+        is_image = is_selected and hasattr(item, 'model_item') and hasattr(item.model_item, 'type') and item.model_item.type == 'image'
+        
+        # Afficher/masquer les éléments de l'interface selon le type
         self.text_style_container.setVisible(is_text)
-        self.rotate_left_button.setVisible(is_selected)
-        self.rotate_right_button.setVisible(is_selected)
+        self.rotate_left_button.setVisible(is_selected)  # Rotation pour tous les éléments
+        self.rotate_right_button.setVisible(is_selected)  # Rotation pour tous les éléments
         self.decrease_font_button.setVisible(is_text)
         self.increase_font_button.setVisible(is_text)
         self.font_size_spinbox.setVisible(is_text)
+        
+        # Mettre à jour l'interface pour les éléments texte
         if is_text and item:
             self.font_size_spinbox.blockSignals(True)
             self.font_size_spinbox.setValue(item.model_item.taille_police_pt)
@@ -429,54 +437,54 @@ class EditorPage(QWidget):
                     break
 
     def _on_bold_clicked(self):
-        if self.selected_text_item:
-            font = self.selected_text_item.model_item.nom_police
-            size = self.selected_text_item.model_item.taille_police_pt
+        if self.selected_item:
+            font = self.selected_item.model_item.nom_police
+            size = self.selected_item.model_item.taille_police_pt
             qfont = QFont(font, size)
             qfont.setBold(self.bold_button.isChecked())
             qfont.setItalic(self.italic_button.isChecked())
             qfont.setUnderline(self.underline_button.isChecked())
-            self.selected_text_item.model_item.nom_police = qfont.family()
-            self.selected_text_item.model_item.taille_police_pt = qfont.pointSize()
-            self.selected_text_item.model_item.bold = self.bold_button.isChecked()
-            self.selected_text_item.model_item.italic = self.italic_button.isChecked()
-            self.selected_text_item.model_item.underline = self.underline_button.isChecked()
-            self.selected_text_item.update()
+            self.selected_item.model_item.nom_police = qfont.family()
+            self.selected_item.model_item.taille_police_pt = qfont.pointSize()
+            self.selected_item.model_item.bold = self.bold_button.isChecked()
+            self.selected_item.model_item.italic = self.italic_button.isChecked()
+            self.selected_item.model_item.underline = self.underline_button.isChecked()
+            self.selected_item.update()
 
     def _on_italic_clicked(self):
         self._on_bold_clicked()
 
     def _on_underline_clicked(self):
-        if self.selected_text_item:
-            self.selected_text_item.set_underline(self.underline_button.isChecked())
+        if self.selected_item:
+            self.selected_item.set_underline(self.underline_button.isChecked())
 
     def _on_align_changed(self, index):
-        if self.selected_text_item:
+        if self.selected_item:
             alignment = self.align_combo.itemData(index)
-            self.selected_text_item.set_alignment(alignment)
+            self.selected_item.set_alignment(alignment)
 
     def _rotate_selected_item(self, angle):
-        if self.selected_text_item:
-            current_angle = self.selected_text_item.rotation() if hasattr(self.selected_text_item, 'rotation') else 0
-            self.selected_text_item.setRotation(current_angle + angle)
+        if self.selected_item:
+            current_angle = self.selected_item.rotation() if hasattr(self.selected_item, 'rotation') else 0
+            self.selected_item.setRotation(current_angle + angle)
 
     def _change_selected_text_size(self, delta):
-        if self.selected_text_item and hasattr(self.selected_text_item.model_item, 'taille_police_pt'):
-            current_size = self.selected_text_item.model_item.taille_police_pt
+        if self.selected_item and hasattr(self.selected_item.model_item, 'taille_police_pt'):
+            current_size = self.selected_item.model_item.taille_police_pt
             new_size = max(6, min(200, current_size + delta))
-            self.selected_text_item.model_item.taille_police_pt = new_size
+            self.selected_item.model_item.taille_police_pt = new_size
             self.font_size_spinbox.blockSignals(True)
             self.font_size_spinbox.setValue(new_size)
             self.font_size_spinbox.blockSignals(False)
-            self.selected_text_item.update()
+            self.selected_item.update()
 
     def _set_selected_text_size(self, value):
-        if self.selected_text_item and hasattr(self.selected_text_item.model_item, 'taille_police_pt'):
-            self.selected_text_item.model_item.taille_police_pt = value
-            self.selected_text_item.update()
+        if self.selected_item and hasattr(self.selected_item.model_item, 'taille_police_pt'):
+            self.selected_item.model_item.taille_police_pt = value
+            self.selected_item.update()
 
     def _on_add_image_clicked(self):
-        dialog = ImageSelectionDialog(self.imported_images, self)
+        dialog = ImageSelectionDialog(self)
         if dialog.exec_() == QDialog.Accepted:
             img_path = dialog.get_selected_image()
             print(f"[DEBUG] Image sélectionnée : {img_path}")

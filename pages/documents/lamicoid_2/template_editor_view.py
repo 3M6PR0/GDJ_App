@@ -97,6 +97,7 @@ class TemplateEditorView(QGraphicsView):
     Vue d'édition visuelle pour un TemplateLamicoid.
     """
     text_item_selected = pyqtSignal(bool, object)
+    element_selected = pyqtSignal(bool, object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -258,12 +259,23 @@ class TemplateEditorView(QGraphicsView):
             item.signal_helper.element_selected.connect(
                 lambda selected_item: self.text_item_selected.emit(bool(selected_item), selected_item)
             )
+            item.signal_helper.element_selected.connect(
+                lambda selected_item: self.element_selected.emit(bool(selected_item), selected_item)
+            )
             self._scene.addItem(item)
         elif hasattr(element, 'type') and getattr(element, 'type', None) == 'image':
             item = ImageItem(element)
             pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
             pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
             item.setPos(pos_x_px, pos_y_px)
+            if hasattr(element, '_just_added'):
+                delattr(element, '_just_added')
+            item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+            item.setFlag(QGraphicsItem.ItemIsMovable, True)
+            # Connecter le signal de sélection pour les images
+            item.signal_helper.element_selected.connect(
+                lambda selected_item: self.element_selected.emit(bool(selected_item), selected_item)
+            )
             self._scene.addItem(item)
 
     def add_element_to_scene(self, element: ElementTemplateBase):
@@ -288,6 +300,9 @@ class TemplateEditorView(QGraphicsView):
             item.signal_helper.element_selected.connect(
                 lambda selected_item: self.text_item_selected.emit(bool(selected_item), selected_item)
             )
+            item.signal_helper.element_selected.connect(
+                lambda selected_item: self.element_selected.emit(bool(selected_item), selected_item)
+            )
             self._scene.addItem(item)
         elif hasattr(element, 'type') and getattr(element, 'type', None) == 'image':
             item = ImageItem(element)
@@ -296,6 +311,12 @@ class TemplateEditorView(QGraphicsView):
             item.setPos(pos_x_px, pos_y_px)
             if hasattr(element, '_just_added'):
                 delattr(element, '_just_added')
+            item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+            item.setFlag(QGraphicsItem.ItemIsMovable, True)
+            # Connecter le signal de sélection pour les images
+            item.signal_helper.element_selected.connect(
+                lambda selected_item: self.element_selected.emit(bool(selected_item), selected_item)
+            )
             self._scene.addItem(item)
             
         # Ajuster la vue pour inclure le nouvel élément

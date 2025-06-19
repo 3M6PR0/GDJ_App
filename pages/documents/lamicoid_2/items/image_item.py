@@ -1,8 +1,12 @@
 from PyQt5.QtWidgets import QGraphicsItem
 from PyQt5.QtGui import QPixmap, QPainter, QImage
-from PyQt5.QtCore import QRectF, Qt, QSizeF, QPointF
+from PyQt5.QtCore import QRectF, Qt, QSizeF, QPointF, QObject, pyqtSignal
 from .base_item import EditableItemBase
 from models.documents.lamicoid_2.elements import ElementImage
+
+class ImageSignalHelper(QObject):
+    """Helper pour émettre des signaux depuis ImageItem."""
+    element_selected = pyqtSignal(object)
 
 class ImageItem(EditableItemBase):
     def __init__(self, element_image: ElementImage, parent: QGraphicsItem = None):
@@ -11,9 +15,12 @@ class ImageItem(EditableItemBase):
         self.setRect(0, 0, element_image.largeur_mm, element_image.hauteur_mm)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
+        
+        # Créer le signal helper
+        self.signal_helper = ImageSignalHelper()
 
     def paint(self, painter: QPainter, option, widget=None):
-        super().paint(painter, option, widget)
+        # Dessiner d'abord l'image en arrière-plan
         if not self.pixmap.isNull():
             # Le rectangle englobant de l'item, qui peut être déformé.
             bounding_rect = self.rect()
@@ -41,6 +48,9 @@ class ImageItem(EditableItemBase):
             painter.setPen(Qt.red)
             painter.drawRect(self.rect())
             painter.drawText(self.rect(), Qt.AlignCenter, "Image non trouvée")
+
+        # Dessiner ensuite la bordure et les poignées de sélection (en premier plan)
+        super().paint(painter, option, widget)
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
         """Surcharge pour mettre à jour le modèle après un déplacement ou redimensionnement."""
@@ -94,8 +104,8 @@ class ImageItem(EditableItemBase):
                 self.model_item.x_mm = x_mm
                 self.model_item.y_mm = y_mm
         elif change == QGraphicsItem.ItemSelectedChange:
-            # Optionnel : gérer la sélection si nécessaire
-            pass
+            # Émettre le signal de sélection
+            self.signal_helper.element_selected.emit(self if value else None)
         return super().itemChange(change, value)
 
     def interactive_resize(self, mouse_pos: QPointF):

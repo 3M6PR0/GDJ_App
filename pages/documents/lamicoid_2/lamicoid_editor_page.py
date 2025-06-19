@@ -25,8 +25,7 @@ class LamicoidEditorPage(QWidget):
         self.setObjectName("LamicoidEditorPage")
         
         self.project_variables = [] # Initialiser la liste
-        self.current_template = TemplateLamicoid(template_id="virtual", nom_template="Édition en cours")
-        self.imported_images = []  # Liste des chemins d'images importées
+        self.current_template = None
         
         self._init_ui()
         self._connect_signals()
@@ -353,7 +352,7 @@ class LamicoidEditorPage(QWidget):
             print("[DEBUG] Pas de template courant")
             return
         print("[DEBUG] Ouverture du dialog ImageSelectionDialog...")
-        dialog = ImageSelectionDialog(self.imported_images, self)
+        dialog = ImageSelectionDialog(self)
         if dialog.exec_() == QDialog.Accepted:
             img_path = dialog.get_selected_image()
             print(f"[DEBUG] Image sélectionnée : {img_path}")
