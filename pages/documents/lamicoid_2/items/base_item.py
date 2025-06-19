@@ -1,7 +1,8 @@
 import logging
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsItem, QStyle
-from PyQt5.QtCore import Qt, QRectF, QPointF
-from PyQt5.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath
+from PyQt5.QtCore import Qt, QRectF, QPointF, QSizeF
+from PyQt5.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath, QTransform
+import math
 
 from models.documents.lamicoid_2.elements import ElementTemplateBase
 
@@ -20,6 +21,8 @@ class EditableItemBase(QGraphicsRectItem):
         self.current_handle = None
         self.mouse_press_pos = None
         self.mouse_press_rect = None
+        self.mouse_press_item_pos = None
+        self.mouse_press_pos_scene = None
 
         self.setAcceptHoverEvents(True)
         
@@ -77,45 +80,31 @@ class EditableItemBase(QGraphicsRectItem):
                 painter.drawEllipse(rect)
 
     def itemChange(self, change, value):
-        """Appelé lorsque l'état de l'item change, notamment la sélection."""
+        """Appelé lorsque l'état de l'item change. Gère la sélection et les contraintes de position."""
         if change == QGraphicsItem.ItemSelectedChange:
             self.update_selection_visuals(bool(value))
-
-        elif change == QGraphicsItem.ItemPositionChange and self.scene() and self.scene().views():
-            view = self.scene().views()[0]
-            if not hasattr(view, 'content_rect_px'):
-                return self._snap_point_to_grid(value)
-
-            content_rect = view.content_rect_px
-            if content_rect.isEmpty():
-                 return self._snap_point_to_grid(value)
-
-            # Magnétiser la position proposée
+        
+        elif change == QGraphicsItem.ItemPositionChange and self.scene():
+            # C'est ici que la magie opère.
+            # 'value' est la nouvelle position proposée par Qt.
+            # Nous la modifions et la retournons.
+            
+            # 1. Magnétiser à la grille
             snapped_pos = self._snap_point_to_grid(value)
-            current_rect_local = self.rect()
             
-            # Rectangle de l'item proposé dans les coordonnées de la scène
-            proposed_item_scene_rect = current_rect_local.translated(snapped_pos)
+            # 2. Contraindre aux marges
+            view = self.scene().views()[0]
+            content_rect = None
+            if hasattr(view, 'get_margin_scene_rect'):
+                content_rect = view.get_margin_scene_rect()
 
-            # Annuler le mouvement si l'item est plus grand que la zone de contenu
-            if proposed_item_scene_rect.width() > content_rect.width() or \
-               proposed_item_scene_rect.height() > content_rect.height():
-                return self.pos()
+            if not content_rect or content_rect.isEmpty():
+                return snapped_pos # Pas de contrainte, on retourne juste la position magnétisée
 
-            # Contraindre la position pour que le rectangle de l'item reste dans les limites
-            constrained_pos = snapped_pos
-            if proposed_item_scene_rect.left() < content_rect.left():
-                constrained_pos.setX(content_rect.left() - current_rect_local.left())
-            elif proposed_item_scene_rect.right() > content_rect.right():
-                constrained_pos.setX(content_rect.right() - current_rect_local.right())
-                
-            if proposed_item_scene_rect.top() < content_rect.top():
-                constrained_pos.setY(content_rect.top() - current_rect_local.top())
-            elif proposed_item_scene_rect.bottom() > content_rect.bottom():
-                constrained_pos.setY(content_rect.bottom() - current_rect_local.bottom())
-                
+            # Appliquer la contrainte universelle
+            constrained_pos = self._constrain_rotated_item_to_boundary(snapped_pos, content_rect)
             return constrained_pos
-            
+
         return super().itemChange(change, value)
 
     def update_selection_visuals(self, is_selected: bool):
@@ -147,36 +136,40 @@ class EditableItemBase(QGraphicsRectItem):
         """Change le curseur si la souris est sur une poignée."""
         handle = self.handle_at(event.pos())
         if handle:
+            rotation = self.rotation()
+
+            # Inverser les curseurs pour les rotations de 90/270 degrés
+            swap_cursors = (abs(rotation - 90) < 1) or (abs(rotation - 270) < 1)
+
             if handle in ['top_left', 'bottom_right']:
-                self.setCursor(Qt.SizeFDiagCursor)
-            else:
-                self.setCursor(Qt.SizeBDiagCursor)
+                self.setCursor(Qt.SizeBDiagCursor if swap_cursors else Qt.SizeFDiagCursor)
+            elif handle in ['top_right', 'bottom_left']:
+                self.setCursor(Qt.SizeFDiagCursor if swap_cursors else Qt.SizeBDiagCursor)
         else:
             self.setCursor(Qt.ArrowCursor)
         super().hoverMoveEvent(event)
     
     def mousePressEvent(self, event):
-        """Initialise le redimensionnement si on clique sur une poignée."""
+        """Initialise le redimensionnement ou le déplacement."""
         self.current_handle = self.handle_at(event.pos())
         if self.current_handle:
-            self.mouse_press_pos = event.pos()
             self.mouse_press_rect = self.rect()
+            self.mouse_press_pos = event.pos()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        """Effectue le redimensionnement si une poignée est sélectionnée."""
+        """Effectue le redimensionnement ou délègue le déplacement à la classe de base."""
         if self.current_handle:
             self.interactive_resize(event.pos())
         else:
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        """Finalise le redimensionnement."""
-        super().mouseReleaseEvent(event)
+        """Finalise l'opération."""
         self.current_handle = None
-        self.mouse_press_pos = None
         self.mouse_press_rect = None
-        self.update()
+        self.mouse_press_pos = None
+        super().mouseReleaseEvent(event)
 
     def handle_at(self, pos: QPointF):
         """Retourne la poignée à une position donnée, ou None."""
@@ -273,29 +266,69 @@ class EditableItemBase(QGraphicsRectItem):
         if final_rect.height() < min_size:
             final_rect.setHeight(min_size)
 
-        # 5. Vérifier que le rectangle final reste dans les limites de la zone de contenu
-        final_scene_rect = self.mapRectToScene(final_rect)
-        if final_scene_rect.left() < content_rect.left():
-            # Ajuster la position pour rester dans les limites
-            offset_x = content_rect.left() - final_scene_rect.left()
-            final_rect.translate(offset_x, 0)
-        if final_scene_rect.right() > content_rect.right():
-            # Ajuster la position pour rester dans les limites
-            offset_x = content_rect.right() - final_scene_rect.right()
-            final_rect.translate(offset_x, 0)
-        if final_scene_rect.top() < content_rect.top():
-            # Ajuster la position pour rester dans les limites
-            offset_y = content_rect.top() - final_scene_rect.top()
-            final_rect.translate(0, offset_y)
-        if final_scene_rect.bottom() > content_rect.bottom():
-            # Ajuster la position pour rester dans les limites
-            offset_y = content_rect.bottom() - final_scene_rect.bottom()
-            final_rect.translate(0, offset_y)
+        # 5. Vérifier que le nouveau rectangle, une fois roté, reste dans les limites.
+        #    On utilise la même logique de transformation que pour les contraintes de déplacement.
+        transform = QTransform()
+        origin = self.transformOriginPoint()
+        transform.translate(origin.x(), origin.y())
+        transform.rotate(self.rotation())
+        transform.translate(-origin.x(), -origin.y())
+        
+        # Le rectangle englobant de la nouvelle taille, roté, en coordonnées de scène
+        scene_bounding_rect = transform.mapRect(final_rect).translated(self.pos())
 
+        # Si le nouveau rectangle dépasse les limites, on annule le redimensionnement.
+        # C'est l'approche la plus stable.
+        if (scene_bounding_rect.left() < content_rect.left() or
+            scene_bounding_rect.right() > content_rect.right() or
+            scene_bounding_rect.top() < content_rect.top() or
+            scene_bounding_rect.bottom() > content_rect.bottom()):
+            return # Annuler le redimensionnement
+
+        # Si tout est bon, on applique le nouveau rectangle.
         self.setRect(final_rect)
+        self.setTransformOriginPoint(final_rect.center()) # Assurer l'origine pour la rotation
         self.update_handles_pos()
         self.update()
 
     def get_model_id(self) -> str:
         """Retourne l'ID du modèle de données associé."""
         return self.model_item.element_id 
+
+    def _constrain_rotated_item_to_boundary(self, proposed_pos: QPointF, content_rect: QRectF) -> QPointF:
+        """Contraint un élément (roté ou non) à rester dans les limites de la zone de contenu."""
+        
+        # 1. Calculer le rectangle englobant de l'item à sa position proposée DANS LA SCENE.
+        #    On utilise QTransform pour simuler la transformation que Qt applique à l'item.
+        item_local_rect = self.rect()
+        
+        transform = QTransform()
+        # La transformation se fait par rapport au point d'origine de la transformation de l'item
+        origin = self.transformOriginPoint()
+        
+        # On construit la transformation: translation vers l'origine, rotation, puis retour.
+        transform.translate(origin.x(), origin.y())
+        transform.rotate(self.rotation())
+        transform.translate(-origin.x(), -origin.y())
+        
+        # On obtient le rectangle englobant de l'item roté, mais toujours en coordonnées locales (autour de 0,0)
+        rotated_local_bounding_rect = transform.mapRect(item_local_rect)
+        
+        # On translate ce rectangle à la position proposée dans la scène pour obtenir sa position finale.
+        scene_bounding_rect = rotated_local_bounding_rect.translated(proposed_pos)
+        
+        # 2. Calculer le décalage (dx, dy) nécessaire si l'item dépasse les limites.
+        dx = 0
+        if scene_bounding_rect.left() < content_rect.left():
+            dx = content_rect.left() - scene_bounding_rect.left()
+        elif scene_bounding_rect.right() > content_rect.right():
+            dx = content_rect.right() - scene_bounding_rect.right()
+
+        dy = 0
+        if scene_bounding_rect.top() < content_rect.top():
+            dy = content_rect.top() - scene_bounding_rect.top()
+        elif scene_bounding_rect.bottom() > content_rect.bottom():
+            dy = content_rect.bottom() - scene_bounding_rect.bottom()
+            
+        # 3. Appliquer le décalage à la position proposée.
+        return proposed_pos + QPointF(dx, dy) 

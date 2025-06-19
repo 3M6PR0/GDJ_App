@@ -157,6 +157,22 @@ class TemplateEditorView(QGraphicsView):
             return QPointF(offset_x, offset_y)
         return QPointF(0, 0)
 
+    def get_margin_scene_rect(self) -> QRectF:
+        """Retourne le rectangle de la zone de marge visible (avec coins arrondis) en coordonnées de scène."""
+        if self.current_template:
+            width_px = _mm_to_pixels(self.current_template.largeur_mm)
+            height_px = _mm_to_pixels(self.current_template.hauteur_mm)
+            margin_px = _mm_to_pixels(self.current_template.marge_mm)
+            
+            # Calculer le rectangle de la marge (même logique que dans MarginAndGridItem.paint())
+            left = -width_px / 2 + margin_px
+            top = -height_px / 2 + margin_px
+            content_width = width_px - 2 * margin_px
+            content_height = height_px - 2 * margin_px
+            
+            return QRectF(left, top, content_width, content_height)
+        return QRectF()
+
     def load_template_object(self, template: TemplateLamicoid | None):
         """Charge et dessine un objet TemplateLamicoid."""
         self.current_template = template

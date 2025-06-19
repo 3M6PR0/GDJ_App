@@ -1,8 +1,8 @@
 """Définit l'item graphique pour un élément de texte."""
 
 from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem, QInputDialog, QLineEdit, QGraphicsProxyWidget
-from PyQt5.QtGui import QFont, QColor
-from PyQt5.QtCore import Qt, QObject, pyqtSignal
+from PyQt5.QtGui import QFont, QColor, QTransform
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QRectF, QPointF
 
 from models.documents.lamicoid_2.elements import ElementTexte
 from .base_item import EditableItemBase
@@ -69,6 +69,63 @@ class TexteItem(EditableItemBase):
                 self.model_item.x_mm = x_mm
                 self.model_item.y_mm = y_mm
         return super().itemChange(change, value)
+
+    def interactive_resize(self, mouse_pos: QPointF):
+        """Surcharge pour gérer le redimensionnement du texte, qui ne se fait qu'en largeur."""
+        if not self.mouse_press_rect:
+            return
+
+        self.prepareGeometryChange()
+
+        original_rect = self.mouse_press_rect
+        diff = mouse_pos - self.mouse_press_pos
+        
+        new_width = original_rect.width()
+        
+        # Modifier la largeur en fonction de la poignée tirée
+        if self.current_handle in ['top_right', 'bottom_right']:
+            new_width = original_rect.width() + diff.x()
+        elif self.current_handle in ['top_left', 'bottom_left']:
+            new_width = original_rect.width() - diff.x()
+        
+        # Appliquer une largeur minimale
+        min_width = self.handle_size * 4
+        if new_width < min_width:
+            new_width = min_width
+            
+        # Calculer la hauteur correspondante due au word wrap
+        font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
+        temp_text_item = QGraphicsTextItem(self.model_item.contenu)
+        temp_text_item.setFont(font)
+        temp_text_item.setTextWidth(new_width)
+        new_height = temp_text_item.boundingRect().height()
+
+        final_rect = QRectF(0, 0, new_width, new_height)
+        
+        # Vérifier les contraintes de marge
+        view = self.scene().views()[0]
+        content_rect = view.get_margin_scene_rect() if hasattr(view, 'get_margin_scene_rect') else None
+
+        if content_rect and not content_rect.isEmpty():
+            transform = QTransform()
+            origin = self.transformOriginPoint()
+            transform.translate(origin.x(), origin.y())
+            transform.rotate(self.rotation())
+            transform.translate(-origin.x(), -origin.y())
+            
+            scene_bounding_rect = transform.mapRect(final_rect).translated(self.pos())
+
+            if (scene_bounding_rect.left() < content_rect.left() or
+                scene_bounding_rect.right() > content_rect.right() or
+                scene_bounding_rect.top() < content_rect.top() or
+                scene_bounding_rect.bottom() > content_rect.bottom()):
+                return # Annuler le redimensionnement si ça dépasse
+
+        # Appliquer la nouvelle géométrie
+        self.setRect(final_rect)
+        self.setTransformOriginPoint(final_rect.center())
+        self.update_handles_pos()
+        self.update()
 
     def set_alignment(self, alignment):
         """Définit l'alignement du texte."""
