@@ -42,6 +42,27 @@ class ImageItem(EditableItemBase):
             painter.drawRect(self.rect())
             painter.drawText(self.rect(), Qt.AlignCenter, "Image non trouvée")
 
+    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
+        """Surcharge pour mettre à jour le modèle après un déplacement ou redimensionnement."""
+        if change == QGraphicsItem.ItemPositionHasChanged:
+            # Mettre à jour x_mm/y_mm en fonction de la position réelle de l'item dans la scène
+            scene = self.scene()
+            if scene and hasattr(scene.parent(), 'current_template') and scene.parent().current_template:
+                from pages.documents.lamicoid_2.template_editor_view import _pixels_to_mm
+                lamicoid_width = scene.parent().current_template.largeur_mm
+                lamicoid_height = scene.parent().current_template.hauteur_mm
+                # La position de l'item est relative au centre de la scène
+                pos = self.pos()
+                # On veut x_mm = (position en mm depuis le centre du lamicoid) + centre du lamicoid
+                x_mm = lamicoid_width / 2 + _pixels_to_mm(pos.x())
+                y_mm = lamicoid_height / 2 + _pixels_to_mm(pos.y())
+                self.model_item.x_mm = x_mm
+                self.model_item.y_mm = y_mm
+        elif change == QGraphicsItem.ItemSelectedChange:
+            # Optionnel : gérer la sélection si nécessaire
+            pass
+        return super().itemChange(change, value)
+
     def interactive_resize(self, mouse_pos: QPointF):
         """Surcharge pour forcer le maintien du ratio de l'image."""
         if self.pixmap.isNull() or self.pixmap.height() == 0:
@@ -87,6 +108,11 @@ class ImageItem(EditableItemBase):
 
         self.setRect(new_rect)
         self.update_handles_pos()
+        
+        # Mettre à jour les dimensions dans le modèle
+        from pages.documents.lamicoid_2.template_editor_view import _pixels_to_mm
+        self.model_item.largeur_mm = _pixels_to_mm(new_rect.width())
+        self.model_item.hauteur_mm = _pixels_to_mm(new_rect.height())
 
     def _update_bounding_box(self):
         self.setRect(0, 0, self.model_item.largeur_mm, self.model_item.hauteur_mm) 

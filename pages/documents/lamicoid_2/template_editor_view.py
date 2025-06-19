@@ -167,6 +167,27 @@ class TemplateEditorView(QGraphicsView):
         if self.current_template:
             self._draw_template()
 
+    def update_template_background(self):
+        """Met à jour seulement le fond et la grille sans recréer les éléments."""
+        if not self.current_template:
+            return
+            
+        # Supprimer seulement les éléments de fond
+        if self.lamicoid_item:
+            self._scene.removeItem(self.lamicoid_item)
+            self.lamicoid_item = None
+        if self.margin_grid_item:
+            self._scene.removeItem(self.margin_grid_item)
+            self.margin_grid_item = None
+            
+        # Redessiner le fond et la grille
+        self._draw_lamicoid_base()
+        self._draw_grid_and_margin()
+        
+        # Ajuster la vue
+        self._scene.setSceneRect(self.get_scene_items_rect())
+        self.fitInView(self.get_scene_items_rect(), Qt.KeepAspectRatio)
+
     def clear_view(self):
         """Nettoie la scène de tous les éléments."""
         self._scene.clear()
@@ -244,6 +265,42 @@ class TemplateEditorView(QGraphicsView):
             pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
             item.setPos(pos_x_px, pos_y_px)
             self._scene.addItem(item)
+
+    def add_element_to_scene(self, element: ElementTemplateBase):
+        """Ajoute un nouvel élément directement à la scène sans recréer complètement la vue."""
+        if not self.current_template:
+            return
+            
+        lamicoid_width_px = _mm_to_pixels(self.current_template.largeur_mm)
+        lamicoid_height_px = _mm_to_pixels(self.current_template.hauteur_mm)
+
+        if isinstance(element, ElementTexte):
+            item = TexteItem(element)
+            if hasattr(item, '_update_bounding_box'):
+                item._update_bounding_box()
+            pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
+            pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
+            item.setPos(pos_x_px, pos_y_px)
+            if hasattr(element, '_just_added'):
+                delattr(element, '_just_added')
+            item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+            item.setFlag(QGraphicsItem.ItemIsMovable, True)
+            item.signal_helper.element_selected.connect(
+                lambda selected_item: self.text_item_selected.emit(bool(selected_item), selected_item)
+            )
+            self._scene.addItem(item)
+        elif hasattr(element, 'type') and getattr(element, 'type', None) == 'image':
+            item = ImageItem(element)
+            pos_x_px = _mm_to_pixels(element.x_mm) - lamicoid_width_px / 2
+            pos_y_px = _mm_to_pixels(element.y_mm) - lamicoid_height_px / 2
+            item.setPos(pos_x_px, pos_y_px)
+            if hasattr(element, '_just_added'):
+                delattr(element, '_just_added')
+            self._scene.addItem(item)
+            
+        # Ajuster la vue pour inclure le nouvel élément
+        self._scene.setSceneRect(self.get_scene_items_rect())
+        self.fitInView(self.get_scene_items_rect(), Qt.KeepAspectRatio)
 
     def get_scene_items_rect(self):
         """Calcule le rectangle englobant de tous les items, avec une marge."""

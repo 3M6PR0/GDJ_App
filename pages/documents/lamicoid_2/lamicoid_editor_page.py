@@ -345,7 +345,7 @@ class LamicoidEditorPage(QWidget):
         )
         new_text_element._just_added = True
         self.current_template.elements.append(new_text_element)
-        self.editor_view.update_template_view()
+        self.editor_view.add_element_to_scene(new_text_element)
 
     def _add_image_item_to_editor(self):
         print("[DEBUG] _add_image_item_to_editor appelée")
@@ -372,7 +372,7 @@ class LamicoidEditorPage(QWidget):
                 )
                 new_image_element._just_added = True
                 self.current_template.elements.append(new_image_element)
-                self.editor_view.update_template_view()
+                self.editor_view.add_element_to_scene(new_image_element)
         else:
             print("[DEBUG] Dialog annulé ou fermé sans sélection")
 

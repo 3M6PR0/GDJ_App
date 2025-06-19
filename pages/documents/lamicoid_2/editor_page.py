@@ -332,8 +332,8 @@ class EditorPage(QWidget):
         # 2. L'ajouter à la liste d'éléments du template
         self.current_template.elements.append(new_element)
 
-        # 3. Demander à la vue de se redessiner complètement
-        self.editor_view.load_template_object(self.current_template)
+        # 3. Ajouter directement l'élément à la scène sans recréer complètement la vue
+        self.editor_view.add_element_to_scene(new_element)
 
     def set_template(self, template: TemplateLamicoid):
         """Reçoit le template à éditer et met à jour l'UI."""
@@ -360,7 +360,8 @@ class EditorPage(QWidget):
         self.current_template.marge_mm = self.margin_spinbox.value()
         self.current_template.espacement_grille_mm = self.grid_spacing_spinbox.value()
         
-        self.editor_view.load_template_object(self.current_template)
+        # Mettre à jour la vue en recréant seulement le fond et la grille, pas les éléments
+        self.editor_view.update_template_background()
 
     def _connect_signals(self):
         """Connecte les signaux des boutons."""
@@ -497,7 +498,9 @@ class EditorPage(QWidget):
             )
             new_image_element._just_added = True
             self.current_template.elements.append(new_image_element)
-            self.editor_view.load_template_object(self.current_template)
+            
+            # Ajouter directement l'élément à la scène sans recréer complètement la vue
+            self.editor_view.add_element_to_scene(new_image_element)
             print("[DEBUG] Image ajoutée au template et vue rafraîchie.")
         else:
             print("[DEBUG] Dialog annulé ou fermé sans sélection") 
