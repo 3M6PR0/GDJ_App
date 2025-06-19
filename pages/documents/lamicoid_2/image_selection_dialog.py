@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QLabel, QFileDialog, QListWidgetItem, QMessageBox
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon, QPixmap, QPainter
 from PyQt5.QtCore import Qt, QSize
 import os
 from utils.image_manager import ImageManager
@@ -8,7 +8,7 @@ class ImageSelectionDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Choisir une image")
-        self.setMinimumSize(500, 400)
+        self.resize(800, 600)  # Fenêtre plus grande
         self.image_manager = ImageManager.get_instance()
         self.selected_image = None
         self._init_ui()
@@ -21,11 +21,20 @@ class ImageSelectionDialog(QDialog):
         title_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px;")
         layout.addWidget(title_label)
         
-        # Liste des images
+        # Liste des images en mode icônes
         self.list_widget = QListWidget()
-        self.list_widget.setIconSize(QSize(64, 64))
-        self.list_widget.setSpacing(5)
+        self.list_widget.setViewMode(QListWidget.IconMode)
+        self.list_widget.setIconSize(QSize(128, 128))
+        self.list_widget.setSpacing(15)
+        self.list_widget.setResizeMode(QListWidget.Adjust) # Ajustement dynamique
+        self.list_widget.setMovement(QListWidget.Static) # Empêche le drag-drop
         layout.addWidget(self.list_widget)
+
+        # Label pour le nom du fichier sélectionné
+        self.selected_file_label = QLabel("Aucune image sélectionnée")
+        self.selected_file_label.setAlignment(Qt.AlignCenter)
+        self.selected_file_label.setStyleSheet("margin-top: 10px; font-style: italic;")
+        layout.addWidget(self.selected_file_label)
 
         # Boutons
         btn_layout = QHBoxLayout()
@@ -61,17 +70,32 @@ class ImageSelectionDialog(QDialog):
         for img_path in images:
             item = QListWidgetItem()
             
-            # Créer l'aperçu de l'image
-            pixmap = QPixmap(img_path)
-            if not pixmap.isNull():
-                # Redimensionner pour l'aperçu
-                scaled_pixmap = pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                icon = QIcon(scaled_pixmap)
+            # Créer une vignette carrée avec l'image centrée
+            original_pixmap = QPixmap(img_path)
+            if not original_pixmap.isNull():
+                icon_size = QSize(128, 128)
+                
+                # Créer un pixmap de fond carré et transparent
+                final_pixmap = QPixmap(icon_size)
+                final_pixmap.fill(Qt.transparent)
+
+                # Redimensionner l'image originale pour qu'elle tienne dans le carré
+                scaled_pixmap = original_pixmap.scaled(icon_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                
+                # Dessiner l'image redimensionnée au centre du fond
+                painter = QPainter(final_pixmap)
+                x = (icon_size.width() - scaled_pixmap.width()) / 2
+                y = (icon_size.height() - scaled_pixmap.height()) / 2
+                painter.drawPixmap(int(x), int(y), scaled_pixmap)
+                painter.end()
+
+                icon = QIcon(final_pixmap)
                 item.setIcon(icon)
             
-            # Nom du fichier
-            item.setText(os.path.basename(img_path))
+            # Ne pas afficher le texte ici, on l'affichera en bas
+            # item.setText(os.path.basename(img_path))
             item.setData(Qt.UserRole, img_path)  # Stocker le chemin complet
+            item.setToolTip(os.path.basename(img_path)) # Afficher au survol
             
             self.list_widget.addItem(item)
 
@@ -98,6 +122,13 @@ class ImageSelectionDialog(QDialog):
         has_selection = current is not None
         self.select_button.setEnabled(has_selection)
         self.delete_button.setEnabled(has_selection)
+        
+        # Mettre à jour le label du nom de fichier
+        if has_selection:
+            file_path = current.data(Qt.UserRole)
+            self.selected_file_label.setText(os.path.basename(file_path))
+        else:
+            self.selected_file_label.setText("Aucune image sélectionnée")
 
     def _on_select(self):
         """Sélectionne l'image actuelle."""
