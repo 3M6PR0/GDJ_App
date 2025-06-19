@@ -71,60 +71,59 @@ class TexteItem(EditableItemBase):
         return super().itemChange(change, value)
 
     def interactive_resize(self, mouse_pos: QPointF):
-        """Surcharge pour gérer le redimensionnement du texte, qui ne se fait qu'en largeur."""
+        """Redimensionnement libre (non proportionnel) en déplaçant les poignées."""
         if not self.mouse_press_rect:
             return
 
         self.prepareGeometryChange()
 
-        original_rect = self.mouse_press_rect
+        new_rect = QRectF(self.mouse_press_rect)
         diff = mouse_pos - self.mouse_press_pos
-        
-        new_width = original_rect.width()
-        
-        # Modifier la largeur en fonction de la poignée tirée
-        if self.current_handle in ['top_right', 'bottom_right']:
-            new_width = original_rect.width() + diff.x()
-        elif self.current_handle in ['top_left', 'bottom_left']:
-            new_width = original_rect.width() - diff.x()
-        
-        # Appliquer une largeur minimale
-        min_width = self.handle_size * 4
-        if new_width < min_width:
-            new_width = min_width
-            
-        # Calculer la hauteur correspondante due au word wrap
-        font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
-        temp_text_item = QGraphicsTextItem(self.model_item.contenu)
-        temp_text_item.setFont(font)
-        temp_text_item.setTextWidth(new_width)
-        new_height = temp_text_item.boundingRect().height()
 
-        final_rect = QRectF(0, 0, new_width, new_height)
+        # Ajuste le rectangle en fonction de la poignée déplacée
+        handle = self.current_handle
+        if handle == 'top_left':
+            new_rect.setTopLeft(self.mouse_press_rect.topLeft() + diff)
+        elif handle == 'top_right':
+            new_rect.setTopRight(self.mouse_press_rect.topRight() + diff)
+        elif handle == 'bottom_left':
+            new_rect.setBottomLeft(self.mouse_press_rect.bottomLeft() + diff)
+        elif handle == 'bottom_right':
+            new_rect.setBottomRight(self.mouse_press_rect.bottomRight() + diff)
         
+        # S'assure que le rectangle a des dimensions positives
+        final_rect = new_rect.normalized()
+
+        # Vérifier la taille minimale
+        min_size = self.handle_size * 2
+        if final_rect.width() < min_size or final_rect.height() < min_size:
+            return
+
         # Vérifier les contraintes de marge
         view = self.scene().views()[0]
-        content_rect = view.get_margin_scene_rect() if hasattr(view, 'get_margin_scene_rect') else None
+        content_rect = view.get_margin_scene_rect() if hasattr(view, 'get_margin_scene_rect') else self.scene().sceneRect()
+        
+        transform = QTransform()
+        origin = self.transformOriginPoint()
+        transform.translate(origin.x(), origin.y())
+        transform.rotate(self.rotation())
+        transform.translate(-origin.x(), -origin.y())
+        scene_bounding_rect = transform.mapRect(final_rect).translated(self.pos())
 
-        if content_rect and not content_rect.isEmpty():
-            transform = QTransform()
-            origin = self.transformOriginPoint()
-            transform.translate(origin.x(), origin.y())
-            transform.rotate(self.rotation())
-            transform.translate(-origin.x(), -origin.y())
-            
-            scene_bounding_rect = transform.mapRect(final_rect).translated(self.pos())
+        if (scene_bounding_rect.left() < content_rect.left() or
+            scene_bounding_rect.right() > content_rect.right() or
+            scene_bounding_rect.top() < content_rect.top() or
+            scene_bounding_rect.bottom() > content_rect.bottom()):
+            return
 
-            if (scene_bounding_rect.left() < content_rect.left() or
-                scene_bounding_rect.right() > content_rect.right() or
-                scene_bounding_rect.top() < content_rect.top() or
-                scene_bounding_rect.bottom() > content_rect.bottom()):
-                return # Annuler le redimensionnement si ça dépasse
-
-        # Appliquer la nouvelle géométrie
+        # Appliquer les changements
         self.setRect(final_rect)
-        self.setTransformOriginPoint(final_rect.center())
         self.update_handles_pos()
+        
+        # Mettre à jour le modèle
+        from pages.documents.lamicoid_2.template_editor_view import _pixels_to_mm
+        self.model_item.largeur_mm = _pixels_to_mm(final_rect.width())
+        self.model_item.hauteur_mm = _pixels_to_mm(final_rect.height())
         self.update()
 
     def set_alignment(self, alignment):
