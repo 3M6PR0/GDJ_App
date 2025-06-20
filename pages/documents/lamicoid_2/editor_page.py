@@ -473,7 +473,7 @@ class EditorPage(QWidget):
         try:
             # Le chemin est maintenant géré via le module paths
             save_dir = paths.get_path('lamicoid_templates')
-            self.current_template.save(save_dir)
+            self.current_template.save(save_dir, self.current_template.nom_template)
             QMessageBox.information(self, "Succès", f"Template '{self.current_template.nom_template}' sauvegardé avec succès.")
         except ValueError as ve:
             logger.error(f"Erreur de validation lors de la sauvegarde : {ve}")

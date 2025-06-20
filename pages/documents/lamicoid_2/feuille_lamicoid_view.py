@@ -1,11 +1,15 @@
 """Définit le widget d'affichage pour la FeuilleLamicoid."""
 
 import logging
-from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsRectItem
+from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsRectItem, QGraphicsItemGroup
 from PyQt5.QtCore import Qt, QLineF
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen
 
 from models.documents.lamicoid_2.feuille_lamicoid import FeuilleLamicoid
+from .items.texte_item import TexteItem
+from .items.image_item import ImageItem
+from models.documents.lamicoid_2.template_lamicoid import TemplateLamicoid
+from models.documents.lamicoid_2.elements import ElementTexte, ElementImage
 
 logger = logging.getLogger('GDJ_App')
 
@@ -147,4 +151,51 @@ class FeuilleLamicoidView(QGraphicsView):
 
     def resizeEvent(self, event):
         """Ajuste la vue lorsque le widget est redimensionné."""
-        super().resizeEvent(event) 
+        super().resizeEvent(event)
+
+    def add_lamicoid_from_template(self, template: TemplateLamicoid):
+        """
+        Crée un groupe d'items graphiques à partir d'un template et l'ajoute à la scène.
+        """
+        # Créer le groupe qui contiendra tous les éléments du lamicoid
+        lamicoid_group = QGraphicsItemGroup()
+        lamicoid_group.setFlag(QGraphicsItemGroup.ItemIsMovable)
+        lamicoid_group.setFlag(QGraphicsItemGroup.ItemIsSelectable)
+        
+        # Créer le fond du lamicoid
+        fond_rect = QGraphicsRectItem(0, 0, template.largeur_mm, template.hauteur_mm)
+        fond_rect.setBrush(QColor("white"))
+        fond_rect.setPen(QPen(QColor("black"), 0.5))
+        lamicoid_group.addToGroup(fond_rect)
+        
+        # Ajouter les éléments du template au groupe
+        for element in template.elements:
+            item = None
+            if isinstance(element, ElementTexte):
+                item = TexteItem(element, use_mm=True) # Préciser que les unités sont déjà en mm
+            elif isinstance(element, ElementImage):
+                item = ImageItem(element, use_mm=True) # Préciser que les unités sont déjà en mm
+
+            if item:
+                # La position de l'élément est déjà relative au coin sup-gauche du lamicoid
+                item.setPos(element.x_mm, element.y_mm)
+                lamicoid_group.addToGroup(item)
+                
+        # Ajouter le groupe complet à la scène
+        self.scene.addItem(lamicoid_group)
+
+    def display_feuille(self, feuille_lamicoid: FeuilleLamicoid):
+        """Affiche le contenu d'un objet FeuilleLamicoid."""
+        self.feuille_lamicoid = feuille_lamicoid
+        self.scene.clear()
+        
+        self.scene.setSceneRect(0, 0, feuille_lamicoid.largeur_feuille_mm, feuille_lamicoid.hauteur_feuille_mm)
+
+        self.sheet_item = SheetItem(0, 0, feuille_lamicoid.largeur_feuille_mm, feuille_lamicoid.hauteur_feuille_mm)
+        self.sheet_item.set_background_color(QColor("#B0B0B0")) # Gris par défaut
+        self.sheet_item.setPen(QPen(Qt.black, 1, Qt.SolidLine))
+        self.scene.addItem(self.sheet_item)
+        
+        logger.info(f"Affichage de la feuille {feuille_lamicoid.largeur_feuille_mm}x{feuille_lamicoid.hauteur_feuille_mm} mm avec grille.")
+        
+        self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio) 

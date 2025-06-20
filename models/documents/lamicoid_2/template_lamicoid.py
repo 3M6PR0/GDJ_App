@@ -7,7 +7,31 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from .elements import ElementTemplateBase, ElementImage
+from .elements import ElementTemplateBase, ElementImage, ElementTexte
+
+def _create_element_from_dict(elem_data: dict) -> ElementTemplateBase | None:
+    """Crée une instance d'élément à partir d'un dictionnaire de données."""
+    from .elements import ELEMENT_TYPE_MAP
+    import inspect
+
+    elem_type = elem_data.get('type')
+    if not elem_type:
+        return None
+        
+    element_class = ELEMENT_TYPE_MAP.get(elem_type)
+    if not element_class:
+        return None
+    
+    # Filtre les clés du dictionnaire pour ne garder que celles qui
+    # correspondent aux paramètres du constructeur de la classe.
+    sig = inspect.signature(element_class.__init__)
+    known_args = {k: v for k, v in elem_data.items() if k in sig.parameters}
+    
+    try:
+        return element_class(**known_args)
+    except (TypeError, KeyError) as e:
+        print(f"Erreur à la création de l'élément '{elem_type}': {e}")
+        return None
 
 @dataclass
 class TemplateLamicoid:
@@ -20,6 +44,17 @@ class TemplateLamicoid:
     marge_mm: float = 2.0
     espacement_grille_mm: float = 1.0
     elements: List[ElementTemplateBase] = field(default_factory=list) 
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Crée une instance de TemplateLamicoid à partir d'un dictionnaire."""
+        elements_data = data.pop('elements', [])
+        elements = [_create_element_from_dict(elem_data) for elem_data in elements_data if elem_data]
+        
+        # Filtre les None au cas où certains éléments n'aient pas pu être créés
+        valid_elements = [elem for elem in elements if elem is not None]
+        
+        return cls(elements=valid_elements, **data)
 
     def to_dict(self):
         """Convertit l'objet TemplateLamicoid en dictionnaire."""
@@ -34,56 +69,50 @@ class TemplateLamicoid:
             "elements": [elem.to_dict() for elem in self.elements]
         }
 
-    def save(self, directory: str):
+    def save(self, directory: str, template_name: str):
         """
         Sauvegarde le template sous forme de package .tlj (un fichier zip).
         Le package contient le fichier JSON du template et une copie de toutes les images utilisées.
         """
-        if not self.nom_template:
-            raise ValueError("Le nom du template ne peut pas être vide.")
-
-        safe_filename = "".join(c for c in self.nom_template if c.isalnum() or c in (' ', '_')).rstrip()
-        final_tlj_path = Path(directory) / f"{safe_filename}.tlj"
+        dest_dir = Path(directory)
+        # S'assurer que le répertoire de destination existe
+        dest_dir.mkdir(parents=True, exist_ok=True)
         
-        # Utiliser un répertoire temporaire pour assembler le contenu du package
+        # Nettoyer le nom du fichier pour éviter les caractères invalides
+        safe_filename = "".join(c for c in template_name if c.isalnum() or c in (' ', '_')).rstrip()
+        final_tlj_path = dest_dir / f"{safe_filename}.tlj"
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            package_dir = Path(tmpdir) / "template_package"
-            package_dir.mkdir()
+            tmpdir_path = Path(tmpdir)
+            images_dir = tmpdir_path / 'images'
+            images_dir.mkdir()
 
-            template_data = self.to_dict()
-            images_to_copy = {}
-
-            # 1. Identifier les images, les copier et mettre à jour leurs chemins
+            template_data_for_json = self.to_dict()
+            template_data_for_json['nom_template'] = template_name # S'assurer que le nom est à jour
+            
             for i, element in enumerate(self.elements):
                 if isinstance(element, ElementImage):
                     original_image_path = Path(element.chemin_fichier)
                     if original_image_path.exists():
-                        new_filename = original_image_path.name
-                        # Gérer les doublons de noms de fichiers
-                        if new_filename in images_to_copy.values():
-                            new_filename = f"{i}_{new_filename}"
+                        destination_image_path = images_dir / original_image_path.name
+                        shutil.copy(original_image_path, destination_image_path)
                         
-                        images_to_copy[original_image_path] = new_filename
-                        # Mettre à jour le chemin dans le dictionnaire qui sera sauvegardé
-                        template_data['elements'][i]['chemin_fichier'] = new_filename
-            
-            # Copier les fichiers image dans le dossier du package
-            for src, dest_filename in images_to_copy.items():
-                shutil.copy(src, package_dir / dest_filename)
+                        relative_path = Path('images') / original_image_path.name
+                        template_data_for_json['elements'][i]['chemin_fichier'] = relative_path.as_posix()
 
-            # 2. Sauvegarder le fichier JSON du template dans le package
-            json_path = package_dir / "template.json"
+            json_path = tmpdir_path / "template.json"
             with open(json_path, 'w', encoding='utf-8') as f:
-                json.dump(template_data, f, indent=4, ensure_ascii=False)
+                json.dump(template_data_for_json, f, indent=4, ensure_ascii=False)
             
-            # 3. Créer l'archive zip
-            archive_path_no_ext = Path(tmpdir) / safe_filename
-            shutil.make_archive(str(archive_path_no_ext), 'zip', str(package_dir))
+            # Créer l'archive dans le même dossier temporaire pour éviter les problèmes de droits
+            archive_base_path = tmpdir_path / safe_filename
+            shutil.make_archive(str(archive_base_path), 'zip', str(tmpdir_path))
             
-            # 4. Renommer le .zip en .tlj et le déplacer vers la destination finale
-            zip_path = archive_path_no_ext.with_suffix('.zip')
+            zip_file = archive_base_path.with_suffix('.zip')
+            
             if final_tlj_path.exists():
-                final_tlj_path.unlink() # Supprimer l'ancien fichier s'il existe
-            shutil.move(str(zip_path), str(final_tlj_path))
-
+                final_tlj_path.unlink()
+                
+            shutil.move(str(zip_file), str(final_tlj_path))
+            
         print(f"Template sauvegardé avec succès sous : {final_tlj_path}") 

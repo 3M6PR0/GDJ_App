@@ -4,10 +4,11 @@
 import logging
 import uuid
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, 
-                             QFrame, QStackedWidget, QComboBox, QSizePolicy, QAction, QToolBar)
+                             QFrame, QStackedWidget, QComboBox, QSizePolicy, QAction, QToolBar, QListWidget, QGroupBox)
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QIcon, QColor, QPixmap
 from typing import Dict, Optional
+import os
 
 from utils.icon_loader import get_icon_path
 from ui.components.frame import Frame
@@ -16,6 +17,8 @@ from models.documents.lamicoid_2.feuille_lamicoid import FeuilleLamicoid
 from .lamicoid_2.editor_page import EditorPage
 from .lamicoid_2.feuille_lamicoid_view import FeuilleLamicoidView
 from models.documents.lamicoid_2.template_lamicoid import TemplateLamicoid
+from utils.template_loader import load_template_from_tlj
+from utils import paths
 
 logger = logging.getLogger('GDJ_App')
 
@@ -53,6 +56,9 @@ class Lamicoid2Page(QWidget):
         # Réactivation de la création du template
         self._create_default_template()
 
+        # Charger la liste des templates au démarrage
+        self.load_template_list()
+
     def showEvent(self, event):
         """Appelé lorsque le widget est affiché."""
         super().showEvent(event)
@@ -82,6 +88,17 @@ class Lamicoid2Page(QWidget):
         left_layout.addWidget(QLabel("Inserer un lamicoid"))
         self.new_lamicoid_button = QPushButton("Nouveau Lamicoid")
         left_layout.addWidget(self.new_lamicoid_button)
+        
+        # --- Section pour la liste des templates ---
+        template_list_group = QGroupBox("Templates Disponibles")
+        template_list_layout = QVBoxLayout()
+        self.template_list = QListWidget()
+        self.template_list.setToolTip("Double-cliquez pour ajouter un template à la feuille.")
+        template_list_layout.addWidget(self.template_list)
+        template_list_group.setLayout(template_list_layout)
+        
+        left_layout.addWidget(template_list_group)
+        
         left_layout.addStretch(1)
         left_panel_content_layout.addWidget(left_content_widget)
 
@@ -164,6 +181,10 @@ class Lamicoid2Page(QWidget):
         """Connecte les signaux pour la navigation et les actions."""
         self.new_lamicoid_button.clicked.connect(lambda: self.stack.setCurrentIndex(1))
         self.editor_page.cancel_button.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        self.editor_page.save_button.clicked.connect(self._on_template_saved)
+
+        # Connexion pour la liste des templates
+        self.template_list.itemDoubleClicked.connect(self.on_template_double_clicked)
 
         self.zoom_in_button.clicked.connect(self.feuille_view.zoom_in)
         self.zoom_out_button.clicked.connect(self.feuille_view.zoom_out)
@@ -175,6 +196,39 @@ class Lamicoid2Page(QWidget):
         color_name = self.color_combo.itemData(index, Qt.UserRole)
         if color_name:
             self.feuille_view.set_sheet_color(color_name)
+
+    def _on_template_saved(self):
+        """Appelé lorsque le template est sauvegardé dans l'éditeur."""
+        # Revenir à la vue de la feuille
+        self.stack.setCurrentIndex(0)
+        # Rafraîchir la liste des templates
+        self.load_template_list()
+
+    def on_template_double_clicked(self, item):
+        """Charge un template et l'ajoute à la feuille."""
+        template_name = item.text()
+        template_path = os.path.join(self.templates_dir, template_name)
+        
+        loaded_template = load_template_from_tlj(template_path)
+        
+        if loaded_template:
+            logger.info(f"Template '{template_name}' chargé. Ajout à la feuille.")
+            self.feuille_view.add_lamicoid_from_template(loaded_template)
+        else:
+            logger.error(f"Échec du chargement du template '{template_name}'.")
+
+    def load_template_list(self):
+        """Charge et affiche la liste des fichiers .tlj disponibles."""
+        self.templates_dir = paths.get_path('lamicoid_templates')
+        if not os.path.exists(self.templates_dir):
+            os.makedirs(self.templates_dir)
+        
+        try:
+            templates = [f for f in os.listdir(self.templates_dir) if f.endswith('.tlj')]
+            self.template_list.clear()
+            self.template_list.addItems(templates)
+        except Exception as e:
+            logger.error(f"Impossible de lister les templates dans {self.templates_dir}: {e}")
 
     def get_document_data(self):
         """Méthode pour que la fenêtre parente puisse récupérer les données."""

@@ -15,24 +15,29 @@ class TexteItem(EditableItemBase):
     Un item éditable qui affiche un élément de texte.
     La boîte englobante est gérée par EditableItemBase.
     """
-    def __init__(self, element_texte: ElementTexte, parent: QGraphicsItem = None):
-        super().__init__(model_item=element_texte, parent=parent)
+    def __init__(self, model_item: ElementTexte, use_mm=False, parent: QGraphicsItem = None):
+        super().__init__(model_item=model_item, parent=parent)
         self.signal_helper = SelectionSignalHelper()
         self.setPos(self.model_item.x_mm, self.model_item.y_mm)
         
-        # Mettre à jour la géométrie de la boîte en fonction du texte
+        self.use_mm = use_mm # Indique si les dimensions sont en mm ou doivent être converties
         self._update_bounding_box()
+        self.setTransformOriginPoint(self.boundingRect().center())
 
     def _update_bounding_box(self):
-        """Ajuste le rectangle de l'item à la taille du texte, en tenant compte du word wrap."""
-        font = QFont(self.model_item.nom_police, self.model_item.taille_police_pt)
-        # Largeur cible = largeur actuelle de l'élément
-        width = self.rect().width() if self.rect().width() > 0 else 100
-        temp_text_item = QGraphicsTextItem(self.model_item.contenu)
-        temp_text_item.setFont(font)
-        temp_text_item.setTextWidth(width)
-        text_rect = temp_text_item.boundingRect()
-        self.setRect(0, 0, width, text_rect.height())
+        """Met à jour le rectangle de l'item en fonction du modèle."""
+        if self.use_mm:
+            width = self.model_item.largeur_mm
+            height = self.model_item.hauteur_mm
+        else:
+            from pages.documents.lamicoid_2.template_editor_view import _mm_to_pixels
+            width = _mm_to_pixels(self.model_item.largeur_mm)
+            height = _mm_to_pixels(self.model_item.hauteur_mm)
+            
+        self.setRect(0, 0, width, height)
+        # S'assurer que les poignées sont mises à jour si elles existent
+        if hasattr(self, 'update_handles_pos'):
+            self.update_handles_pos()
 
     def paint(self, painter, option, widget=None):
         # 1. Laisser la classe de base dessiner le cadre de sélection si nécessaire

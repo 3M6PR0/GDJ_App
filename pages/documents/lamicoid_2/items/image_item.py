@@ -9,15 +9,32 @@ class ImageSignalHelper(QObject):
     element_selected = pyqtSignal(object)
 
 class ImageItem(EditableItemBase):
-    def __init__(self, element_image: ElementImage, parent: QGraphicsItem = None):
+    """Item pour afficher une image avec des poignées de redimensionnement."""
+    def __init__(self, element_image: ElementImage, use_mm=False, parent: QGraphicsItem = None):
         super().__init__(model_item=element_image, parent=parent)
         self.pixmap = QPixmap(element_image.chemin_fichier)
         self.setRect(0, 0, element_image.largeur_mm, element_image.hauteur_mm)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
-        
-        # Créer le signal helper
         self.signal_helper = ImageSignalHelper()
+        
+        self.use_mm = use_mm
+        self._update_bounding_box()
+
+    def _update_bounding_box(self):
+        """Met à jour le rectangle de l'item en fonction du modèle."""
+        if self.use_mm:
+            width = self.model_item.largeur_mm
+            height = self.model_item.hauteur_mm
+        else:
+            from pages.documents.lamicoid_2.template_editor_view import _mm_to_pixels
+            width = _mm_to_pixels(self.model_item.largeur_mm)
+            height = _mm_to_pixels(self.model_item.hauteur_mm)
+            
+        self.setRect(0, 0, width, height)
+        # S'assurer que les poignées sont mises à jour
+        if hasattr(self, 'update_handles_pos'):
+            self.update_handles_pos()
 
     def paint(self, painter: QPainter, option, widget=None):
         # Dessiner d'abord l'image en arrière-plan
@@ -164,5 +181,9 @@ class ImageItem(EditableItemBase):
         self.model_item.largeur_mm = _pixels_to_mm(new_rect.width())
         self.model_item.hauteur_mm = _pixels_to_mm(new_rect.height())
 
-    def _update_bounding_box(self):
-        self.setRect(0, 0, self.model_item.largeur_mm, self.model_item.hauteur_mm) 
+        # Mettre à jour les coordonnées x_mm et y_mm
+        self.model_item.x_mm = self.pos().x()
+        self.model_item.y_mm = self.pos().y()
+
+        # Mettre à jour le rectangle de l'item
+        self._update_bounding_box() 

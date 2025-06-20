@@ -46,6 +46,12 @@ class ElementImage(ElementTemplateBase):
         """Sérialise l'objet en dictionnaire."""
         return asdict(self)
 
+# --- Mapper pour la désérialisation ---
+ELEMENT_TYPE_MAP = {
+    "texte": ElementTexte,
+    "image": ElementImage,
+}
+
 @dataclass
 class ElementVariable(ElementTexte):
     """

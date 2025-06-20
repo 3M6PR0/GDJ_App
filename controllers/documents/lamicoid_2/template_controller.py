@@ -11,6 +11,7 @@ from models.documents.lamicoid_2 import (
     TemplateLamicoid
 )
 from models.documents.lamicoid_2.elements import ElementTemplateBase, ElementTexte #, ElementImage, ElementVariable
+from utils import paths
 
 logger = logging.getLogger('GDJ_App')
 
@@ -191,12 +192,27 @@ class TemplateController:
         return self.templates.get(template_id)
 
     def add_or_update_template(self, template: TemplateLamicoid):
-        """Ajoute un nouveau template ou met à jour un existant."""
+        """
+        Ajoute un nouveau template ou met à jour un existant.
+        Ceci inclut la sauvegarde du fichier .tlj individuel.
+        """
         if not template.template_id:
             template.template_id = str(uuid.uuid4())
+        
+        # Le template est déjà à jour en mémoire grâce à la vue.
+        # On sauvegarde maintenant le fichier .tlj.
+        try:
+            templates_dir = paths.get_path('lamicoid_templates')
+            template.save(templates_dir, template.nom_template)
+            logger.info(f"Fichier .tlj pour '{template.nom_template}' sauvegardé dans {templates_dir}")
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde du fichier .tlj pour '{template.nom_template}': {e}", exc_info=True)
+            # On pourrait vouloir remonter l'erreur à l'utilisateur ici.
+            
         self.templates[template.template_id] = template
-        self.save_templates()
-        logger.info(f"Template '{template.nom_template}' (ID: {template.template_id}) ajouté/mis à jour.")
+        # Optionnel: sauvegarder aussi le gros fichier JSON si toujours nécessaire
+        # self.save_templates() 
+        logger.info(f"Template '{template.nom_template}' (ID: {template.template_id}) ajouté/mis à jour dans le contrôleur.")
 
     def delete_template(self, template_id: str):
         """Supprime un template par son ID."""
